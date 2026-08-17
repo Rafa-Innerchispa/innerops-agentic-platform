@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Fondos y Créditos — Ralphi IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030508;
+      --surface: rgba(255, 255, 255, 0.02);
+      --surface-card: rgba(255, 255, 255, 0.04);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-focus: rgba(139, 92, 246, 0.4);
+      --accent: #8b5cf6;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #3b82f6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 2rem;
+    }
+
+    body::before {
+      content: "";
+      position: absolute;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
+      top: -10%; right: -10%; z-index: -1; pointer-events: none;
+    }
+
+    body::after {
+      content: "";
+      position: absolute;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
+      bottom: -5%; left: -5%; z-index: -1; pointer-events: none;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+    }
+
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo-icon {
+      height: 2.75rem;
+      width: 2.75rem;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      background: linear-gradient(to right, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid var(--border);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.25);
+    }
+
+    .btn-primary:hover {
+      background: #7c3aed;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    /* Bilingual Toggle Switch */
+    .lang-toggle {
+      display: flex;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.25rem;
+    }
+
+    .lang-btn {
+      padding: 0.4rem 0.8rem;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .lang-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.6fr;
+      gap: 2rem;
+    }
+
+    .glass-card {
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #e5e7eb;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-val { font-size: 1.5rem; font-weight: 800; }
+
+    .app-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    .app-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .app-card:hover, .app-card.active {
+      border-color: var(--accent);
+      background: rgba(139, 92, 246, 0.04);
+    }
+
+    .app-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .badge-applying { background: rgba(139, 92, 246, 0.1); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.2); }
+    .badge-applied { background: rgba(59, 130, 246, 0.1); color: var(--info); border: 1px solid rgba(59, 130, 246, 0.2); }
+    .badge-pending_reply { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .badge-approved { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
+    .badge-rejected { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
+    .badge-draft { background: rgba(156, 163, 175, 0.1); color: var(--text-muted); border: 1px solid rgba(156, 163, 175, 0.2); }
+
+    .detail-section {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .field-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      color: #fff;
+      font-size: 0.875rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    option {
+      background-color: #0b0f19 !important;
+      color: #ffffff !important;
+    }
+
+    /* AI copilot panel styling */
+    .ai-copilot {
+      background: rgba(139, 92, 246, 0.02);
+      border: 1px dashed rgba(139, 92, 246, 0.25);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .ai-bubble {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      line-height: 1.45;
+      font-family: monospace;
+      color: #a7f3d0;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--text-muted);
+    }
+
+    /* Modal Form */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(8px);
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-content {
+      background: #090d14;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      max-width: 550px;
+      width: 100%;
+      padding: 2rem;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    /* Link Emails Modal */
+    .link-emails-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .link-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-top: 1rem;
+    }
+
+    .link-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .link-item:hover {
+      background: rgba(139, 92, 246, 0.08);
+      border-color: var(--accent);
+    }
+
+    .email-node {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem;
+      margin-bottom: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-section">
+      <div class="logo-icon">F</div>
+      <div>
+        <h1 id="txt-title">Control de Fondos y Créditos</h1>
+        <p id="txt-subtitle" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Gestión Inteligente de Programas de Startups</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="lang-toggle">
+        <button class="lang-btn active" id="btn-es" onclick="setLang('es')">ES</button>
+        <button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button>
+      </div>
+      <a href="http://192.168.1.4:2002/" class="btn btn-secondary" id="btn-back">◀ Panel Principal</a>
+      <button class="btn btn-primary" onclick="openAddModal()" id="btn-add">＋ Nueva Solicitud</button>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <span class="stat-label" id="lbl-total-sol">Total Solicitudes</span>
+      <span class="stat-val" id="stat-total">0</span>
+    </div>
+    <div class="stat-card" style="border-left: 2px solid var(--success);">
+      <span class="stat-label" id="lbl-total-apr">Aprobados</span>
+      <span class="stat-val" id="stat-approved">0</span>
+    </div>
+    <div class="stat-card" style="border-left: 2px solid var(--warning);">
+      <span class="stat-label" id="lbl-total-pen">Pendientes</span>
+      <span class="stat-val" id="stat-pending">0</span>
+    </div>
+    <div class="stat-card" style="border-left: 2px solid var(--info);">
+      <span class="stat-label">Dominio Canal</span>
+      <span class="stat-val text-info">innerchispa.us</span>
+    </div>
+  </div>
+
+  <div class="dashboard-grid">
+    <!-- Left: Applications List -->
+    <div class="glass-card">
+      <h3 class="card-title" id="lbl-active-apps">Solicitudes</h3>
+      <div class="app-list" id="app-list-container">
+        <div class="empty-state">Cargando programas...</div>
+      </div>
+    </div>
+
+    <!-- Right: Detail Form & AI panel -->
+    <div class="glass-card" style="margin-bottom: 0;">
+      <h3 class="card-title" id="lbl-details-panel">Formulario de Gestión & Copiloto IA</h3>
+      <div id="details-container">
+        <div class="empty-state" id="lbl-select-prompt">Selecciona un programa para editar sus detalles, pitch corporativo o redactar cartas mediante el copiloto de IA local.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Application -->
+  <div class="modal" id="add-modal">
+    <div class="modal-content">
+      <h3 class="card-title" id="lbl-modal-title" style="margin-bottom: 1.5rem;">Registrar Nueva Solicitud</h3>
+      <form id="add-form" onsubmit="submitAdd(event)">
+        <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom:1.5rem;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label for="f-program">Programa / Concurso</label>
+              <input type="text" id="f-program" required>
+            </div>
+            <div class="form-group">
+              <label for="f-provider">Proveedor</label>
+              <input type="text" id="f-provider" required>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label for="f-type">Tipo</label>
+              <select id="f-type">
+                <option value="credits">Créditos de Nube / API</option>
+                <option value="monetary">Fondos Monetarios (Cash)</option>
+                <option value="contest">Concurso / Hackatón</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="f-status">Estado</label>
+              <select id="f-status">
+                <option value="applying">Aplicando (En progreso)</option>
+                <option value="applied">Aplicado (Enviado)</option>
+                <option value="pending_reply">Esperando Respuesta</option>
+                <option value="approved">Aprobado</option>
+                <option value="rejected">Rechazado</option>
+                <option value="draft">Borrador</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label for="f-val-req">Valor Solicitado ($)</label>
+              <input type="text" id="f-val-req">
+            </div>
+            <div class="form-group">
+              <label for="f-date-app">Fecha Aplicación</label>
+              <input type="date" id="f-date-app">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="f-notes">Notas / Contexto de Elegibilidad</label>
+            <textarea id="f-notes" rows="3"></textarea>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeAddModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Link Emails -->
+  <div class="link-emails-modal" id="link-modal">
+    <div class="modal-content" style="max-width: 600px;">
+      <h3 class="card-title" id="lbl-link-title">Enlazar Hilo de Correo</h3>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Asocia un correo del monitor a esta solicitud de fondos.</p>
+      <div class="link-list" id="emails-to-link-container"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeLinkModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentApps = [];
+    let selectedApp = null;
+    let lang = 'es';
+
+    const translations = {
+      es: {
+        title: "Fondos y Créditos de Startup",
+        subtitle: "Gestión Inteligente de Programas de Startups",
+        back: "◀ Panel Principal",
+        add: "＋ Nueva Solicitud",
+        total_sol: "Total Solicitudes",
+        total_apr: "Aprobados",
+        total_pen: "Pendientes",
+        active_apps: "Programas Registrados",
+        details_panel: "Formulario de Gestión & Copiloto IA",
+        select_prompt: "Selecciona un programa para editar sus detalles, pitch corporativo o redactar cartas mediante el copiloto de IA local.",
+        btn_save: "Guardar Cambios",
+        btn_link: "🔗 Enlazar Correo",
+        lbl_status: "Estado de la Solicitud",
+        lbl_val_req: "Valor Solicitado ($)",
+        lbl_val_app: "Valor Aprobado ($)",
+        lbl_notes: "Notas e Historial",
+        lbl_deck: "Link Investor Deck / Presentación",
+        lbl_pitch: "Link Video Pitch / Demo",
+        lbl_letter: "Carta de Solicitud (Application Letter)",
+        lbl_speech: "Pitch Speech / Guión de Elevator Pitch",
+        lbl_copilot: "Copiloto IA (Ollama local - Qwen 2.5)",
+        lbl_copilot_placeholder: "ej. Escribe una carta de solicitud en inglés para Google for Startups resaltando que RalphiIA reduce los costos de ejecución en la nube...",
+        btn_generate: "⚡ Generar con IA",
+        badge_applying: "Aplicando",
+        badge_applied: "Aplicado",
+        badge_pending_reply: "Esperando Respuesta",
+        badge_approved: "Aprobado",
+        badge_rejected: "Rechazado",
+        badge_draft: "Borrador"
+      },
+      en: {
+        title: "Startup Funding & Credits",
+        subtitle: "Smart Management of Startup Programs",
+        back: "◀ Main Panel",
+        add: "＋ New Application",
+        total_sol: "Total Applications",
+        total_apr: "Approved",
+        total_pen: "Pending",
+        active_apps: "Registered Programs",
+        details_panel: "Management Form & AI Copilot",
+        select_prompt: "Select a program to edit details, manage corporate pitch, or write letters using local AI copilot.",
+        btn_save: "Save Changes",
+        btn_link: "🔗 Link Email",
+        lbl_status: "Application Status",
+        lbl_val_req: "Requested Value ($)",
+        lbl_val_app: "Approved Value ($)",
+        lbl_notes: "Notes & Background",
+        lbl_deck: "Investor Deck Link",
+        lbl_pitch: "Pitch Video Link",
+        lbl_letter: "Application Letter",
+        lbl_speech: "Elevator Pitch Speech",
+        lbl_copilot: "AI Copilot (Local Ollama - Qwen 2.5)",
+        lbl_copilot_placeholder: "e.g. Write an application letter in English for Google for Startups highlighting how RalphiIA reduces cloud costs...",
+        btn_generate: "⚡ Generate with AI",
+        badge_applying: "Applying",
+        badge_applied: "Applied",
+        badge_pending_reply: "Pending Reply",
+        badge_approved: "Approved",
+        badge_rejected: "Rejected",
+        badge_draft: "Draft"
+      }
+    };
+
+    function setLang(newLang) {
+      lang = newLang;
+      document.getElementById('btn-es').classList.toggle('active', lang === 'es');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      
+      // Update header/stats labels
+      document.getElementById('txt-title').innerText = translations[lang].title;
+      document.getElementById('txt-subtitle').innerText = translations[lang].subtitle;
+      document.getElementById('btn-back').innerText = translations[lang].back;
+      document.getElementById('btn-add').innerText = translations[lang].add;
+      document.getElementById('lbl-total-sol').innerText = translations[lang].total_sol;
+      document.getElementById('lbl-total-apr').innerText = translations[lang].total_apr;
+      document.getElementById('lbl-total-pen').innerText = translations[lang].total_pen;
+      document.getElementById('lbl-active-apps').innerText = translations[lang].active_apps;
+      document.getElementById('lbl-details-panel').innerText = translations[lang].details_panel;
+      
+      renderApps();
+      if (selectedApp) {
+        selectApp(selectedApp.app_id);
+      } else {
+        document.getElementById('details-container').innerHTML = `<div class="empty-state">${translations[lang].select_prompt}</div>`;
+      }
+    }
+
+    async function fetchApps() {
+      try {
+        const res = await fetch('/api/ops/credits');
+        const data = await res.json();
+        currentApps = data.applications || [];
+        renderApps();
+        updateStats();
+      } catch (err) {
+        console.error("Error fetching applications:", err);
+      }
+    }
+
+    function renderApps() {
+      const container = document.getElementById('app-list-container');
+      if (currentApps.length === 0) {
+        container.innerHTML = `<div class="empty-state">No programs registered.</div>`;
+        return;
+      }
+
+      container.innerHTML = currentApps.map(app => {
+        const badgeClass = `badge-${app.status}`;
+        const badgeLabel = translations[lang][`badge_${app.status}`] || app.status;
+        const activeClass = selectedApp && selectedApp.app_id === app.app_id ? 'active' : '';
+        return `
+          <div class="app-card ${activeClass}" onclick="selectApp('${app.app_id}')">
+            <div class="app-card-header">
+              <div>
+                <div style="font-weight: 700; font-size: 0.95rem; color:#fff;">${app.program_name}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top:0.15rem;">${app.provider}</div>
+              </div>
+              <span class="badge ${badgeClass}">${badgeLabel}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">
+              <span>Value: ${app.value_requested ? '$' + app.value_requested : '—'}</span>
+              <span>Applied: ${app.date_applied || '—'}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateStats() {
+      document.getElementById('stat-total').innerText = currentApps.length;
+      document.getElementById('stat-approved').innerText = currentApps.filter(a => a.status === 'approved').length;
+      document.getElementById('stat-pending').innerText = currentApps.filter(a => a.status === 'pending_reply' || a.status === 'applied' || a.status === 'applying').length;
+    }
+
+    async function selectApp(appId) {
+      // Set active card styles
+      selectedApp = currentApps.find(a => a.app_id === appId);
+      renderApps();
+
+      const container = document.getElementById('details-container');
+      container.innerHTML = `<div class="empty-state">Loading details...</div>`;
+
+      try {
+        const res = await fetch(`/api/ops/credits/${appId}`);
+        const app = await res.json();
+        selectedApp = app;
+        renderDetailsForm(app);
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state text-danger">Error loading details.</div>`;
+      }
+    }
+
+    function renderDetailsForm(app) {
+      const container = document.getElementById('details-container');
+      
+      const emailNodes = app.linked_emails && app.linked_emails.length > 0 
+        ? app.linked_emails.map(email => `
+            <div class="email-node">
+              <div style="display:flex; justify-content:space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+                <span>From: ${email.from_addr}</span>
+                <span>${new Date(email.received_at).toLocaleString()}</span>
+              </div>
+              <div style="font-weight: 700; color:#fff; margin-bottom:0.25rem;">${email.subject}</div>
+              <div style="font-size:0.8rem; color:#d1d5db; white-space:pre-wrap;">${email.snippet}</div>
+            </div>
+          `).join('')
+        : `<p class="empty-state" style="padding: 1rem 0; font-size:0.8rem;">No linked emails yet.</p>`;
+
+      container.innerHTML = `
+        <div class="detail-section">
+          <!-- Main Form -->
+          <form id="edit-form" onsubmit="submitEdit(event)">
+            <div style="display:flex; flex-direction:column; gap:1.25rem;">
+              
+              <div class="field-grid-3">
+                <div class="form-group">
+                  <label>${translations[lang].lbl_status}</label>
+                  <select id="e-status">
+                    <option value="applying" ${app.status === 'applying' ? 'selected' : ''}>${translations[lang].badge_applying}</option>
+                    <option value="applied" ${app.status === 'applied' ? 'selected' : ''}>${translations[lang].badge_applied}</option>
+                    <option value="pending_reply" ${app.status === 'pending_reply' ? 'selected' : ''}>${translations[lang].badge_pending_reply}</option>
+                    <option value="approved" ${app.status === 'approved' ? 'selected' : ''}>${translations[lang].badge_approved}</option>
+                    <option value="rejected" ${app.status === 'rejected' ? 'selected' : ''}>${translations[lang].badge_rejected}</option>
+                    <option value="draft" ${app.status === 'draft' ? 'selected' : ''}>${translations[lang].badge_draft}</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>${translations[lang].lbl_val_req}</label>
+                  <input type="text" id="e-val-req" value="${app.value_requested || ''}">
+                </div>
+                <div class="form-group">
+                  <label>${translations[lang].lbl_val_app}</label>
+                  <input type="text" id="e-val-app" value="${app.value_approved || ''}">
+                </div>
+              </div>
+
+              <div class="field-grid-3">
+                <div class="form-group">
+                  <label>Fecha Aplicación</label>
+                  <input type="date" id="e-date-app" value="${app.date_applied || ''}">
+                </div>
+                <div class="form-group">
+                  <label>Fecha Límite Respuesta</label>
+                  <input type="date" id="e-date-reply" value="${app.max_reply_date || ''}">
+                </div>
+                <div class="form-group">
+                  <label>Dominio Vinculado</label>
+                  <input type="text" id="e-domain" value="${app.linked_domain || 'innerchispa.us'}">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>${translations[lang].lbl_deck}</label>
+                <input type="url" id="e-deck" value="${app.investor_deck_url || ''}">
+              </div>
+
+              <div class="form-group">
+                <label>${translations[lang].lbl_pitch}</label>
+                <input type="url" id="e-pitch" value="${app.pitch_url || ''}">
+              </div>
+
+              <div class="form-group">
+                <label>${translations[lang].lbl_notes}</label>
+                <textarea id="e-notes" rows="3">${app.notes || ''}</textarea>
+              </div>
+
+              <!-- Application Letter / Pitch Speech -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-top:0.5rem; border-top:1px solid var(--border); padding-top:1.5rem;">
+                <div class="form-group">
+                  <label>${translations[lang].lbl_letter}</label>
+                  <textarea id="e-letter" rows="8" placeholder="Redacte o genere aquí la carta formal...">${app.application_letter || ''}</textarea>
+                </div>
+                <div class="form-group">
+                  <label>${translations[lang].lbl_speech}</label>
+                  <textarea id="e-speech" rows="8" placeholder="Escriba o genere aquí el pitch de elevator de 1 min...">${app.pitch_speech || ''}</textarea>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-success" style="align-self:flex-end;">💾 ${translations[lang].btn_save}</button>
+            </div>
+          </form>
+
+          <!-- AI Copilot Panel -->
+          <div class="ai-copilot">
+            <label style="color:#a78bfa; font-weight:700;">🤖 ${translations[lang].lbl_copilot}</label>
+            <div style="display:flex; gap:0.5rem;">
+              <input type="text" id="ai-prompt" placeholder="${translations[lang].lbl_copilot_placeholder}">
+              <button class="btn btn-primary" onclick="generateAIDraft()" id="btn-ai-submit">${translations[lang].btn_generate}</button>
+            </div>
+            <div class="ai-bubble" id="ai-result" style="display:none;"></div>
+          </div>
+
+          <!-- Emails Thread -->
+          <div style="border-top:1px solid var(--border); padding-top:1.5rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+              <h5 style="font-size:0.95rem; font-weight:700; color:#fff;">📧 Hilo de Correos Enlazados</h5>
+              <button class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.75rem;" onclick="openLinkModal()">${translations[lang].btn_link}</button>
+            </div>
+            <div>
+              ${emailNodes}
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    async function submitEdit(event) {
+      if (event) event.preventDefault();
+      if (!selectedApp) return;
+
+      const payload = {
+        status: document.getElementById('e-status').value,
+        value_requested: document.getElementById('e-val-req').value,
+        value_approved: document.getElementById('e-val-app').value,
+        date_applied: document.getElementById('e-date-app').value,
+        max_reply_date: document.getElementById('e-date-reply').value,
+        linked_domain: document.getElementById('e-domain').value,
+        investor_deck_url: document.getElementById('e-deck').value,
+        pitch_url: document.getElementById('e-pitch').value,
+        notes: document.getElementById('e-notes').value,
+        application_letter: document.getElementById('e-letter').value,
+        pitch_speech: document.getElementById('e-speech').value,
+      };
+
+      try {
+        const res = await fetch(`/api/ops/credits/${selectedApp.app_id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          await fetchApps();
+          selectApp(selectedApp.app_id);
+        }
+      } catch (err) {
+        console.error("Error updating application:", err);
+      }
+    }
+
+    async function generateAIDraft() {
+      if (!selectedApp) return;
+      const promptInput = document.getElementById('ai-prompt');
+      const prompt = promptInput.value.trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('btn-ai-submit');
+      const bubble = document.getElementById('ai-result');
+      
+      btn.disabled = true;
+      btn.innerText = "...";
+      bubble.style.display = 'block';
+      bubble.innerText = "Pensando e infiriendo localmente con Ollama (Qwen)...";
+
+      try {
+        const res = await fetch(`/api/ops/credits/${selectedApp.app_id}/generate-ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+        const data = await res.json();
+        if (data.ok && data.draft) {
+          bubble.innerText = data.draft;
+          // Habilitar copiado rápido
+          bubble.innerHTML += `
+            <div style="margin-top:1rem; display:flex; gap:0.5rem;">
+              <button class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.72rem;" onclick="copyToField('letter')">📋 Copiar a Carta</button>
+              <button class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.72rem;" onclick="copyToField('speech')">📋 Copiar a Pitch</button>
+            </div>
+          `;
+        } else {
+          bubble.innerText = "Error generando borrador de IA.";
+        }
+      } catch (err) {
+        bubble.innerText = "Error de conexión o timeout con Ollama.";
+      } finally {
+        btn.disabled = false;
+        btn.innerText = translations[lang].btn_generate;
+      }
+    }
+
+    function copyToField(field) {
+      const bubble = document.getElementById('ai-result');
+      const text = bubble.innerText.split('📋')[0].trim();
+      if (field === 'letter') {
+        document.getElementById('e-letter').value = text;
+      } else if (field === 'speech') {
+        document.getElementById('e-speech').value = text;
+      }
+      
+      const statusSelect = document.getElementById('e-status');
+      if (statusSelect && statusSelect.value === 'draft') {
+        statusSelect.value = 'applying';
+      }
+    }
+
+    function openAddModal() {
+      document.getElementById('add-modal').style.display = 'flex';
+      document.getElementById('f-date-app').value = new Date().toISOString().split('T')[0];
+    }
+
+    function closeAddModal() {
+      document.getElementById('add-modal').style.display = 'none';
+      document.getElementById('add-form').reset();
+    }
+
+    async function submitAdd(event) {
+      event.preventDefault();
+      const payload = {
+        program_name: document.getElementById('f-program').value,
+        provider: document.getElementById('f-provider').value,
+        type: document.getElementById('f-type').value,
+        status: document.getElementById('f-status').value,
+        value_requested: document.getElementById('f-val-req').value,
+        date_applied: document.getElementById('f-date-app').value,
+        notes: document.getElementById('f-notes').value,
+      };
+
+      try {
+        const res = await fetch('/api/ops/credits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          closeAddModal();
+          await fetchApps();
+        }
+      } catch (err) {
+        console.error("Error creating application:", err);
+      }
+    }
+
+    async function openLinkModal() {
+      if (!selectedApp) return;
+      document.getElementById('link-modal').style.display = 'flex';
+      const container = document.getElementById('emails-to-link-container');
+      container.innerHTML = '<div class="empty-state">Buscando correos...</div>';
+
+      try {
+        const res = await fetch('/api/v1/email/messages?limit=30');
+        const data = await res.json();
+        const emails = data.data || [];
+
+        if (emails.length === 0) {
+          container.innerHTML = '<div class="empty-state">No se encontraron correos.</div>';
+          return;
+        }
+
+        container.innerHTML = emails.map(email => `
+          <div class="link-item" onclick="linkEmail('${email.mail_id}')">
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.25rem;">
+              <span>De: ${email.from_addr}</span>
+              <span>${new Date(email.received_at).toLocaleDateString()}</span>
+            </div>
+            <div style="font-weight:700; color:#fff; margin-bottom:0.25rem;">${email.subject}</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${email.snippet}</div>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = '<div class="empty-state text-danger">Error cargando correos.</div>';
+      }
+    }
+
+    function closeLinkModal() {
+      document.getElementById('link-modal').style.display = 'none';
+    }
+
+    async function linkEmail(mailId) {
+      if (!selectedApp) return;
+      try {
+        const res = await fetch(`/api/ops/credits/${selectedApp.app_id}/link-email?mail_id=${mailId}`, {
+          method: 'POST'
+        });
+        if (res.ok) {
+          closeLinkModal();
+          selectApp(selectedApp.app_id);
+        }
+      } catch (err) {
+        console.error("Error linking email:", err);
+      }
+    }
+
+    // Inicializar al cargar la página
+    document.addEventListener("DOMContentLoaded", () => {
+      setLang('es');
+      fetchApps();
+    });
+  </script>
+</body>
+</html>

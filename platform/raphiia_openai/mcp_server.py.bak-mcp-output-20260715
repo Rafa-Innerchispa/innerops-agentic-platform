@@ -1,0 +1,2143 @@
+"""Servidor MCP RaphiIA para ChatGPT Connectors."""
+
+from __future__ import annotations
+
+import json
+import socket
+import subprocess
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any, TypedDict
+from datetime import datetime, timezone
+
+from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+from raphiia_openai.auth_middleware import ApiKeyMiddleware
+from raphiia_openai import coordination_docs, editorial_media_upload, editorial_publish, editorial_store, funding_registry as funding_registry_module, image_gen, linkedin_client, local_model_router, mcp_diagnostics, mongo_store
+from raphiia_openai.operational import accounting_store, inventory_store, pcdoctor_store, party_store, procurement_store
+from raphiia_openai.settings import (
+    GOOGLE_API_KEY,
+    MCP_API_KEY,
+    MCP_DISPLAY_NAME,
+    MCP_HOST,
+    MCP_PORT,
+    MCP_PUBLIC_URL,
+    OAUTH_ISSUER,
+    RAPHI_IA_OPENAI_PORT,
+    RAPHI_IA_PUBLIC_URL,
+)
+
+class OpsTaskToolResult(TypedDict, total=False):
+    ok: bool
+    task: dict[str, Any]
+    task_id: str
+    correlation_id: str
+    error: str
+
+
+mcp = FastMCP(
+    MCP_DISPLAY_NAME,
+    instructions=(
+        "Puente MCP entre ChatGPT y MongoDB pcdoctor_swarm + memoria ai_coordination. "
+        "Al iniciar sesión SIEMPRE (sin que Rafael pegue nada): get_coordination_live() → read_coordination_file('HUB/ESTADO_VIVO.md') → read_coordination_file('HUB/RUNBOOK_COTIZACION_WHATSAPP.md') → bootstrap_context(). "
+        "Cotizar: list_mcp_tool_profiles() perfil quoter; seguir RUNBOOK HUB. "
+        "Si revision subió, releer mandatory_reads. Órdenes: fila en Notion DB RalfIA Coordination O create_ops_task. "
+        "La ruta canónica de ChatGPT es chatgpt/INBOX.md con espejo ChatGPT/INBOX.md. "
+        "Si file y Mongo divergen, la verdad de entrega vive en Mongo ralfia_agent_messages y luego se resynca Markdown. "
+        "Usa search/fetch para Mongo, read_coordination_file/search_coordination_docs para docs del servidor. "
+        "Al cerrar: log_coordination_event(agent=CHATGPT) + save_chatgpt_note o chatgpt/OUTBOX vía nota. "
+        "No hay OpenAI API en el servidor."
+    ),
+)
+
+if MCP_API_KEY:
+    mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
+
+
+@mcp.resource("resource://RalfIA_MCP", name=MCP_DISPLAY_NAME, mime_type="application/json")
+async def ralfia_mcp_manifest() -> dict[str, Any]:
+    """Manifiesto vivo de herramientas y recursos expuestos por este servidor MCP."""
+    tools = await mcp.list_tools()
+    resources = await mcp.list_resources()
+    version = mcp_diagnostics.mcp_version()
+    resource_uris = []
+    for resource in resources:
+        uri = getattr(resource, "uri", None) or getattr(resource, "name", None) or str(resource)
+        resource_uris.append(str(uri))
+    return {
+        "ok": True,
+        "name": MCP_DISPLAY_NAME,
+        "service": MCP_DISPLAY_NAME,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "public_mcp_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
+        "oauth_issuer": OAUTH_ISSUER,
+        "auth_required": bool(MCP_API_KEY),
+        "catalog_version": version.get("catalog_version"),
+        "manifest_hash": version.get("manifest_hash"),
+        "tool_count": len(tools),
+        "tools": [tool.name for tool in tools],
+        "resource_count": len(resources),
+        "resources": resource_uris,
+        "notes": [
+            "Si ChatGPT ve un conjunto antiguo, recrear el connector o refrescar la app.",
+            "Las tools reales las publica FastMCP en /mcp; este recurso ayuda al descubrimiento.",
+        ],
+    }
+
+
+@mcp.tool
+def save_message(conversation_id: str, role: str, content: str) -> dict[str, Any]:
+    """Guarda un turno de conversación en raphiia_openai_messages."""
+    doc = mongo_store.append_message(conversation_id=conversation_id, role=role, content=content)
+    return {"ok": True, "saved": doc}
+
+
+@mcp.tool
+def create_agent_message(from_agent: str, target_agent: str, title: str, body: str, priority: str = "normal") -> dict[str, Any]:
+    """Canal único: mensaje a un agente → Mongo ralfia_agent_messages + INBOX.md. Usar siempre esto."""
+    from raphiia_openai.memory import agent_messages as _am
+
+    return _am.create_agent_message(
+        from_agent=from_agent,
+        target_agent=target_agent,
+        title=title,
+        body=body,
+        priority=priority,
+    )
+
+
+@mcp.tool
+def save_idea(title: str, body: str, tags: list[str] | None = None) -> dict[str, Any]:
+    """Guarda una idea titulada y crea un borrador listo para revisión."""
+    idea = mongo_store.save_idea(title=title, body=body, tags=tags)
+    draft = mongo_store.save_pipeline_draft(
+        channel="linkedin",
+        markdown=body,
+        title=title,
+        status="ready_for_review",
+        metadata={
+            "source": "chatgpt_idea",
+            "idea_id": idea.get("_id"),
+            "tags": tags or [],
+        },
+    )
+    return {"ok": True, "idea": idea, "draft": draft}
+
+
+@mcp.tool
+def search(query: str, limit: int = 10, collection: str | None = None) -> dict[str, Any]:
+    """Busca ideas, mensajes bridge, pipeline editorial o clientes por texto."""
+    results = mongo_store.search(query=query, limit=limit, collection=collection)
+    return {"ok": True, "count": len(results), "results": results}
+
+
+@mcp.tool
+def fetch(document_id: str) -> dict[str, Any]:
+    """Obtiene un documento por id (formato collection/ObjectId)."""
+    return mongo_store.fetch(document_id)
+
+
+@mcp.tool
+def get_context_summary() -> dict[str, Any]:
+    """Resume conteos de clientes, ideas, pipeline y últimos registros."""
+    return mongo_store.get_context_summary()
+
+
+@mcp.tool
+def save_pipeline_draft(
+    channel: str,
+    title: str,
+    markdown: str,
+    metadata: dict[str, Any] | None = None,
+    status: str = "draft",
+) -> dict[str, Any]:
+    """Guarda borrador editorial (texto generado por ChatGPT) en editorial_pipeline."""
+    doc = mongo_store.save_pipeline_draft(channel=channel, markdown=markdown, title=title, metadata=metadata, status=status)
+    return {"ok": True, "saved": doc}
+
+
+@mcp.tool
+def upload_draft_media(
+    draft_id: str,
+    image_base64: str = "",
+    image_url: str = "",
+    mime_type: str = "image/png",
+    prompt: str = "",
+    source: str = "chatgpt",
+) -> dict[str, Any]:
+    """Sube una imagen generada por ChatGPT a un borrador editorial."""
+    return editorial_media_upload.upload_to_draft(
+        draft_id,
+        image_base64=image_base64,
+        image_url=image_url,
+        mime_type=mime_type,
+        prompt=prompt,
+        source=source,
+    )
+
+
+@mcp.tool
+def save_dalle_image(
+    draft_id: str,
+    image_url: str = "",
+    prompt: str = "",
+    image_base64: str = "",
+    mime_type: str = "image/png",
+) -> dict[str, Any]:
+    """Alias compatible para guardar imagen ChatGPT/DALL·E en un borrador."""
+    source = "dalle" if image_url else "chatgpt"
+    return editorial_media_upload.upload_to_draft(
+        draft_id,
+        image_base64=image_base64,
+        image_url=image_url,
+        mime_type=mime_type,
+        prompt=prompt,
+        source=source,
+    )
+
+
+@mcp.tool
+def queue_pipeline_item(id: str, status: str | None = None) -> dict[str, Any]:
+    """Alias seguro para mover un item del pipeline a review/listo para publicación."""
+    target_status = status or editorial_store.STATUS_REVIEW
+    return editorial_store.update_pipeline_status(id, target_status)
+
+
+@mcp.tool
+def list_pipeline(limit: int = 20) -> dict[str, Any]:
+    """Lista borradores editoriales recientes."""
+    items = mongo_store.list_pipeline(limit=limit)
+    return {"ok": True, "count": len(items), "items": items}
+
+
+@mcp.tool
+def approve_pipeline_draft(draft_id: str) -> dict[str, Any]:
+    """Aprueba borrador -> editorial_posts + cola LinkedIn. NO publica."""
+    from raphiia_openai import editorial_store
+
+    return editorial_store.approve_draft(draft_id, approved_by="mcp_admin")
+
+
+@mcp.tool
+def generate_draft_image(draft_id: str) -> dict[str, Any]:
+    """Genera imagen para borrador."""
+    from raphiia_openai import editorial_store, image_gen
+
+    dr = editorial_store.get_draft(draft_id)
+    if not dr.get("ok"):
+        return dr
+    draft = dr["draft"]
+    editorial_store.update_draft(draft_id, {"status": editorial_store.STATUS_GENERATING})
+    gen = image_gen.generate_for_draft(draft_id, draft.get("title", ""), draft.get("markdown", draft.get("body", "")))
+    if not gen.get("ok"):
+        return gen
+    return editorial_store.attach_media(
+        draft_id,
+        media_path=gen["media_path"],
+        media_prompt=gen["media_prompt"],
+        provider=gen["provider"],
+    )
+
+
+@mcp.tool
+def get_coordination_summary(limit: int = 20) -> dict[str, Any]:
+    """Últimos eventos de desarrollo/coordinación y rutas de documentación."""
+    return mongo_store.get_coordination_summary(limit=limit)
+
+
+@mcp.tool
+def log_coordination_event(
+    agent: str,
+    summary: str,
+    project: str | None = None,
+    tool_used: str | None = None,
+) -> dict[str, Any]:
+    """Registra en MongoDB quién hizo qué."""
+    doc = mongo_store.log_coordination(
+        agent=agent,
+        summary=summary,
+        project=project,
+        tool_used=tool_used,
+    )
+    return {"ok": True, "logged": doc}
+
+
+@mcp.tool
+def health_check() -> dict[str, Any]:
+    """Comprueba MongoDB y estado del bridge MCP."""
+    mongo = mongo_store.ping_mongo()
+    mongo_store.log_sync("mcp_health_check", mongo_ok=mongo.get("ok"))
+    return {
+        "ok": bool(mongo.get("ok")),
+        "service": "raphiia-openai-mcp",
+        "mongodb": mongo,
+        "auth_required": bool(MCP_API_KEY),
+    }
+
+
+@mcp.tool
+def get_project_map() -> dict[str, Any]:
+    """Mapa central RalfIA compacto."""
+    return coordination_docs.get_project_map()
+
+
+@mcp.tool
+def create_client_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.create_client_draft(payload)
+
+
+@mcp.tool
+def upsert_client(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.upsert_client(payload)
+
+
+@mcp.tool
+def create_site_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.create_site_draft(payload)
+
+
+@mcp.tool
+def upsert_site(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.upsert_site(payload)
+
+
+@mcp.tool
+def create_asset_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.create_asset_draft(payload)
+
+
+@mcp.tool
+def upsert_asset(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.upsert_asset(payload)
+
+
+@mcp.tool
+def create_visit_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.create_visit_draft(payload)
+
+
+@mcp.tool
+def log_service_visit(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.log_service_visit(payload)
+
+
+@mcp.tool
+def add_observation(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.add_observation(payload)
+
+
+@mcp.tool
+def attach_media_to_visit(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.attach_media_to_visit(payload)
+
+
+@mcp.tool
+def attach_media_to_asset(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.attach_media_to_asset(payload)
+
+
+@mcp.tool
+def extract_fields_from_media(media_id: str) -> dict[str, Any]:
+    return pcdoctor_store.extract_fields_from_media(media_id)
+
+
+@mcp.tool
+def link_asset_to_client(asset_id: str, client_id: str) -> dict[str, Any]:
+    return pcdoctor_store.link_asset_to_client(asset_id, client_id)
+
+
+@mcp.tool
+def link_asset_to_site(asset_id: str, site_id: str) -> dict[str, Any]:
+    return pcdoctor_store.link_asset_to_site(asset_id, site_id)
+
+
+@mcp.tool
+def resolve_client(identifier: str, limit: int = 10) -> dict[str, Any]:
+    return pcdoctor_store.resolve_client(identifier, limit=limit)
+
+
+@mcp.tool
+def resolve_site(identifier: str, limit: int = 10) -> dict[str, Any]:
+    return pcdoctor_store.resolve_site(identifier, limit=limit)
+
+
+@mcp.tool
+def resolve_asset(identifier: str, limit: int = 10) -> dict[str, Any]:
+    return pcdoctor_store.resolve_asset(identifier, limit=limit)
+
+
+@mcp.tool
+def list_client_sites(client_id: str) -> dict[str, Any]:
+    return pcdoctor_store.list_client_sites(client_id)
+
+
+@mcp.tool
+def list_site_assets(site_id: str) -> dict[str, Any]:
+    return pcdoctor_store.list_site_assets(site_id)
+
+
+@mcp.tool
+def create_quote_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.create_quote_draft(payload)
+
+
+@mcp.tool
+def update_quote_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    return pcdoctor_store.update_quote_draft(payload)
+
+
+@mcp.tool
+def render_quote_document(quote_ref: str) -> dict[str, Any]:
+    """HTML cotización — leer RUNBOOK HUB/RUNBOOK_COTIZACION_WHATSAPP.md §2."""
+    from raphiia_openai.operational.quote_renderer import render_quote_html
+    result = render_quote_html(quote_ref)
+    if not result.get("ok"):
+        return result
+    return {
+        "ok": True,
+        "quote_ref": quote_ref,
+        "display_number": result.get("display_number"),
+        "preview_path": f"/api/v1/quotes/{quote_ref}/document",
+        "html_length": len(result.get("html") or ""),
+    }
+
+
+@mcp.tool
+def generate_quote_intro(quote_ref: str, visit_id: str | None = None) -> dict[str, Any]:
+    """Introducción narrativa para cotización — contexto comercial, no informe técnico de campo."""
+    from raphiia_openai.operational.quote_delivery import generate_quote_intro as _gen
+    return _gen(quote_ref, visit_id=visit_id)
+
+
+@mcp.tool
+def send_quote_delivery(
+    quote_ref: str,
+    channels: list[str] | None = None,
+    phone: str | None = None,
+    email: str | None = None,
+    intro_md: str | None = None,
+) -> dict[str, Any]:
+    """Envía cotización + ticket PCD-COT-* — RUNBOOK HUB §3. Cliente responde citando ticket."""
+    from raphiia_openai.operational.quote_delivery import send_quote_delivery as _send
+    return _send(quote_ref, channels=channels, phone=phone, email=email, intro_md=intro_md)
+
+
+@mcp.tool
+def get_quote_tracking(ticket_id: str) -> dict[str, Any]:
+    """Estado de seguimiento de cotización por referencia WhatsApp."""
+    from raphiia_openai.operational.quote_delivery import get_delivery_by_ticket
+    return get_delivery_by_ticket(ticket_id)
+
+
+@mcp.tool
+def list_quote_deliveries(limit: int = 30, status: str | None = None) -> dict[str, Any]:
+    """Lista envíos de cotización con ticket PCD-COT."""
+    from raphiia_openai.operational.quote_delivery import list_quote_deliveries as _list
+    return _list(limit=limit, status=status)
+
+
+@mcp.tool
+def generate_quote_pdf(quote_ref: str, ticket_id: str | None = None) -> dict[str, Any]:
+    """Genera PDF de cotización. RUNBOOK HUB §3."""
+    from raphiia_openai.operational.quote_pdf import generate_quote_pdf as _pdf
+    return _pdf(quote_ref, ticket_id=ticket_id)
+
+
+@mcp.tool
+def sync_quote_sources(quote_ref: str) -> dict[str, Any]:
+    """Unifica Smart Quoter / Contifico / ops → quote_id canónico."""
+    from raphiia_openai.operational.quote_unify import sync_quote_sources as _sync
+    return _sync(quote_ref)
+
+
+@mcp.tool
+def generate_supervisor_report(client_id: str, site_id: str | None = None, visit_id: str | None = None) -> dict[str, Any]:
+    return pcdoctor_store.generate_supervisor_report(client_id, site_id=site_id, visit_id=visit_id)
+
+
+@mcp.tool
+def resolve_party(identifier: str, limit: int = 10, roles: list[str] | None = None) -> dict[str, Any]:
+    """Busca identidad unificada (party_id) en kernel CRM y colecciones legacy."""
+    return party_store.resolve_party(identifier, limit=limit, roles=roles)
+
+
+@mcp.tool
+def upsert_party(payload: dict[str, Any]) -> dict[str, Any]:
+    """Crea o actualiza party canónico con roles y enlaces identity_map."""
+    return party_store.upsert_party(payload)
+
+
+@mcp.tool
+def create_payable_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    """Crea borrador AP/cheque (idempotente). Requiere party supplier o nombre/RUC."""
+    return accounting_store.create_payable_draft(payload)
+
+
+@mcp.tool
+def upsert_payable(payload: dict[str, Any]) -> dict[str, Any]:
+    """Promueve o actualiza obligación AP canónica."""
+    return accounting_store.upsert_payable(payload)
+
+
+@mcp.tool
+def resolve_payable(identifier: str, limit: int = 10) -> dict[str, Any]:
+    """Busca payables por id, proveedor, cheque, factura o referencia."""
+    return accounting_store.resolve_payable(identifier, limit=limit)
+
+
+@mcp.tool
+def list_payables_due(
+    entity_id: str | None = None,
+    days_ahead: int = 14,
+    limit: int = 50,
+    status: str | None = None,
+) -> dict[str, Any]:
+    """Lista AP por vencer o vencidas (alertas)."""
+    return accounting_store.list_payables_due(entity_id=entity_id, days_ahead=days_ahead, limit=limit, status=status)
+
+
+@mcp.tool
+def record_payment(payload: dict[str, Any]) -> dict[str, Any]:
+    """Registra pago de un payable y marca como paid."""
+    return accounting_store.record_payment(payload)
+
+
+@mcp.tool
+def accounting_summary(entity_id: str | None = None, period: str | None = None) -> dict[str, Any]:
+    """Resumen AP+AR consolidado por entidad."""
+    return accounting_store.accounting_summary(entity_id=entity_id, period=period)
+
+
+@mcp.tool
+def create_receivable_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    """Crea borrador AR/cobro cliente (idempotente)."""
+    return accounting_store.create_receivable_draft(payload)
+
+
+@mcp.tool
+def upsert_receivable(payload: dict[str, Any]) -> dict[str, Any]:
+    """Promueve o actualiza cobro AR canónico."""
+    return accounting_store.upsert_receivable(payload)
+
+
+@mcp.tool
+def list_receivables_open(entity_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Lista cobros pendientes (AR abierto)."""
+    try:
+        return accounting_store.list_receivables_open(entity_id=entity_id, limit=limit)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "entity_id": entity_id}
+
+
+@mcp.tool
+def create_receivable_from_quote(quote_id: str, entity_id: str | None = None) -> dict[str, Any]:
+    """Crea borrador AR desde cotización ops_quote_drafts."""
+    return accounting_store.create_receivable_from_quote(quote_id, entity_id=entity_id)
+
+
+@mcp.tool
+def create_purchase_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    """MOD-PROCUREMENT: borrador orden de compra (idempotente)."""
+    return procurement_store.create_purchase_draft(payload)
+
+
+@mcp.tool
+def upsert_purchase(payload: dict[str, Any]) -> dict[str, Any]:
+    """Promueve o actualiza orden de compra canónica."""
+    return procurement_store.upsert_purchase(payload)
+
+
+@mcp.tool
+def list_purchases_open(entity_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Órdenes de compra pendientes de recepción."""
+    return procurement_store.list_purchases_open(entity_id=entity_id, limit=limit)
+
+
+@mcp.tool
+def upsert_inventory_item(payload: dict[str, Any]) -> dict[str, Any]:
+    """MOD-INVENTORY: crea o actualiza ítem de stock."""
+    return inventory_store.upsert_inventory_item(payload)
+
+
+@mcp.tool
+def record_inventory_movement(payload: dict[str, Any]) -> dict[str, Any]:
+    """Registra movimiento in/out/adjust de inventario."""
+    return inventory_store.record_inventory_movement(payload)
+
+
+@mcp.tool
+def receive_goods(payload: dict[str, Any]) -> dict[str, Any]:
+    """Recibe mercadería desde purchase_id o líneas manuales → inventario."""
+    return inventory_store.receive_goods(payload)
+
+
+@mcp.tool
+def list_inventory(entity_id: str | None = None, limit: int = 100) -> dict[str, Any]:
+    """Lista inventario y alertas low_stock."""
+    return inventory_store.list_inventory(entity_id=entity_id, limit=limit)
+
+
+@mcp.tool
+def list_mcp_tool_profiles(for_model: str | None = None) -> dict[str, Any]:
+    """Perfiles versionados (Capability Router F0). Proyección recomendada; legacy tools/list intacto."""
+    from raphiia_openai import mcp_profiles
+
+    return mcp_profiles.list_profiles(for_model=for_model)
+
+
+@mcp.tool
+def record_collection(payload: dict[str, Any]) -> dict[str, Any]:
+    """Registra cobro parcial o total de un receivable."""
+    return accounting_store.record_collection(payload)
+
+
+@mcp.tool
+def create_payable_from_whatsapp(message: str, entity_id: str = "ent_pcdoctor") -> dict[str, Any]:
+    """Parsea mensaje tipo 'cheque: proveedor 1500 vence 2026-07-20' → payable draft."""
+    return accounting_store.create_payable_from_whatsapp(message, entity_id=entity_id)
+
+
+# --- MOD-COMMUNICATIONS (WhatsApp + contactos) ---
+
+@mcp.tool
+def get_whatsapp_status(dual: bool = True) -> dict[str, Any]:
+    """Estado Evolution API primary/amd."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.get_whatsapp_status(dual=dual)
+
+
+@mcp.tool
+def send_whatsapp_message(message: str, number: str | None = None, contact_ref: str | None = None, node: str = "primary") -> dict[str, Any]:
+    """Envía WhatsApp por número o contact_ref."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.send_whatsapp_message(message, number=number, contact_ref=contact_ref, node=node)
+
+
+@mcp.tool
+def send_whatsapp_draft(draft: str, number: str | None = None, contact_ref: str | None = None, node: str = "primary") -> dict[str, Any]:
+    """Envía borrador WhatsApp."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.send_whatsapp_draft(draft, number=number, contact_ref=contact_ref, node=node)
+
+
+@mcp.tool
+def send_whatsapp_document(
+    file_path: str,
+    number: str | None = None,
+    contact_ref: str | None = None,
+    caption: str = "",
+    node: str = "primary",
+) -> dict[str, Any]:
+    """Envía PDF/documento por WhatsApp. Flujo: RUNBOOK HUB/RUNBOOK_COTIZACION_WHATSAPP.md."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.send_whatsapp_document(
+        file_path, number=number, contact_ref=contact_ref, caption=caption, node=node
+    )
+
+
+@mcp.tool
+def send_whatsapp_status(
+    content: str = "",
+    status_type: str = "text",
+    caption: str = "",
+    file_path: str | None = None,
+    all_contacts: bool = False,
+    status_jid_list: list[str] | None = None,
+    background_color: str = "#008000",
+    font: int = 1,
+    node: str = "primary",
+) -> dict[str, Any]:
+    """Publica un estado/story en WhatsApp vía Evolution."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.send_whatsapp_status(
+        content,
+        status_type=status_type,
+        caption=caption,
+        file_path=file_path,
+        all_contacts=all_contacts,
+        status_jid_list=status_jid_list,
+        background_color=background_color,
+        font=font,
+        node=node,
+    )
+
+
+@mcp.tool
+def list_contacts(query: str | None = None, entity_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Lista contactos canónicos."""
+    from raphiia_openai import whatsapp_contacts
+    return whatsapp_contacts.list_contacts(query=query, entity_id=entity_id, limit=limit)
+
+
+@mcp.tool
+def list_ops_contacts(query: str | None = None, entity_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Lista ops_contacts operativos."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.list_ops_contacts(query=query, entity_id=entity_id, limit=limit)
+
+
+@mcp.tool
+def resolve_contact(identifier: str, limit: int = 10) -> dict[str, Any]:
+    """Busca contacto por nombre, teléfono o ID."""
+    from raphiia_openai import whatsapp_contacts
+    return whatsapp_contacts.resolve_contact(identifier, limit=limit)
+
+
+@mcp.tool
+def save_whatsapp_group(payload: dict[str, Any]) -> dict[str, Any]:
+    """Guarda o actualiza un grupo WhatsApp canónico."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.save_whatsapp_group(payload)
+
+
+@mcp.tool
+def list_whatsapp_groups(query: str | None = None, entity_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Lista grupos WhatsApp canónicos."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.list_whatsapp_groups(query=query, entity_id=entity_id, limit=limit)
+
+
+@mcp.tool
+def resolve_whatsapp_group(identifier: str, limit: int = 10) -> dict[str, Any]:
+    """Resuelve grupo WhatsApp por nombre, alias o group_jid."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.resolve_whatsapp_group(identifier, limit=limit)
+
+
+@mcp.tool
+def save_ops_contact(payload: dict[str, Any]) -> dict[str, Any]:
+    """Guarda contacto operativo."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.save_ops_contact(payload)
+
+
+@mcp.tool
+def link_contact_entities(contact_id: str, entity_ids: list[str]) -> dict[str, Any]:
+    """Vincula contacto a entidades."""
+    from raphiia_openai import whatsapp_contacts
+    return whatsapp_contacts.link_contact_entities(contact_id, entity_ids)
+
+
+@mcp.tool
+def broadcast_whatsapp_groups(
+    message: str,
+    group_ids: list[str] | None = None,
+    labels: list[str] | None = None,
+    entity_ids: list[str] | None = None,
+    limit: int = 200,
+    dry_run: bool = True,
+    approved_by: str | None = None,
+) -> dict[str, Any]:
+    """Broadcast segmentado a grupos WhatsApp canónicos."""
+    from raphiia_openai import whatsapp_mcp_bridge
+
+    return whatsapp_mcp_bridge.broadcast_whatsapp_groups(
+        message,
+        group_ids=group_ids,
+        labels=labels,
+        entity_ids=entity_ids,
+        limit=limit,
+        dry_run=dry_run,
+        approved_by=approved_by,
+    )
+
+
+@mcp.tool
+def broadcast_whatsapp_message(message: str, entity_ids: list[str] | None = None, labels: list[str] | None = None, dry_run: bool = True, approved_by: str | None = None) -> dict[str, Any]:
+    """Broadcast masivo (dry_run por defecto)."""
+    from raphiia_openai import whatsapp_contacts
+    return whatsapp_contacts.broadcast_whatsapp(message, entity_ids=entity_ids, labels=labels, dry_run=dry_run, approved_by=approved_by)
+
+
+@mcp.tool
+def create_whatsapp_reminder(body: str, due_at: str | None = None, target_number: str | None = None, entity_id: str | None = None) -> dict[str, Any]:
+    """Crea recordatorio WhatsApp."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.create_whatsapp_reminder(body, due_at=due_at, target_number=target_number, entity_id=entity_id)
+
+
+@mcp.tool
+def list_whatsapp_reminders(limit: int = 20) -> dict[str, Any]:
+    """Lista recordatorios WhatsApp."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.list_whatsapp_reminders(limit=limit)
+
+
+@mcp.tool
+def process_whatsapp_inbound_event(payload: dict[str, Any]) -> dict[str, Any]:
+    """Procesa evento inbound Evolution (cheque:, recordatorio:, etc.)."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.process_whatsapp_inbound_event(payload)
+
+
+@mcp.tool
+def run_due_whatsapp_reminders() -> dict[str, Any]:
+    """Ejecuta recordatorios vencidos."""
+    from raphiia_openai import whatsapp_mcp_bridge
+    return whatsapp_mcp_bridge.run_due_whatsapp_reminders()
+
+
+@mcp.tool
+def get_server_status() -> dict[str, Any]:
+    """Estado cockpit + health watch (mismo resumen que comando WhatsApp *estado*)."""
+    from raphiia_openai import whatsapp_commands
+
+    return {
+        "ok": True,
+        "text": whatsapp_commands.format_server_status_text(),
+        "services_text": whatsapp_commands.format_services_text(),
+    }
+
+
+@mcp.tool
+def list_monitored_emails(limit: int = 10, importance: str | None = "alta") -> dict[str, Any]:
+    """Buzones IMAP activos (email_accounts) y últimos correos clasificados."""
+    from raphiia_openai.notifications import email_monitor
+
+    accounts = email_monitor.list_monitored_accounts()
+    recent = email_monitor.list_recent_emails(importance=importance, limit=limit)
+    return {"ok": True, **accounts, "recent_messages": recent.get("messages", [])}
+
+
+@mcp.tool
+def trigger_email_poll() -> dict[str, Any]:
+    """Fuerza POST Swarm /api/v1/email/poll — revisa IMAP y alerta WhatsApp si alta."""
+    from raphiia_openai.notifications import email_monitor
+
+    return email_monitor.trigger_email_poll()
+
+
+@mcp.tool
+def sync_email_archive(limit: int = 500) -> dict[str, Any]:
+    """Persiste email_messages → email_archive (no borra IMAP origen)."""
+    from raphiia_openai.notifications import email_archive
+
+    return email_archive.sync_email_archive_from_messages(limit=limit)
+
+
+# --- MOD-AUTODEV (SRE Autonomous Development and Project Approval) ---
+
+@mcp.tool
+def list_pending_projects() -> dict[str, Any]:
+    """Lista todos los proyectos y hackatones pendientes de revisión y aprobación."""
+    from pymongo import MongoClient
+    import os
+    
+    mongo_uri = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
+    try:
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
+        db = client["hackathon_autopilot"]
+        pending = list(db.pending_approvals.find({"status": "pending"}))
+        for p in pending:
+            p["id"] = str(p["_id"])
+            del p["_id"]
+            if "created_at" in p and p["created_at"]:
+                p["created_at"] = p["created_at"].isoformat()
+        return {"ok": True, "count": len(pending), "projects": pending}
+    except Exception as e:
+        return {"ok": False, "error": f"Error conectando a MongoDB: {e}"}
+
+
+@mcp.tool
+def get_project_reuse_analysis(project_id: str) -> dict[str, Any]:
+    """Obtiene el análisis de reutilización de código (legos), arquitectura y requerimientos de un proyecto."""
+    from pymongo import MongoClient
+    from bson import ObjectId
+    import os
+    
+    mongo_uri = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
+    try:
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
+        db = client["hackathon_autopilot"]
+        p = db.pending_approvals.find_one({"_id": ObjectId(project_id)})
+        if not p:
+            return {"ok": False, "error": "Proyecto no encontrado"}
+            
+        p["id"] = str(p["_id"])
+        del p["_id"]
+        if "created_at" in p and p["created_at"]:
+            p["created_at"] = p["created_at"].isoformat()
+            
+        return {"ok": True, "analysis": p}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@mcp.tool
+def approve_and_develop_project(project_id: str, custom_requirements: str | None = None) -> dict[str, Any]:
+    """Autoriza e inicia el enjambre de desarrollo autónomo (Sandbox) para compilar y empaquetar un proyecto."""
+    import requests
+    import os
+    
+    # 1. Obtener requerimientos por defecto si no se envían
+    reqs = custom_requirements
+    if not reqs:
+        analysis = get_project_reuse_analysis(project_id)
+        if analysis.get("ok"):
+            analysis_data = analysis["analysis"]
+            reqs = analysis_data.get("requirements", "")
+            legos = analysis_data.get("suggested_legos", [])
+        else:
+            return {"ok": False, "error": "No se pudieron resolver los requerimientos del proyecto."}
+    else:
+        # Resolver legos sugeridos
+        analysis = get_project_reuse_analysis(project_id)
+        legos = analysis["analysis"].get("suggested_legos", []) if analysis.get("ok") else []
+
+    # 2. Llamar al API local de Autopilot para disparar el background-task
+    try:
+        url = "http://127.0.0.1:8090/api/projects/approve-and-build"
+        res = requests.post(url, json={
+            "id": project_id,
+            "requirements": reqs,
+            "legos": legos
+        }, timeout=10)
+        
+        if res.status_code == 200:
+            return {
+                "ok": True,
+                "message": "Proyecto aprobado con éxito. El Agente de Desarrollo ha iniciado la generación de código y validación del Sandbox en segundo plano.",
+                "api_response": res.json()
+            }
+        else:
+            return {"ok": False, "error": f"Fallo en API local (Status {res.status_code}): {res.text}"}
+    except Exception as e:
+        return {"ok": False, "error": f"Error conectando con el servidor de autopilot: {e}"}
+
+
+
+@mcp.tool
+def search_email_archive(query: str | None = None, account_address: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """Busca en archivo permanente de correo."""
+    from raphiia_openai.notifications import email_archive
+
+    return email_archive.search_email_archive(query=query, account_address=account_address, limit=limit)
+
+
+@mcp.tool
+def get_email_archive_status() -> dict[str, Any]:
+    """Estado del archivo permanente de correo."""
+    from raphiia_openai.notifications import email_archive
+
+    return email_archive.get_email_archive_status()
+
+
+@mcp.tool
+def get_email_archive_message(mail_id: str, refresh_token: bool = True) -> dict[str, Any]:
+    """Detalle + deep link autenticado (HMAC) de un correo en email_archive."""
+    from raphiia_openai.notifications import email_archive
+
+    return email_archive.get_email_archive_message(mail_id, refresh_token=refresh_token)
+
+
+@mcp.tool
+def send_general_email(
+    to_addr: str,
+    subject: str,
+    body: str,
+    attachment_path: str | None = None,
+    attachment_name: str | None = None,
+    from_account: str | None = None,
+) -> dict[str, Any]:
+    """Envía un correo electrónico usando SMTP configurado en email_accounts (ej. rlopez@innerchispa.us)."""
+    from raphiia_openai.notifications.email_client import send_email
+    return send_email(
+        to_addr=to_addr,
+        subject=subject,
+        body=body,
+        attachment_path=attachment_path,
+        attachment_name=attachment_name,
+        from_account=from_account,
+    )
+
+
+@mcp.tool
+def create_web_content(
+    content_id: str,
+    content_type: str,
+    title: str,
+    slug: str,
+    description: str,
+    technologies: list[str] | None = None,
+    images: list[dict[str, Any]] | None = None,
+    demo_url: str | None = None,
+    github_url: str | None = None,
+    visibility: str = "public",
+    theme: str = "default",
+) -> dict[str, Any]:
+    """Crea un borrador de contenido para la web corporativa de InnerChispa (proyectos o hackatones)."""
+    from raphiia_openai.operational import web_content_manager
+    return web_content_manager.create_web_content(
+        content_id=content_id,
+        content_type=content_type,
+        title=title,
+        slug=slug,
+        description=description,
+        technologies=technologies,
+        images=images,
+        demo_url=demo_url,
+        github_url=github_url,
+        visibility=visibility,
+        theme=theme,
+    )
+
+
+@mcp.tool
+def update_web_content(content_id: str, patch: dict[str, Any]) -> dict[str, Any]:
+    """Actualiza campos específicos de un contenido web existente."""
+    from raphiia_openai.operational import web_content_manager
+    return web_content_manager.update_web_content(content_id, patch)
+
+
+@mcp.tool
+def change_web_content_status(
+    content_id: str,
+    new_status: str,
+    approved_by: str | None = None,
+) -> dict[str, Any]:
+    """Controla el flujo de estados de publicación (draft -> review -> approved -> published)."""
+    from raphiia_openai.operational import web_content_manager
+    return web_content_manager.change_web_content_status(content_id, new_status, approved_by)
+
+
+@mcp.tool
+def list_web_content(
+    content_type: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Lista las entradas de contenido web registradas (proyectos y hackatones)."""
+    from raphiia_openai.operational import web_content_manager
+    return web_content_manager.list_web_content(content_type, status, limit)
+
+
+@mcp.tool
+def export_web_content_for_astro(output_dir: str) -> dict[str, Any]:
+    """Genera los archivos JSON/Markdown en el directorio de staging de la web Astro."""
+    from raphiia_openai.operational import web_content_manager
+    return web_content_manager.export_web_content_for_astro(output_dir)
+
+
+@mcp.tool
+def get_whatsapp_commands_help() -> dict[str, Any]:
+    """Diccionario de comandos WhatsApp inbound (estado, correo, poll, etc.)."""
+    from raphiia_openai import whatsapp_commands
+
+    return whatsapp_commands.get_whatsapp_commands_help()
+
+
+@mcp.tool
+def preview_whatsapp_agent_reply(message: str, sender: str | None = None) -> dict[str, Any]:
+    """Simula respuesta agente WhatsApp (Ollama local + contexto) sin enviar WA."""
+    from raphiia_openai import whatsapp_conversational
+
+    return whatsapp_conversational.conversational_reply(message, sender=sender or "593999059000")
+
+
+@mcp.tool
+def mcp_version(session_id: str | None = None) -> dict[str, Any]:
+    """Versión viva del bridge, catálogo y manifest."""
+    return mcp_diagnostics.mcp_version(session_id=session_id)
+
+
+@mcp.tool
+def list_mcp_capabilities() -> dict[str, Any]:
+    """Catálogo vivo completo de tools, schemas, recursos y scopes."""
+    return mcp_diagnostics.list_mcp_capabilities()
+
+
+@mcp.tool
+def describe_tool(tool_name: str) -> dict[str, Any]:
+    """Describe una tool por nombre con schema y scopes."""
+    return mcp_diagnostics.describe_tool(tool_name)
+
+
+@mcp.tool
+def system_debug() -> dict[str, Any]:
+    """Diagnóstico técnico de MCP, OAuth, gateway y errores recientes."""
+    return mcp_diagnostics.system_debug()
+
+
+@mcp.tool
+def diagnose_mcp_session(
+    client_tool_count: int | None = None,
+    client_catalog_version: str | None = None,
+    client_seen_tools: list[str] | None = None,
+    session_id: str | None = None,
+    user_agent: str | None = None,
+) -> dict[str, Any]:
+    """Detecta catálogo viejo, refresco OAuth o problemas de stream."""
+    return mcp_diagnostics.diagnose_mcp_session(
+        client_tool_count=client_tool_count,
+        client_catalog_version=client_catalog_version,
+        client_seen_tools=client_seen_tools,
+        session_id=session_id,
+        user_agent=user_agent,
+    )
+
+
+@mcp.tool
+def documentary_state() -> dict[str, Any]:
+    """Estado vivo del Agente Documental y último snapshot sincronizado."""
+    return mongo_store.get_coordination_state("documentary_sync")
+
+
+@mcp.tool
+def list_recent_changes(limit: int = 20, project: str | None = None) -> dict[str, Any]:
+    """Cambios recientes de coordinación/documentación."""
+    return mongo_store.list_recent_changes(limit=limit, project=project)
+
+
+@mcp.tool
+def register_change(
+    agent: str,
+    project: str,
+    path: str,
+    summary: str,
+    before_hash: str | None = None,
+    after_hash: str | None = None,
+    service: str | None = None,
+) -> dict[str, Any]:
+    """Registra un cambio documental o de servicio."""
+    change = mongo_store.register_change(
+        agent=agent,
+        project=project,
+        path=path,
+        summary=summary,
+        before_hash=before_hash,
+        after_hash=after_hash,
+        service=service,
+    )
+    return {"ok": True, "change": change}
+
+
+@mcp.tool
+def sync_documentation_now(mode: str = "dry_run", limit: int = 50) -> dict[str, Any]:
+    """Sincroniza documentación: documentary daemon + preview/push Notion (mode=dry_run|apply)."""
+    from pathlib import Path
+    from raphiia_openai import notion_bridge, ralfia_time
+    from raphiia_openai.documentary_daemon import run_once
+
+    changes = run_once()
+    notion = notion_bridge.sync_documentation_to_notion(mode=mode, limit=limit)
+    return {
+        "ok": True,
+        "documentary_changes": changes,
+        "notion_sync": notion,
+        "mode": mode,
+        "ts_display": ralfia_time.format_log(),
+        "coordination_root": str(Path("/home/rlopez/data/ai_coordination")),
+    }
+
+
+@mcp.tool
+def sync_creator_os_projects(dry_run: bool = True, limit: int | None = None) -> dict[str, Any]:
+    """Harmoniza DB08 Proyectos (Creator OS) con rutas servidor + Mongo — sin duplicar."""
+    from raphiia_openai import notion_projects_sync
+
+    return notion_projects_sync.sync_creator_os_projects(dry_run=dry_run, limit=limit)
+
+
+@mcp.tool
+def get_creator_os_project_map(limit: int = 50) -> dict[str, Any]:
+    """Mapa proyectos Creator OS ↔ servidor (índice Mongo ralfia_notion_projects_index)."""
+    from raphiia_openai import notion_projects_sync
+
+    return notion_projects_sync.get_creator_os_project_map(limit=limit)
+
+
+@mcp.tool
+def get_contifico_status() -> dict[str, Any]:
+    """Estado conexión API Contifico (read-only)."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.get_contifico_status()
+
+
+@mcp.tool
+def contifico_capabilities() -> dict[str, Any]:
+    """Mapa de endpoints Contifico y plan de migración a MOD-ACCOUNTING."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.contifico_capabilities()
+
+
+@mcp.tool
+def list_contifico_personas(page: int = 1, size: int = 50, role: str | None = None) -> dict[str, Any]:
+    """Clientes/proveedores desde Contifico."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.list_contifico_personas(page=page, size=size, role=role)
+
+
+@mcp.tool
+def list_contifico_documentos(page: int = 1, size: int = 20, tipo_documento: str | None = None) -> dict[str, Any]:
+    """Facturas/compras/retenciones paginadas (FAC, etc.)."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.list_contifico_documentos(page=page, size=size, tipo_documento=tipo_documento)
+
+
+@mcp.tool
+def list_contifico_banco_movimientos(page: int = 1, size: int = 50) -> dict[str, Any]:
+    """Movimientos bancarios Contifico."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.list_contifico_banco_movimientos(page=page, size=size)
+
+
+@mcp.tool
+def normalize_contifico_all(
+    fetch_personas_api: bool = True,
+    link_crm: bool = True,
+    normalize_ledger: bool = True,
+) -> dict[str, Any]:
+    """Normaliza Contífico completo: personas (IDs sintéticos si API id=null), docs, ledger, CRM."""
+    from raphiia_openai import contifico_normalize
+
+    return contifico_normalize.normalize_contifico_all(
+        fetch_personas_api=fetch_personas_api,
+        link_crm=link_crm,
+        normalize_ledger=normalize_ledger,
+    )
+
+
+@mcp.tool
+def backfill_contifico_orphan_personas(limit: int | None = None, sleep_ms: int = 150) -> dict[str, Any]:
+    """Recupera cliente en docs Contífico con persona_id vacío (lee detalle API persona.ruc/nombre)."""
+    from raphiia_openai import contifico_normalize
+
+    return contifico_normalize.backfill_orphan_document_personas(limit=limit, sleep_ms=sleep_ms)
+
+
+@mcp.tool
+def link_contifico_personas_to_crm(only_clients: bool = False, limit: int | None = None) -> dict[str, Any]:
+    """Enlaza contifico_personas → crm_parties (+ ops_clients si es cliente)."""
+    from raphiia_openai import contifico_normalize
+
+    return contifico_normalize.link_contifico_personas_to_crm(only_clients=only_clients, limit=limit)
+
+
+@mcp.tool
+def normalize_contifico_ledger() -> dict[str, Any]:
+    """Normaliza mirror Contífico: bancos, movimientos, transacciones, cuentas, centros, bodegas."""
+    from raphiia_openai import contifico_ledger
+
+    return contifico_ledger.normalize_all_ledger()
+
+
+@mcp.tool
+def list_contifico_bank_accounts() -> dict[str, Any]:
+    """Cuentas bancarias Contífico normalizadas + saldo calculado."""
+    from raphiia_openai import contifico_ledger
+
+    return contifico_ledger.list_bank_accounts()
+
+
+@mcp.tool
+def get_contifico_bank_balance(account_query: str | None = None) -> dict[str, Any]:
+    """Saldo / movimientos sumados de cuenta(s) bancaria Contífico."""
+    from raphiia_openai import contifico_ledger
+
+    return contifico_ledger.get_bank_account_balance(account_query)
+
+
+@mcp.tool
+def search_contifico_bank_movements(
+    account_id: str | None = None,
+    persona_query: str | None = None,
+    year: int | None = None,
+    tipo: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Busca movimientos bancarios Contífico normalizados."""
+    from raphiia_openai import contifico_ledger
+
+    return contifico_ledger.search_bank_movements(
+        account_id=account_id,
+        persona_query=persona_query,
+        year=year,
+        tipo=tipo,
+        limit=limit,
+    )
+
+
+@mcp.tool
+def search_contifico_transactions(
+    persona_query: str | None = None,
+    year: int | None = None,
+    tipo: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Busca transacciones/caja Contífico normalizadas."""
+    from raphiia_openai import contifico_ledger
+
+    return contifico_ledger.search_transactions(
+        persona_query=persona_query,
+        year=year,
+        tipo=tipo,
+        limit=limit,
+    )
+
+
+@mcp.tool
+def search_contifico_accounts(query: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """Busca plan de cuentas Contífico normalizado."""
+    from raphiia_openai import contifico_ledger
+
+    return contifico_ledger.search_accounts(query=query, limit=limit)
+
+
+@mcp.tool
+def query_contifico_stats(
+    tipo_documento: str | None = "COT",
+    year: int | None = None,
+    persona_query: str | None = None,
+    top: int = 10,
+) -> dict[str, Any]:
+    """Estadísticas Contífico: conteos/montos por cliente (ej. COT 2026)."""
+    from raphiia_openai import contifico_normalize
+
+    return contifico_normalize.query_contifico_stats(
+        tipo_documento=tipo_documento,
+        year=year,
+        persona_query=persona_query,
+        top=top,
+    )
+
+
+@mcp.tool
+def search_contifico_documents(
+    query: str | None = None,
+    tipo_documento: str | None = None,
+    persona_id: str | None = None,
+    year: int | None = None,
+    documento: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Busca documentos Contífico normalizados (número, cliente, tipo, año)."""
+    from raphiia_openai import contifico_normalize
+
+    return contifico_normalize.search_contifico_documents(
+        query=query,
+        tipo_documento=tipo_documento,
+        persona_id=persona_id,
+        year=year,
+        documento=documento,
+        limit=limit,
+    )
+
+
+@mcp.tool
+def get_contifico_client_summary(query: str, year: int | None = None) -> dict[str, Any]:
+    """Resumen Contífico de un cliente por nombre/RUC: COT/FAC counts y recientes."""
+    from raphiia_openai import contifico_normalize
+
+    return contifico_normalize.get_contifico_client_summary(query=query, year=year)
+
+
+@mcp.tool
+def resolve_contifico_persona(query: str, limit: int = 10) -> dict[str, Any]:
+    """Resuelve persona Contífico por nombre, RUC o persona_id."""
+    from raphiia_openai import contifico_normalize
+
+    return contifico_normalize.resolve_contifico_persona(query, limit=limit)
+
+
+@mcp.tool
+def contifico_inventory_summary() -> dict[str, Any]:
+    """Inventario normalizado Contífico (docs, personas, tipos, huérfanos)."""
+    from raphiia_openai import contifico_normalize
+
+    return contifico_normalize.contifico_inventory_summary()
+
+
+@mcp.tool
+def contifico_analytics_capabilities() -> dict[str, Any]:
+    """Catálogo DSL Contífico analytics (métricas/dimensiones allowlist) — piloto RO."""
+    from raphiia_openai import contifico_analytics
+
+    return contifico_analytics.analytics_capabilities()
+
+
+@mcp.tool
+def contifico_resolve_entity(query: str, entity_type: str | None = None, limit: int = 10) -> dict[str, Any]:
+    """Resuelve persona/documento/banco Contífico con ranking (piloto analytics)."""
+    from raphiia_openai import contifico_analytics
+
+    return contifico_analytics.resolve_entity(query, entity_type=entity_type, limit=limit)
+
+
+@mcp.tool
+def contifico_query(
+    domain: str = "sales",
+    measures: list[str] | None = None,
+    dimensions: list[str] | None = None,
+    filters: dict[str, Any] | None = None,
+    sort: str | None = None,
+    limit: int = 20,
+    include_details: bool = False,
+    natural_language: str | None = None,
+) -> dict[str, Any]:
+    """Query analítica Contífico read-only (DSL allowlist). No crea tool por pregunta."""
+    from raphiia_openai import contifico_analytics
+
+    return contifico_analytics.contifico_query(
+        domain=domain,
+        measures=measures,
+        dimensions=dimensions,
+        filters=filters,
+        sort=sort,
+        limit=limit,
+        include_details=include_details,
+        natural_language=natural_language,
+    )
+
+
+@mcp.tool
+def contifico_get_document(document_id: str | None = None, number: str | None = None) -> dict[str, Any]:
+    """Detalle documento Contífico por id o número (COT-/FAC-…)."""
+    from raphiia_openai import contifico_analytics
+
+    return contifico_analytics.get_document(document_id=document_id, number=number)
+
+
+@mcp.tool
+def contifico_get_party_360(query: str, period_year: int | None = None) -> dict[str, Any]:
+    """Vista 360 cliente Contífico: ventas, COT, cartera, bancos (read-only)."""
+    from raphiia_openai import contifico_analytics
+
+    return contifico_analytics.get_party_360(query, period_year=period_year)
+
+
+@mcp.tool
+def contifico_explain_metric(metric: str) -> dict[str, Any]:
+    """Explica métrica canónica Contífico (fórmula + fuentes)."""
+    from raphiia_openai import contifico_analytics
+
+    return contifico_analytics.explain_metric(metric)
+
+
+@mcp.tool
+def refresh_capability_registry_shadow() -> dict[str, Any]:
+    """Persiste inventario/registry en sombra (no altera tools/list legacy)."""
+    from raphiia_openai import capability_registry
+
+    return capability_registry.persist_shadow_registry()
+
+
+@mcp.tool
+def get_capability_registry_summary() -> dict[str, Any]:
+    """Resumen registry sombra + fingerprint catálogo."""
+    from raphiia_openai import capability_registry
+
+    return capability_registry.get_registry_summary()
+
+
+@mcp.tool
+def get_mcp_profile(name: str) -> dict[str, Any]:
+    """Devuelve un perfil versionado (toolset pinneable)."""
+    from raphiia_openai import mcp_profiles
+
+    return mcp_profiles.get_profile(name)
+
+
+@mcp.tool
+def sync_contifico_snapshot(resources: list[str] | None = None, page: int = 1, size: int = 50, dry_run: bool = True) -> dict[str, Any]:
+    """Espejo read-only Contifico → Mongo (dry_run por defecto)."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.sync_contifico_snapshot(resources=resources, page=page, size=size, dry_run=dry_run)
+
+
+@mcp.tool
+def import_contifico_all(dry_run: bool = True) -> dict[str, Any]:
+    """Importación completa Contifico → Mongo: personas, bancos, catálogo, documentos FAC/COT."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.import_contifico_all(dry_run=dry_run)
+
+
+@mcp.tool
+def import_contifico_full_sync(dry_run: bool = True, resume: bool = True, max_documents: int | None = None) -> dict[str, Any]:
+    """Importación completa Contifico con throttling, checkpoint y numeración COT/FAC."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.import_contifico_full_sync(dry_run=dry_run, resume=resume, max_documents=max_documents)
+
+
+@mcp.tool
+def get_contifico_sync_status() -> dict[str, Any]:
+    """Progreso del import Contifico (fase, conteos, rate limit)."""
+    from raphiia_openai import contifico_bridge
+
+    return contifico_bridge.get_contifico_sync_status()
+
+
+@mcp.tool
+def get_notion_status() -> dict[str, Any]:
+    """Estado del puente Notion API (token, DB, contrato doc_id)."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.get_notion_status()
+
+
+@mcp.tool
+def get_notion_schema_blueprint() -> dict[str, Any]:
+    """Blueprint de la DB Docs — RalfIA (Numerados) y frontmatter esperado."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.get_notion_schema_blueprint()
+
+
+@mcp.tool
+def bootstrap_notion_schema(dry_run: bool = True) -> dict[str, Any]:
+    """Crea la DB Notion numerada bajo NOTION_DOCS_PARENT_PAGE_ID (dry_run por defecto)."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.bootstrap_notion_schema(dry_run=dry_run)
+
+
+@mcp.tool
+def bootstrap_notion_coordination_db(dry_run: bool = True) -> dict[str, Any]:
+    """Crea DB Notion «RalfIA Coordination» (órdenes ↔ ops_tasks)."""
+    from raphiia_openai import notion_coordination
+
+    return notion_coordination.bootstrap_notion_coordination_db(dry_run=dry_run)
+
+
+@mcp.tool
+def get_notion_coordination_contract() -> dict[str, Any]:
+    """Contrato cerrado: schema DB, webhook dedupe, respuesta Notion."""
+    from raphiia_openai import notion_coordination
+
+    return notion_coordination.get_notion_coordination_contract()
+
+
+@mcp.tool
+def preview_notion_sync(limit: int = 50) -> dict[str, Any]:
+    """Preview de qué docs se crearían/actualizarían/saltarían en Notion (sin escribir)."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.preview_notion_sync(limit=limit)
+
+
+@mcp.tool
+def notion_upsert_doc_metadata(doc_id: str, fields: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
+    """Upsert metadata en DB Notion por doc_id (sin tocar cuerpo)."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.notion_upsert_doc_metadata(doc_id, fields, dry_run=dry_run)
+
+
+@mcp.tool
+def notion_push_doc(
+    doc_id: str,
+    title: str,
+    content_md: str,
+    source_path: str,
+    status: str = "Active",
+    domain: str = "Ops",
+    source_last_modified: str | None = None,
+    sync_hash: str | None = None,
+    audience: str = "internal",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Push idempotente de un doc a Notion (Patrón 1: metadata DB + cuerpo en página)."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.notion_push_doc(
+        doc_id,
+        title,
+        content_md,
+        source_path,
+        status=status,
+        domain=domain,
+        source_last_modified=source_last_modified,
+        sync_hash=sync_hash,
+        audience=audience,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
+def notion_append_audit_event(doc_id: str, event_type: str, payload: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
+    """Registra evento de auditoría del bridge Notion."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.notion_append_audit_event(doc_id, event_type, payload, dry_run=dry_run)
+
+
+@mcp.tool
+def search_notion_pages(query: str, limit: int = 10) -> dict[str, Any]:
+    """Busca páginas en Notion vía API del servidor."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.search_notion_pages(query, limit=limit)
+
+
+@mcp.tool
+def push_coordination_doc_to_notion(
+    relative_path: str,
+    parent_page_id: str | None = None,
+    max_chars: int = 12000,
+) -> dict[str, Any]:
+    """Publica o actualiza un documento de ai_coordination en Notion."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.push_coordination_doc_to_notion(
+        relative_path,
+        parent_page_id=parent_page_id,
+        max_chars=max_chars,
+    )
+
+
+@mcp.tool
+def add_notion_page_comment(page_id: str, comment: str) -> dict[str, Any]:
+    """Añade un comentario a una página Notion."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.add_notion_page_comment(page_id, comment)
+
+
+@mcp.tool
+def get_notion_sync_log(limit: int = 20) -> dict[str, Any]:
+    """Lista el historial de documentos sincronizados a Notion."""
+    from raphiia_openai import notion_bridge
+
+    return notion_bridge.get_notion_sync_log(limit=limit)
+
+
+@mcp.tool
+def get_notion_webhook_setup() -> dict[str, Any]:
+    """URL y pasos para configurar webhooks Notion en la integración."""
+    from raphiia_openai import notion_webhook
+
+    return notion_webhook.get_notion_webhook_setup()
+
+
+@mcp.tool
+def list_coordination_files(path: str | None = None) -> dict[str, Any]:
+    """Lista archivos y carpetas permitidos dentro de ai_coordination."""
+    return coordination_docs.list_coordination_files(path=path)
+
+
+@mcp.tool
+def list_coordination_docs(category: str | None = None) -> dict[str, Any]:
+    """Alias de compatibilidad."""
+    return coordination_docs.list_coordination_docs(category=category)
+
+
+@mcp.tool
+def read_coordination_file(relative_path: str, max_chars: int = 12000) -> dict[str, Any]:
+    """Lee un archivo permitido de ai_coordination."""
+    try:
+        return coordination_docs.read_coordination_file(relative_path, max_chars=max_chars)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@mcp.tool
+def read_coordination_doc(relative_path: str, max_chars: int = 24000) -> dict[str, Any]:
+    """Alias de compatibilidad."""
+    try:
+        return coordination_docs.read_coordination_doc(relative_path, max_chars=max_chars)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@mcp.tool
+def search_coordination_docs(query: str, limit: int = 10) -> dict[str, Any]:
+    """Busca texto en documentación de coordinación del servidor."""
+    return coordination_docs.search_coordination_docs(query, limit=limit)
+
+
+@mcp.tool
+def get_chatgpt_workspace() -> dict[str, Any]:
+    """INBOX/OUTBOX/journal/notas de ChatGPT."""
+    return coordination_docs.get_chatgpt_workspace()
+
+
+@mcp.tool
+def save_chatgpt_note(title: str, body: str, tags: list[str] | None = None) -> dict[str, Any]:
+    """Guarda nota en chatgpt/notes/ y registra evento en Mongo."""
+    return coordination_docs.save_chatgpt_note(title, body, tags=tags)
+
+
+@mcp.tool
+def save_chatgpt_handoff(title: str, body: str, tags: list[str] | None = None) -> dict[str, Any]:
+    """Guarda handoff oficial de ChatGPT."""
+    return coordination_docs.save_chatgpt_handoff(title, body, tags=tags)
+
+
+@mcp.tool
+def save_chatgpt_draft(title: str, body: str, channel: str | None = None, tags: list[str] | None = None) -> dict[str, Any]:
+    """Guarda borrador de ChatGPT sin publicar."""
+    return coordination_docs.save_chatgpt_draft(title, body, channel=channel, tags=tags)
+
+
+@mcp.tool
+def get_agent_mailboxes(agent: str | None = None) -> dict[str, Any]:
+    """Lee INBOX y OUTBOX de agentes de coordinación."""
+    return coordination_docs.get_agent_mailboxes(agent=agent)
+
+
+@mcp.tool
+def write_agent_message(
+    target_agent: str,
+    title: str,
+    body: str,
+    priority: str | None = None,
+    from_agent: str = "CHATGPT",
+) -> dict[str, Any]:
+    """Alias de create_agent_message (canal único). from_agent por defecto CHATGPT."""
+    from raphiia_openai.memory import agent_messages as _am
+
+    return _am.write_agent_message(
+        target_agent=target_agent,
+        title=title,
+        body=body,
+        priority=priority,
+        from_agent=from_agent,
+    )
+
+
+@mcp.tool
+def list_agent_messages(
+    agent: str | None = None,
+    status: str | None = None,
+    limit: int = 20,
+    role: str = "inbox",
+) -> dict[str, Any]:
+    """Lista mensajes del canal único. role=inbox (recibidos) | sent | all."""
+    from raphiia_openai.memory import agent_messages as _am
+
+    return _am.list_agent_messages(agent=agent, status=status, limit=limit, role=role)
+
+
+@mcp.tool
+def get_coordination_live() -> dict[str, Any]:
+    """Estado vivo: revisión única, lecturas obligatorias, órdenes ops, mensajes abiertos."""
+    from raphiia_openai import coordination_live
+
+    return coordination_live.get_coordination_live()
+
+
+@mcp.tool
+def ack_coordination_revision(agent: str, revision: int) -> dict[str, Any]:
+    """Marca que un agente leyó la revisión actual de coordinación."""
+    from raphiia_openai import coordination_live
+
+    return coordination_live.ack_coordination_revision(agent, revision)
+
+
+@mcp.tool
+def create_ops_task(
+    assignee: str,
+    title: str,
+    checklist: list[str] | str | None = None,
+    evidence_required: list[str] | str | None = None,
+    priority: str = "normal",
+    from_agent: str = "RAFAEL",
+    correlation_id: str | None = None,
+) -> OpsTaskToolResult:
+    """Orden formal con checklist + evidencia → Mongo ops_tasks + INBOX assignee."""
+    from raphiia_openai import coordination_live
+
+    return coordination_live.create_ops_task(
+        assignee=assignee,
+        title=title,
+        checklist=checklist,
+        evidence_required=evidence_required,
+        priority=priority,
+        from_agent=from_agent,
+        correlation_id=correlation_id,
+    )
+
+
+@mcp.tool
+def complete_ops_task(task_id: str, status: str = "completed", evidence: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Cierra orden ops con evidencia verificable."""
+    from raphiia_openai import coordination_live
+
+    return coordination_live.complete_ops_task(task_id, status=status, evidence=evidence)
+
+
+@mcp.tool
+def list_ops_tasks(assignee: str | None = None, status: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """Lista órdenes ops (pending/completed)."""
+    from raphiia_openai import coordination_live
+
+    return coordination_live.list_ops_tasks(assignee=assignee, status=status, limit=limit)
+
+
+@mcp.tool
+def bootstrap_context() -> dict[str, Any]:
+    """Resumen compacto para abrir sesión — incluye RUNBOOK COT+WhatsApp."""
+    return coordination_docs.bootstrap_context()
+
+
+@mcp.tool
+def get_operational_runbooks() -> dict[str, Any]:
+    """Runbooks canónicos (COT, WhatsApp). ChatGPT: leer HUB/RUNBOOK_COTIZACION_WHATSAPP.md."""
+    return coordination_docs.get_operational_runbooks()
+
+
+@mcp.tool
+def save_memory(
+    type: str,
+    title: str,
+    body: str,
+    visibility: str,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """Guarda memoria persistente clasificada."""
+    doc = mongo_store.save_memory(type=type, title=title, body=body, visibility=visibility, tags=tags)
+    return {"ok": True, "memory": doc}
+
+
+@mcp.tool
+def search_memory(
+    query: str,
+    type: str | None = None,
+    visibility: str | None = None,
+    limit: int = 10,
+    min_score: float = 0.0,
+    trace: bool = False,
+) -> dict[str, Any]:
+    """Busca memoria persistente con filtros, umbral y trazabilidad opcional."""
+    items = mongo_store.search_memory(query=query, type=type, visibility=visibility, limit=limit, min_score=min_score, trace=trace)
+    if isinstance(items, dict):
+        return items
+    return {"ok": True, "count": len(items), "items": items}
+
+
+@mcp.tool
+def classify_knowledge_seed(title: str, body: str) -> dict[str, Any]:
+    """Sugiere categoría, intención, visibilidad y proyecto antes de guardar."""
+    return coordination_docs.classify_knowledge_seed(title, body)
+
+
+@mcp.tool
+def save_knowledge_seed(
+    title: str,
+    body: str,
+    category: str,
+    intent: str,
+    visibility: str,
+    project: str | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """Guarda conocimiento estructurado y crea borrador solo si aplica."""
+    return coordination_docs.save_knowledge_seed(
+        title=title,
+        body=body,
+        category=category,
+        intent=intent,
+        visibility=visibility,
+        project=project,
+        tags=tags,
+    )
+
+
+@mcp.tool
+def list_local_models() -> dict[str, Any]:
+    """Inventario de modelos locales instalados en Ollama."""
+    return local_model_router.list_local_models()
+
+
+@mcp.tool
+def local_model_health() -> dict[str, Any]:
+    """Salud de Ollama, Open WebUI, AnythingLLM, n8n, GPU y memoria."""
+    return local_model_router.local_model_health()
+
+
+@mcp.tool
+def classify_task_runtime(text: str, task_type: str | None = None) -> dict[str, Any]:
+    """Clasifica una tarea y sugiere runtime local/external."""
+    return local_model_router.classify_task_runtime(text, task_type=task_type)
+
+
+@mcp.tool
+def route_ai_task(title: str, body: str, task_type: str | None = None) -> dict[str, Any]:
+    """Decide el runtime recomendado para una tarea de IA."""
+    return local_model_router.route_ai_task(title, body, task_type=task_type)
+
+
+@mcp.tool
+def run_local_model(task_type: str, prompt: str, model: str | None = None, max_tokens: int | None = None) -> dict[str, Any]:
+    """Ejecuta una tarea con un modelo local de Ollama."""
+    return local_model_router.run_local_model(task_type=task_type, prompt=prompt, model=model, max_tokens=max_tokens)
+
+
+@mcp.tool
+def get_ai_usage_report(limit: int = 200) -> dict[str, Any]:
+    """Resumen de uso local vs externo y ahorro estimado."""
+    return local_model_router.get_ai_usage_report(limit=limit)
+
+
+@mcp.tool
+def generate_daily_brief(limit: int = 20, model: str | None = None) -> dict[str, Any]:
+    """Brief diario local-first con fallback seguro."""
+    return local_model_router.generate_daily_brief(limit=limit, model=model)
+
+
+@mcp.tool
+def cognitive_kernel_check(objective: str, context: str | None = None) -> dict[str, Any]:
+    """Evalua objetivo, riesgo y ruta recomendada para el kernel cognitivo."""
+    return local_model_router.cognitive_kernel_check(objective, context=context)
+
+
+@mcp.tool
+def update_pipeline_status(id: str, status: str) -> dict[str, Any]:
+    """Actualiza el estado de un borrador editorial."""
+    return editorial_store.update_pipeline_status(id, status)
+
+
+@mcp.tool
+def publish_pipeline_item(id: str) -> dict[str, Any]:
+    """Publica un item aprobado."""
+    draft = editorial_store.get_draft(id)
+    if not draft.get("ok"):
+        return draft
+    d = draft["draft"]
+    if d.get("status") != editorial_store.STATUS_APPROVED:
+        return {"ok": False, "error": "item not approved"}
+    post_id = d.get("post_id")
+    if not post_id:
+        return {"ok": False, "error": "missing post_id"}
+    db = mongo_store.get_db()
+    dest = db["social_destinations"].find_one({"post_id": post_id})
+    if not dest:
+        return {"ok": False, "error": "destination not found"}
+    return editorial_publish.publish_destination(str(dest["_id"]))
+
+
+@mcp.tool
+def get_publish_logs(limit: int = 20) -> dict[str, Any]:
+    """Logs recientes de publicación, imágenes y errores."""
+    return mongo_store.get_publish_logs(limit=limit)
+
+
+
+@mcp.tool
+def save_funding_program(
+    name: str,
+    description: str | None = None,
+    status: str | None = "active",
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Registra un programa de funding / créditos reutilizables."""
+    return funding_registry_module.save_funding_program(
+        name=name,
+        description=description,
+        status=status,
+        tags=tags,
+        metadata=metadata,
+    )
+
+
+@mcp.tool
+def list_funding_programs(query: str | None = None, status: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """Lista programas funding."""
+    return funding_registry_module.list_funding_programs(query=query, status=status, limit=limit)
+
+
+@mcp.tool
+def save_funding_application(
+    title: str,
+    program_id: str | None = None,
+    body: str | None = None,
+    status: str | None = "draft",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Registra una aplicación / postulación de funding."""
+    return funding_registry_module.save_funding_application(
+        title=title,
+        program_id=program_id,
+        body=body,
+        status=status,
+        metadata=metadata,
+    )
+
+
+@mcp.tool
+def list_funding_applications(
+    limit: int = 20,
+    program_id: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
+    """Lista aplicaciones funding."""
+    return funding_registry_module.list_funding_applications(limit=limit, program_id=program_id, status=status)
+
+
+@mcp.tool
+def save_funding_credit_account(
+    name: str,
+    provider: str | None = None,
+    currency: str = "USD",
+    balance: float | int = 0,
+    status: str | None = "active",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Crea cuenta de créditos o saldo funding."""
+    return funding_registry_module.save_funding_credit_account(
+        name=name,
+        provider=provider,
+        currency=currency,
+        balance=balance,
+        status=status,
+        metadata=metadata,
+    )
+
+
+@mcp.tool
+def record_funding_consumption(
+    account_id: str,
+    amount: float | int,
+    reason: str,
+    currency: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Registra consumo de créditos / gasto funding."""
+    return funding_registry_module.record_funding_consumption(
+        account_id=account_id,
+        amount=amount,
+        reason=reason,
+        currency=currency,
+        metadata=metadata,
+    )
+
+
+@mcp.tool
+def link_funding_project(
+    project_name: str | None = None,
+    project_id: str | None = None,
+    program_id: str | None = None,
+    application_id: str | None = None,
+    external_ref: str | None = None,
+    status: str | None = "active",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Vincula un proyecto a funding."""
+    return funding_registry_module.link_funding_project(
+        project_name=project_name,
+        project_id=project_id,
+        program_id=program_id,
+        application_id=application_id,
+        external_ref=external_ref,
+        status=status,
+        metadata=metadata,
+    )
+
+
+@mcp.tool
+def get_funding_registry_summary(limit: int = 5) -> dict[str, Any]:
+    """Resumen compacto del registry de funding y créditos."""
+    return funding_registry_module.get_funding_registry_summary(limit=limit)
+
+
+def _url_ok(url: str, timeout: float = 2.5) -> dict[str, Any]:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+            return {"ok": True, "status": getattr(resp, "status", 200), "preview": body[:400]}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _port_open(host: str, port: int, timeout: float = 0.5) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def _systemctl_status(unit: str) -> dict[str, Any]:
+    try:
+        proc = subprocess.run(
+            ["systemctl", "--user", "is-active", unit],
+            capture_output=True,
+            text=True,
+            timeout=4,
+            check=False,
+        )
+        state = (proc.stdout or proc.stderr or "").strip() or "unknown"
+        return {"ok": state == "active", "state": state}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@mcp.tool
+def system_health() -> dict[str, Any]:
+    """Estado de Mongo, MCP, portal, funding-hub, LinkedIn, Gemini y daemon."""
+    mongo = mongo_store.ping_mongo()
+    mcp_ok = mongo_store.ping_mongo().get("ok", False)
+    portal = _url_ok("http://127.0.0.1:8800/api/portal/overview")
+    ralphia_health = _url_ok(f"http://127.0.0.1:{RAPHI_IA_OPENAI_PORT}/status")
+    funding_hub = {"ok": _port_open("127.0.0.1", 8099), "port": 8099}
+    linkedin = linkedin_client.config_status()
+    gemini = {
+        "ok": bool(GOOGLE_API_KEY),
+        "provider": getattr(image_gen, "IMAGE_GEN_PROVIDER", "google"),
+        "configured": bool(GOOGLE_API_KEY),
+    }
+    local_models = local_model_router.local_model_health()
+    funding_registry = funding_registry_module.get_funding_registry_summary(limit=3)
+    watcher = _systemctl_status("ralfia-coordination-daemon")
+    daemon = _systemctl_status("ralfia-coordination-daemon")
+    oauth = _url_ok(f"{OAUTH_ISSUER}/health")
+    file_access = coordination_docs.list_coordination_files(path="chatgpt")
+    return {
+        "ok": bool(mongo.get("ok")),
+        "mongodb": mongo,
+        "mcp": {"ok": mcp_ok, "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp"},
+        "portal": portal,
+        "ralphia_health": ralphia_health,
+        "funding_hub": funding_hub,
+        "linkedin_connector": linkedin,
+        "gemini_image_api": gemini,
+        "local_model_runtime": local_models,
+        "funding_registry": funding_registry,
+        "watcher": watcher,
+        "daemon": daemon,
+        "oauth": oauth,
+        "file_access_tools": {"ok": bool(file_access.get("ok")), "count": file_access.get("count", 0)},
+    }
+
+
+@mcp.custom_route("/notion/webhook", methods=["POST"])
+async def notion_webhook_http(request: Request) -> JSONResponse:
+    """Endpoint público HTTPS para webhooks Notion (vía ngrok)."""
+    from raphiia_openai import notion_webhook
+
+    raw = await request.body()
+    sig = request.headers.get("X-Notion-Signature")
+    result = notion_webhook.handle_notion_webhook(raw, signature=sig)
+    status = int(result.pop("http_status", 200))
+    return JSONResponse(result, status_code=status)
+
+
+@mcp.custom_route("/notion/webhook/pending", methods=["GET"])
+async def notion_webhook_pending_http(_request: Request) -> JSONResponse:
+    """Token de verificación pendiente (tras crear suscripción en Notion)."""
+    from raphiia_openai import notion_webhook
+
+    return JSONResponse(notion_webhook.get_pending_verification_token())
+
+
+@mcp.custom_route("/notion/webhook/setup", methods=["GET"])
+async def notion_webhook_setup_http(_request: Request) -> JSONResponse:
+    from raphiia_openai import notion_webhook
+
+    return JSONResponse(notion_webhook.get_notion_webhook_setup())
+
+
+if __name__ == "__main__":
+    mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
+    mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp")

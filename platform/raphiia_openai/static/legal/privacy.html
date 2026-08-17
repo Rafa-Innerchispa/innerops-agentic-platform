@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="description" content="Política de privacidad de Ralphi IA — PC Doctor AI"/>
+<title>Política de Privacidad · Ralphi IA</title>
+<style>
+:root{--bg:#070b14;--surface:#0f1628;--border:#1e2d4a;--text:#e8edf7;--muted:#8b9cb8;--accent:#38bdf8;--accent2:#818cf8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.65;
+  background-image:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(56,189,248,.1),transparent)}
+.wrap{max-width:720px;margin:0 auto;padding:2rem 1.25rem 4rem}
+header{display:flex;align-items:center;gap:.85rem;margin-bottom:2rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border)}
+.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+.brand strong{display:block;font-size:1.05rem}
+.brand span{font-size:.75rem;color:var(--muted)}
+h1{font-size:1.75rem;font-weight:700;margin-bottom:.35rem;letter-spacing:-.02em}
+.updated{color:var(--muted);font-size:.85rem;margin-bottom:2rem}
+h2{font-size:1.05rem;margin:1.75rem 0 .65rem;color:var(--accent)}
+p,li{font-size:.95rem;color:#c8d3e8;margin-bottom:.75rem}
+ul{padding-left:1.25rem;margin-bottom:1rem}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:.85rem;padding:1rem 1.15rem;margin:1rem 0}
+footer{margin-top:2.5rem;padding-top:1.25rem;border-top:1px solid var(--border);font-size:.82rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="logo">R</div>
+  <div class="brand"><strong>Ralphi IA</strong><span>PC Doctor AI · Ecuador</span></div>
+</header>
+<h1>Política de Privacidad</h1>
+<p class="updated">Última actualización: 1 de agosto de 2026</p>
+
+<p>Esta política describe cómo <strong>PC Doctor AI</strong> (operado por InnerChispa LLC / PC Doctor S.A.) trata la información en <strong>Ralphi IA</strong>, el asistente de voz y chat disponible en <a href="https://voz.pcdoctor.ai">voz.pcdoctor.ai</a>.</p>
+
+<h2>1. Responsable del tratamiento</h2>
+<div class="card">
+  <p><strong>Entidad:</strong> PC Doctor AI / InnerChispa LLC<br/>
+  <strong>Contacto:</strong> <a href="mailto:pcdoctorgye@gmail.com">pcdoctorgye@gmail.com</a><br/>
+  <strong>Sitio:</strong> <a href="https://voz.pcdoctor.ai">https://voz.pcdoctor.ai</a></p>
+</div>
+
+<h2>2. Datos que recopilamos</h2>
+<p>Al usar Ralphi IA podemos procesar:</p>
+<ul>
+  <li><strong>Identidad de cuenta:</strong> nombre, correo electrónico y foto de perfil cuando inicias sesión con Google OAuth (<code>openid</code>, <code>email</code>, <code>profile</code>).</li>
+  <li><strong>Credenciales del portal:</strong> usuario y contraseña si eliges login con cuenta PC Doctor (almacenados como hash, nunca en texto plano).</li>
+  <li><strong>Conversaciones:</strong> mensajes de voz transcritos y texto que envías al asistente.</li>
+  <li><strong>Perfil de uso:</strong> preferencias aprendidas en conversación (gustos, rol, necesidades declaradas por ti).</li>
+  <li><strong>Archivos adjuntos:</strong> documentos o imágenes que subas voluntariamente.</li>
+  <li><strong>Datos técnicos:</strong> cookies de sesión, dirección IP aproximada y registros de error para seguridad.</li>
+</ul>
+
+<h2>3. Finalidad del tratamiento</h2>
+<ul>
+  <li>Autenticar usuarios y controlar acceso (administradores vs operadores).</li>
+  <li>Proveer asistencia con memoria contextual de operaciones empresariales autorizadas.</li>
+  <li>Mejorar la experiencia personalizada por usuario.</li>
+  <li>Notificar al administrador sobre nuevas solicitudes de acceso.</li>
+  <li>Garantizar seguridad, auditoría y continuidad del servicio.</li>
+</ul>
+
+<h2>4. Base legal y consentimiento</h2>
+<p>El tratamiento se basa en tu consentimiento al iniciar sesión, en la ejecución del servicio solicitado y en el interés legítimo de PC Doctor AI para operar sistemas internos y colaborativos con controles de acceso.</p>
+
+<h2>5. Memoria y acceso por rol</h2>
+<ul>
+  <li><strong>Administrador (Rafael):</strong> acceso a memoria privada y de empresa.</li>
+  <li><strong>Operadores aprobados:</strong> acceso solo a memoria de empresa y su perfil personal; no ven memoria privada del administrador.</li>
+  <li><strong>Usuarios no aprobados:</strong> sin acceso hasta autorización explícita.</li>
+</ul>
+
+<h2>6. Almacenamiento y seguridad</h2>
+<p>Los datos se almacenan en infraestructura controlada por PC Doctor AI (servidores locales en Ecuador y, cuando aplica, servicios en la nube con cifrado en tránsito HTTPS). Las sesiones usan cookies seguras (<code>HttpOnly</code>, <code>Secure</code>). Implementamos controles de acceso por usuario y segregación de memoria.</p>
+
+<h2>7. Compartición con terceros</h2>
+<p>No vendemos ni alquilamos datos personales. Podemos usar proveedores estrictamente necesarios:</p>
+<ul>
+  <li><strong>Google</strong> — autenticación OAuth e, opcionalmente, inferencia Gemini como respaldo.</li>
+  <li><strong>Infraestructura propia</strong> — MongoDB, Qdrant, servidores de voz (Whisper/TTS) bajo control de PC Doctor AI.</li>
+</ul>
+<p>No compartimos conversaciones con terceros con fines publicitarios.</p>
+
+<h2>8. Retención</h2>
+<p>Conservamos historial de conversación y perfiles mientras la cuenta esté activa o sea necesario para operaciones. Puedes solicitar eliminación contactando al administrador.</p>
+
+<h2>9. Tus derechos</h2>
+<p>Puedes solicitar acceso, rectificación, eliminación o limitación del tratamiento escribiendo a <a href="mailto:pcdoctorgye@gmail.com">pcdoctorgye@gmail.com</a>. Responderemos en un plazo razonable conforme a la legislación ecuatoriana aplicable.</p>
+
+<h2>10. Menores de edad</h2>
+<p>Ralphi IA está dirigido a colaboradores y operadores adultos de PC Doctor AI y sus clientes empresariales. No recopilamos intencionalmente datos de menores.</p>
+
+<h2>11. Cambios</h2>
+<p>Podemos actualizar esta política. La fecha de revisión aparecerá al inicio del documento. El uso continuado implica aceptación de la versión vigente.</p>
+
+<footer>
+  <p>© 2026 PC Doctor AI · InnerChispa LLC<br/>
+  <a href="/terms">Condiciones de servicio</a> · <a href="https://voz.pcdoctor.ai">Volver a Ralphi IA</a></p>
+</footer>
+</div>
+</body>
+</html>

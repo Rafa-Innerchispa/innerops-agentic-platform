@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Daily Life Memory · Revisión privada</title>
+  <style>
+    :root{color-scheme:dark;--bg:#08111f;--panel:#101d30;--line:#24364d;--text:#eef5ff;--muted:#9eb1c9;--accent:#55d6be;--danger:#ff718a}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 15% 0,#17355a 0,transparent 34%),var(--bg);font:15px/1.5 system-ui;color:var(--text)}
+    main{max-width:1180px;margin:auto;padding:32px 20px}header{display:flex;justify-content:space-between;gap:20px;align-items:end;border-bottom:1px solid var(--line);padding-bottom:20px}
+    h1{margin:0;font-size:clamp(28px,4vw,48px)}p{color:var(--muted)}button,input{font:inherit;border-radius:10px;border:1px solid var(--line);padding:10px 12px;background:#0b1728;color:var(--text)}button{cursor:pointer}button.primary{background:var(--accent);color:#04251f;font-weight:700}.danger{color:var(--danger)}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0}.notice{padding:12px 16px;border:1px solid var(--line);border-radius:12px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}.panel{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:18px;padding:18px;min-height:200px}
+    .item{border-top:1px solid var(--line);padding:15px 0}.item:first-of-type{border-top:0}.meta{font-size:12px;color:var(--muted)}.badge{display:inline-block;margin:6px 6px 6px 0;padding:3px 8px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--muted)}.confirmed{border-color:var(--accent);color:var(--accent)}.warning{border-color:#e6b95c;color:#e6b95c}.actions{display:flex;gap:8px;margin-top:10px}.empty{color:var(--muted);padding:30px 0;text-align:center}
+    @media(max-width:780px){header{display:block}.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header><div><div class="meta">RALPHIIA · OWNER-ONLY</div><h1>Daily Life Memory</h1><p>Revisión de memorias versionadas y pendientes. Ningún contenido privado está incrustado en esta página.</p></div><button class="primary" id="load">Desbloquear y revisar</button></header>
+  <div class="toolbar"><input id="filter" placeholder="Filtrar en esta vista" autocomplete="off"><button id="refresh">Actualizar</button></div>
+  <div class="notice" id="status">Se requiere el token privado de revisión. Se mantiene solo en memoria durante esta pestaña.</div>
+  <section class="grid"><div class="panel"><h2>Memorias</h2><div id="memories" class="empty">Bloqueado</div></div><div class="panel"><h2>Pendientes</h2><div id="pending" class="empty">Bloqueado</div></div></section>
+</main><script>
+let token='',data={memories:[],pending:[]};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(path,opts={}){const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-RalfIA-Memory-Review':token,...opts.headers}});const j=await r.json();if(!r.ok)throw Error(j.error||r.statusText);return j}
+function render(){const q=document.querySelector('#filter').value.toLowerCase();const ms=data.memories.filter(x=>JSON.stringify(x).toLowerCase().includes(q));const ps=data.pending.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
+ document.querySelector('#memories').innerHTML=ms.length?ms.map(x=>`<article class="item"><b>${esc(x.title)}</b><div>${esc(x.body)}</div><span class="badge">${esc(x.kind)}</span><span class="badge ${x.owner_validated?'confirmed':x.confidence_label==='low'?'warning':''}">${x.owner_validated?'confirmado por Rafael':`confianza ${esc(x.confidence_label||'legacy')} (${esc(x.confidence??'—')})`}</span>${x.metadata?.pattern_candidate?'<span class="badge warning">candidato a patrón · no diagnóstico</span>':''}<div class="meta">${esc(x.epistemic_status||'legacy')} · ${esc(x.privacy_scope)} · v${esc(x.version)} · ${esc(x.memory_id)}</div><div class="actions"><button onclick="correct('${esc(x.memory_id)}')">Corregir y enseñar</button><button class="danger" onclick="forget('${esc(x.memory_id)}')">Olvidar</button></div></article>`).join(''):'<div class="empty">Sin memorias</div>';
+ document.querySelector('#pending').innerHTML=ps.length?ps.map(x=>`<article class="item"><b>${esc(x.text)}</b><div class="meta">${esc(x.privacy_scope)} · ${esc(x.pending_id)}</div><div class="actions"><button onclick="resolvePending('${esc(x.pending_id)}')">Resolver</button></div></article>`).join(''):'<div class="empty">Sin pendientes</div>'}
+async function load(){if(!token)token=prompt('Token privado de revisión')||'';if(!token)return;try{data=await api('/api/ops/daily-memory/review');render();document.querySelector('#status').textContent=`${data.memories.length} memorias · ${data.pending.length} pendientes`; }catch(e){token='';document.querySelector('#status').textContent=`Acceso denegado: ${e.message}`}}
+async function correct(id){const body=prompt('Texto corregido');if(!body)return;const learnedRule=prompt('Regla que RalfIA debe aprender para futuras conversaciones (opcional)')||'';await api('/api/ops/daily-memory/correct',{method:'POST',body:JSON.stringify({memory_id:id,body,correction_note:'Corrección desde panel',owner_confirmed:true,...(learnedRule?{learned_rule:{body:learnedRule,metadata:{rule_type:'owner_correction_from_panel'}}}:{})})});await load()}
+async function forget(id){if(!confirm('¿Olvidar esta memoria y purgar sus versiones?'))return;await api('/api/ops/daily-memory/forget',{method:'POST',body:JSON.stringify({memory_id:id,reason:'Solicitud desde panel'})});await load()}
+async function resolvePending(id){const resolution=prompt('Resolución');if(!resolution)return;await api('/api/ops/daily-memory/resolve-pending',{method:'POST',body:JSON.stringify({pending_id:id,resolution})});await load()}
+document.querySelector('#load').onclick=load;document.querySelector('#refresh').onclick=load;document.querySelector('#filter').oninput=render;
+</script></body></html>
