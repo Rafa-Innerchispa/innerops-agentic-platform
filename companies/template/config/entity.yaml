@@ -1,0 +1,12 @@
+entity_id: ent_TEMPLATE
+name: "TEMPLATE — Nuevo cliente"
+slug: template
+kind: organization
+country: EC
+currency: USD
+billing_enabled: true
+modules:
+  - accounting
+  - quoting
+  - inventory
+notes: "Copiar a companies/<slug>/ al clonar despliegue"

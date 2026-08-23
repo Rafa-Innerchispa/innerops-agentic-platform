@@ -1,0 +1,69 @@
+# Registro de repos externos — InnerOS solo referencia vía env/symlink/HTTP
+version: "1.0"
+
+platform:
+  root: /home/rlopez/inneros
+  core: /home/rlopez/inneros/inneros_core
+  platform_code: /home/rlopez/inneros/inneros_core/platform
+
+products:
+  - id: quoteops
+    path: /home/rlopez/projects/ralphiia-quoteops
+    kind: product
+    module_symlink: inneros_core/modules/quoteops
+    port: 8765
+    entity_ids: [ent_pcdoctor, ent_innerchispa]
+
+  - id: smart-quoter
+    path: /home/rlopez/projects/innerspark-smart-quoter
+    kind: product
+    module_symlink: inneros_core/modules/smart-quoter
+    port: 2026
+    entity_ids: [ent_pcdoctor, ent_innerchispa]
+
+  - id: workforce-ai
+    path: /home/rlopez/projects/innerspark-workforce-ai
+    kind: product
+    sellable: true
+    entity_id: ent_innerchispa
+    hackathon_demo: true
+
+infra:
+  - id: amd-standby
+    path: /home/rlopez/projects/ralfiia-amd-standby
+    kind: infra
+
+  - id: swarm-portal-ui
+    path: /home/rlopez/projects/innerspark-swarm-os-cursor-local
+    kind: ui
+
+legacy:
+  - id: inneros-rag
+    path: /home/rlopez/projects/inneros-rag-legacy
+    kind: rag
+
+hackathons:
+  - id: hackathon-autopilot
+    path: /home/rlopez/projects/hackathon-autopilot
+    port: 8090
+    platform_must_not_depend: true
+
+  - id: hackathon-funding-hub
+    path: /home/rlopez/projects/hackathon-funding-hub
+    port: 8099
+    platform_must_not_depend: true
+
+  - id: liveops-intelligence
+    path: /home/rlopez/projects/ralphiia-liveops-intelligence
+    port: 8788
+    platform_must_not_depend: true
+
+  - id: hybrid-ops-copilot
+    path: /home/rlopez/projects/amd-ralfiia-hybrid-ops-copilot
+    port: 8220
+    platform_must_not_depend: true
+
+  - id: uipath-copilot
+    path: /home/rlopez/projects/uipath-copilot
+    port: 8097
+    platform_must_not_depend: true

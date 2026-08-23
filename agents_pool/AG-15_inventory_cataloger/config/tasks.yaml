@@ -1,0 +1,8 @@
+catalog_requirements:
+  description: >
+    1. Leer el listado de fallas y repuestos recomendados en la inspección.
+2. Buscar coincidencias en la colección de inventario de PC-Doctor usando palabras clave.
+3. Mapear cada repuesto a su código de producto y precio oficial de venta.
+4. Devolver la lista estructurada lista para el cotizador.
+  expected_output: >
+    Una lista JSON de repuestos catalogados con claves: item_code, name, unit_price y type (product/service).

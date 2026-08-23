@@ -1,0 +1,1828 @@
+{
+  "ok": true,
+  "agent": "AG-40+local-orchestrator",
+  "checks": {
+    "down": 119,
+    "up": 27,
+    "unauthorized_alive": 3
+  },
+  "status_counts": {
+    "down": 119,
+    "up": 25,
+    "unauthorized_alive": 3,
+    "unknown": 2
+  },
+  "classification_counts": {
+    "REAL_DOWN": 65,
+    "CORE_DEGRADED": 3,
+    "LEGACY": 3,
+    "AUTO_DISCOVERED_STALE": 48,
+    "UNMONITORED": 1,
+    "ON_DEMAND": 1
+  },
+  "matrix": [
+    {
+      "service_id": "datacenter",
+      "name": "Centro de Datos (chat + voz)",
+      "status": "down",
+      "risk": null,
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5173 closed"
+    },
+    {
+      "service_id": "admin",
+      "name": "PC Doctor Admin",
+      "status": "down",
+      "risk": null,
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5173 closed"
+    },
+    {
+      "service_id": "raphiia-auth",
+      "name": "RalfIA OAuth",
+      "status": "down",
+      "risk": null,
+      "port": 8103,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8103 closed"
+    },
+    {
+      "service_id": "postgres",
+      "name": "PostgreSQL",
+      "status": "down",
+      "risk": null,
+      "port": 5432,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5432 closed"
+    },
+    {
+      "service_id": "ralphi-gateway",
+      "name": "Ralphi Gateway",
+      "status": "down",
+      "risk": null,
+      "port": 8091,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8091 closed"
+    },
+    {
+      "service_id": "homeassistant",
+      "name": "Home Assistant",
+      "status": "down",
+      "risk": null,
+      "port": 8123,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8123 closed"
+    },
+    {
+      "service_id": "cockpit",
+      "name": "Cockpit",
+      "status": "down",
+      "risk": null,
+      "port": 9090,
+      "classification": "REAL_DOWN",
+      "last_error": "port 9090 closed"
+    },
+    {
+      "service_id": "portainer",
+      "name": "Portainer",
+      "status": "down",
+      "risk": null,
+      "port": 9000,
+      "classification": "REAL_DOWN",
+      "last_error": "port 9000 closed"
+    },
+    {
+      "service_id": "litellm",
+      "name": "LiteLLM Gateway",
+      "status": "down",
+      "risk": null,
+      "port": 4000,
+      "classification": "REAL_DOWN",
+      "last_error": "port 4000 closed"
+    },
+    {
+      "service_id": "api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": null,
+      "port": 8100,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8100 closed"
+    },
+    {
+      "service_id": "raphiia-status",
+      "name": "RalfIA Control Plane \u2014 Estado",
+      "status": "down",
+      "risk": null,
+      "port": 8101,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8101 closed"
+    },
+    {
+      "service_id": "hackathon-autopilot",
+      "name": "Hackathon Autopilot",
+      "status": "down",
+      "risk": null,
+      "port": 8090,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8090 closed"
+    },
+    {
+      "service_id": "gitlab-transcend",
+      "name": "GitLab Transcend",
+      "status": "down",
+      "risk": null,
+      "port": 8095,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8095 closed"
+    },
+    {
+      "service_id": "ralphi-sre",
+      "name": "Ralphi SRE (Proyectos)",
+      "status": "down",
+      "risk": null,
+      "port": 8096,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8096 closed"
+    },
+    {
+      "service_id": "hackathon-band-ui",
+      "name": "Hackathon Band UI",
+      "status": "down",
+      "risk": null,
+      "port": 5190,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5190 closed"
+    },
+    {
+      "service_id": "swarm-os-google-ai-studio",
+      "name": "Google AI Studio Swarm",
+      "status": "down",
+      "risk": null,
+      "port": 5180,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5180 closed"
+    },
+    {
+      "service_id": "hackathon-funding-hub",
+      "name": "Hackathon & Funding Hub",
+      "status": "down",
+      "risk": null,
+      "port": 8099,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8099 closed"
+    },
+    {
+      "service_id": "portal-control-center",
+      "name": "Ralphi IA Control Center",
+      "status": "down",
+      "risk": "critical",
+      "port": 2002,
+      "classification": "CORE_DEGRADED",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "public-gateway",
+      "name": "Public Gateway (ngrok \u2192 :5188)",
+      "status": "down",
+      "risk": "critical",
+      "port": 5188,
+      "classification": "LEGACY",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "raphiia-oauth",
+      "name": "Ralphi IA OAuth",
+      "status": "down",
+      "risk": "critical",
+      "port": 8103,
+      "classification": "CORE_DEGRADED",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "raphiia-mcp",
+      "name": "Conector RalfIA MCP",
+      "status": "unknown",
+      "risk": "critical",
+      "port": 8102,
+      "classification": "CORE_DEGRADED",
+      "last_error": ""
+    },
+    {
+      "service_id": "uipath-copilot",
+      "name": "UiPath Copilot",
+      "status": "down",
+      "risk": "high",
+      "port": 8097,
+      "classification": "LEGACY",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "swarm-api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": "high",
+      "port": 8100,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "ollama-router",
+      "name": "Ollama Dual-Node Router",
+      "status": "down",
+      "risk": "high",
+      "port": 11435,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "vllm-rocm",
+      "name": "vLLM ROCm (AMD)",
+      "status": "down",
+      "risk": "high",
+      "port": 8000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "raphiia-health",
+      "name": "Ralphi IA \u2014 Status + Editorial",
+      "status": "down",
+      "risk": "high",
+      "port": 8101,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-8800",
+      "name": "RalfIA Control Center",
+      "status": "down",
+      "risk": "high",
+      "port": 8800,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "ops-panel",
+      "name": "RalfIA Ops Panel",
+      "status": "down",
+      "risk": "high",
+      "port": 2002,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8775",
+      "name": "Discovered :8775",
+      "status": "down",
+      "risk": "low",
+      "port": 8775,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8774",
+      "name": "Discovered :8774",
+      "status": "down",
+      "risk": "low",
+      "port": 8774,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8773",
+      "name": "Discovered :8773",
+      "status": "down",
+      "risk": "low",
+      "port": 8773,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8776",
+      "name": "Discovered :8776",
+      "status": "down",
+      "risk": "low",
+      "port": 8776,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8777",
+      "name": "Discovered :8777",
+      "status": "down",
+      "risk": "low",
+      "port": 8777,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-smart-quoter",
+      "name": "InnerSpark Smart Quoter",
+      "status": "down",
+      "risk": "low",
+      "port": 2026,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-9222",
+      "name": "Discovered :9222",
+      "status": "down",
+      "risk": "low",
+      "port": 9222,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-5185",
+      "name": "Discovered :5185",
+      "status": "down",
+      "risk": "low",
+      "port": 5185,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8772",
+      "name": "Discovered :8772",
+      "status": "down",
+      "risk": "low",
+      "port": 8772,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8771",
+      "name": "Discovered :8771",
+      "status": "down",
+      "risk": "low",
+      "port": 8771,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8770",
+      "name": "Discovered :8770",
+      "status": "down",
+      "risk": "low",
+      "port": 8770,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8769",
+      "name": "Discovered :8769",
+      "status": "down",
+      "risk": "low",
+      "port": 8769,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8768",
+      "name": "Discovered :8768",
+      "status": "down",
+      "risk": "low",
+      "port": 8768,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8767",
+      "name": "Discovered :8767",
+      "status": "down",
+      "risk": "low",
+      "port": 8767,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8766",
+      "name": "Discovered :8766",
+      "status": "down",
+      "risk": "low",
+      "port": 8766,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-4173",
+      "name": "Discovered :4173",
+      "status": "down",
+      "risk": "low",
+      "port": 4173,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-4041",
+      "name": "Discovered :4041",
+      "status": "down",
+      "risk": "low",
+      "port": 4041,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8222",
+      "name": "Discovered :8222",
+      "status": "down",
+      "risk": "low",
+      "port": 8222,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8221",
+      "name": "Discovered :8221",
+      "status": "down",
+      "risk": "low",
+      "port": 8221,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8220",
+      "name": "Discovered :8220",
+      "status": "down",
+      "risk": "low",
+      "port": 8220,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8188",
+      "name": "Discovered :8188",
+      "status": "down",
+      "risk": "low",
+      "port": 8188,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8010",
+      "name": "Discovered :8010",
+      "status": "down",
+      "risk": "low",
+      "port": 8010,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8210",
+      "name": "Discovered :8210",
+      "status": "down",
+      "risk": "low",
+      "port": 8210,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8788",
+      "name": "Discovered :8788",
+      "status": "down",
+      "risk": "low",
+      "port": 8788,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-3002",
+      "name": "Discovered :3002",
+      "status": "down",
+      "risk": "low",
+      "port": 3002,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-3005",
+      "name": "Discovered :3005",
+      "status": "down",
+      "risk": "low",
+      "port": 3005,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8112",
+      "name": "Discovered :8112",
+      "status": "down",
+      "risk": "low",
+      "port": 8112,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8080",
+      "name": "Discovered :8080",
+      "status": "down",
+      "risk": "low",
+      "port": 8080,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-whisper-amd",
+      "name": "Whisper STT (AMD :9000)",
+      "status": "down",
+      "risk": "low",
+      "port": 9000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-ollama-router",
+      "name": "Ollama Dual-Node Router",
+      "status": "down",
+      "risk": "low",
+      "port": 11435,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-comfyui",
+      "name": "ComfyUI (generaci\u00f3n imagen)",
+      "status": "down",
+      "risk": "low",
+      "port": 8188,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-vllm-amd",
+      "name": "vLLM ROCm (AMD R9700)",
+      "status": "down",
+      "risk": "low",
+      "port": 8000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8000",
+      "name": "Discovered :8000",
+      "status": "down",
+      "risk": "low",
+      "port": 8000,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-6334",
+      "name": "Discovered :6334",
+      "status": "down",
+      "risk": "low",
+      "port": 6334,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "[Errno 104] Connection reset by peer"
+    },
+    {
+      "service_id": "discovered-5679",
+      "name": "Discovered :5679",
+      "status": "down",
+      "risk": "low",
+      "port": 5679,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "HTTP 404"
+    },
+    {
+      "service_id": "discovered-8765",
+      "name": "Discovered :8765",
+      "status": "down",
+      "risk": "low",
+      "port": 8765,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-innerchispa-conscious-map",
+      "name": "InnerChispa \u2014 Mapa de sistemas conscientes",
+      "status": "down",
+      "risk": "low",
+      "port": 443,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-innerchispa-astro-live",
+      "name": "InnerChispa \u2014 Ecosistema vivo (Astro)",
+      "status": "down",
+      "risk": "low",
+      "port": 5185,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8110",
+      "name": "Discovered :8110",
+      "status": "down",
+      "risk": "low",
+      "port": 8110,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8230",
+      "name": "Discovered :8230",
+      "status": "down",
+      "risk": "low",
+      "port": 8230,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8898",
+      "name": "Discovered :8898",
+      "status": "down",
+      "risk": "low",
+      "port": 8898,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8897",
+      "name": "Discovered :8897",
+      "status": "down",
+      "risk": "low",
+      "port": 8897,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8896",
+      "name": "Discovered :8896",
+      "status": "down",
+      "risk": "low",
+      "port": 8896,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-4876",
+      "name": "Discovered :4876",
+      "status": "down",
+      "risk": "low",
+      "port": 4876,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8790",
+      "name": "Discovered :8790",
+      "status": "down",
+      "risk": "low",
+      "port": 8790,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8780",
+      "name": "Discovered :8780",
+      "status": "down",
+      "risk": "low",
+      "port": 8780,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-4327",
+      "name": "Discovered :4327",
+      "status": "down",
+      "risk": "low",
+      "port": 4327,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8876",
+      "name": "Discovered :8876",
+      "status": "down",
+      "risk": "low",
+      "port": 8876,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-raphiia-auth",
+      "name": "Ralphi IA OAuth",
+      "status": "down",
+      "risk": "low",
+      "port": 8103,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-5174",
+      "name": "Discovered :5174",
+      "status": "down",
+      "risk": "low",
+      "port": 5174,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-hackathon-funding-hub",
+      "name": "Hackathon & Funding Hub",
+      "status": "down",
+      "risk": "low",
+      "port": 8099,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-swarm-os-google-ai-studio",
+      "name": "Google AI Studio Swarm",
+      "status": "down",
+      "risk": "low",
+      "port": 5180,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-hackathon-band-ui",
+      "name": "Hackathon Band UI",
+      "status": "down",
+      "risk": "low",
+      "port": 5190,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-ralphi-sre",
+      "name": "Ralphi SRE (Proyectos)",
+      "status": "down",
+      "risk": "low",
+      "port": 8096,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-gitlab-transcend",
+      "name": "GitLab Transcend",
+      "status": "down",
+      "risk": "low",
+      "port": 8095,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-hackathon-autopilot",
+      "name": "Hackathon Autopilot",
+      "status": "down",
+      "risk": "low",
+      "port": 8090,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-litellm",
+      "name": "LiteLLM Gateway",
+      "status": "down",
+      "risk": "low",
+      "port": 4000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-raphiia-status",
+      "name": "Ralphi IA \u2014 Control Plane",
+      "status": "down",
+      "risk": "low",
+      "port": 8101,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": "low",
+      "port": 8100,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-datacenter",
+      "name": "Centro de Datos (chat + voz)",
+      "status": "down",
+      "risk": "low",
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-admin",
+      "name": "PC Doctor Admin",
+      "status": "down",
+      "risk": "low",
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8800",
+      "name": "Discovered :8800",
+      "status": "down",
+      "risk": "low",
+      "port": 8800,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8098",
+      "name": "Discovered :8098",
+      "status": "down",
+      "risk": "low",
+      "port": 8098,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-8097",
+      "name": "Discovered :8097",
+      "status": "down",
+      "risk": "low",
+      "port": 8097,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-5433",
+      "name": "Discovered :5433",
+      "status": "down",
+      "risk": "low",
+      "port": 5433,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-5188",
+      "name": "Discovered :5188",
+      "status": "down",
+      "risk": "low",
+      "port": 5188,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "discovered-4040",
+      "name": "Discovered :4040",
+      "status": "down",
+      "risk": "low",
+      "port": 4040,
+      "classification": "AUTO_DISCOVERED_STALE",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-portainer",
+      "name": "Portainer",
+      "status": "down",
+      "risk": "low",
+      "port": 9000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-cockpit",
+      "name": "Cockpit",
+      "status": "down",
+      "risk": "low",
+      "port": 9090,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-homeassistant",
+      "name": "Home Assistant",
+      "status": "down",
+      "risk": "low",
+      "port": 8123,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-ralphi-gateway",
+      "name": "Ralphi Gateway",
+      "status": "down",
+      "risk": "low",
+      "port": 8091,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-postgres",
+      "name": "PostgreSQL",
+      "status": "down",
+      "risk": "low",
+      "port": 5432,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-8800-redirect",
+      "name": "Legacy :8800 redirect",
+      "status": "down",
+      "risk": "low",
+      "port": 8800,
+      "classification": "LEGACY",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "ollama",
+      "name": "Ollama Local",
+      "status": "unknown",
+      "risk": "medium",
+      "port": 11434,
+      "classification": "UNMONITORED",
+      "last_error": ""
+    },
+    {
+      "service_id": "smart-quoter",
+      "name": "InnerSpark Smart Quoter",
+      "status": "down",
+      "risk": "medium",
+      "port": 2026,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "funding-hub",
+      "name": "Funding Hub",
+      "status": "down",
+      "risk": "medium",
+      "port": 8099,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "editorial-hub",
+      "name": "Editorial LinkedIn Hub",
+      "status": "down",
+      "risk": "medium",
+      "port": 8101,
+      "classification": "ON_DEMAND",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-public-gateway",
+      "name": "Public Gateway ngrok",
+      "status": "down",
+      "risk": "medium",
+      "port": 5188,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "comfyui-amd",
+      "name": "ComfyUI (AMD ROCm)",
+      "status": "down",
+      "risk": "medium",
+      "port": 8188,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "whisper-amd",
+      "name": "Whisper STT (AMD)",
+      "status": "down",
+      "risk": "medium",
+      "port": 9000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-inneros-admin",
+      "name": "InnerOS Admin UI",
+      "status": "down",
+      "risk": "medium",
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-hackathon-band-ui",
+      "name": "Hackathon Band UI",
+      "status": "down",
+      "risk": "medium",
+      "port": 5190,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-gitlab-transcend",
+      "name": "GitLab Transcend",
+      "status": "down",
+      "risk": "medium",
+      "port": 8095,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-swarm-api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": "medium",
+      "port": 8100,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-ai-gateway",
+      "name": "AI Server Gateway",
+      "status": "down",
+      "risk": "medium",
+      "port": 8091,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-hackathon-autopilot",
+      "name": "Hackathon Autopilot Web",
+      "status": "down",
+      "risk": "medium",
+      "port": 8090,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-sre-panel",
+      "name": "SRE Project Panel",
+      "status": "down",
+      "risk": "medium",
+      "port": 8096,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-chutes-deposit",
+      "name": "Chutes Deposit Agent",
+      "status": "down",
+      "risk": "medium",
+      "port": 8098,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-uipath-copilot",
+      "name": "UiPath Copilot",
+      "status": "down",
+      "risk": "medium",
+      "port": 8097,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-funding-hub",
+      "name": "Hackathon Funding Hub",
+      "status": "down",
+      "risk": "medium",
+      "port": 8099,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-ralphia-portal",
+      "name": "Ralphi IA Control Center",
+      "status": "down",
+      "risk": "medium",
+      "port": 2002,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-ralphia-oauth",
+      "name": "Ralphi IA OAuth",
+      "status": "down",
+      "risk": "medium",
+      "port": 8103,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-ralphia-health",
+      "name": "Ralphi IA Health + Editorial",
+      "status": "down",
+      "risk": "medium",
+      "port": 8101,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    }
+  ],
+  "fleet": {
+    "ok": true,
+    "logical_version": "3.5.0",
+    "catalog_version": "2.47.0",
+    "catalog_tool_count": 269,
+    "local_node": "amd",
+    "peer_node": "intel",
+    "nodes": {
+      "intel": {
+        "node": "intel",
+        "host": "192.168.1.4",
+        "tcp_ok": true,
+        "mcp_ok": true,
+        "ok": true,
+        "server_version": "3.5.0",
+        "mcp_url": "http://192.168.1.4:8102/mcp",
+        "checked_at": "2026-08-12T02:07:06.717251+00:00"
+      },
+      "amd": {
+        "node": "amd",
+        "host": "192.168.1.5",
+        "tcp_ok": true,
+        "mcp_ok": true,
+        "ok": true,
+        "server_version": "3.5.0",
+        "mcp_url": "http://192.168.1.5:8102/mcp",
+        "checked_at": "2026-08-12T02:07:06.720067+00:00"
+      }
+    },
+    "routing": {
+      "model": "one_logical_mcp_two_planes",
+      "intel_plane": "business, memory, coordination, contifico, whatsapp",
+      "amd_plane": "voice, gpu media, ha proxy, video pipeline",
+      "failover": "capability_preferred_then_peer"
+    },
+    "public_entrypoints": {
+      "chatgpt_ngrok": "https://sworn-profusely-alongside.ngrok-free.dev/raphiia-mcp/mcp",
+      "voice_local": "http://192.168.1.5:8102/mcp"
+    },
+    "checked_at": "2026-08-12T02:07:06.720113+00:00"
+  },
+  "warm_standby_amd": {
+    "mcp": true,
+    "voice_gateway": true,
+    "local_models_gpu": true,
+    "oauth": false,
+    "cloudflared": false,
+    "coordination_daemon": "peer_optional",
+    "note": "AMD es plano GPU/voz/MCP secundario; Intel es frente p\u00fablico + OAuth + tunnel"
+  },
+  "false_down_corrected": [
+    "discovered-8775",
+    "discovered-8774",
+    "discovered-8773",
+    "discovered-8776",
+    "discovered-8777",
+    "discovered-9222",
+    "discovered-5185",
+    "discovered-8772",
+    "discovered-8771",
+    "discovered-8770",
+    "discovered-8769",
+    "discovered-8768",
+    "discovered-8767",
+    "discovered-8766",
+    "discovered-4173",
+    "discovered-4041",
+    "discovered-8222",
+    "discovered-8221",
+    "discovered-8220",
+    "discovered-8188",
+    "discovered-8010",
+    "discovered-8210",
+    "discovered-8788",
+    "discovered-3002",
+    "discovered-3005",
+    "discovered-8112",
+    "discovered-8080",
+    "discovered-8000",
+    "discovered-6334",
+    "discovered-5679",
+    "discovered-8765",
+    "discovered-8110",
+    "discovered-8230",
+    "discovered-8898",
+    "discovered-8897",
+    "discovered-8896",
+    "discovered-4876",
+    "discovered-8790",
+    "discovered-8780",
+    "discovered-4327",
+    "discovered-8876",
+    "discovered-5174",
+    "discovered-8800",
+    "discovered-8098",
+    "discovered-8097",
+    "discovered-5433",
+    "discovered-5188",
+    "discovered-4040"
+  ],
+  "real_issues": [
+    {
+      "service_id": "datacenter",
+      "name": "Centro de Datos (chat + voz)",
+      "status": "down",
+      "risk": null,
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5173 closed"
+    },
+    {
+      "service_id": "admin",
+      "name": "PC Doctor Admin",
+      "status": "down",
+      "risk": null,
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5173 closed"
+    },
+    {
+      "service_id": "raphiia-auth",
+      "name": "RalfIA OAuth",
+      "status": "down",
+      "risk": null,
+      "port": 8103,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8103 closed"
+    },
+    {
+      "service_id": "postgres",
+      "name": "PostgreSQL",
+      "status": "down",
+      "risk": null,
+      "port": 5432,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5432 closed"
+    },
+    {
+      "service_id": "ralphi-gateway",
+      "name": "Ralphi Gateway",
+      "status": "down",
+      "risk": null,
+      "port": 8091,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8091 closed"
+    },
+    {
+      "service_id": "homeassistant",
+      "name": "Home Assistant",
+      "status": "down",
+      "risk": null,
+      "port": 8123,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8123 closed"
+    },
+    {
+      "service_id": "cockpit",
+      "name": "Cockpit",
+      "status": "down",
+      "risk": null,
+      "port": 9090,
+      "classification": "REAL_DOWN",
+      "last_error": "port 9090 closed"
+    },
+    {
+      "service_id": "portainer",
+      "name": "Portainer",
+      "status": "down",
+      "risk": null,
+      "port": 9000,
+      "classification": "REAL_DOWN",
+      "last_error": "port 9000 closed"
+    },
+    {
+      "service_id": "litellm",
+      "name": "LiteLLM Gateway",
+      "status": "down",
+      "risk": null,
+      "port": 4000,
+      "classification": "REAL_DOWN",
+      "last_error": "port 4000 closed"
+    },
+    {
+      "service_id": "api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": null,
+      "port": 8100,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8100 closed"
+    },
+    {
+      "service_id": "raphiia-status",
+      "name": "RalfIA Control Plane \u2014 Estado",
+      "status": "down",
+      "risk": null,
+      "port": 8101,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8101 closed"
+    },
+    {
+      "service_id": "hackathon-autopilot",
+      "name": "Hackathon Autopilot",
+      "status": "down",
+      "risk": null,
+      "port": 8090,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8090 closed"
+    },
+    {
+      "service_id": "gitlab-transcend",
+      "name": "GitLab Transcend",
+      "status": "down",
+      "risk": null,
+      "port": 8095,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8095 closed"
+    },
+    {
+      "service_id": "ralphi-sre",
+      "name": "Ralphi SRE (Proyectos)",
+      "status": "down",
+      "risk": null,
+      "port": 8096,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8096 closed"
+    },
+    {
+      "service_id": "hackathon-band-ui",
+      "name": "Hackathon Band UI",
+      "status": "down",
+      "risk": null,
+      "port": 5190,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5190 closed"
+    },
+    {
+      "service_id": "swarm-os-google-ai-studio",
+      "name": "Google AI Studio Swarm",
+      "status": "down",
+      "risk": null,
+      "port": 5180,
+      "classification": "REAL_DOWN",
+      "last_error": "port 5180 closed"
+    },
+    {
+      "service_id": "hackathon-funding-hub",
+      "name": "Hackathon & Funding Hub",
+      "status": "down",
+      "risk": null,
+      "port": 8099,
+      "classification": "REAL_DOWN",
+      "last_error": "port 8099 closed"
+    },
+    {
+      "service_id": "portal-control-center",
+      "name": "Ralphi IA Control Center",
+      "status": "down",
+      "risk": "critical",
+      "port": 2002,
+      "classification": "CORE_DEGRADED",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "raphiia-oauth",
+      "name": "Ralphi IA OAuth",
+      "status": "down",
+      "risk": "critical",
+      "port": 8103,
+      "classification": "CORE_DEGRADED",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "raphiia-mcp",
+      "name": "Conector RalfIA MCP",
+      "status": "unknown",
+      "risk": "critical",
+      "port": 8102,
+      "classification": "CORE_DEGRADED",
+      "last_error": ""
+    },
+    {
+      "service_id": "swarm-api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": "high",
+      "port": 8100,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "ollama-router",
+      "name": "Ollama Dual-Node Router",
+      "status": "down",
+      "risk": "high",
+      "port": 11435,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "vllm-rocm",
+      "name": "vLLM ROCm (AMD)",
+      "status": "down",
+      "risk": "high",
+      "port": 8000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "raphiia-health",
+      "name": "Ralphi IA \u2014 Status + Editorial",
+      "status": "down",
+      "risk": "high",
+      "port": 8101,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-8800",
+      "name": "RalfIA Control Center",
+      "status": "down",
+      "risk": "high",
+      "port": 8800,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "ops-panel",
+      "name": "RalfIA Ops Panel",
+      "status": "down",
+      "risk": "high",
+      "port": 2002,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-smart-quoter",
+      "name": "InnerSpark Smart Quoter",
+      "status": "down",
+      "risk": "low",
+      "port": 2026,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-whisper-amd",
+      "name": "Whisper STT (AMD :9000)",
+      "status": "down",
+      "risk": "low",
+      "port": 9000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-ollama-router",
+      "name": "Ollama Dual-Node Router",
+      "status": "down",
+      "risk": "low",
+      "port": 11435,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-comfyui",
+      "name": "ComfyUI (generaci\u00f3n imagen)",
+      "status": "down",
+      "risk": "low",
+      "port": 8188,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-vllm-amd",
+      "name": "vLLM ROCm (AMD R9700)",
+      "status": "down",
+      "risk": "low",
+      "port": 8000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-innerchispa-conscious-map",
+      "name": "InnerChispa \u2014 Mapa de sistemas conscientes",
+      "status": "down",
+      "risk": "low",
+      "port": 443,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-innerchispa-astro-live",
+      "name": "InnerChispa \u2014 Ecosistema vivo (Astro)",
+      "status": "down",
+      "risk": "low",
+      "port": 5185,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-raphiia-auth",
+      "name": "Ralphi IA OAuth",
+      "status": "down",
+      "risk": "low",
+      "port": 8103,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-hackathon-funding-hub",
+      "name": "Hackathon & Funding Hub",
+      "status": "down",
+      "risk": "low",
+      "port": 8099,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-swarm-os-google-ai-studio",
+      "name": "Google AI Studio Swarm",
+      "status": "down",
+      "risk": "low",
+      "port": 5180,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-hackathon-band-ui",
+      "name": "Hackathon Band UI",
+      "status": "down",
+      "risk": "low",
+      "port": 5190,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-ralphi-sre",
+      "name": "Ralphi SRE (Proyectos)",
+      "status": "down",
+      "risk": "low",
+      "port": 8096,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-gitlab-transcend",
+      "name": "GitLab Transcend",
+      "status": "down",
+      "risk": "low",
+      "port": 8095,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-hackathon-autopilot",
+      "name": "Hackathon Autopilot",
+      "status": "down",
+      "risk": "low",
+      "port": 8090,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-litellm",
+      "name": "LiteLLM Gateway",
+      "status": "down",
+      "risk": "low",
+      "port": 4000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-raphiia-status",
+      "name": "Ralphi IA \u2014 Control Plane",
+      "status": "down",
+      "risk": "low",
+      "port": 8101,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": "low",
+      "port": 8100,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-datacenter",
+      "name": "Centro de Datos (chat + voz)",
+      "status": "down",
+      "risk": "low",
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-admin",
+      "name": "PC Doctor Admin",
+      "status": "down",
+      "risk": "low",
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-portainer",
+      "name": "Portainer",
+      "status": "down",
+      "risk": "low",
+      "port": 9000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-cockpit",
+      "name": "Cockpit",
+      "status": "down",
+      "risk": "low",
+      "port": 9090,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-homeassistant",
+      "name": "Home Assistant",
+      "status": "down",
+      "risk": "low",
+      "port": 8123,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-ralphi-gateway",
+      "name": "Ralphi Gateway",
+      "status": "down",
+      "risk": "low",
+      "port": 8091,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "portal-postgres",
+      "name": "PostgreSQL",
+      "status": "down",
+      "risk": "low",
+      "port": 5432,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "smart-quoter",
+      "name": "InnerSpark Smart Quoter",
+      "status": "down",
+      "risk": "medium",
+      "port": 2026,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "funding-hub",
+      "name": "Funding Hub",
+      "status": "down",
+      "risk": "medium",
+      "port": 8099,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-public-gateway",
+      "name": "Public Gateway ngrok",
+      "status": "down",
+      "risk": "medium",
+      "port": 5188,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "comfyui-amd",
+      "name": "ComfyUI (AMD ROCm)",
+      "status": "down",
+      "risk": "medium",
+      "port": 8188,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "whisper-amd",
+      "name": "Whisper STT (AMD)",
+      "status": "down",
+      "risk": "medium",
+      "port": 9000,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-inneros-admin",
+      "name": "InnerOS Admin UI",
+      "status": "down",
+      "risk": "medium",
+      "port": 5173,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-hackathon-band-ui",
+      "name": "Hackathon Band UI",
+      "status": "down",
+      "risk": "medium",
+      "port": 5190,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-gitlab-transcend",
+      "name": "GitLab Transcend",
+      "status": "down",
+      "risk": "medium",
+      "port": 8095,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-swarm-api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": "medium",
+      "port": 8100,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-ai-gateway",
+      "name": "AI Server Gateway",
+      "status": "down",
+      "risk": "medium",
+      "port": 8091,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-hackathon-autopilot",
+      "name": "Hackathon Autopilot Web",
+      "status": "down",
+      "risk": "medium",
+      "port": 8090,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-sre-panel",
+      "name": "SRE Project Panel",
+      "status": "down",
+      "risk": "medium",
+      "port": 8096,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-chutes-deposit",
+      "name": "Chutes Deposit Agent",
+      "status": "down",
+      "risk": "medium",
+      "port": 8098,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-uipath-copilot",
+      "name": "UiPath Copilot",
+      "status": "down",
+      "risk": "medium",
+      "port": 8097,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-funding-hub",
+      "name": "Hackathon Funding Hub",
+      "status": "down",
+      "risk": "medium",
+      "port": 8099,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-ralphia-portal",
+      "name": "Ralphi IA Control Center",
+      "status": "down",
+      "risk": "medium",
+      "port": 2002,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-ralphia-oauth",
+      "name": "Ralphi IA OAuth",
+      "status": "down",
+      "risk": "medium",
+      "port": 8103,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "service_id": "proj-ralphia-health",
+      "name": "Ralphi IA Health + Editorial",
+      "status": "down",
+      "risk": "medium",
+      "port": 8101,
+      "classification": "REAL_DOWN",
+      "last_error": "<urlopen error [Errno 111] Connection refused>"
+    }
+  ]
+}

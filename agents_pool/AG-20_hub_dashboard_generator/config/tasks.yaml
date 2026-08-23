@@ -1,0 +1,8 @@
+compile_dashboard_metrics:
+  description: >
+    1. Consultar el total de ingresos conciliados y facturas vencidas en el mes actual.
+2. Obtener el estado operativo de los contenedores Docker y servidores replicados.
+3. Estructurar los datos en un esquema JSON unificado que incluya gráficos y KPIs de rendimiento.
+4. Retornar el payload final de actualización para el dashboard.
+  expected_output: >
+    Un JSON consolidado con los KPIs financieros de PC-Doctor, telemetría de servidores SRE y contadores de inspecciones en campo.

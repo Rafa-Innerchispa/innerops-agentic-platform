@@ -1,0 +1,8 @@
+calculate_quote:
+  description: >
+    1. Tomar la lista de repuestos catalogados con cantidades y precios.
+2. Calcular el subtotal multiplicando cantidad por precio unitario.
+3. Aplicar las tasas de IVA oficiales del país (15%) sobre el subtotal gravado.
+4. Generar el payload final de la cotización calculando el total y guardando la propuesta en MongoDB.
+  expected_output: >
+    Estructura JSON completa de la cotización comercial conteniendo: lines, subtotal, iva, total y client_id correspondientes.

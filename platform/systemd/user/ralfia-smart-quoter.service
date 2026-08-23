@@ -1,0 +1,16 @@
+[Unit]
+Description=InnerSpark Smart Quoter MVP (:2026)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rlopez/projects/innerspark-smart-quoter
+Environment=MONGO_URI=mongodb://127.0.0.1:27017/
+Environment=PYTHONPATH=/home/rlopez/projects/innerspark-smart-quoter
+ExecStartPre=/bin/bash /home/rlopez/inneros/inneros_core/platform/scripts/free_port.sh 2026
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 2026
+Restart=always
+RestartSec=12
+
+[Install]
+WantedBy=default.target

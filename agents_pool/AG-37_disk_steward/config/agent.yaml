@@ -1,0 +1,28 @@
+ralfia_disk_steward:
+  id: AG-37
+  name: Disk Steward
+  slug: disk_steward
+  kind: sentinel
+  entity_id: ent_ralfia
+  description: >
+    Inventario multi-disco, backups, tareas diferidas (AG-36), alerta crítica
+    cuando queda ≤20% libre en discos principales. Propone mover archivos seguros
+    al disco de datos; NUNCA formatea; movimiento solo tras aprobación WhatsApp.
+  entrypoint: inneros/inneros_core/scripts/ag37_disk_steward.sh
+  timer: ralfia-disk-steward.timer
+  thresholds:
+    critical_free_pct: 20
+    warn_free_pct: 30
+  primary_mounts:
+    - /
+    - /home/rlopez/data
+    - /home/rlopez/projects
+  integrates:
+    - AG-35
+    - AG-36
+    - disk_guard.sh
+  mcp_tools:
+    - get_disk_steward_status
+  whatsapp:
+    approve: "confirmar movimiento {proposal_id}"
+    cancel: "cancelar movimiento {proposal_id}"

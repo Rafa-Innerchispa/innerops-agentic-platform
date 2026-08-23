@@ -1,0 +1,4 @@
+ralfia_health_memory:
+  agent_id: AG-51_HEALTH_MEMORY
+  entrypoint: raphiia_openai/agents/ag51_health_memory_agent.py
+  mcp_tools: [agent_health_save, agent_health_timeline, agent_health_summary]

@@ -1,0 +1,8 @@
+sync_databases:
+  description: >
+    1. Obtener los últimos registros modificados en la colección de clientes de MongoDB.
+2. Mapear los campos (RUC, Razón Social, Email, Estado) al esquema de propiedades de Notion.
+3. Realizar llamadas HTTP PATCH/POST a la API de Notion para actualizar o crear los registros.
+4. Devolver la bitácora de actualización de la sincronización indicando registros actualizados.
+  expected_output: >
+    Un resumen estructurado en JSON de la ejecución: total_procesados, creados_en_notion, actualizados_en_notion y errores de comunicación detallados.

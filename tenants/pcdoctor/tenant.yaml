@@ -1,0 +1,23 @@
+tenant_id: pcdoctor
+entity_id: ent_pcdoctor
+name: "PC Doctor S.A."
+enabled: true
+country: EC
+currency: USD
+data_root: /home/rlopez/data/tenants/pcdoctor
+mongo:
+  database: pcdoctor_swarm
+  namespaces:
+    - ops_clients
+    - ops_sites
+    - contifico_*
+    - accounting_*
+modules:
+  - accounting
+  - quoting
+  - inventory
+  - pcdoctor_ops
+whatsapp:
+  chip: primary
+  evolution_instance: RalphiIA-pcdoctor
+notes: "Tenant producción Ecuador — incluye Contifico archive"

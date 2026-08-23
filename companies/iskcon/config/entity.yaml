@@ -1,0 +1,11 @@
+entity_id: ent_iskcon
+name: "ISKCON"
+legal_name: "ISKCON"
+slug: iskcon
+kind: organization
+billing_enabled: false
+repo: iskcon
+modules:
+  - panihati
+  - events
+notes: "Vertical espiritual — repo /home/rlopez/projects/iskcon/ (NO dentro de ralfi-ia-platform)"

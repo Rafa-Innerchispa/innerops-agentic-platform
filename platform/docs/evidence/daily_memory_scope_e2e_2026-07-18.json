@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "environment": "synthetic_fixture_only",
+  "fixture_owner": "SCOPE_TEST_25199CDD",
+  "conversation_id": "dlm-scope-e2e-13368128f610",
+  "required_scopes": {
+    "get_current_state": ["ralfia:memory:read", "ralfia:private_memory"],
+    "save_conversation_batch": ["ralfia:memory:write", "ralfia:private_memory"],
+    "finalize_conversation": ["ralfia:memory:finalize", "ralfia:private_memory"],
+    "timeline": ["ralfia:memory:read", "ralfia:private_memory"],
+    "search_memory": ["ralfia:memory:read", "ralfia:private_memory"]
+  },
+  "results": {
+    "get_current_state": "PASS",
+    "save_conversation_batch": {"first_inserted": 1, "second_inserted": 0, "idempotent": true},
+    "finalize_conversation": {"first_idempotent": false, "second_idempotent": true},
+    "timeline_private_filter": "PASS",
+    "search_private_fixture": "PASS",
+    "weak_token_rejected": "missing_scope: ralfia:memory:read ralfia:private_memory",
+    "public_health_content_rejected": "privacy_mismatch",
+    "private_scope_invariant": ["PRIVATE_PERSONAL"]
+  },
+  "cleanup": {
+    "conversations": 0,
+    "messages": 0,
+    "memories": 0,
+    "versions": 0,
+    "current_state": 0,
+    "entities": 0,
+    "pending": 0,
+    "timeline": 0,
+    "synthetic_tokens": 0
+  },
+  "note": "No personal data, production fixture, key or token value was retained."
+}

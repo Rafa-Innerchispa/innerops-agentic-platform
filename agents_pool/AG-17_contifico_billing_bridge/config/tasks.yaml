@@ -1,0 +1,8 @@
+emit_invoice:
+  description: >
+    1. Recibir los datos de la cotización comercial aprobada en el sistema.
+2. Consultar la API de Contifico para verificar la existencia del cliente, y crearlo si es necesario.
+3. Estructurar el JSON de la factura enviando el catálogo de productos y el desglose de IVA del 15%.
+4. Realizar la petición POST a Contifico, capturar el ID de la factura y la clave de acceso del SRI, y guardar la referencia en MongoDB.
+  expected_output: >
+    Respuesta JSON de confirmación conteniendo el ID fiscal de Contifico, clave de acceso del SRI, número de factura y enlace al PDF autorizado del comprobante.

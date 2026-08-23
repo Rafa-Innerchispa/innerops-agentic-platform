@@ -1,0 +1,10 @@
+provision_environment:
+  description: >
+    1. Crear el directorio físico del nuevo proyecto en el host.
+2. Generar el archivo `docker-compose.yml` con políticas de reinicio automático y mapeo de puertos libres asignados.
+3. Ejecutar de forma segura el comando `docker compose up -d` para desplegar el contenedor del proyecto.
+4. Retornar el log de comandos y confirmación de que el puerto del host responde con éxito.
+5. Ejecutar AG-21 bootstrap de docs hackathon:
+   `python3 scripts/bootstrap_hackathon_project.py --project-root {project_path}`
+  expected_output: >
+    Logs detallados de la ejecución de Docker Compose e IP/puerto final público del contenedor activo.

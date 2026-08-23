@@ -1,0 +1,4 @@
+ralfia_local_exec:
+  agent_id: AG-45_LOCAL_EXEC
+  entrypoint: raphiia_openai/agents/pool_agent_runners.py
+  mcp_tools: [invoke_agent, local_exec_inspect_repo]

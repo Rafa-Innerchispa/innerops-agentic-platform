@@ -1,0 +1,15 @@
+entity_id: ent_innerchispa
+name: "InnerChispa LLC"
+legal_name: "InnerChispa LLC"
+trade_name: "InnerChispa"
+slug: innerchispa
+kind: organization
+country: US
+currency: USD
+billing_enabled: true
+modules:
+  - accounting
+  - quoting
+  - inventory
+whatsapp_chip: amd
+evolution_instance: Innerchispa

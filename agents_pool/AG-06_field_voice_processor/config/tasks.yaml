@@ -1,0 +1,8 @@
+transcribe_audio:
+  description: >
+    1. Cargar el archivo de audio subido desde el almacenamiento temporal.
+2. Ejecutar la transcripción al español usando la API del modelo local de Whisper.
+3. Filtrar modismos y palabras repetidas del texto transcrito.
+4. Entregar el bloque de texto limpio en Markdown identificando los términos de hardware mencionados.
+  expected_output: >
+    La transcripción limpia en texto Markdown estructurada con fecha de audio, identificadores de equipos detectados y notas técnicas aclaratorias.

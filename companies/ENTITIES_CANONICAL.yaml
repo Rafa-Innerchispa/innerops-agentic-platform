@@ -1,0 +1,83 @@
+# Entidades canónicas Ralfi IA — única fuente de verdad (sync Mongo `entities`)
+# Actualizado: 2026-08-05 · Verificar: python -m raphiia_openai.tools.verify_entities
+
+version: "1.0"
+
+# ── Plataforma (kernel, no factura sola) ──
+platform:
+  entity_id: ent_ralfia
+  name: "Ralfi IA"
+  slug: ralfi-ia
+  kind: platform
+  aliases: ["Ralfi IA", "Ralfi IA Platform", "RalfIA MCP"]
+  repo: inneros/inneros_core
+  billing_enabled: false
+
+# ── Empresas operativas (multi-tenant, pueden facturar) ──
+organizations:
+  - entity_id: ent_innerchispa
+    name: "InnerChispa LLC"
+    slug: innerchispa
+    kind: organization
+    aliases: ["InnerChispa", "Inner Chispa"]
+    country: US
+    currency: USD
+    billing_enabled: true
+    whatsapp_chip: amd
+    evolution_instance: Innerchispa
+
+  - entity_id: ent_pcdoctor
+    name: "PC Doctor S.A."
+    slug: pcdoctor
+    kind: organization
+    aliases: ["PC Doctor", "PC-Doctor"]
+    country: EC
+    currency: USD
+    billing_enabled: true
+    whatsapp_chip: primary
+    evolution_instance: RalphiIA-pcdoctor
+
+  - entity_id: ent_innerspark
+    name: "InnerSpark"
+    slug: innerspark
+    kind: organization
+    aliases: ["Inner Spark"]
+    country: US
+    currency: USD
+    billing_enabled: true
+    notes: "Marca producto / ecosistema IA"
+
+  - entity_id: ent_domotika
+    name: "Domotika"
+    slug: domotika
+    kind: organization
+    billing_enabled: true
+
+# ── Personal Rafael (NO mezclar con ops clientes) ──
+personal:
+  entity_id: ent_rafael_personal
+  name: "Rafael López"
+  slug: rafael-lopez
+  kind: personal
+  aliases: ["Rafael López (personal)", "Rafael Lopez"]
+  repo: ralfi-ia-personal
+  billing_enabled: false
+  modules: [health, memory, spirituality, books]
+
+# ── ISKCON (repo separado, NO dentro de plataforma) ──
+iskcon:
+  entity_id: ent_iskcon
+  name: "ISKCON"
+  slug: iskcon
+  kind: organization
+  aliases: ["ISKCON Guayaquil", "Iskcon"]
+  repo: iskcon
+  billing_enabled: false
+  notes: "Vertical espiritual — directorio /home/rlopez/projects/iskcon/"
+
+# ── Plantilla replicación cliente ──
+template:
+  entity_id: ent_TEMPLATE
+  name: "TEMPLATE — Nuevo cliente"
+  slug: template
+  copy_from: ent_pcdoctor

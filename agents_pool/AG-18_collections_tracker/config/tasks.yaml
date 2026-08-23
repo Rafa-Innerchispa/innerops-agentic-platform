@@ -1,0 +1,7 @@
+track_collections:
+  description: >
+    1. Buscar en la base de datos las facturas con saldo pendiente de pago.
+2. Cruzar los importes y referencias de pago contra las transacciones bancarias importadas.
+3. Generar el listado de facturas cobradas exitosamente y redactar borradores de recordatorios de cobro para las facturas retrasadas.
+  expected_output: >
+    Payload JSON indicando facturas conciliadas con éxito y borradores de correo de cobranza generados.

@@ -1,0 +1,16 @@
+entity_id: ent_pcdoctor
+name: "PC Doctor S.A."
+legal_name: "PC Doctor S.A."
+trade_name: "PC Doctor"
+slug: pcdoctor
+kind: organization
+country: EC
+currency: USD
+billing_enabled: true
+modules:
+  - accounting
+  - quoting
+  - inventory
+  - pcdoctor-ops
+whatsapp_chip: primary
+evolution_instance: RalphiIA-pcdoctor

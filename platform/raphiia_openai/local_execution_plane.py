@@ -24,6 +24,61 @@ MAX_TIMEOUT_SECONDS = 1200
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$")
 PROTECTED_BRANCHES = {"main", "master", "production", "prod", "develop"}
+OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa"}
+OWNER_APPROVED_ALLOWED_PATHS = [
+    "app",
+    "components",
+    "docs",
+    "infra",
+    "lib",
+    "modules",
+    "public",
+    "scripts",
+    "src",
+    "tests",
+    "AGENT_CONTRACT.md",
+    "BASELINE_PROVENANCE.md",
+    "DEPLOYMENT.md",
+    "README.md",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "pyproject.toml",
+    "requirements.txt",
+    "tsconfig.json",
+    "next.config.js",
+    "next.config.mjs",
+    "vite.config.ts",
+]
+OWNER_APPROVED_REPO_CLASSES = {
+    "inneros": {
+        "repo_class": "mcp-runtime",
+        "profile": "python-tests",
+        "allowed_paths": ["agents_pool", "config", "docs", "infra", "modules", "platform", "scripts", "services", "tenants"],
+    },
+    "ralphiia-ecosystem-core": {
+        "repo_class": "canonical-core",
+        "profile": "ecosystem-core-docs",
+        "allowed_paths": ["bootstrap", "contracts", "docs", "ops", "registry", "runbooks"],
+    },
+    "ralphiia-founderos-openai": {
+        "repo_class": "hackathon-product",
+        "profile": "node-tests",
+        "allowed_paths": OWNER_APPROVED_ALLOWED_PATHS,
+    },
+    "innerspark-workforce-ai": {
+        "repo_class": "product-app",
+        "profile": "node-tests",
+        "allowed_paths": OWNER_APPROVED_ALLOWED_PATHS,
+    },
+    "innerops-agentic-platform": {
+        "repo_class": "product-app",
+        "profile": "node-tests",
+        "allowed_paths": OWNER_APPROVED_ALLOWED_PATHS,
+    },
+}
+REPO_POLICY_COLLECTION = "ralfia_local_exec_repo_policy"
+REPO_POLICY_AUDIT_COLLECTION = "ralfia_local_exec_policy_audit"
 DENIED_PATH_PARTS = {
     ".env",
     ".ssh",
@@ -81,6 +136,21 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
 }
 
 DEFAULT_REPO_PROFILES = {
+    "Rafa-Innerchispa/inneros": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core",
+        "allowed_paths": [
+            "agents_pool",
+            "config",
+            "docs",
+            "infra",
+            "modules",
+            "platform",
+            "scripts",
+            "services",
+            "tenants",
+        ],
+    },
     "Rafa-Innerchispa/ralphiia-ecosystem-core": {
         "profile": "ecosystem-core-docs",
         "allowed_paths": ["bootstrap", "contracts", "docs", "ops", "registry", "runbooks"],
@@ -89,14 +159,52 @@ DEFAULT_REPO_PROFILES = {
         "profile": "ecosystem-core-docs",
         "allowed_paths": ["companies", "docs"],
     },
-    "Rafa-Innerchispa/inneros-core": {
-        "profile": "python-tests",
+    "Rafa-Innerchispa/innerspark-workforce-ai": {
+        "profile": "node-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai",
         "allowed_paths": [
-            "platform/raphiia_openai",
-            "platform/scripts",
-            "platform/services/swarm_os",
+            "app",
+            "components",
+            "docs",
+            "lib",
+            "public",
+            "scripts",
+            "src",
+            "tests",
+            "README.md",
+            "package.json",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "tsconfig.json",
+            "next.config.js",
+            "next.config.mjs",
+            "vite.config.ts",
         ],
-        "source_path": "/home/rlopez/inneros/inneros_core",
+    },
+    "Rafa-Innerchispa/innerops-agentic-platform": {
+        "profile": "node-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
+        "allowed_paths": [
+            "app",
+            "components",
+            "docs",
+            "lib",
+            "public",
+            "scripts",
+            "src",
+            "tests",
+            "BASELINE_PROVENANCE.md",
+            "AGENT_CONTRACT.md",
+            "DEPLOYMENT.md",
+            "README.md",
+            "package.json",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "tsconfig.json",
+            "next.config.js",
+            "next.config.mjs",
+            "vite.config.ts",
+        ],
     },
 }
 
@@ -135,6 +243,20 @@ def _root() -> Path:
 def _load_repo_profiles() -> dict[str, dict[str, Any]]:
     raw = os.getenv("RALFIA_LOCAL_EXEC_REPOS_JSON", "").strip()
     profiles = dict(DEFAULT_REPO_PROFILES)
+    for repo, conf in list(profiles.items()):
+        merged = _owner_approved_repo_config(repo) or {}
+        merged.update(conf)
+        profiles[repo] = merged
+    try:
+        from raphiia_openai import mongo_store
+
+        for doc in mongo_store.get_db()[REPO_POLICY_COLLECTION].find({"status": "active"}):
+            repo = str(doc.get("repo") or "")
+            if not REPO_PATTERN.match(repo):
+                continue
+            profiles[repo] = _policy_doc_to_config(doc)
+    except Exception:
+        pass
     if raw:
         try:
             parsed = json.loads(raw)
@@ -149,15 +271,135 @@ def _repo_config(repo: str) -> dict[str, Any]:
     if not REPO_PATTERN.match(repo or ""):
         raise ValueError("repo_must_be_owner_name")
     profiles = _load_repo_profiles()
-    if repo not in profiles:
-        raise PermissionError("repo_not_allowlisted")
-    conf = dict(profiles[repo])
+    if repo in profiles:
+        conf = dict(profiles[repo])
+    else:
+        conf = _owner_approved_repo_config(repo)
+        if not conf:
+            raise PermissionError("repo_not_allowlisted")
     root = _root()
     conf.setdefault("profile", "python-tests")
     conf.setdefault("allowed_paths", ["."])
     conf.setdefault("source_path", str(root / "repos" / _slug(repo)))
     conf.setdefault("worktrees_path", str(root / "worktrees" / _slug(repo)))
+    conf.setdefault("remote_url", f"https://github.com/{repo}.git")
+    conf.setdefault("protected_branches", sorted(PROTECTED_BRANCHES))
+    conf.setdefault("requires_approval", True)
+    conf.setdefault("write_scope", "worktree")
+    conf.setdefault("status", "active")
+    conf.setdefault("owner", repo.split("/", 1)[0])
     return conf
+
+
+def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
+    owner, name = repo.split("/", 1)
+    if owner not in OWNER_APPROVED_GITHUB_OWNERS:
+        return None
+    core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
+    workspace_source = (core / "workspaces" / name).resolve()
+    workspace_root = (core / "workspaces").resolve()
+    if workspace_source != workspace_root and workspace_root not in workspace_source.parents:
+        return None
+    fallback_source = (_root() / "repos" / _slug(repo)).resolve()
+    source = workspace_source if (workspace_source / ".git").exists() else fallback_source
+    known = OWNER_APPROVED_REPO_CLASSES.get(name, {})
+    profile = str(known.get("profile") or ("node-tests" if (source / "package.json").exists() else "python-tests"))
+    write_scope = "worktree" if name in OWNER_APPROVED_REPO_CLASSES else "read_only"
+    return {
+        "profile": profile,
+        "source_path": str(source),
+        "allowed_paths": list(known.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS),
+        "owner_approved_auto": True,
+        "repo_class": known.get("repo_class") or "owner-approved-readonly",
+        "write_scope": write_scope,
+        "requires_approval": write_scope != "read_only",
+        "remote_url": f"https://github.com/{repo}.git",
+        "status": "auto_read_only" if write_scope == "read_only" else "active",
+        "owner": owner,
+    }
+
+
+def _policy_doc_to_config(doc: dict[str, Any]) -> dict[str, Any]:
+    repo = str(doc.get("repo") or "")
+    owner, name = repo.split("/", 1)
+    known = OWNER_APPROVED_REPO_CLASSES.get(name, {})
+    return {
+        "profile": doc.get("allowed_commands") or doc.get("profile") or known.get("profile") or "python-tests",
+        "allowed_paths": list(doc.get("allowed_paths") or known.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS),
+        "source_path": doc.get("source_path") or str((_root() / "repos" / _slug(repo)).resolve()),
+        "worktrees_path": doc.get("worktrees_path") or str((_root() / "worktrees" / _slug(repo)).resolve()),
+        "remote_url": doc.get("remote_url") or f"https://github.com/{repo}.git",
+        "repo_class": doc.get("repo_class") or known.get("repo_class") or "owner-approved-readonly",
+        "write_scope": doc.get("write_scope") or "read_only",
+        "protected_branches": list(doc.get("protected_branches") or sorted(PROTECTED_BRANCHES)),
+        "requires_approval": bool(doc.get("requires_approval", True)),
+        "owner": doc.get("owner") or owner,
+        "status": doc.get("status") or "active",
+        "policy_source": "mongo_registry",
+        "last_verified": doc.get("last_verified"),
+    }
+
+
+def _write_allowed(conf: dict[str, Any]) -> bool:
+    return str(conf.get("write_scope") or "read_only") in {"worktree", "docs", "project"}
+
+
+def _assert_write_allowed(conf: dict[str, Any], operation: str) -> None:
+    if not _write_allowed(conf):
+        raise PermissionError(f"repo_write_not_authorized:{operation}:{conf.get('write_scope', 'read_only')}")
+
+
+def _policy_audit(action: str, payload: dict[str, Any]) -> None:
+    try:
+        from raphiia_openai import mongo_store
+
+        doc = dict(payload)
+        doc.update({"action": action, "created_at": _now_iso(), "capability": CAPABILITY})
+        mongo_store.get_db()[REPO_POLICY_AUDIT_COLLECTION].insert_one(doc)
+    except Exception:
+        pass
+
+
+def _validate_policy_payload(
+    repo: str,
+    repo_class: str,
+    write_scope: str,
+    allowed_paths: list[str] | None,
+    allowed_commands_profile: str,
+) -> dict[str, Any]:
+    if not REPO_PATTERN.match(repo or ""):
+        raise ValueError("repo_must_be_owner_name")
+    owner, name = repo.split("/", 1)
+    if owner not in OWNER_APPROVED_GITHUB_OWNERS:
+        raise PermissionError("repo_owner_not_approved")
+    known = OWNER_APPROVED_REPO_CLASSES.get(name, {})
+    scope = (write_scope or "read_only").strip()
+    if scope not in {"read_only", "worktree", "docs", "project"}:
+        raise ValueError("invalid_write_scope")
+    profile = (allowed_commands_profile or known.get("profile") or "python-tests").strip()
+    if profile not in ALLOWLISTED_COMMANDS:
+        raise ValueError("invalid_allowed_commands_profile")
+    paths = allowed_paths or list(known.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS)
+    clean_paths = []
+    for path in paths:
+        rel = (path or "").replace("\\", "/").strip("/")
+        if not rel or rel.startswith("../") or "/../" in rel:
+            raise PermissionError("path_traversal_denied")
+        parts = {part.lower() for part in rel.split("/") if part}
+        if parts & DENIED_PATH_PARTS:
+            raise PermissionError("secret_or_generated_path_denied")
+        clean_paths.append(rel)
+    return {
+        "repo": repo,
+        "owner": owner,
+        "repo_class": repo_class or known.get("repo_class") or "owner-approved-readonly",
+        "write_scope": scope,
+        "allowed_paths": clean_paths,
+        "allowed_commands": profile,
+        "protected_branches": sorted(PROTECTED_BRANCHES),
+        "requires_approval": scope != "read_only",
+        "remote_url": f"https://github.com/{repo}.git",
+    }
 
 
 def _resolve_under(base: Path, path: str | Path) -> Path:
@@ -252,6 +494,12 @@ def inspect_repo(repo: str) -> dict[str, Any]:
             "capability": CAPABILITY,
             "repo": repo,
             "profile": conf["profile"],
+            "repo_class": conf.get("repo_class"),
+            "write_scope": conf.get("write_scope"),
+            "requires_approval": conf.get("requires_approval"),
+            "policy_status": conf.get("status"),
+            "policy_source": conf.get("policy_source") or ("owner_approved_auto" if conf.get("owner_approved_auto") else "static"),
+            "remote_url": conf.get("remote_url"),
             "allowed_paths": conf.get("allowed_paths", []),
             "source_exists": source.exists(),
             "source_path": str(source),
@@ -275,7 +523,8 @@ def acquire_lock(repo: str, actor: str, task_id: str, correlation_id: str, ttl_s
     """Acquire a RACB lock for a repository before mutation."""
     try:
         _require_metadata(actor, task_id, correlation_id)
-        _repo_config(repo)
+        conf = _repo_config(repo)
+        _assert_write_allowed(conf, "acquire_lock")
         from raphiia_openai import racb_locks
 
         return racb_locks.manage_coordination_lock(
@@ -321,6 +570,7 @@ def create_worktree(
         _validate_branch(base_branch, allow_protected=True)
         _validate_branch(work_branch, require_work_branch=True)
         conf = _repo_config(repo)
+        _assert_write_allowed(conf, "create_worktree")
         source = Path(conf["source_path"]).expanduser().resolve()
         worktree = _worktree_path(repo, work_branch, conf)
         if not source.exists():
@@ -353,6 +603,7 @@ def apply_patch(
         if not patch or len(patch.encode("utf-8")) > 200000:
             return {"ok": False, "error": "patch_missing_or_too_large"}
         conf = _repo_config(repo)
+        _assert_write_allowed(conf, "apply_patch")
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
             return {"ok": False, "error": "worktree_missing", "worktree": str(worktree)}
@@ -393,6 +644,7 @@ def write_file(
         _require_metadata(actor, task_id, correlation_id, idempotency_key)
         _validate_branch(work_branch, require_work_branch=True)
         conf = _repo_config(repo)
+        _assert_write_allowed(conf, "write_file")
         rel = _validate_relative_path(path, list(conf.get("allowed_paths") or ["."]))
         if len((content or "").encode("utf-8")) > 200000:
             return {"ok": False, "error": "content_too_large"}
@@ -420,6 +672,7 @@ def run_command_allowlisted(
         _require_metadata(actor, task_id, correlation_id)
         _validate_branch(work_branch, require_work_branch=True)
         conf = _repo_config(repo)
+        _assert_write_allowed(conf, "run_command_allowlisted")
         profile = str(conf.get("profile") or "python-tests")
         if not _command_allowed(command, profile):
             return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command}
@@ -445,6 +698,7 @@ def commit_branch(
         _require_metadata(actor, task_id, correlation_id, idempotency_key)
         _validate_branch(work_branch, require_work_branch=True)
         conf = _repo_config(repo)
+        _assert_write_allowed(conf, "commit_branch")
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
             return {"ok": False, "error": "worktree_missing", "worktree": str(worktree)}
@@ -500,8 +754,130 @@ def report_evidence(
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
 
+def repo_policy_status(repo: str | None = None) -> dict[str, Any]:
+    """Return local execution repo policy without exposing secrets."""
+    try:
+        profiles = _load_repo_profiles()
+        if repo:
+            conf = _repo_config(repo)
+            source = Path(conf["source_path"]).expanduser().resolve()
+            return {
+                "ok": True,
+                "capability": CAPABILITY,
+                "repo": repo,
+                "owner": conf.get("owner"),
+                "repo_class": conf.get("repo_class"),
+                "write_scope": conf.get("write_scope"),
+                "write_allowed": _write_allowed(conf),
+                "requires_approval": conf.get("requires_approval"),
+                "status": conf.get("status"),
+                "policy_source": conf.get("policy_source") or ("owner_approved_auto" if conf.get("owner_approved_auto") else "static"),
+                "allowed_paths": conf.get("allowed_paths", []),
+                "allowed_commands": conf.get("profile"),
+                "protected_branches": conf.get("protected_branches", sorted(PROTECTED_BRANCHES)),
+                "source_exists": source.exists(),
+                "source_is_git": (source / ".git").exists(),
+                "source_path": str(source),
+                "remote_url": conf.get("remote_url"),
+            }
+        by_class: dict[str, int] = {}
+        entries = []
+        for name, conf in sorted(profiles.items()):
+            item = repo_policy_status(name)
+            if item.get("ok"):
+                by_class[str(item.get("repo_class") or "unknown")] = by_class.get(str(item.get("repo_class") or "unknown"), 0) + 1
+                entries.append({k: item.get(k) for k in ("repo", "repo_class", "write_scope", "status", "policy_source", "source_exists")})
+        return {
+            "ok": True,
+            "capability": CAPABILITY,
+            "approved_owners": sorted(OWNER_APPROVED_GITHUB_OWNERS),
+            "registry_collection": REPO_POLICY_COLLECTION,
+            "count": len(entries),
+            "by_class": by_class,
+            "repos": entries,
+        }
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "repo": repo, "error": str(exc)}
+
+
+def repo_authorize(
+    repo: str,
+    repo_class: str = "product-app",
+    write_scope: str = "worktree",
+    allowed_paths: list[str] | None = None,
+    allowed_commands_profile: str = "",
+    approval_id: str = "",
+    actor: str = "chatgpt",
+    task_id: str = "",
+    correlation_id: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Register or update an approved-owner repo policy."""
+    try:
+        _require_metadata(actor, task_id, correlation_id)
+        if not (approval_id or "").strip():
+            raise ValueError("approval_id_required")
+        policy = _validate_policy_payload(repo, repo_class, write_scope, allowed_paths, allowed_commands_profile)
+        now = _now_iso()
+        policy.update(
+            {
+                "status": "active",
+                "approval_id": approval_id,
+                "authorized_by": actor,
+                "updated_at": now,
+                "last_verified": now,
+            }
+        )
+        _policy_audit("authorize_dry_run" if dry_run else "authorize", {**policy, "task_id": task_id, "correlation_id": correlation_id})
+        if not dry_run:
+            from raphiia_openai import mongo_store
+
+            mongo_store.get_db()[REPO_POLICY_COLLECTION].update_one(
+                {"repo": repo},
+                {"$set": policy, "$setOnInsert": {"created_at": now}},
+                upsert=True,
+            )
+        return {"ok": True, "capability": CAPABILITY, "dry_run": dry_run, "policy": policy}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "repo": repo, "error": str(exc)}
+
+
+def repo_revoke(
+    repo: str,
+    approval_id: str,
+    actor: str = "chatgpt",
+    task_id: str = "",
+    correlation_id: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Disable a repo policy; owner-approved repos still fall back to read-only onboarding."""
+    try:
+        _require_metadata(actor, task_id, correlation_id)
+        if not (approval_id or "").strip():
+            raise ValueError("approval_id_required")
+        if not REPO_PATTERN.match(repo or ""):
+            raise ValueError("repo_must_be_owner_name")
+        payload = {"repo": repo, "approval_id": approval_id, "actor": actor, "task_id": task_id, "correlation_id": correlation_id}
+        _policy_audit("revoke_dry_run" if dry_run else "revoke", payload)
+        modified = 0
+        if not dry_run:
+            from raphiia_openai import mongo_store
+
+            result = mongo_store.get_db()[REPO_POLICY_COLLECTION].update_one(
+                {"repo": repo},
+                {"$set": {"status": "revoked", "revoked_at": _now_iso(), "revoked_by": actor, "revoke_approval_id": approval_id}},
+            )
+            modified = int(getattr(result, "modified_count", 0) or 0)
+        return {"ok": True, "capability": CAPABILITY, "dry_run": dry_run, "repo": repo, "modified_count": modified}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "repo": repo, "error": str(exc)}
+
+
 # Aliases MCP / AG-45 (nombres expuestos en catálogo)
 local_exec_inspect_repo = inspect_repo
+local_exec_repo_policy_status = repo_policy_status
+local_exec_repo_authorize = repo_authorize
+local_exec_repo_revoke = repo_revoke
 local_exec_acquire_lock = acquire_lock
 local_exec_release_lock = release_lock
 local_exec_create_worktree = create_worktree
@@ -540,7 +916,7 @@ def prepare_repo(
                 "checkout": checkout,
                 "pull": pull,
             }
-        clone_url = (remote_url or "").strip()
+        clone_url = (remote_url or conf.get("remote_url") or "").strip()
         if not clone_url:
             return {"ok": False, "error": "source_repo_missing_and_no_remote_url", "source_path": str(source)}
         clone = _run(["git", "clone", "--branch", base_ref, clone_url, str(source)], source.parent, timeout_seconds=600)

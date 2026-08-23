@@ -1,0 +1,4 @@
+ralfia_hackathon_agent:
+  agent_id: AG-53_HACKATHON_AGENT
+  entrypoint: raphiia_openai/agents/ag53_hackathon_agent.py
+  mcp_tools: [agent_hackathon_status, agent_hackathon_scan_emails]

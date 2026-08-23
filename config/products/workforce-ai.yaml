@@ -1,0 +1,17 @@
+product_id: workforce-ai
+name: "InnerSpark Workforce AI"
+repo: /home/rlopez/projects/innerspark-workforce-ai
+kind: product
+sellable: true
+entity_id: ent_innerchispa
+owner: Antigravity
+modules:
+  - workforce
+  - femar-mvp
+hackathon_profiles:
+  - mode: demo
+    notes: "Usar branch hackathon en el repo producto; conectar vía MCP InnerOS, no paths cruzados"
+platform_integration:
+  mode: http
+  depends_on_platform: false
+  platform_depends_on_product: false

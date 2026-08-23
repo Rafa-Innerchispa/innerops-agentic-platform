@@ -1,0 +1,10 @@
+ralfia_orchestrator:
+  agent_id: AG-25_RALFIA_ORCHESTRATOR
+  entrypoint: raphiia_openai/agents/ag25_ralfia_orchestrator.py
+  mcp_tools:
+    - ralfia_dispatch
+    - ralfia_status
+    - get_agent_catalog
+    - invoke_agent
+    - resolve_agent
+    - route_agent_request

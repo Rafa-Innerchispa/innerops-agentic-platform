@@ -1,0 +1,8 @@
+scan_and_route:
+  description: >
+    1. Analizar el estado actual de las interfaces de red locales.
+2. Escanear puertos TCP escuchando en el host a partir del puerto 8096 hasta encontrar el primero libre.
+3. Validar que el puerto libre encontrado no colisione con el inventario de puertos conocidos en la base de datos.
+4. Devolver un payload JSON limpio con el puerto libre asignado, la dirección IP local de enlace y el estado de disponibilidad del puerto.
+  expected_output: >
+    Un objeto JSON estructurado con las claves: status, free_port, bind_ip y metadata detallada del puerto asignado.

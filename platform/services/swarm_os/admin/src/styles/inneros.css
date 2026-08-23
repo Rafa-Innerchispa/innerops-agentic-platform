@@ -1,0 +1,123 @@
+/* InnerOS — tema oscuro unificado (todas las páginas) */
+.ant-layout {
+  min-height: 100vh;
+  background: #020617 !important;
+}
+
+.ant-layout-sider {
+  background: #0f172a !important;
+  border-right: 1px solid #334155 !important;
+}
+
+.ant-layout-header {
+  background: #1e293b !important;
+  border-bottom: 1px solid #334155 !important;
+}
+
+.ant-layout-content {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.inneros-page-shell {
+  min-height: calc(100vh - 64px);
+  padding: 20px 24px 32px;
+  background: radial-gradient(ellipse at 50% 0%, #1e3a5f 0%, #0f172a 55%, #020617 100%);
+  color: #e2e8f0;
+}
+
+.inneros-page-shell h1,
+.inneros-page-shell h2,
+.inneros-page-shell h3,
+.inneros-page-shell h4,
+.inneros-page-shell .ant-typography {
+  color: #f8fafc !important;
+}
+
+.inneros-page-shell p,
+.inneros-page-shell .ant-typography-secondary {
+  color: #94a3b8 !important;
+}
+
+.inneros-page-shell .ant-card {
+  background: rgba(30, 41, 59, 0.88) !important;
+  border-color: #334155 !important;
+}
+
+.inneros-page-shell .ant-card-head {
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+.inneros-page-shell .ant-card-head-title {
+  color: #f1f5f9 !important;
+}
+
+.inneros-page-shell .ant-table {
+  background: transparent !important;
+}
+
+.inneros-page-shell .ant-table-thead > tr > th {
+  background: rgba(15, 23, 42, 0.9) !important;
+  color: #cbd5e1 !important;
+  border-color: #334155 !important;
+}
+
+.inneros-page-shell .ant-table-tbody > tr > td {
+  background: rgba(30, 41, 59, 0.6) !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+.inneros-page-shell .ant-table-tbody > tr:hover > td {
+  background: rgba(51, 65, 85, 0.7) !important;
+}
+
+.inneros-page-shell .ant-list-header,
+.inneros-page-shell .refine-list-header,
+.inneros-page-shell .ant-page-header {
+  background: transparent !important;
+}
+
+.inneros-page-shell .ant-page-header-heading-title,
+.inneros-page-shell .ant-list-header-title {
+  color: #f8fafc !important;
+}
+
+.inneros-page-shell .ant-statistic-title {
+  color: #94a3b8 !important;
+}
+
+.inneros-page-shell .ant-statistic-content {
+  color: #f8fafc !important;
+}
+
+.inneros-page-shell .ant-input,
+.inneros-page-shell .ant-input-affix-wrapper,
+.inneros-page-shell .ant-select-selector,
+.inneros-page-shell .ant-input-number {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+
+.inneros-page-shell .ant-form-item-label > label {
+  color: #cbd5e1 !important;
+}
+
+.inneros-page-shell .ant-modal-content {
+  background: #1e293b !important;
+}
+
+.inneros-page-shell .ant-modal-header {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.inneros-page-shell .ant-modal-title {
+  color: #f8fafc !important;
+}
+
+.inneros-page-shell .ant-alert {
+  border-color: #334155 !important;
+}

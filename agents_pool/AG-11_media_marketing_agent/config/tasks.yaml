@@ -1,0 +1,8 @@
+generate_copy:
+  description: >
+    1. Analizar el caso de éxito técnico provisto en el contexto.
+2. Redactar tres variaciones de copy promocional (corto para Twitter, medio para LinkedIn y persuasivo para Email).
+3. Incluir llamados a la acción claros relacionados con cotizaciones gratuitas de PC-Doctor.
+4. Proponer hashtags y palabras clave para mejorar el alcance del contenido.
+  expected_output: >
+    Un reporte estructurado en Markdown con las tres propuestas de copy y recomendaciones de optimización de texto.

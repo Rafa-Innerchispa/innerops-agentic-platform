@@ -1,0 +1,11 @@
+{
+  "slug": "hackathon-band-ui",
+  "name": "Hackathon Band UI",
+  "lifecycle": "always_alive",
+  "rules": [
+    "Un solo camino: scripts/ralphia_project_create.py",
+    "Servicios HTTP = always_alive + systemd user + Restart=always",
+    "Puertos dinámicos 8120–8999; reservados en PORTS_CANONICAL.md",
+    "Reinicio: bash scripts/restart_ralphia.sh (plataforma) o systemctl --user restart ralf-{slug}"
+  ]
+}

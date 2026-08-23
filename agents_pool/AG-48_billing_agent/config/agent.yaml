@@ -1,0 +1,4 @@
+ralfia_billing_agent:
+  agent_id: AG-48_BILLING_AGENT
+  entrypoint: raphiia_openai/agents/ag48_billing_agent.py
+  mcp_tools: [agent_invoice_prepare, agent_billing_status]

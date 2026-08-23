@@ -1,0 +1,4 @@
+ralfia_ecosystem_pulse:
+  agent_id: AG-35_ECOSYSTEM_PULSE
+  entrypoint: raphiia_openai/agents/ag35_ecosystem_pulse_agent.py
+  mcp_tools: [invoke_agent, get_mcp_fleet_status, get_unified_stack_status]

@@ -1,0 +1,4 @@
+ralfia_quote_agent:
+  agent_id: AG-46_QUOTE_AGENT
+  entrypoint: raphiia_openai/agents/ag46_quote_agent.py
+  mcp_tools: [agent_quote_prepare]

@@ -1,0 +1,4 @@
+ralfia_daily_companion:
+  agent_id: AG-50_DAILY_COMPANION
+  entrypoint: raphiia_openai/agents/ag50_daily_companion.py
+  mcp_tools: [run_daily_companion, agent_daily_save_note]

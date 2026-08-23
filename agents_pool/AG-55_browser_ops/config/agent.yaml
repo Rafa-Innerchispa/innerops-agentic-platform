@@ -1,0 +1,7 @@
+ralfia_browser_ops:
+  agent_id: AG-55_BROWSER_OPS
+  entrypoint: raphiia_openai/agents/ag55_browser_ops_agent.py
+  mcp_tools: [agent_browser_status, agent_browser_run_task]
+  runtime:
+    local_only: true
+    headless_default: true

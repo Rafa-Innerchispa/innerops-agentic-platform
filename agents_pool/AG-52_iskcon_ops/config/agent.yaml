@@ -1,0 +1,11 @@
+ralfia_iskcon_ops:
+  agent_id: AG-52_ISKCON_OPS
+  entrypoint: raphiia_openai/agents/ag52_iskcon_ops_agent.py
+  mcp_tools:
+    - agent_iskcon_capabilities
+    - agent_iskcon_status
+    - agent_iskcon_domain
+    - agent_iskcon_ffl_log
+    - agent_iskcon_ffl_timeline
+    - agent_iskcon_contacts_summary
+    - agent_iskcon_dispatch

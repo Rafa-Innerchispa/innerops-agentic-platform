@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "summary": "Coordinación MCP corregida y validada E2E; Daily Life Memory 2.46.0 desplegado y validado E2E.",
+  "coordination_e2e": {
+    "message_id": "msg_f4f3599755b5d1b7",
+    "task_id": "ops_a89c26ff2927",
+    "correlation_id": "coord-e2e-20260717T220709Z",
+    "hub_revision": 90,
+    "recovery_counts": {"task_id": 1, "correlation_id": 1, "project": 2, "semantic": 4}
+  },
+  "daily_memory_e2e": {
+    "run_id": "20260717T222941Z",
+    "conversation_id": "dlm-e2e-20260717T222941Z",
+    "messages": 4,
+    "memories": 6,
+    "entities": 3,
+    "version_after_correction": 3,
+    "timeline_events": 2,
+    "private_agent_search_results": 0
+  },
+  "tests": "9/9 unit PASS; coordination MCP E2E PASS; Daily Memory MCP E2E PASS; panel auth 200/403/authorized PASS",
+  "runtime": "RalphiIA MCP 2.46.0; 241 catalog/runtime tools; catalog_guard stable; no tool loss",
+  "migration": "2 legacy memories migrated; 0 pending; pre-migration backup contains 14 documents",
+  "commits": ["918ac03", "fcbb151", "e93e068"],
+  "backups": [
+    "/home/rlopez/backups/raphiia-openai/20260717T2207Z-coordination-e2e",
+    "/home/rlopez/backups/raphiia-openai/20260717T2230Z-daily-memory"
+  ]
+}

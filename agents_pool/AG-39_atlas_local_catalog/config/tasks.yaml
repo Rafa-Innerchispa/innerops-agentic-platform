@@ -1,0 +1,9 @@
+hydrate_local_catalog:
+  description: >
+    Extraer fichas Contifico pendientes a Mongo (Atlas AG-39). Correr en AMD .5.
+  expected_output: >
+    JSON con fetched, errors, hydrated_after, elapsed_sec.
+
+report_hydration_status:
+  description: >
+    Estado de hidratación local: cuántos productos referenciados vs hidratados con ficha completa.

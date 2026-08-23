@@ -1,0 +1,14 @@
+[Unit]
+Description=RalfIA Ops Panel (:2002)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=OPS_PANEL_PORT=2002
+ExecStart=/home/rlopez/inneros/inneros_core/platform/run_ops.sh
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

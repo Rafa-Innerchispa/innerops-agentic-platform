@@ -1,0 +1,8 @@
+find_opportunities:
+  description: >
+    1. Analizar el histórico de inspecciones de campo del cliente en MongoDB.
+2. Identificar equipos con antigüedad mayor a 2 años o reportes con incidencias continuas.
+3. Formular una recomendación técnica/comercial explicando por qué se sugiere el cambio de hardware.
+4. Estructurar el reporte de oportunidades de venta para el equipo de ventas.
+  expected_output: >
+    Un informe estructurado detallando clientes calificados para preventivos, tipo de hardware sugerido y justificación técnica comercial.

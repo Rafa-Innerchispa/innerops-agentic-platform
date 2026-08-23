@@ -1,0 +1,15 @@
+entity_id: ent_rafael_personal
+name: "Rafael López"
+legal_name: "Rafael López"
+slug: rafael-lopez
+kind: personal
+country: EC
+currency: USD
+billing_enabled: false
+repo: ralfi-ia-personal
+modules:
+  - health
+  - memory
+  - spirituality
+  - books
+notes: "Memoria privada — nunca mezclar con ops_clients ni Contifico"

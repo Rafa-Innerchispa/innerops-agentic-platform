@@ -1,0 +1,8 @@
+consolidate_finances:
+  description: >
+    1. Importar la tabla de transacciones bancarias recientes de la colección de MongoDB.
+2. Comparar cada depósito bancario contra las facturas emitidas por fecha y monto aproximado.
+3. Registrar las coincidencias exitosas y marcar las facturas correspondientes como cobradas.
+4. Generar una lista de alertas para las facturas con saldos pendientes o depósitos bancarios no reconocidos.
+  expected_output: >
+    Un balance detallado de conciliación financiera en JSON indicando: conciliados con éxito, alertas de inconsistencia y monto total cobrado en el período.

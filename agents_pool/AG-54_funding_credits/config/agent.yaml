@@ -1,0 +1,4 @@
+ralfia_funding_credits:
+  agent_id: AG-54_FUNDING_CREDITS
+  entrypoint: raphiia_openai/agents/ag54_funding_credits_agent.py
+  mcp_tools: [agent_funding_status, agent_funding_scan_emails, agent_funding_register_from_email]

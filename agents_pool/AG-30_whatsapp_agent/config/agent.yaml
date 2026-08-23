@@ -1,0 +1,8 @@
+ralfia_whatsapp_agent:
+  agent_id: AG-30_WHATSAPP_AGENT
+  entrypoint: raphiia_openai/whatsapp_agent.py
+  mcp_tools:
+    - get_whatsapp_status
+    - send_whatsapp_message
+    - send_whatsapp_draft
+    - send_whatsapp_document

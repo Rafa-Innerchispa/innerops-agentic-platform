@@ -1,0 +1,8 @@
+analyze_telemetry:
+  description: >
+    1. Analizar las últimas 200 líneas de logs de error del servidor.
+2. Clasificar las excepciones encontradas (Database connection timeouts, VRAM exhaustions, API HTTP 500 errors).
+3. Proponer la causa raíz más probable y generar el comando Systemd/Docker exacto para solucionar el problema.
+4. Estructurar el diagnóstico en un reporte Markdown limpio.
+  expected_output: >
+    Un reporte técnico Markdown que detalle: tabla de anomalías encontradas, severidad, causa sugerida y comandos recomendados de recuperación.

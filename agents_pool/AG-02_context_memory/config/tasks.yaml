@@ -1,0 +1,8 @@
+persist_context:
+  description: >
+    1. Recibir los logs crudos y metadatos de la última ejecución técnica.
+2. Estructurar el log de auditoría asignando marcas de tiempo, tipo de evento y nivel de severidad.
+3. Conectarse a MongoDB y registrar el documento de logs en la colección central 'execution_logs'.
+4. Confirmar la correcta inserción devolviendo el ID del documento generado.
+  expected_output: >
+    Un JSON de confirmación con el ID del registro insertado, estado de la operación y resumen del log estructurado.

@@ -1,0 +1,6 @@
+{
+  "connectionString": "mongodb://127.0.0.1:27017/pcdoctor_swarm",
+  "readOnly": true,
+  "loggers": ["stderr", "mcp"],
+  "maxDocumentsPerQuery": 100
+}

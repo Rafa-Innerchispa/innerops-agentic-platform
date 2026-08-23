@@ -1,0 +1,8 @@
+extract_voice_findings:
+  description: >
+    1. Analizar la transcripción técnica del audio provisto.
+2. Extraer una lista estructurada de fallas encontradas (equipos quemados, cables dañados, etc.).
+3. Identificar la marca del cliente (ej. Cafecom) y clasificar la urgencia de la reparación.
+4. Retornar la estructura final formateada en JSON con el listado de fallas.
+  expected_output: >
+    Un JSON estructurado con la clave 'findings' que contiene objetos con: item, damage_description, brand y urgency.

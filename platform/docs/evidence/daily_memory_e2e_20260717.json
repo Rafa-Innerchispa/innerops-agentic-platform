@@ -1,0 +1,20 @@
+{
+  "status": "PASS",
+  "run_id": "20260717T222941Z",
+  "conversation_id": "dlm-e2e-20260717T222941Z",
+  "privacy_scope": "PRIVATE_PERSONAL",
+  "messages_inserted": 4,
+  "memory_count": 6,
+  "memory_version_after_correction": 3,
+  "entity_count": 3,
+  "pending_id": "pending_07d048c7533f4988",
+  "pending_status": "resolved",
+  "current_state_version": 1,
+  "timeline_count": 2,
+  "private_owner_search_count": 1,
+  "private_agent_search_count": 0,
+  "public_sensitive_rejection": "privacy_mismatch PRIVATE_HEALTH -> PUBLIC",
+  "migration_applied": 2,
+  "migration_postcheck_pending": 0,
+  "pre_migration_backup_count": 14
+}

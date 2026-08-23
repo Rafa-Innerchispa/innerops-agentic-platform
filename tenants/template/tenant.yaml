@@ -1,0 +1,16 @@
+tenant_id: template
+entity_id: ent_TEMPLATE
+name: "TEMPLATE — Nuevo cliente"
+enabled: false
+country: EC
+currency: USD
+data_root: /home/rlopez/data/tenants/TEMPLATE_SLUG
+mongo:
+  database: inneros_swarm
+  namespaces:
+    - ops_*
+modules:
+  - accounting
+  - quoting
+  - inventory
+notes: "Copiar esta carpeta al provisionar cliente nuevo — sin datos PC Doctor"

@@ -1,0 +1,10 @@
+entity_id: ent_ralfia
+name: "Ralfi IA"
+legal_name: "Ralfi IA Platform"
+slug: ralfi-ia
+kind: platform
+billing_enabled: false
+modules:
+  - portal-mcp
+  - coordination
+notes: "Kernel plataforma — MCP, portal :2002, agentes"

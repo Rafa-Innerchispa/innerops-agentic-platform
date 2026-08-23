@@ -1,0 +1,21 @@
+tenant_id: innerchispa
+entity_id: ent_innerchispa
+name: "InnerChispa LLC"
+enabled: true
+country: US
+currency: USD
+data_root: /home/rlopez/data/tenants/innerchispa
+mongo:
+  database: pcdoctor_swarm
+  namespaces:
+    - innerchispa_*
+    - ops_quotes
+modules:
+  - accounting
+  - quoting
+  - inventory
+  - editorial
+whatsapp:
+  chip: amd
+  evolution_instance: Innerchispa
+notes: "Tenant US — InnerChispa / InnerSpark producto"

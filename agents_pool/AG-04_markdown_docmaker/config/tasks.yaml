@@ -1,0 +1,8 @@
+generate_markdown_report:
+  description: >
+    1. Tomar el payload de inspección técnica estructurado en JSON.
+2. Mapear cada elemento (cámaras, cableado, switch de red) en secciones de diagnóstico correspondientes.
+3. Aplicar tablas para los estados de equipos (OK, FALLA, REQUERIDO) y adjuntar notas de reparación.
+4. Generar el archivo Markdown completo asegurando que cumpla con los estándares tipográficos del sistema.
+  expected_output: >
+    Un archivo Markdown (.md) estructurado con índice, tablas de equipos, secciones de diagnóstico y recomendaciones formateadas.

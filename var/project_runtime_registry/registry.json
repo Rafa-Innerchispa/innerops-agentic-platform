@@ -1,0 +1,174 @@
+{
+  "projects": {
+    "cozmo-alive": {
+      "created_at": "2026-08-22T17:32:10.208329+00:00",
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/cozmo-alive",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/cozmo-alive"
+      },
+      "policy_class": "product-app",
+      "project_id": "cozmo-alive",
+      "repo": "Rafa-Innerchispa/cozmo-alive",
+      "source": "migration",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-08-22T17:32:10.208319+00:00",
+      "updated_by": "codex",
+      "write_scope": "worktree"
+    },
+    "innerops-agentic-platform": {
+      "allowed_commands_profile": "python-tests",
+      "created_at": "2026-08-22T17:32:10.213557+00:00",
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform"
+      },
+      "policy_class": "product-app",
+      "project_id": "innerops-agentic-platform",
+      "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+      "source": "migration",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-08-23T01:13:11.626473+00:00",
+      "updated_by": "codex-infra-repair",
+      "write_scope": "worktree"
+    },
+    "inneros": {
+      "created_at": "2026-08-22T19:20:49.472369+00:00",
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/inneros",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/inneros"
+      },
+      "policy_class": "product-app",
+      "project_id": "inneros",
+      "repo": "Rafa-Innerchispa/inneros",
+      "source": "auto_resolve",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-08-22T19:20:49.472357+00:00",
+      "updated_by": "chatgpt",
+      "write_scope": "worktree"
+    },
+    "innerspark-workforce-ai": {
+      "created_at": "2026-08-22T17:32:10.213002+00:00",
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai"
+      },
+      "policy_class": "product-app",
+      "project_id": "innerspark-workforce-ai",
+      "repo": "Rafa-Innerchispa/innerspark-workforce-ai",
+      "source": "migration",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-08-22T17:32:10.212995+00:00",
+      "updated_by": "codex",
+      "write_scope": "worktree"
+    },
+    "ralphiia-ecosystem-core": {
+      "created_at": "2026-08-22T17:32:10.208881+00:00",
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/ralphiia-ecosystem-core",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/ralphiia-ecosystem-core"
+      },
+      "policy_class": "product-app",
+      "project_id": "ralphiia-ecosystem-core",
+      "repo": "Rafa-Innerchispa/ralphiia-ecosystem-core",
+      "source": "migration",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-08-22T17:32:10.208876+00:00",
+      "updated_by": "codex",
+      "write_scope": "worktree"
+    },
+    "ralphiia-founderos-openai": {
+      "created_at": "2026-08-22T17:32:10.209365+00:00",
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/ralphiia-founderos-openai",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/ralphiia-founderos-openai"
+      },
+      "policy_class": "product-app",
+      "project_id": "ralphiia-founderos-openai",
+      "repo": "Rafa-Innerchispa/ralphiia-founderos-openai",
+      "source": "migration",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-08-22T17:32:10.209360+00:00",
+      "updated_by": "codex",
+      "write_scope": "worktree"
+    }
+  },
+  "version": "1.0.0"
+}

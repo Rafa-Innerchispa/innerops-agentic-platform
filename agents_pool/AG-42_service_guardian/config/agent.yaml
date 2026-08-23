@@ -1,0 +1,4 @@
+ralfia_service_guardian:
+  agent_id: AG-42_SERVICE_GUARDIAN
+  entrypoint: raphiia_openai/agents/ag42_service_guardian.py
+  mcp_tools: [run_service_guardian, run_self_heal_cycle, invoke_agent]

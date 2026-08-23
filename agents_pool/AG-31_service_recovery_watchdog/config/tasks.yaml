@@ -1,0 +1,10 @@
+tasks:
+  - name: health_watch_periodic
+    schedule: "every 5 min via ralfia-notify.timer"
+    action: run_health_watch
+  - name: post_restart_verify
+    trigger: "systemctl restart ralfia-* | config panel save"
+    action: run_post_restart_verify
+  - name: recovery_drill
+    trigger: "manual MCP or panel"
+    action: run_recovery_drill

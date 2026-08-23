@@ -1,0 +1,19 @@
+dispatch_commercial:
+  description: >
+    Procesar solicitud comercial: "{message}" desde canal {channel}.
+    Detectar intención, resolver cliente, delegar a AG-16/17/13, registrar misión.
+  expected_output: >
+    JSON con ok, mission_id, intent, delegate agent_id, PCD-COT-* o report_id.
+
+invoice_with_approval:
+  description: >
+    Facturar cliente {client_ref} desde cotización {quote_ref}.
+    Crear AR borrador; pending_approval hasta approved_by=RAFAEL.
+  expected_output: >
+    JSON con receivable_id, approval_required, estado fiscal.
+
+technical_report:
+  description: >
+    Informe técnico supervisor para {client_ref}. Numeración PCD-INF-*.
+  expected_output: >
+    JSON con report_id y display_number.

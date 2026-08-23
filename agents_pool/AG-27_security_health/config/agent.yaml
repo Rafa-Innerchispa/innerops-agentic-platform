@@ -1,0 +1,4 @@
+ralfia_security_health:
+  agent_id: AG-27_SECURITY_HEALTH
+  entrypoint: raphiia_openai/agents/pool_agent_runners.py
+  mcp_tools: [invoke_agent]

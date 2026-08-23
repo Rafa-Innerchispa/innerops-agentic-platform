@@ -1,0 +1,6 @@
+daemon_tick:
+  description: >
+    Ejecutar ciclo de coordinación: watcher, mapa, health módulos, log Mongo.
+    Contexto: {context}
+  expected_output: >
+    JSON con watcher_output, modules_health, ts.

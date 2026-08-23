@@ -1,0 +1,4 @@
+ralfia_report_agent:
+  agent_id: AG-47_REPORT_AGENT
+  entrypoint: raphiia_openai/agents/ag47_report_agent.py
+  mcp_tools: [agent_report_technical, agent_report_supervisor]

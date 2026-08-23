@@ -1,0 +1,8 @@
+onboard_client:
+  description: >
+    1. Buscar el RUC o cédula en la colección de clientes en MongoDB.
+2. Si el registro existe, retornar su ficha detallada.
+3. Si no existe, crear un nuevo documento con los campos de contacto y fiscales normalizados.
+4. Guardar los cambios y retornar la confirmación de onboarding con el ID del cliente.
+  expected_output: >
+    JSON de confirmación con los datos completos del cliente creado/actualizado y su correspondiente client_id.

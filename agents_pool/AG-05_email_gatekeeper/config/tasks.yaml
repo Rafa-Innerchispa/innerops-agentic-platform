@@ -1,0 +1,8 @@
+check_inbox:
+  description: >
+    1. Autenticarse de forma segura en el servidor de correo.
+2. Consultar la bandeja de entrada buscando correos no leídos de las últimas 24 horas.
+3. Analizar el remitente, asunto y contenido de cada correo para clasificarlo en prioridad alta, media o baja.
+4. Redactar borradores de correo para los mensajes prioritarios utilizando plantillas del catálogo de servicios.
+  expected_output: >
+    Un JSON que contenga el listado de correos analizados con su clasificación de prioridad, remitente, asunto y los borradores de respuesta redactados.

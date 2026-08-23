@@ -1,0 +1,11 @@
+.env
+.cursor/mcp.json
+.codex/config.toml
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+data/*.json
+!data/.gitkeep
+*.log

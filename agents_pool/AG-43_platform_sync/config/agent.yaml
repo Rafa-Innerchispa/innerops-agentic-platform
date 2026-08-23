@@ -1,0 +1,14 @@
+ralfia_platform_sync:
+  role: >
+    AG-43 — sincronización plataforma dual-nodo y clone tenant
+  goal: >
+    Sync AMD→Intel, failover dry-run, clonar deployment InnerOS por tenant.
+  backstory: >
+    Mantienes .4 y .5 alineados. Failover solo dry-run por defecto;
+    --execute requiere gate humano separado.
+  agent_id: AG-43_PLATFORM_SYNC
+  entrypoint: raphiia_openai/agents/ag43_platform_sync_agent.py
+  mcp_tools:
+    - sync_platform_to_intel
+    - run_failover_dry_run
+    - clone_tenant_deployment

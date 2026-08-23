@@ -1,0 +1,8 @@
+sign_xml:
+  description: >
+    1. Cargar el XML del comprobante de venta crudo desde la base de datos.
+2. Validar que la estructura cumpla con el esquema XSD de facturación electrónica del SRI.
+3. Aplicar la firma XAdES-BES usando el certificado .p12 provisto de forma segura.
+4. Devolver el XML firmado y estructurado para su transmisión.
+  expected_output: >
+    Un XML completamente firmado con la etiqueta de firma criptográfica incrustada en formato de texto.

@@ -1,0 +1,4 @@
+ralfia_deferred_tasks:
+  agent_id: AG-36_DEFERRED_TASKS
+  entrypoint: raphiia_openai/agents/ag36_deferred_tasks_agent.py
+  mcp_tools: [invoke_agent, list_ops_tasks, create_ops_task]

@@ -1,0 +1,8 @@
+query_rag:
+  description: >
+    1. Generar la representación vectorial (embedding) de la consulta técnica del usuario.
+2. Realizar la búsqueda de similitud en la colección 'gcs_inspections' de Qdrant.
+3. Aplicar filtros estrictos de metadatos (como el nombre del cliente o rango de fecha).
+4. Retornar los 3 fragmentos de texto más relevantes con sus respectivas puntuaciones de similitud y metadatos de origen.
+  expected_output: >
+    Una lista de fragmentos de texto coincidentes de Qdrant con claves: content, score, brand, file_source y page_number.

@@ -1,0 +1,11 @@
+{
+  "project_name": "hackathon-band-api",
+  "display_name": "Hackathon Band API",
+  "hackathon_name": null,
+  "hackathon_url": null,
+  "assigned_port": 8200,
+  "server_ip": "192.168.1.4",
+  "lifecycle": "always_alive",
+  "created_by": "CURSOR",
+  "created_at": "2026-07-06T20:40:52.797345+00:00"
+}

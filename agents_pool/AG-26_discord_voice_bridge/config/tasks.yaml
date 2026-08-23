@@ -1,0 +1,10 @@
+tasks:
+  - name: discord_stream_monitor
+    trigger: "Al arrancar el servicio AG-26"
+    action: run_discord_bot
+  - name: dispatch_whatsapp_notification
+    trigger: "Mensaje nuevo o mencion en Discord"
+    action: notify_whatsapp
+  - name: run_local_system_action
+    trigger: "Comando de voz o de texto autorizado"
+    action: execute_local_command

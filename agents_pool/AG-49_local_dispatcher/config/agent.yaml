@@ -1,0 +1,4 @@
+ralfia_local_dispatcher:
+  agent_id: AG-49_LOCAL_DISPATCHER
+  entrypoint: raphiia_openai/agents/ag49_local_dispatcher.py
+  mcp_tools: [list_local_agents, dispatch_local_agent]

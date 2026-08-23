@@ -1,0 +1,11 @@
+{
+  "project_name": "ralphia-editorial-worker",
+  "display_name": "Editorial Worker",
+  "hackathon_name": null,
+  "hackathon_url": null,
+  "assigned_port": null,
+  "server_ip": "192.168.1.4",
+  "lifecycle": "always_alive",
+  "created_by": "CURSOR",
+  "created_at": "2026-07-06T20:40:45.471146+00:00"
+}

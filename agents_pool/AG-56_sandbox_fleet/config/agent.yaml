@@ -1,0 +1,12 @@
+ralfia_sandbox_fleet:
+  agent_id: AG-56_SANDBOX_FLEET
+  entrypoint: raphiia_openai/agents/ag56_sandbox_fleet_agent.py
+  mcp_tools:
+    - agent_sandbox_status
+    - agent_sandbox_search_models
+    - agent_sandbox_install_model
+    - agent_sandbox_fix_webui
+    - agent_sandbox_dispatch
+    - get_sandbox_steward_status
+    - propose_sandbox_model_delete
+    - notify_sandbox_event

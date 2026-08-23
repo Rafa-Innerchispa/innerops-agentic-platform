@@ -1,0 +1,4 @@
+ralfia_backup_sync:
+  agent_id: AG-28_BACKUP_SYNC
+  entrypoint: raphiia_openai/agents/pool_agent_runners.py
+  mcp_tools: [invoke_agent]

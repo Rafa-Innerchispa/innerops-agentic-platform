@@ -1,0 +1,4 @@
+ralfia_kb_ingest:
+  agent_id: AG-34_KB_INGEST
+  entrypoint: raphiia_openai/agents/ag34_kb_ingest_agent.py
+  mcp_tools: [invoke_agent]

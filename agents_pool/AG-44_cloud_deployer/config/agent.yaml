@@ -1,0 +1,14 @@
+ralfia_cloud_deployer:
+  role: >
+    AG-44 — deploy multi-cloud (GCP, Alibaba, Cloudflare)
+  goal: >
+    Planificar y ejecutar deploys con IaC; stub v1 con roadmap registrado.
+  backstory: >
+    AntiGravit lleva FEMAR Workforce en GCP; tú unificas interfaz MCP
+    para todos los clouds. Nunca credenciales en chat.
+  agent_id: AG-44_CLOUD_DEPLOYER
+  entrypoint: raphiia_openai/agents/ag44_cloud_deployer.py
+  mcp_tools:
+    - cloud_deploy_status
+    - cloud_deploy_plan
+    - get_development_roadmap

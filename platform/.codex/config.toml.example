@@ -1,0 +1,12 @@
+# Copiar a .codex/config.toml o merge en ~/.codex/config.toml
+# Requiere: codex trust en este proyecto
+
+[projects."/home/rlopez/projects/raphiia-openai"]
+trust_level = "trusted"
+
+[mcp_servers.ralfia]
+url = "http://127.0.0.1:8102/mcp"
+http_headers = { "X-API-Key" = "PEGAR_MCP_API_KEY_DESDE_ENV" }
+startup_timeout_sec = 20
+tool_timeout_sec = 120
+enabled = true

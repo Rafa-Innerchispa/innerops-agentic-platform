@@ -1,0 +1,12 @@
+[Unit]
+Description=RalfIA post-boot verify (AG-31) — WhatsApp si falla algo crítico
+After=network-online.target ralfia-app.service ralfia-mcp.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/rlopez/inneros/inneros_core/platform/scripts/ralfia_boot_verify.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target

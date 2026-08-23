@@ -1,0 +1,4 @@
+ralfia_log_ops:
+  agent_id: AG-29_LOG_OPS
+  entrypoint: raphiia_openai/agents/pool_agent_runners.py
+  mcp_tools: [invoke_agent]
