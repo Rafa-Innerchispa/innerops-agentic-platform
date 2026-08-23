@@ -306,6 +306,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     query: dict[str, Any] = {"status": "proposed"}
     if not include_fixtures:
         query["tags"] = {"$ne": "dev_swarm_fixture"}
+        query["task_id"] = {"$in": list(CURRENT_SAFE_TASK_IDS)}
     scan_limit = max(max(1, min(limit, 25)) * 5, 50)
     tasks = list(db[coordination_live.OPS_TASKS_COL].find(query, {"_id": 0}).limit(scan_limit))
     retry_ids = [

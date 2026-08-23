@@ -2,8 +2,8 @@
   "ok": false,
   "agent_id": "AG-40_RUNTIME_RECONCILER",
   "dry_run": true,
-  "generated_at": "2026-08-23T17:57:53.487761+00:00",
-  "ts_display": "2026-08-23 12:57 GYT (GMT-5)",
+  "generated_at": "2026-08-23T17:58:09.630202+00:00",
+  "ts_display": "2026-08-23 12:58 GYT (GMT-5)",
   "local_node": "amd",
   "fleet_nodes": {
     "intel": {
@@ -14,7 +14,7 @@
       "ok": true,
       "server_version": "3.5.0",
       "mcp_url": "http://192.168.1.4:8102/mcp",
-      "checked_at": "2026-08-23T17:57:49.708675+00:00"
+      "checked_at": "2026-08-23T17:58:04.918037+00:00"
     },
     "amd": {
       "node": "amd",
@@ -24,7 +24,7 @@
       "ok": true,
       "server_version": "3.5.0",
       "mcp_url": "http://192.168.1.5:8102/mcp",
-      "checked_at": "2026-08-23T17:57:49.708974+00:00"
+      "checked_at": "2026-08-23T17:58:04.918327+00:00"
     }
   },
   "cockpit": {
@@ -56,16 +56,16 @@
     "portal-control-center": "unknown",
     "swarm-api": "unknown",
     "ollama-router": "unknown",
-    "ops-panel": "up",
+    "ops-panel": "down",
     "uipath-copilot": "unknown",
     "vllm-rocm": "unknown",
     "raphiia-health": "unknown",
-    "portal-8800": "up",
-    "portal-whisper-amd": "up",
+    "portal-8800": "down",
+    "portal-whisper-amd": "down",
     "portal-ollama-router": "down",
     "portal-comfyui": "up",
     "portal-vllm-amd": "down",
-    "portal-ralfia-voice": "up",
+    "portal-ralfia-voice": "down",
     "portal-innerchispa-conscious-map": "unknown",
     "portal-innerchispa-astro-live": "unknown",
     "portal-whisper": "unknown",
@@ -239,15 +239,15 @@
     }
   ],
   "registry_classification_counts": {
-    "REAL_DOWN": 6,
+    "REAL_DOWN": 21,
     "CORE_DEGRADED": 2,
     "LEGACY": 3,
     "UNMONITORED": 10,
-    "PORTAL_MIRROR": 35,
-    "AUTO_DISCOVERED_STALE": 41,
+    "PORTAL_MIRROR": 38,
+    "AUTO_DISCOVERED_STALE": 50,
     "ON_DEMAND": 1
   },
-  "false_down_corrected_count": 90,
+  "false_down_corrected_count": 102,
   "false_down_sample": [
     "ngrok-public-tunnel",
     "public-gateway",
@@ -258,7 +258,9 @@
     "uipath-copilot",
     "vllm-rocm",
     "raphiia-health",
+    "portal-8800",
     "discovered-9222",
+    "discovered-8765",
     "discovered-8876",
     "discovered-8777",
     "discovered-8776",
@@ -266,9 +268,7 @@
     "discovered-8775",
     "discovered-8774",
     "discovered-8773",
-    "discovered-5185",
-    "discovered-8772",
-    "discovered-8771"
+    "discovered-5185"
   ],
   "real_core_issues": [
     {
@@ -285,8 +285,64 @@
   ],
   "real_down_registry_sample": [
     {
+      "service_id": "datacenter",
+      "name": "Centro de Datos (chat + voz)",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "admin",
+      "name": "PC Doctor Admin",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
       "service_id": "raphiia-auth",
       "name": "RalfIA OAuth",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "hackathon-band-api",
+      "name": "Hackathon Band API",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "postgres",
+      "name": "PostgreSQL",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "ralphi-gateway",
+      "name": "Ralphi Gateway",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "homeassistant",
+      "name": "Home Assistant",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "cockpit",
+      "name": "Cockpit",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "portainer",
+      "name": "Portainer",
       "status": "down",
       "risk": null,
       "classification": "REAL_DOWN"
@@ -306,6 +362,48 @@
       "classification": "REAL_DOWN"
     },
     {
+      "service_id": "gitlab-transcend",
+      "name": "GitLab Transcend",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "ralphi-sre",
+      "name": "Ralphi SRE (Proyectos)",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "hackathon-band-ui",
+      "name": "Hackathon Band UI",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "swarm-os-google-ai-studio",
+      "name": "Google AI Studio Swarm",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "hackathon-funding-hub",
+      "name": "Hackathon & Funding Hub",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "hackathon-autopilot",
+      "name": "Hackathon Autopilot",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
       "service_id": "raphiia-oauth",
       "name": "Ralphi IA OAuth",
       "status": "unknown",
@@ -318,6 +416,13 @@
       "status": "unknown",
       "risk": "critical",
       "classification": "CORE_DEGRADED"
+    },
+    {
+      "service_id": "ops-panel",
+      "name": "RalfIA Ops Panel",
+      "status": "down",
+      "risk": "high",
+      "classification": "REAL_DOWN"
     },
     {
       "service_id": "proj-ai-gateway",
@@ -364,8 +469,8 @@
   "summary": {
     "fleet_ok": true,
     "core_issues": 1,
-    "false_down_corrected": 90,
-    "registry_degraded": 22
+    "false_down_corrected": 102,
+    "registry_degraded": 37
   },
   "next_steps": [
     "Actualizar service_registry con preferred_node por servicio",
