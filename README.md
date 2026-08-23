@@ -7,17 +7,18 @@ InnerOps All Things Agentic hackathon platform scaffold. Workforce XPRIZE baseli
 
 > Esta sección la mantiene automáticamente el Agente Documental de InnerOS. El contenido humano fuera de estos marcadores no se modifica.
 
-- Última sincronización: 2026-08-23T13:10:12.743222-05:00
+- Última sincronización: 2026-08-23T13:11:09.272500-05:00
 - Project ID: `innerops-agentic-platform`
 - Repositorio: `Rafa-Innerchispa/innerops-agentic-platform`
 - Runtime AMD: `/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform`
 - Runtime primary: `/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform`
-- HEAD remoto antes de sync: `77da35f335be3d3bc1b9a7d9e06515ff778d5875`
+- HEAD remoto antes de sync: `a1117207f031670758c32713dee43886344b04fd`
 - Policy class: `product-app`
 - Write scope: `worktree`
 
 ### Cambios recientes registrados
 
+- 2026-08-23T13:11:06.167609-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 1
 - 2026-08-23T11:59:27.497240-05:00: P0 detectado en vivo: AG-25 dev_swarm enabled pero capacity=0; cada tick started=0 y tasks se omiten como capacity_full. Esto bloquea los cuatro P0 InnerOS. Prioridad inmediata: reparar cálculo/limpieza de capacidad (workers stale/completed
 - 2026-08-23T11:59:07.613533-05:00: P0 detectado en vivo: AG-25 dev_swarm enabled pero capacity=0; cada tick started=0 y tasks se omiten como capacity_full. Esto bloquea los cuatro P0 InnerOS. Prioridad inmediata: reparar cálculo/limpieza de capacidad (workers stale/completed
 - 2026-08-23T11:54:20.852171-05:00: P0 detectado en vivo: AG-25 dev_swarm enabled pero capacity=0; cada tick started=0 y tasks se omiten como capacity_full. Esto bloquea los cuatro P0 InnerOS. Prioridad inmediata: reparar cálculo/limpieza de capacidad (workers stale/completed
