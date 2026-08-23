@@ -7,17 +7,18 @@ InnerOps All Things Agentic hackathon platform scaffold. Workforce XPRIZE baseli
 
 > Esta sección la mantiene automáticamente el Agente Documental de InnerOS. El contenido humano fuera de estos marcadores no se modifica.
 
-- Última sincronización: 2026-08-23T11:53:45.935116-05:00
+- Última sincronización: 2026-08-23T11:54:44.190217-05:00
 - Project ID: `innerops-agentic-platform`
 - Repositorio: `Rafa-Innerchispa/innerops-agentic-platform`
 - Runtime AMD: `/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform`
 - Runtime primary: `/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform`
-- HEAD remoto antes de sync: `99c0cec465939135d5d713496fa646b5a94132f7`
+- HEAD remoto antes de sync: `db05cfed94b8dfd16bee22f7c53719054e0984b1`
 - Policy class: `product-app`
 - Write scope: `worktree`
 
 ### Cambios recientes registrados
 
+- 2026-08-23T11:54:20.852171-05:00: P0 detectado en vivo: AG-25 dev_swarm enabled pero capacity=0; cada tick started=0 y tasks se omiten como capacity_full. Esto bloquea los cuatro P0 InnerOS. Prioridad inmediata: reparar cálculo/limpieza de capacidad (workers stale/completed
 - 2026-08-23T08:12:29.419057-05:00: Python runtime venv on amd: PASS
 - 2026-08-22T19:34:26.175662-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 2
 - 2026-08-22T19:34:26.138586-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 1
