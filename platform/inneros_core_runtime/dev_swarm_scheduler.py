@@ -24,20 +24,10 @@ SAFE_INNEROS_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
 ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini"}
 TERMINAL_EXECUTOR_STATUSES = {"executed", "needs_implementation", "failed", "blocked"}
 CURRENT_SAFE_TASK_IDS = {
-    "ops_1101e46d7dee",
     "ops_e7cacfc4a525",
     "ops_ca2281d54189",
     "ops_4afe0b330d8a",
     "ops_f61caab418a2",
-    "ops_250745d1f072",
-    "ops_4ac243b38b00",
-    "ops_4a618652866d",
-    "ops_3c93a9cc9189",
-    "ops_53c13f061a84",
-    "ops_0aa0730977fb",
-    "ops_e7ca5c79c51d",
-    "ops_ba988e240326",
-    "ops_067d3a99ad94",
 }
 
 
@@ -114,8 +104,14 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
     task_id = str(task.get("task_id") or "")
     if task_id in CURRENT_SAFE_TASK_IDS:
         return SAFE_INNEROS_REPO
+    repo = str(task.get("repo") or task.get("repository") or "").strip()
+    if repo.startswith("Rafa-Innerchispa/"):
+        return repo
     text = " ".join(str(task.get(k) or "") for k in ("title", "correlation_id")).lower()
     text += " " + " ".join(str(x) for x in task.get("checklist") or []).lower()
+    correlation = str(task.get("correlation_id") or "")
+    if correlation != "inneros-build-rugir-20260823":
+        return None
     current_markers = (
         "inneros",
         "innerops",
@@ -134,9 +130,6 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
     excluded_markers = ("xprize", "devpost", "workforce.pcdoctor.ai", "femar")
     if any(marker in text for marker in current_markers) and not any(marker in text for marker in excluded_markers):
         return SAFE_INNEROS_REPO
-    repo = str(task.get("repo") or task.get("repository") or "").strip()
-    if repo.startswith("Rafa-Innerchispa/"):
-        return repo
     return None
 
 
