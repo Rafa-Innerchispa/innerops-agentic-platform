@@ -1,1 +1,12 @@
-{"name":"inneros-agentic-platform","version":"0.1.0","private":true,"scripts":{"start":"node src/server.js","test":"python3 -m unittest discover -s tests -p 'test_*.py' -v"},"engines":{"node":">=20"}}
+{
+  "name": "inneros-agentic-platform",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
