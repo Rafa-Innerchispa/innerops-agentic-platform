@@ -7,23 +7,24 @@ InnerOps All Things Agentic hackathon platform scaffold. Workforce XPRIZE baseli
 
 > Esta sección la mantiene automáticamente el Agente Documental de InnerOS. El contenido humano fuera de estos marcadores no se modifica.
 
-- Última sincronización: 2026-08-23T22:51:02.618894-05:00
+- Última sincronización: 2026-08-23T22:51:59.717318-05:00
 - Project ID: `innerops-agentic-platform`
 - Repositorio: `Rafa-Innerchispa/innerops-agentic-platform`
 - Runtime AMD: `/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform`
 - Runtime primary: `/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform`
-- HEAD remoto antes de sync: `5b93916256b44c309362cbcd8944a711b91b7e57`
+- HEAD remoto antes de sync: `87fb59f1187024ca01074f2c0a23400ffb889a10`
 - Policy class: `product-app`
 - Write scope: `worktree`
 
 ### Cambios recientes registrados
 
+- 2026-08-23T22:51:30.154914-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 5
+- 2026-08-23T22:51:30.121322-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 4
+- 2026-08-23T22:51:30.088428-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 3
+- 2026-08-23T22:51:30.052113-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 2
+- 2026-08-23T22:51:30.014417-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 1
 - 2026-08-23T13:11:06.167609-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 1
 - 2026-08-23T11:59:27.497240-05:00: P0 detectado en vivo: AG-25 dev_swarm enabled pero capacity=0; cada tick started=0 y tasks se omiten como capacity_full. Esto bloquea los cuatro P0 InnerOS. Prioridad inmediata: reparar cálculo/limpieza de capacidad (workers stale/completed
 - 2026-08-23T11:59:07.613533-05:00: P0 detectado en vivo: AG-25 dev_swarm enabled pero capacity=0; cada tick started=0 y tasks se omiten como capacity_full. Esto bloquea los cuatro P0 InnerOS. Prioridad inmediata: reparar cálculo/limpieza de capacidad (workers stale/completed
-- 2026-08-23T11:54:20.852171-05:00: P0 detectado en vivo: AG-25 dev_swarm enabled pero capacity=0; cada tick started=0 y tasks se omiten como capacity_full. Esto bloquea los cuatro P0 InnerOS. Prioridad inmediata: reparar cálculo/limpieza de capacidad (workers stale/completed
-- 2026-08-23T08:12:29.419057-05:00: Python runtime venv on amd: PASS
-- 2026-08-22T19:34:26.175662-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 2
-- 2026-08-22T19:34:26.138586-05:00: agent_message → codex: [OPS] Fixture dev swarm scheduler 1
 
 <!-- RALFIA:PROJECT-STATUS:END -->
