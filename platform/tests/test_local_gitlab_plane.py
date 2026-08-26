@@ -47,6 +47,18 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         self.assertEqual(result["account"]["status"], "paused")
         self.assertIn("not_gastable", result["account"]["metadata"]["spend_policy"])
 
+    def test_user_profile_without_username_uses_status(self) -> None:
+        with mock.patch.object(gl, "gitlab_status", return_value={"auth_ok": True, "verified_user": {"username": "rafagye"}}):
+            result = gl.user_profile()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["profile"]["username"], "rafagye")
+
+    def test_discover_contribution_issues_requires_token_but_is_read_only(self) -> None:
+        with mock.patch.object(gl, "_request", return_value={"ok": True, "data": [{"id": 1, "title": "Fix docs", "labels": ["documentation"]}]}):
+            result = gl.discover_contribution_issues(search="docs")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

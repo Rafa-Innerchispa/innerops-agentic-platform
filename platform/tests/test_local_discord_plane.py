@@ -48,6 +48,46 @@ class LocalDiscordPlaneTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "channel_id_required")
 
+    def test_resolve_channel_uses_configured_map(self) -> None:
+        cfg = {"default_channel_id": "1", "default_guild_id": "guild", "application_id": "app", "public_key": "pub", "channels": {"novedades": "2"}, "updated_at": None}
+        with mock.patch.object(discord, "_config", return_value=cfg):
+            result = discord.resolve_channel("novedades")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["channel_id"], "2")
+
+    def test_search_channel_messages_matches_content(self) -> None:
+        data = {"ok": True, "channel_id": "c", "messages": [{"content": "Hackathon update", "author": "RalphiIA"}]}
+        with mock.patch.object(discord, "list_channel_messages", return_value=data):
+            result = discord.search_channel_messages(channel_id="c", query="hackathon")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["count"], 1)
+
+    def test_create_channel_webhook_dry_run_resolves_alias(self) -> None:
+        with mock.patch.object(discord, "resolve_channel", return_value={"ok": True, "channel_id": "2"}):
+            result = discord.create_channel_webhook("novedades", dry_run=True)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["dry_run"])
+        self.assertEqual(result["channel_id"], "2")
+
+    def test_create_thread_requires_name(self) -> None:
+        with mock.patch.object(discord, "resolve_channel", return_value={"ok": True, "channel_id": "2"}):
+            result = discord.create_thread("novedades", "", dry_run=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "thread_name_required")
+
+    def test_register_guild_commands_dry_run(self) -> None:
+        cfg = {"default_channel_id": "1", "default_guild_id": "guild", "application_id": "app", "public_key": "pub", "channels": {}, "updated_at": None}
+        with mock.patch.object(discord, "_config", return_value=cfg):
+            result = discord.register_guild_commands(dry_run=True)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["dry_run"])
+        self.assertGreaterEqual(len(result["commands"]), 4)
+
+    def test_add_reaction_requires_fields(self) -> None:
+        result = discord.add_reaction("", "m", "✅", dry_run=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "channel_message_emoji_required")
+
     def test_resource_provider_is_not_model_runtime(self) -> None:
         with mock.patch.object(discord, "discord_status", return_value={"auth_ok": False, "webhook_present": False, "bot_user": None}):
             provider = discord.resource_provider_document()

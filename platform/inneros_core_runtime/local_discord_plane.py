@@ -53,11 +53,13 @@ def _limit(limit: int) -> int:
 
 def _config() -> dict[str, Any]:
     doc = mongo_store.get_db()[COL_CONFIG].find_one({"config_id": "default"}, {"_id": 0}) or {}
+    channels = doc.get("channels") if isinstance(doc.get("channels"), dict) else {}
     return {
         "application_id": str(doc.get("application_id") or os.getenv("DISCORD_APPLICATION_ID") or DEFAULT_APPLICATION_ID).strip(),
         "public_key": str(doc.get("public_key") or os.getenv("DISCORD_PUBLIC_KEY") or DEFAULT_PUBLIC_KEY).strip(),
         "default_channel_id": str(doc.get("default_channel_id") or os.getenv("DISCORD_DEFAULT_CHANNEL_ID") or "").strip(),
         "default_guild_id": str(doc.get("default_guild_id") or os.getenv("DISCORD_DEFAULT_GUILD_ID") or "").strip(),
+        "channels": {str(k): str(v) for k, v in channels.items()},
         "updated_at": doc.get("updated_at"),
     }
 
@@ -142,8 +144,14 @@ def _request(method: str, path: str, payload: dict[str, Any] | None = None, time
             parsed = json.loads(raw) if raw else None
             return {"ok": 200 <= resp.status < 300, "status": resp.status, "data": parsed, "token_source": source}
     except urllib.error.HTTPError as exc:
-        detail = _redact(exc.read().decode("utf-8", errors="replace")[:2000])
-        return {"ok": False, "status": exc.code, "error": "discord_http_error", "detail": detail, "token_source": source}
+        detail_raw = exc.read().decode("utf-8", errors="replace")[:2000]
+        retry_after = None
+        try:
+            parsed = json.loads(detail_raw)
+            retry_after = parsed.get("retry_after") if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            pass
+        return {"ok": False, "status": exc.code, "error": "discord_rate_limited" if exc.code == 429 else "discord_http_error", "retry_after": retry_after, "detail": _redact(detail_raw), "token_source": source}
     except urllib.error.URLError as exc:
         return {"ok": False, "error": "discord_unreachable", "detail": _redact(str(exc.reason)), "token_source": source}
 
@@ -266,6 +274,83 @@ def create_text_channel(name: str, topic: str = "", guild_id: str = "", dry_run:
     return {"ok": bool(res.get("ok")), "status": res.get("status"), "channel_id": data.get("id"), "name": data.get("name") or channel_name, "error": res.get("error"), "detail": res.get("detail")}
 
 
+def list_channel_webhooks(channel_id: str = "") -> dict[str, Any]:
+    resolved = resolve_channel(channel_id)
+    if not resolved.get("ok"):
+        return resolved
+    res = _request("GET", f"/channels/{resolved['channel_id']}/webhooks")
+    if not res.get("ok"):
+        return res
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    return {
+        "ok": True,
+        "count": len(rows),
+        "channel_id": resolved["channel_id"],
+        "webhooks": [
+            {"id": item.get("id"), "name": item.get("name"), "channel_id": item.get("channel_id"), "guild_id": item.get("guild_id")}
+            for item in rows
+            if isinstance(item, dict)
+        ],
+    }
+
+
+def create_channel_webhook(channel: str, name: str = "RalphiIA", dry_run: bool = True) -> dict[str, Any]:
+    resolved = resolve_channel(channel)
+    if not resolved.get("ok"):
+        return resolved
+    hook_name = (name or "RalphiIA").strip()[:80]
+    if dry_run:
+        return {"ok": True, "dry_run": True, "channel_id": resolved["channel_id"], "name": hook_name}
+    existing = list_channel_webhooks(resolved["channel_id"])
+    if existing.get("ok"):
+        for webhook in existing.get("webhooks", []):
+            if webhook.get("name") == hook_name:
+                return {
+                    "ok": True,
+                    "status": 200,
+                    "webhook_id": webhook.get("id"),
+                    "channel_id": webhook.get("channel_id") or resolved["channel_id"],
+                    "name": hook_name,
+                    "already_existed": True,
+                    "webhook_url_stored": False,
+                    "secret_returned": False,
+                }
+    res = _request("POST", f"/channels/{resolved['channel_id']}/webhooks", payload={"name": hook_name})
+    _audit("create_channel_webhook", res, {"channel_id": resolved["channel_id"], "name": hook_name})
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    if res.get("ok") and data.get("url"):
+        store_webhook_url_server_side(str(data["url"]), label=f"Discord webhook {hook_name}", actor="RAFAEL")
+    return {
+        "ok": bool(res.get("ok")),
+        "status": res.get("status"),
+        "webhook_id": data.get("id"),
+        "channel_id": data.get("channel_id") or resolved["channel_id"],
+        "name": data.get("name") or hook_name,
+        "webhook_url_stored": bool(res.get("ok") and data.get("url")),
+        "secret_returned": False,
+        "error": res.get("error"),
+        "detail": res.get("detail"),
+    }
+
+
+def create_thread(channel: str, name: str, message: str = "", dry_run: bool = True) -> dict[str, Any]:
+    resolved = resolve_channel(channel)
+    if not resolved.get("ok"):
+        return resolved
+    thread_name = (name or "").strip()[:100]
+    if not thread_name:
+        return {"ok": False, "error": "thread_name_required"}
+    payload: dict[str, Any] = {"name": thread_name, "type": 11, "auto_archive_duration": 1440}
+    if message.strip():
+        payload["message"] = {"content": message.strip()[:1900]}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "channel_id": resolved["channel_id"], "thread": payload}
+    res = _request("POST", f"/channels/{resolved['channel_id']}/threads", payload=payload)
+    _audit("create_thread", res, {"channel_id": resolved["channel_id"], "name": thread_name})
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    return {"ok": bool(res.get("ok")), "status": res.get("status"), "thread_id": data.get("id"), "name": data.get("name") or thread_name, "error": res.get("error"), "detail": res.get("detail")}
+
+
 def list_channel_messages(channel_id: str = "", limit: int = 20) -> dict[str, Any]:
     cfg = _config()
     channel = (channel_id or cfg["default_channel_id"]).strip()
@@ -290,6 +375,115 @@ def list_channel_messages(channel_id: str = "", limit: int = 20) -> dict[str, An
             if isinstance(item, dict)
         ],
     }
+
+
+def resolve_channel(name_or_id: str = "") -> dict[str, Any]:
+    cfg = _config()
+    value = (name_or_id or "").strip().lstrip("#")
+    if not value:
+        value = cfg["default_channel_id"]
+    channels = cfg.get("channels") or {}
+    if value in channels:
+        return {"ok": True, "channel_id": channels[value], "matched": value, "source": "configured_channel_map"}
+    normalized = value.replace("-", "_")
+    if normalized in channels:
+        return {"ok": True, "channel_id": channels[normalized], "matched": normalized, "source": "configured_channel_map"}
+    if value.isdigit():
+        return {"ok": True, "channel_id": value, "matched": value, "source": "direct_id"}
+    listed = list_channels(guild_id=cfg["default_guild_id"], limit=100)
+    if not listed.get("ok"):
+        return listed
+    for item in listed.get("channels") or []:
+        if str(item.get("name") or "").lower() == value.lower():
+            return {"ok": True, "channel_id": str(item.get("id")), "matched": item.get("name"), "source": "discord_channels"}
+    return {"ok": False, "error": "channel_not_found", "name_or_id": name_or_id}
+
+
+def search_channel_messages(channel_id: str = "", query: str = "", limit: int = 50) -> dict[str, Any]:
+    needle = (query or "").strip().lower()
+    if not needle:
+        return {"ok": False, "error": "query_required"}
+    messages = list_channel_messages(channel_id=channel_id, limit=limit)
+    if not messages.get("ok"):
+        return messages
+    matches = [
+        item
+        for item in messages.get("messages") or []
+        if needle in str(item.get("content") or "").lower() or needle in str(item.get("author") or "").lower()
+    ]
+    return {"ok": True, "count": len(matches), "query": query, "channel_id": messages.get("channel_id"), "matches": matches}
+
+
+def read_configured_channels(limit_per_channel: int = 10) -> dict[str, Any]:
+    cfg = _config()
+    out: dict[str, Any] = {"ok": True, "channels": {}}
+    for name, channel_id in (cfg.get("channels") or {}).items():
+        out["channels"][name] = list_channel_messages(channel_id=channel_id, limit=limit_per_channel)
+    return out
+
+
+def search_configured_channels(query: str, limit_per_channel: int = 50) -> dict[str, Any]:
+    cfg = _config()
+    matches: list[dict[str, Any]] = []
+    for name, channel_id in (cfg.get("channels") or {}).items():
+        res = search_channel_messages(channel_id=channel_id, query=query, limit=limit_per_channel)
+        if res.get("ok"):
+            for item in res.get("matches") or []:
+                matches.append({**item, "channel_name": name, "channel_id": channel_id})
+    return {"ok": True, "query": query, "count": len(matches), "matches": matches}
+
+
+def send_named_channel_message(channel: str, content: str, dry_run: bool = True) -> dict[str, Any]:
+    resolved = resolve_channel(channel)
+    if not resolved.get("ok"):
+        return resolved
+    result = send_channel_message(channel_id=resolved["channel_id"], content=content, dry_run=dry_run)
+    return {**result, "resolved_channel": resolved}
+
+
+def list_guild_commands(guild_id: str = "") -> dict[str, Any]:
+    cfg = _config()
+    guild = (guild_id or cfg["default_guild_id"]).strip()
+    if not guild:
+        return {"ok": False, "error": "guild_id_required"}
+    res = _request("GET", f"/applications/{cfg['application_id']}/guilds/{guild}/commands")
+    if not res.get("ok"):
+        return res
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    return {"ok": True, "count": len(rows), "commands": [{"id": item.get("id"), "name": item.get("name"), "description": item.get("description")} for item in rows if isinstance(item, dict)]}
+
+
+def register_guild_commands(guild_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    cfg = _config()
+    guild = (guild_id or cfg["default_guild_id"]).strip()
+    if not guild:
+        return {"ok": False, "error": "guild_id_required"}
+    commands = [
+        {"name": "inneros-status", "description": "Mostrar estado operativo de InnerOS/RalphiIA"},
+        {"name": "inneros-novedad", "description": "Registrar una novedad para revision/publicacion"},
+        {"name": "inneros-hackathon", "description": "Registrar avance o evidencia de hackathon"},
+        {"name": "inneros-aprobar", "description": "Solicitar aprobacion operativa controlada"},
+    ]
+    if dry_run:
+        return {"ok": True, "dry_run": True, "guild_id": guild, "commands": commands}
+    res = _request("PUT", f"/applications/{cfg['application_id']}/guilds/{guild}/commands", payload=commands)
+    _audit("register_guild_commands", res, {"guild_id": guild})
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    return {"ok": bool(res.get("ok")), "status": res.get("status"), "count": len(rows), "commands": [{"id": item.get("id"), "name": item.get("name")} for item in rows if isinstance(item, dict)], "error": res.get("error"), "detail": res.get("detail")}
+
+
+def add_reaction(channel_id: str, message_id: str, emoji: str, dry_run: bool = True) -> dict[str, Any]:
+    channel = (channel_id or "").strip()
+    message = (message_id or "").strip()
+    icon = (emoji or "").strip()
+    if not channel or not message or not icon:
+        return {"ok": False, "error": "channel_message_emoji_required"}
+    encoded_emoji = urllib.parse.quote(icon, safe="")
+    if dry_run:
+        return {"ok": True, "dry_run": True, "channel_id": channel, "message_id": message, "emoji": icon}
+    res = _request("PUT", f"/channels/{channel}/messages/{message}/reactions/{encoded_emoji}/@me")
+    _audit("add_reaction", res, {"channel_id": channel, "message_id": message})
+    return {"ok": bool(res.get("ok")), "status": res.get("status"), "error": res.get("error"), "detail": res.get("detail")}
 
 
 def send_channel_message(channel_id: str = "", content: str = "", dry_run: bool = True) -> dict[str, Any]:
@@ -332,7 +526,7 @@ def resource_provider_document() -> dict[str, Any]:
         "provider_id": PROVIDER_ID,
         "label": "Discord Ops Bridge",
         "kind": "ops_communication_provider",
-        "capabilities": ["ops_alerts", "approval_requests", "community_updates", "incident_notifications", "slash_commands_optional"],
+        "capabilities": ["ops_alerts", "approval_requests", "community_updates", "incident_notifications", "slash_commands", "read_recent_messages", "search_recent_messages", "channel_management", "webhooks", "threads"],
         "local_first": False,
         "status": "active" if (status.get("auth_ok") or status.get("webhook_present")) else "configured_needs_token_or_webhook",
         "requires": ["Discord bot token or channel webhook in owner_vault", "guild/channel IDs for production routing"],

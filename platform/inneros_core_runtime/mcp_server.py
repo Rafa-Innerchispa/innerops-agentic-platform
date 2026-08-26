@@ -5100,6 +5100,24 @@ def local_gitlab_list_groups(search: str = "", limit: int = 20) -> dict[str, Any
 
 
 @mcp.tool
+def local_gitlab_user_profile(username: str = "") -> dict[str, Any]:
+    """Local GitLab Plane: perfil de usuario GitLab para ContributorOps."""
+    return local_gitlab_plane.user_profile(username=username)
+
+
+@mcp.tool
+def local_gitlab_user_events(username: str = "rafagye", action: str = "", limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: eventos recientes de usuario para metricas de contribucion."""
+    return local_gitlab_plane.user_events(username=username, action=action, limit=limit)
+
+
+@mcp.tool
+def local_gitlab_discover_contribution_issues(search: str = "good first issue", labels: str = "", limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: descubre issues candidateables para contribucion."""
+    return local_gitlab_plane.discover_contribution_issues(search=search, labels=labels, limit=limit)
+
+
+@mcp.tool
 def local_gitlab_project_summary(project_id_or_path: str) -> dict[str, Any]:
     """Local GitLab Plane: resumen seguro de repo/proyecto GitLab."""
     return local_gitlab_plane.project_summary(project_id_or_path=project_id_or_path)
@@ -5184,9 +5202,51 @@ def local_discord_create_text_channel(name: str, topic: str = "", guild_id: str 
 
 
 @mcp.tool
+def local_discord_list_channel_webhooks(channel_id: str = "") -> dict[str, Any]:
+    """Local Discord Plane: lista webhooks de canal sin retornar secretos."""
+    return local_discord_plane.list_channel_webhooks(channel_id=channel_id)
+
+
+@mcp.tool
+def local_discord_create_channel_webhook(channel: str, name: str = "RalphiIA", dry_run: bool = True) -> dict[str, Any]:
+    """Local Discord Plane: crea webhook de canal y guarda URL server-side."""
+    return local_discord_plane.create_channel_webhook(channel=channel, name=name, dry_run=dry_run)
+
+
+@mcp.tool
+def local_discord_create_thread(channel: str, name: str, message: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Local Discord Plane: crea thread de publicacion/campana en un canal."""
+    return local_discord_plane.create_thread(channel=channel, name=name, message=message, dry_run=dry_run)
+
+
+@mcp.tool
 def local_discord_list_channel_messages(channel_id: str = "", limit: int = 20) -> dict[str, Any]:
     """Local Discord Plane: lee mensajes recientes de un canal accesible."""
     return local_discord_plane.list_channel_messages(channel_id=channel_id, limit=limit)
+
+
+@mcp.tool
+def local_discord_resolve_channel(name_or_id: str = "") -> dict[str, Any]:
+    """Local Discord Plane: resuelve nombre/alias de canal a channel_id."""
+    return local_discord_plane.resolve_channel(name_or_id=name_or_id)
+
+
+@mcp.tool
+def local_discord_search_channel_messages(channel_id: str = "", query: str = "", limit: int = 50) -> dict[str, Any]:
+    """Local Discord Plane: busca texto en mensajes recientes de un canal."""
+    return local_discord_plane.search_channel_messages(channel_id=channel_id, query=query, limit=limit)
+
+
+@mcp.tool
+def local_discord_read_configured_channels(limit_per_channel: int = 10) -> dict[str, Any]:
+    """Local Discord Plane: lee mensajes recientes de canales configurados."""
+    return local_discord_plane.read_configured_channels(limit_per_channel=limit_per_channel)
+
+
+@mcp.tool
+def local_discord_search_configured_channels(query: str, limit_per_channel: int = 50) -> dict[str, Any]:
+    """Local Discord Plane: busca texto en canales configurados."""
+    return local_discord_plane.search_configured_channels(query=query, limit_per_channel=limit_per_channel)
 
 
 @mcp.tool
@@ -5196,9 +5256,33 @@ def local_discord_send_channel_message(channel_id: str = "", content: str = "", 
 
 
 @mcp.tool
+def local_discord_send_named_channel_message(channel: str, content: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Local Discord Plane: envia mensaje a canal por nombre/alias; dry_run por defecto."""
+    return local_discord_plane.send_named_channel_message(channel=channel, content=content, dry_run=dry_run)
+
+
+@mcp.tool
 def local_discord_send_webhook_message(content: str, dry_run: bool = True) -> dict[str, Any]:
     """Local Discord Plane: envia alerta por webhook; dry_run por defecto para evitar ruido accidental."""
     return local_discord_plane.send_webhook_message(content=content, dry_run=dry_run)
+
+
+@mcp.tool
+def local_discord_list_guild_commands(guild_id: str = "") -> dict[str, Any]:
+    """Local Discord Plane: lista slash commands registrados en un servidor."""
+    return local_discord_plane.list_guild_commands(guild_id=guild_id)
+
+
+@mcp.tool
+def local_discord_register_guild_commands(guild_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Local Discord Plane: registra slash commands basicos de InnerOS."""
+    return local_discord_plane.register_guild_commands(guild_id=guild_id, dry_run=dry_run)
+
+
+@mcp.tool
+def local_discord_add_reaction(channel_id: str, message_id: str, emoji: str, dry_run: bool = True) -> dict[str, Any]:
+    """Local Discord Plane: agrega reaccion auditada a un mensaje."""
+    return local_discord_plane.add_reaction(channel_id=channel_id, message_id=message_id, emoji=emoji, dry_run=dry_run)
 
 
 @mcp.tool

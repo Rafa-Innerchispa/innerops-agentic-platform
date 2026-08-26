@@ -284,6 +284,101 @@ def list_groups(search: str = "", limit: int = 20) -> dict[str, Any]:
     }
 
 
+def user_profile(username: str = "") -> dict[str, Any]:
+    if not username:
+        status = gitlab_status()
+        return {"ok": bool(status.get("auth_ok")), "profile": status.get("verified_user"), "source": "authenticated_user", "auth_error": status.get("auth_error")}
+    res = _request("GET", "/users", query={"username": username.strip(), "per_page": 1})
+    if not res.get("ok"):
+        return res
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    item = rows[0] if rows and isinstance(rows[0], dict) else {}
+    return {
+        "ok": bool(item),
+        "profile": {
+            "id": item.get("id"),
+            "username": item.get("username"),
+            "name": item.get("name"),
+            "state": item.get("state"),
+            "web_url": item.get("web_url"),
+        } if item else None,
+    }
+
+
+def user_events(username: str = "rafagye", action: str = "", limit: int = 20) -> dict[str, Any]:
+    path = f"/users/{urllib.parse.quote(username.strip(), safe='')}/events"
+    query: dict[str, Any] = {"per_page": _limit(limit)}
+    if action:
+        query["action"] = action.strip()
+    res = _request("GET", path, query=query)
+    if not res.get("ok"):
+        return res
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    return {
+        "ok": True,
+        "count": len(rows),
+        "username": username,
+        "events": [
+            {
+                "id": item.get("id"),
+                "action_name": item.get("action_name"),
+                "target_type": item.get("target_type"),
+                "target_title": item.get("target_title"),
+                "project_id": item.get("project_id"),
+                "created_at": item.get("created_at"),
+            }
+            for item in rows
+            if isinstance(item, dict)
+        ],
+    }
+
+
+def discover_contribution_issues(search: str = "good first issue", labels: str = "", limit: int = 20) -> dict[str, Any]:
+    capped_limit = _limit(limit)
+    query: dict[str, Any] = {"scope": "all", "state": "opened", "per_page": capped_limit}
+    if search:
+        query["search"] = search.strip()
+    if labels:
+        query["labels"] = labels.strip()
+    res = _request("GET", "/issues", query=query)
+    fallback_error: dict[str, Any] | None = None
+    if res.get("ok"):
+        rows = res.get("data") if isinstance(res.get("data"), list) else []
+        fallback_used = False
+    else:
+        fallback_error = {key: value for key, value in res.items() if key not in {"data"}}
+        project_rows: list[dict[str, Any]] = []
+        projects = list_projects(search=search, membership=True, limit=min(capped_limit, 10))
+        if projects.get("ok"):
+            for project in projects.get("projects", []):
+                path = project.get("path_with_namespace") or project.get("id")
+                if not path:
+                    continue
+                project_query: dict[str, Any] = {"state": "opened", "per_page": max(1, capped_limit - len(project_rows))}
+                if search:
+                    project_query["search"] = search.strip()
+                if labels:
+                    project_query["labels"] = labels.strip()
+                issue_res = _request("GET", f"/projects/{project_api_path(str(path))}/issues", query=project_query)
+                if issue_res.get("ok") and isinstance(issue_res.get("data"), list):
+                    project_rows.extend([item for item in issue_res["data"] if isinstance(item, dict)])
+                if len(project_rows) >= capped_limit:
+                    break
+        rows = project_rows[:capped_limit]
+        fallback_used = True
+    return {
+        "ok": True,
+        "fallback_used": fallback_used,
+        "global_search_error": fallback_error,
+        "count": len(rows),
+        "issues": [
+            _issue_summary(item)
+            for item in rows
+            if isinstance(item, dict)
+        ],
+    }
+
+
 def project_summary(project_id_or_path: str) -> dict[str, Any]:
     encoded = project_api_path(project_id_or_path)
     res = _request("GET", f"/projects/{encoded}", query={"statistics": "false"})
