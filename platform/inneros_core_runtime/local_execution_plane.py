@@ -24,9 +24,11 @@ DEV_SWARM_GIT_USER_NAME = "RalfIA Dev Swarm"
 DEV_SWARM_GIT_USER_EMAIL = "dev-swarm@inneros.local"
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+NESTED_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$")
 PROTECTED_BRANCHES = {"main", "master", "production", "prod", "develop"}
-OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa"}
+OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
+OWNER_APPROVED_NESTED_REPOS = {"gitlab-community/gitlab-org/gitlab-runner"}
 OWNER_APPROVED_ALLOWED_PATHS = [
     "app",
     "components",
@@ -84,6 +86,31 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("git", "log", "--oneline", "-n"),
         ("python", "-m", "json.tool"),
         ("python3", "-m", "json.tool"),
+    ],
+    "docs_git_markdown": [
+        ("git", "status", "--short", "--branch"),
+        ("git", "diff", "--check"),
+        ("git", "diff", "--stat"),
+        ("git", "diff", "--name-only"),
+        ("git", "log", "--oneline", "-n"),
+    ],
+    "go_gitlab_runner": [
+        ("git", "status", "--short", "--branch"),
+        ("git", "diff", "--check"),
+        ("git", "diff", "--stat"),
+        ("git", "diff", "--name-only"),
+        ("git", "log", "--oneline", "-n"),
+        ("go", "version"),
+        ("go", "test"),
+        ("gofmt", "-l"),
+        ("gofmt", "-d"),
+        ("gofmt", "-w"),
+        ("scripts/lint-docs",),
+        ("scripts/lint-i18n-docs",),
+        ("glab", "issue", "view"),
+        ("glab", "issue", "list"),
+        ("glab", "mr", "view"),
+        ("glab", "mr", "list"),
     ],
     "python-tests": [
         ("python", "-m", "pytest"),
@@ -205,6 +232,10 @@ def _slug(repo: str) -> str:
     return repo.replace("/", "__")
 
 
+def _repo_name_allowed(repo: str) -> bool:
+    return bool(REPO_PATTERN.match(repo or "") or repo in OWNER_APPROVED_NESTED_REPOS)
+
+
 def _root() -> Path:
     configured_root = os.getenv("RALFIA_LOCAL_EXEC_ROOT", "").strip()
     if configured_root:
@@ -236,7 +267,7 @@ def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
     profiles: dict[str, dict[str, Any]] = {}
     for entry in (data.get("projects") or {}).values():
         repo = str(entry.get("repo") or "")
-        if not REPO_PATTERN.match(repo):
+        if not _repo_name_allowed(repo):
             continue
         path = (entry.get("paths") or {}).get("primary") or ""
         try:
@@ -253,6 +284,7 @@ def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
             "profile": profile,
             "source_path": str(safe),
             "allowed_paths": entry.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS,
+            "package_roots": entry.get("package_roots") or ["."],
             "worktrees_path": str(_root() / "worktrees" / _slug(repo)),
             "project_id": entry.get("project_id"),
             "registry_backed": True,
@@ -261,14 +293,25 @@ def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
 
 
 def _repo_config(repo: str) -> dict[str, Any]:
-    if not REPO_PATTERN.match(repo or ""):
+    if not _repo_name_allowed(repo or ""):
         raise ValueError("repo_must_be_owner_name")
+    saved_env = {key: os.environ.get(key) for key in ("INNEROS_CORE_ROOT", "RALFIA_LOCAL_EXEC_ROOT")}
+    owner_auto = _owner_approved_repo_config(repo)
     profiles = _load_repo_profiles()
-    profiles.update(_registry_repo_profiles())
+    try:
+        registry = _registry_repo_profiles()
+    finally:
+        for key, value in saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
     if repo in profiles:
         conf = dict(profiles[repo])
+    elif repo in registry:
+        conf = dict(registry[repo])
     else:
-        conf = _owner_approved_repo_config(repo)
+        conf = owner_auto
         if not conf:
             raise PermissionError("repo_not_allowlisted")
     root = _root()
@@ -280,6 +323,23 @@ def _repo_config(repo: str) -> dict[str, Any]:
 
 
 def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
+    if repo in OWNER_APPROVED_NESTED_REPOS:
+        core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
+        source = (core / "workspaces" / "gitlab-runner").resolve()
+        workspace_root = (core / "workspaces").resolve()
+        if source != workspace_root and workspace_root not in source.parents:
+            return None
+        if not source.exists() or not (source / ".git").exists():
+            return None
+        return {
+            "profile": "go_gitlab_runner",
+            "source_path": str(source),
+            "allowed_paths": ["docs/configuration/init.md", "README.md", "CONTRIBUTING.md", "AGENTS.md"],
+            "package_roots": ["."],
+            "worktrees_path": str(_root() / "worktrees" / _slug(repo)),
+            "owner_approved_auto": True,
+            "external_nested_fork": True,
+        }
     owner, name = repo.split("/", 1)
     if owner not in OWNER_APPROVED_GITHUB_OWNERS:
         return None
@@ -345,6 +405,9 @@ def _require_metadata(actor: str, task_id: str, correlation_id: str, idempotency
 def _execution_env() -> dict[str, str]:
     env = dict(os.environ)
     path_parts = [
+        "/home/rlopez/inneros/inneros_core/tools/go/bin",
+        "/home/rlopez/.local/opt",
+        "/home/rlopez/.local/bin",
         "/home/rlopez/.nvm/versions/node/v24.18.0/bin",
         "/home/rlopez/.nvm/versions/node/v20.20.2/bin",
         "/usr/local/bin",
@@ -453,6 +516,7 @@ def repo_authorize(
     write_scope: str = "worktree",
     allowed_paths: list[str] | None = None,
     allowed_commands_profile: str = "",
+    package_roots: list[str] | None = None,
     approval_id: str = "",
     actor: str = "chatgpt",
     task_id: str = "",
@@ -465,7 +529,7 @@ def repo_authorize(
         if not approval_id:
             raise ValueError("approval_id_required")
         owner, name = repo.split("/", 1)
-        if owner not in OWNER_APPROVED_GITHUB_OWNERS:
+        if owner not in OWNER_APPROVED_GITHUB_OWNERS and repo not in OWNER_APPROVED_NESTED_REPOS:
             raise PermissionError("repo_owner_not_allowlisted")
         source = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve() / "workspaces" / name
         payload = {
@@ -476,12 +540,24 @@ def repo_authorize(
             "write_scope": write_scope,
             "allowed_paths": allowed_paths or OWNER_APPROVED_ALLOWED_PATHS,
             "allowed_commands_profile": allowed_commands_profile,
+            "package_roots": package_roots or ["."],
         }
         if dry_run:
             return {"ok": True, "dry_run": True, "would_register": payload}
         from raphiia_openai import project_runtime_registry as prr
 
-        reg = prr.register_project(name, repo, str(source), actor=actor, source="repo_authorize")
+        reg = prr.register_project(
+            name,
+            repo,
+            str(source),
+            actor=actor,
+            source="repo_authorize",
+            policy_class=repo_class,
+            write_scope=write_scope,
+            allowed_paths=allowed_paths or OWNER_APPROVED_ALLOWED_PATHS,
+            allowed_commands_profile=allowed_commands_profile,
+            package_roots=package_roots or ["."],
+        )
         return {"ok": bool(reg.get("ok")), "registered": reg, "policy": payload}
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
@@ -574,9 +650,31 @@ def create_worktree(
         worktree.parent.mkdir(parents=True, exist_ok=True)
         if worktree.exists():
             status = _run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30)
-            return {"ok": True, "idempotent": True, "repo": repo, "work_branch": work_branch, "worktree": str(worktree), "status": status}
-        result = _run(["git", "worktree", "add", "-b", work_branch, str(worktree), base_branch], source, timeout_seconds=120)
-        return {"ok": result["ok"], "repo": repo, "base_branch": base_branch, "work_branch": work_branch, "worktree": str(worktree), "result": result}
+            return {
+                "ok": bool(status.get("ok") and (worktree / ".git").exists()),
+                "idempotent": True,
+                "repo": repo,
+                "work_branch": work_branch,
+                "worktree": str(worktree),
+                "status": status,
+                "verified_exists": (worktree / ".git").exists(),
+            }
+        add_cmd = ["git", "worktree", "add", "-b", work_branch, str(worktree), base_branch]
+        result = _run(add_cmd, source, timeout_seconds=120)
+        if not result.get("ok") and "already exists" in (result.get("stderr") or ""):
+            result = _run(["git", "worktree", "add", str(worktree), work_branch], source, timeout_seconds=120)
+        status = _run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30) if worktree.exists() else {"ok": False, "error": "worktree_path_missing"}
+        exists = worktree.exists() and (worktree / ".git").exists()
+        return {
+            "ok": bool(result.get("ok") and exists and status.get("ok")),
+            "repo": repo,
+            "base_branch": base_branch,
+            "work_branch": work_branch,
+            "worktree": str(worktree),
+            "result": result,
+            "status": status,
+            "verified_exists": exists,
+        }
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
@@ -870,6 +968,7 @@ def dev_swarm_launch_task(
             "source_path": conf.get("source_path"),
             "admin_scope_required": False,
             "required_scope": "ralfia:agents",
+            "checkout_or_pull": False,
             "next_actions": [
                 "Use local_exec_write_file/apply_patch for bounded edits.",
                 "Use local_exec_run_command_allowlisted for tests/build/status.",
@@ -879,9 +978,16 @@ def dev_swarm_launch_task(
         }
         if dry_run:
             return {"ok": True, "dry_run": True, "capability": "dev_swarm_scope", "plan": plan}
-        prepared = prepare_repo(repo, base_branch, actor, task_id, correlation_id, idempotency_key, remote_url=remote_url)
-        if not prepared.get("ok"):
-            return {"ok": False, "stage": "prepare_repo", "plan": plan, "prepared": prepared}
+        source = Path(str(conf.get("source_path") or "")).expanduser().resolve()
+        prepared = {
+            "ok": source.exists() and (source / ".git").exists(),
+            "repo": repo,
+            "source_path": str(source),
+            "checkout_or_pull": False,
+            "fetch_once": False,
+        }
+        if not prepared["ok"]:
+            return {"ok": False, "stage": "source_repo_required", "plan": plan, "prepared": prepared}
         lock = acquire_lock(repo, actor, task_id, correlation_id, ttl_seconds=3600)
         if not lock.get("ok"):
             return {"ok": False, "stage": "acquire_lock", "plan": plan, "prepared": prepared, "lock": lock}
