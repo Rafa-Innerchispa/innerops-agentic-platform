@@ -23,7 +23,10 @@ DEFAULT_INNEROS_CORE_ROOT = Path("/home/rlopez/inneros/inneros_core")
 NODE_HELPER = "/home/rlopez/bin/ralfia-peer-node-helper"
 PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-SAFE_REMOTE_RE = re.compile(r"^(https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?|git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git)$")
+NESTED_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+SAFE_REMOTE_RE = re.compile(r"^(https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?|git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git|https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner(?:\\.git)?)$")
+OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
+OWNER_APPROVED_NESTED_REPOS = {"gitlab-community/gitlab-org/gitlab-runner"}
 
 
 def _now() -> str:
@@ -78,7 +81,9 @@ def _save(data: dict[str, Any]) -> None:
 
 def _project_id(value: str) -> str:
     item = (value or "").strip()
-    if "/" in item and REPO_RE.match(item):
+    if item in OWNER_APPROVED_NESTED_REPOS:
+        item = item.rsplit("/", 1)[1]
+    elif "/" in item and REPO_RE.match(item):
         item = item.split("/", 1)[1]
     if not PROJECT_ID_RE.match(item):
         raise ValueError("invalid_project_id")
@@ -87,10 +92,10 @@ def _project_id(value: str) -> str:
 
 def _repo(value: str | None, project_id: str) -> str:
     item = (value or "").strip() or f"Rafa-Innerchispa/{project_id}"
-    if not REPO_RE.match(item):
+    if not (REPO_RE.match(item) or item in OWNER_APPROVED_NESTED_REPOS):
         raise ValueError("invalid_repo")
     owner = item.split("/", 1)[0]
-    if owner != "Rafa-Innerchispa":
+    if owner not in OWNER_APPROVED_GITHUB_OWNERS and item not in OWNER_APPROVED_NESTED_REPOS:
         raise PermissionError("repo_owner_not_allowlisted")
     return item
 
@@ -118,6 +123,11 @@ def register_project(
     project_path: str = "",
     actor: str = "chatgpt",
     source: str = "manual",
+    policy_class: str | None = None,
+    write_scope: str | None = None,
+    allowed_paths: list[str] | None = None,
+    allowed_commands_profile: str | None = None,
+    package_roots: list[str] | None = None,
 ) -> dict[str, Any]:
     pid = _project_id(project_id)
     full_repo = _repo(repo, pid)
@@ -134,12 +144,18 @@ def register_project(
         "repo": full_repo,
         "paths": paths,
         "trusted_roots": {"primary": trusted_roots("primary"), "amd": trusted_roots("amd")},
-        "policy_class": existing.get("policy_class") or "product-app",
-        "write_scope": existing.get("write_scope") or "worktree",
+        "policy_class": policy_class or existing.get("policy_class") or "product-app",
+        "write_scope": write_scope or existing.get("write_scope") or "worktree",
         "updated_at": _now(),
         "updated_by": actor,
         "source": source,
     }
+    if allowed_paths is not None:
+        entry["allowed_paths"] = allowed_paths
+    if allowed_commands_profile:
+        entry["allowed_commands_profile"] = allowed_commands_profile
+    if package_roots is not None:
+        entry["package_roots"] = package_roots
     entry.setdefault("created_at", _now())
     projects[pid] = entry
     data["version"] = REGISTRY_VERSION
@@ -167,8 +183,15 @@ def resolve_project(project_id: str = "", repo: str = "", node: str = "primary")
     entry = _find(project_id, repo)
     if not entry:
         pid = _project_id(project_id or repo)
-        full_repo = _repo(repo, pid)
-        entry = register_project(pid, full_repo, _default_path(pid), source="auto_resolve")["project"]
+        full_repo = _repo(repo, pid) if repo else ""
+        return {
+            "ok": False,
+            "capability": CAPABILITY,
+            "node": normalized_node,
+            "error": "project_not_registered",
+            "project_id": pid,
+            "repo": full_repo,
+        }
     paths = dict(entry.get("paths") or {})
     path = paths.get(normalized_node) or paths.get("primary") or _default_path(entry["project_id"])
     resolved = str(_safe_path(path, normalized_node))
@@ -177,6 +200,8 @@ def resolve_project(project_id: str = "", repo: str = "", node: str = "primary")
 
 def status(project_id: str = "", repo: str = "", node: str = "primary") -> dict[str, Any]:
     resolved = resolve_project(project_id=project_id, repo=repo, node=node)
+    if not resolved.get("ok"):
+        return resolved
     path = Path(resolved["project_path"])
     return {
         **resolved,

@@ -581,10 +581,11 @@ def repo_authorize(
         owner, name = repo.split("/", 1)
         if owner not in OWNER_APPROVED_GITHUB_OWNERS and repo not in OWNER_APPROVED_NESTED_REPOS:
             raise PermissionError("repo_owner_not_allowlisted")
-        source = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve() / "workspaces" / name
+        project_id = repo.rsplit("/", 1)[1] if repo in OWNER_APPROVED_NESTED_REPOS else name
+        source = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve() / "workspaces" / project_id
         payload = {
             "repo": repo,
-            "project_id": name,
+            "project_id": project_id,
             "project_path": str(source),
             "repo_class": repo_class,
             "write_scope": write_scope,
@@ -597,7 +598,7 @@ def repo_authorize(
         from raphiia_openai import project_runtime_registry as prr
 
         reg = prr.register_project(
-            name,
+            project_id,
             repo,
             str(source),
             actor=actor,

@@ -118,25 +118,51 @@ def test_unapproved_external_owner_still_denied(tmp_path: Path, monkeypatch) -> 
     assert result["error"] == "repo_owner_not_allowlisted"
 
 
-def test_gitlab_community_nested_runner_is_narrowly_auto_allowed(tmp_path: Path, monkeypatch) -> None:
+
+
+def test_gitlab_community_nested_runner_can_be_authorized_narrowly(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "local_exec"
     core = tmp_path / "inneros_core"
-    repo = core / "workspaces" / "gitlab-runner"
-    repo.mkdir(parents=True)
-    (repo / ".git").mkdir()
+    repo_path = core / "workspaces" / "gitlab-runner"
+    repo_path.mkdir(parents=True)
+    (repo_path / ".git").mkdir()
     monkeypatch.setenv("RALFIA_LOCAL_EXEC_ROOT", str(root))
     monkeypatch.setenv("INNEROS_CORE_ROOT", str(core))
+
+    result = lep.repo_authorize(
+        repo="gitlab-community/gitlab-org/gitlab-runner",
+        actor="codex",
+        task_id="ops_e47da3075512",
+        correlation_id="gitlab-contrib-runner-39712-20260826-codex",
+        approval_id="owner-approved-fixture",
+        repo_class="external_fork_docs_only",
+        write_scope="worktree",
+        allowed_paths=[
+            "AGENTS.md",
+            "CONTRIBUTING.md",
+            "docs/AGENTS.md",
+            ".gitlab/merge_request_templates/Documentation.md",
+            "docs/executors/docker.md",
+        ],
+        allowed_commands_profile="go_gitlab_runner",
+        package_roots=["."],
+        dry_run=False,
+    )
+
+    assert result["ok"] is True
+    assert result["registered"]["project"]["project_id"] == "gitlab-runner"
+    assert result["registered"]["project"]["repo"] == "gitlab-community/gitlab-org/gitlab-runner"
+    assert result["registered"]["project"]["paths"]["primary"] == str(repo_path)
     conf = lep._repo_config("gitlab-community/gitlab-org/gitlab-runner")
     assert conf["profile"] == "go_gitlab_runner"
-    assert conf["external_nested_fork"] is True
-    assert lep._validate_relative_path("docs/configuration/init.md", conf["allowed_paths"])
+    assert conf["package_roots"] == ["."]
+    assert lep._validate_relative_path("docs/executors/docker.md", conf["allowed_paths"])
     try:
-        lep._repo_config("gitlab-community/gitlab-org/other")
-    except ValueError as exc:
-        assert str(exc) == "repo_must_be_owner_name"
+        lep._validate_relative_path("commands/helpers.go", conf["allowed_paths"])
+    except PermissionError as exc:
+        assert str(exc) == "path_not_allowed_for_repo_profile"
     else:
-        raise AssertionError("Only GitLab Runner community fork should be nested-allowed")
-
+        raise AssertionError("Nested GitLab community fork must stay docs-only")
 
 def test_gitlab_runner_go_profile_allows_only_safe_go_and_gitlab_reads() -> None:
     assert lep._command_allowed(["go", "version"], "go_gitlab_runner") is True
