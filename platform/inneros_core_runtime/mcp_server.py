@@ -4963,6 +4963,12 @@ def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = Tr
 
 
 @mcp.tool
+def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = True, limit: int = 10, dry_run: bool = False) -> dict[str, Any]:
+    """External Repair Agent: reconcilia handoffs terminales y reclama la siguiente tarea elegible si esta autorizado."""
+    return external_repair_agent.external_repair_agent_reconcile(provider=provider, auto_claim=auto_claim, limit=limit, dry_run=dry_run)
+
+
+@mcp.tool
 def external_repair_agent_run_task(
     provider: str,
     task_id: str,

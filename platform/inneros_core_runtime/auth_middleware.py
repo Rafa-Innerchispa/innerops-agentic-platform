@@ -354,6 +354,7 @@ TOOL_SCOPES = {
     "dev_swarm_executor_tick": "ralfia:agents",
     "external_repair_agent_status": "ralfia:read",
     "external_repair_agent_claim_next": "ralfia:agents",
+    "external_repair_agent_reconcile": "ralfia:agents",
     "external_repair_agent_run_task": "ralfia:agents",
     "external_repair_run_start": "ralfia:agents",
     "external_repair_run_checkpoint": "ralfia:agents",

@@ -250,6 +250,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             "heartbeat_ops_task",
             "external_repair_agent_status",
             "external_repair_agent_claim_next",
+            "external_repair_agent_reconcile",
             "external_repair_agent_run_task",
             "external_repair_run_start",
             "external_repair_run_checkpoint",

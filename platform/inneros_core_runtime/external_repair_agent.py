@@ -19,6 +19,7 @@ from typing import Any
 from pymongo import ReturnDocument
 
 from raphiia_openai import coordination_live, mongo_store
+from raphiia_openai.settings import COL_AGENT_MESSAGES
 
 RUNS_COL = "ralfia_external_repair_runs"
 CREDIT_STATE_KEY = "external_repair_credit_governor"
@@ -32,6 +33,8 @@ DEFAULT_DAILY_HARD_LIMIT = {"codex": 3, "cursor": 0, "antigravity": 0, "digitalo
 DEFAULT_MONTHLY_HARD_LIMIT = {"codex": 30, "cursor": 0, "antigravity": 0, "digitalocean-amd-cloud": 6}
 RUN_ACTIVE_STATUSES = {"queued", "running", "checkpointed"}
 RUN_TERMINAL_STATUSES = {"completed", "failed", "blocked", "cancelled"}
+AUTO_CLAIM_ENV = "EXTERNAL_REPAIR_AUTO_CLAIM"
+AUTO_CLAIM_OWNER_ENV = "EXTERNAL_REPAIR_OWNER_AUTHORIZED"
 
 
 def _now() -> str:
@@ -226,6 +229,21 @@ def list_active_runs(provider: str = "", limit: int = 20) -> list[dict[str, Any]
     )
 
 
+def list_provider_active_tasks(provider: str = "codex", limit: int = 20) -> list[dict[str, Any]]:
+    provider_n = (provider or "codex").strip().lower()
+    query = {
+        "assignee": provider_n,
+        "owner": provider_n,
+        "status": {"$in": sorted(ACTIVE_STATUSES)},
+    }
+    return list(
+        _db()[coordination_live.OPS_TASKS_COL]
+        .find(query, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(max(1, min(int(limit or 20), 100)))
+    )
+
+
 def _task_priority_key(task: dict[str, Any]) -> tuple[int, str]:
     return (PRIORITY_ORDER.get(str(task.get("priority") or "normal").lower(), 99), str(task.get("created_at") or ""))
 
@@ -238,6 +256,53 @@ def _candidate_tasks(provider: str, limit: int) -> list[dict[str, Any]]:
         .limit(max(1, min(int(limit or 1), 20)))
     )
     return sorted(rows, key=_task_priority_key)
+
+
+def _auto_claim_enabled(provider: str) -> bool:
+    raw = os.getenv(AUTO_CLAIM_ENV, "").strip().lower()
+    provider_raw = os.getenv(f"{AUTO_CLAIM_ENV}_{provider.upper()}", "").strip().lower()
+    owner_raw = os.getenv(AUTO_CLAIM_OWNER_ENV, "").strip().lower()
+    enabled_values = {"1", "true", "yes", "on", "enabled", "owner_authorized"}
+    return provider_raw in enabled_values or (raw in enabled_values and owner_raw in enabled_values)
+
+
+def _mark_admission_blocked(provider: str, selected: dict[str, Any], admission: dict[str, Any], capability: dict[str, Any], budget: dict[str, Any]) -> dict[str, Any]:
+    now = _now()
+    reason = "blocked_by_budget" if not admission.get("budget_ok") else "provider_not_ready"
+    claimed = _db()[coordination_live.OPS_TASKS_COL].find_one_and_update(
+        {"task_id": selected["task_id"], "status": "proposed", "owner": None, "revision": selected.get("revision", 1)},
+        {
+            "$set": {
+                "status": "accepted",
+                "owner": provider,
+                "updated_at": now,
+                "updated_by": "external_repair_agent",
+                "last_heartbeat_at": now,
+            },
+            "$inc": {"revision": 1},
+            "$push": {"state_history": {"at": now, "actor": "external_repair_agent", "from": "proposed", "to": "accepted", "provider": provider}},
+        },
+        return_document=ReturnDocument.AFTER,
+        projection={"_id": 0},
+    )
+    if not claimed:
+        return {"ok": False, "error": "claim_race_lost", "provider": provider, "candidate_task_id": selected["task_id"]}
+    evidence = {
+        "result": "BLOCKED",
+        "reason": reason,
+        "admission": admission,
+        "capability": capability,
+        "budget": budget,
+    }
+    blocked = coordination_live.update_ops_task_state(
+        str(claimed["task_id"]),
+        "blocked",
+        actor=provider,
+        expected_revision=int(claimed.get("revision") or 1),
+        evidence=evidence,
+        force_handoff=True,
+    )
+    return {"ok": bool(blocked.get("ok")), "claimed": True, "blocked": True, "reason": reason, "provider": provider, "task": claimed, "transition": blocked}
 
 
 def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = True, limit: int = 10, task_id: str = "") -> dict[str, Any]:
@@ -258,8 +323,10 @@ def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = Tr
         "budget_ok": budget.get("ok"),
         "local_first": "Dev Swarm/local models should be attempted before external spend unless this is repair/escalation",
     }
-    if dry_run or not (admission["capability_ok"] and admission["budget_ok"]):
+    if dry_run:
         return {"ok": True, "dry_run": dry_run, "claimed": False, "provider": provider, "candidate": selected, "admission": admission, "capability": capability, "budget": budget}
+    if not (admission["capability_ok"] and admission["budget_ok"]):
+        return _mark_admission_blocked(provider, selected, admission, capability, budget)
 
     now = _now()
     claimed = _db()[coordination_live.OPS_TASKS_COL].find_one_and_update(
@@ -286,6 +353,87 @@ def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = Tr
         return {"ok": False, "error": "claim_promote_failed", "provider": provider, "task": claimed, "promotion": promoted}
     task = _db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": claimed["task_id"]}, {"_id": 0}) or claimed
     return {"ok": True, "claimed": True, "provider": provider, "task": task, "admission": admission, "promotion": promoted}
+
+
+def reconcile_terminal_handoffs(provider: str = "codex", limit: int = 25) -> dict[str, Any]:
+    """Mark machine-generated handoffs for terminal tasks as done without acknowledging human decisions."""
+    provider_n = (provider or "codex").strip().lower()
+    terminal_tasks = list(
+        _db()[coordination_live.OPS_TASKS_COL]
+        .find({"assignee": provider_n, "status": {"$in": sorted(TERMINAL_STATUSES)}}, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(max(1, min(int(limit or 25), 100)))
+    )
+    task_ids = {str(task.get("task_id") or "") for task in terminal_tasks if task.get("task_id")}
+    correlations = {str(task.get("correlation_id") or "") for task in terminal_tasks if task.get("correlation_id")}
+    if not task_ids and not correlations:
+        return {"ok": True, "resolved": [], "checked_terminal_tasks": 0}
+    query = {
+        "target_agent": {"$in": ["chatgpt", provider_n]},
+        "type": "handoff",
+        "status": {"$in": ["open", "acknowledged"]},
+        "$or": [
+            {"payload.task_id": {"$in": sorted(task_ids)}},
+            {"correlation_id": {"$in": sorted(correlations)}},
+        ],
+    }
+    now = _now()
+    resolved: list[str] = []
+    for msg in _db()[COL_AGENT_MESSAGES].find(query, {"_id": 0}).limit(max(1, min(int(limit or 25), 100))):
+        payload = msg.get("payload") or {}
+        if payload.get("requires_human_approval") is True or msg.get("priority") in {"approval", "p0"}:
+            continue
+        result = _db()[COL_AGENT_MESSAGES].update_one(
+            {"message_id": msg.get("message_id"), "status": msg.get("status")},
+            {
+                "$set": {
+                    "status": "done",
+                    "resolved_at": now,
+                    "resolved_by": "external_repair_reconcile",
+                    "updated_at": now,
+                    "resolution": "terminal_task_handoff_consumed",
+                }
+            },
+        )
+        if getattr(result, "modified_count", 0) == 1:
+            resolved.append(str(msg.get("message_id")))
+    if resolved:
+        coordination_live.bump_revision(reason=f"external_repair_reconcile resolved {len(resolved)} terminal handoff(s)", source="external_repair_agent")
+    return {"ok": True, "resolved": resolved, "checked_terminal_tasks": len(terminal_tasks)}
+
+
+def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = True, limit: int = 10, dry_run: bool = False) -> dict[str, Any]:
+    """Reconcile terminal handoffs, stale runs and optionally auto-claim the next eligible task."""
+    provider_n = (provider or "codex").strip().lower()
+    status_before = external_repair_agent_status(provider_n)
+    handoffs = reconcile_terminal_handoffs(provider_n, limit=max(limit, 10))
+    recovered = recover_external_repair_runs(provider=provider_n, mark_stale_after_seconds=3600)
+    status_mid = external_repair_agent_status(provider_n)
+    active_runs = status_mid.get("active_runs") or []
+    active_tasks = list_provider_active_tasks(provider_n, limit=10)
+    capability = ((status_mid.get("matrix") or {}).get("providers") or [{}])[0]
+    enabled = _auto_claim_enabled(provider_n)
+    claim: dict[str, Any] = {"ok": True, "claimed": False, "reason": "auto_claim_disabled", "enabled": enabled}
+    if auto_claim and enabled and not active_runs and not active_tasks and capability.get("status") == "ready":
+        claim = external_repair_agent_claim_next(provider=provider_n, dry_run=dry_run, limit=limit)
+    elif auto_claim and enabled and active_runs:
+        claim = {"ok": True, "claimed": False, "reason": "provider_has_active_runs", "active_runs": active_runs}
+    elif auto_claim and enabled and active_tasks:
+        claim = {"ok": True, "claimed": False, "reason": "provider_has_active_tasks", "active_tasks": active_tasks}
+    elif auto_claim and enabled and capability.get("status") != "ready":
+        claim = {"ok": True, "claimed": False, "reason": "provider_not_ready", "capability": capability}
+    status_after = external_repair_agent_status(provider_n)
+    return {
+        "ok": bool(handoffs.get("ok") and recovered.get("ok") and claim.get("ok")),
+        "provider": provider_n,
+        "auto_claim_enabled": enabled,
+        "status_before": status_before,
+        "handoffs": handoffs,
+        "recovered": recovered,
+        "active_tasks": active_tasks,
+        "claim": claim,
+        "status_after": status_after,
+    }
 
 
 def record_external_repair_run(
