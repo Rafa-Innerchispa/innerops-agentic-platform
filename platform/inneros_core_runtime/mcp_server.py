@@ -1214,6 +1214,14 @@ def digitalocean_preflight() -> dict[str, Any]:
 
 
 @mcp.tool
+def digitalocean_balance() -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: balance/uso leido por API sin exponer PAT."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.balance()
+
+
+@mcp.tool
 def digitalocean_store_pat_server_side(secret: str, label: str = "DigitalOcean AMD Cloud PAT", actor: str = "RAFAEL") -> dict[str, Any]:
     """DigitalOcean AMD Cloud: guarda PAT en owner_vault; no retorna el secreto."""
     from raphiia_openai import digitalocean_amd_provider as do
@@ -1243,6 +1251,14 @@ def digitalocean_list_images() -> dict[str, Any]:
     from raphiia_openai import digitalocean_amd_provider as do
 
     return do.list_images()
+
+
+@mcp.tool
+def digitalocean_list_ssh_keys() -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: lista SSH keys disponibles para bootstrap."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.list_ssh_keys()
 
 
 @mcp.tool
@@ -1307,6 +1323,14 @@ def digitalocean_cost_session_status(session_id: str = "", project_id: str = "",
     from raphiia_openai import digitalocean_amd_provider as do
 
     return do.cost_session_status(session_id=session_id, project_id=project_id, task_id=task_id)
+
+
+@mcp.tool
+def digitalocean_cleanup_failed_sessions(max_age_seconds: int = 3600, dry_run: bool = True) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: marca sesiones fantasma sin droplet_id como fallidas."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.cleanup_failed_sessions(max_age_seconds=max_age_seconds, dry_run=dry_run)
 
 
 @mcp.tool

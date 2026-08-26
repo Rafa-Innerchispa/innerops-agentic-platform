@@ -43,16 +43,7 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
             "local_first": True,
             "status": "active",
         },
-        {
-            "provider_id": digitalocean_amd_provider.PROVIDER_ID,
-            "label": "DigitalOcean AMD Cloud Burst",
-            "kind": "ephemeral_cloud_gpu",
-            "capabilities": ["coding", "heavy_reasoning", "gpu_inference", "cloud_burst"],
-            "model_provider": digitalocean_amd_provider.MODEL_PROVIDER_ID,
-            "local_first": False,
-            "status": "configured_mock_no_token",
-            "requires": ["owner_vault PAT", "approval_id", "apply_window"],
-        },
+        digitalocean_amd_provider.resource_provider_document(),
         local_gitlab_plane.resource_provider_document(),
         local_discord_plane.resource_provider_document(),
     ]
@@ -71,13 +62,7 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
             "priority": 20,
             "cost_policy": "local_first",
         },
-        {
-            "model_provider": digitalocean_amd_provider.MODEL_PROVIDER_ID,
-            "provider_id": digitalocean_amd_provider.PROVIDER_ID,
-            "task_classes": ["coding", "heavy_reasoning"],
-            "priority": 50,
-            "cost_policy": "explicit_burst_only",
-        },
+        digitalocean_amd_provider.model_provider_document(),
         local_gitlab_plane.model_provider_document(),
     ]
     if dry_run:
