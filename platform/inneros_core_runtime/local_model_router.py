@@ -8,7 +8,9 @@ Local-first policy:
 from __future__ import annotations
 
 import json
+import os
 import re
+import socket
 import subprocess
 import urllib.error
 import urllib.request
@@ -16,13 +18,56 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
-from raphiia_openai import mongo_store, ralfia_time
+from raphiia_openai import capacity_governor_vnext, mongo_store, ralfia_time
 from raphiia_openai.settings import COL_AI_ROUTING_LOG, MCP_PUBLIC_URL
 
-OLLAMA_URL = "http://127.0.0.1:11434"
+GPU_ROLE = os.getenv("INNEROS_GPU_ROLE", "").strip().lower()
+
+
+def _env_url(name: str, default: str) -> str:
+    value = os.getenv(name, default).strip() or default
+    return value.rstrip("/")
+
+
+def _local_node_ips() -> set[str]:
+    ips: set[str] = set()
+    try:
+        ips.update(socket.gethostbyname_ex(socket.gethostname())[2])
+    except Exception:
+        pass
+    try:
+        probe = subprocess.run(["hostname", "-I"], text=True, capture_output=True, timeout=2, check=False)
+        ips.update((probe.stdout or "").split())
+    except Exception:
+        pass
+    return ips
+
+
+_LOCAL_IPS = _local_node_ips()
+_HOSTNAME = socket.gethostname().lower()
+IS_AMD_NODE = "192.168.1.5" in _LOCAL_IPS or "amd" in _HOSTNAME
+IS_INTEL_NODE = "192.168.1.4" in _LOCAL_IPS or "intel" in _HOSTNAME or "ver-10" in _HOSTNAME
+
+
+if IS_AMD_NODE:
+    OLLAMA_URL = "http://192.168.1.4:11434"
+    VLLM_URL = "http://127.0.0.1:8000"
+elif IS_INTEL_NODE:
+    OLLAMA_URL = "http://127.0.0.1:11434"
+    VLLM_URL = _env_url("AMD_VLLM_TUNNEL_URL", "http://127.0.0.1:18000")
+elif GPU_ROLE == "vllm-primary":
+    OLLAMA_URL = "http://192.168.1.4:11434"
+    VLLM_URL = "http://127.0.0.1:8000"
+elif GPU_ROLE == "ollama-primary":
+    OLLAMA_URL = "http://127.0.0.1:11434"
+    VLLM_URL = _env_url("AMD_VLLM_TUNNEL_URL", "http://127.0.0.1:18000")
+else:
+    OLLAMA_URL = _env_url("OLLAMA_URL", "http://192.168.1.4:11434")
+    VLLM_URL = _env_url("VLLM_URL", "http://192.168.1.5:8000")
 OPEN_WEBUI_URL = "http://127.0.0.1:3000"
 ANYTHINGLLM_URL = "http://127.0.0.1:3001"
 N8N_URL = "http://127.0.0.1:5678"
+ROUTER_KEY = "local_model_router_defaults"
 
 LOCAL_MODEL_FALLBACKS = [
     "qwen2.5:7b",
@@ -65,6 +110,8 @@ TASK_ALIASES = {
     "notes": "notes",
     "nota": "notes",
     "operational": "operational",
+    "basic_ops": "operational",
+    "general_chat": "operational",
     "ops": "operational",
     "field_visit": "operational",
     "visit": "operational",
@@ -101,6 +148,9 @@ TASK_ALIASES = {
     "autoreparar": "coding",
     "autoreparacion": "coding",
     "autoreparación": "coding",
+    "heavy_reasoning": "heavy_reasoning",
+    "deep_coding": "heavy_reasoning",
+    "architecture_coding": "heavy_reasoning",
 }
 
 TASK_MODEL_MAP = {
@@ -115,8 +165,9 @@ TASK_MODEL_MAP = {
     "routing": "phi3.5:3.8b",
     "daily_brief": "qwen2.5:7b",
     "notes": "qwen2.5:7b",
-    "operational": "qwen2.5:14b-instruct-q4_K_M",
+    "operational": "qwen2.5vl:7b",
     "coding": "qwen2.5-coder:7b",
+    "heavy_reasoning": "qwen2.5:14b-instruct-q4_K_M",
     "vision_ocr": "llava:7b",
     "external_research": "qwen2.5:14b-instruct-q4_K_M",
     "architecture_complex": "qwen2.5:14b-instruct-q4_K_M",
@@ -137,6 +188,7 @@ LOCAL_OK_TASKS = {
     "notes",
     "operational",
     "coding",
+    "heavy_reasoning",
 }
 
 EXTERNAL_TASKS = {
@@ -286,6 +338,56 @@ def _ollama_ps() -> dict[str, Any]:
     return _http_json(f"{OLLAMA_URL}/api/ps")
 
 
+def _ollama_url_for_provider(provider_id: str | None) -> str:
+    if provider_id == "local-intel-4":
+        return "http://192.168.1.4:11434"
+    return OLLAMA_URL
+
+
+def _vllm_url_for_provider(provider_id: str | None) -> str:
+    if provider_id == "local-amd-5":
+        return VLLM_URL
+    return VLLM_URL
+
+
+def _router_default(task_type: str) -> dict[str, Any] | None:
+    state_doc = mongo_store.get_coordination_state(ROUTER_KEY)
+    state = (state_doc.get("state") or {}) if state_doc.get("ok") else {}
+    defaults = state.get("defaults") or {}
+    if task_type == "heavy_reasoning":
+        return defaults.get("heavy_reasoning") or defaults.get("coding")
+    return defaults.get(task_type)
+
+
+def _vllm_chat(
+    *,
+    model: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+    endpoint: str | None = None,
+) -> dict[str, Any]:
+    vllm_url = (endpoint or VLLM_URL).rstrip("/")
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": False,
+        "temperature": temperature,
+        "max_tokens": int(max_tokens or 3200),
+    }
+    result = _http_json(f"{vllm_url}/v1/chat/completions", method="POST", body=payload, timeout=180)
+    if not result.get("ok"):
+        return {"ok": False, "error": "vllm_unavailable", "endpoint": vllm_url, "model": model, "raw": result}
+    data = result.get("data", {})
+    choices = data.get("choices") or []
+    content = (((choices[0] or {}).get("message") or {}).get("content") if choices else "") or ""
+    return {"ok": True, "backend": "vllm", "endpoint": vllm_url, "model": model, "response": content, "raw": data}
+
+
 def _normalize_task(task_type: str | None, text: str) -> str:
     if task_type:
         raw = task_type.strip().lower().replace("-", "_").replace(" ", "_")
@@ -353,6 +455,9 @@ def _recommendations_for_model(name: str) -> list[str]:
 
 
 def _pick_model(task_type: str) -> str:
+    routed = _router_default(task_type)
+    if routed and routed.get("model_ref"):
+        return str(routed["model_ref"])
     preferred = TASK_MODEL_MAP.get(task_type)
     if not preferred:
         return LOCAL_MODEL_FALLBACKS[0]
@@ -462,6 +567,7 @@ def list_local_models() -> dict[str, Any]:
 def local_model_health() -> dict[str, Any]:
     ollama_tags = _http_ok(f"{OLLAMA_URL}/api/tags")
     ollama_ps = _http_ok(f"{OLLAMA_URL}/api/ps")
+    vllm_models = _http_ok(f"{VLLM_URL}/v1/models")
     open_webui = {
         "container": _service_running("open-webui"),
         "port_probe": {"ok": False, "skipped": "no explicit host port mapping detected for open-webui"},
@@ -477,14 +583,18 @@ def local_model_health() -> dict[str, Any]:
     gpu = _gpu_snapshot()
     memory = _memory_snapshot()
     clients = _configured_clients()
-    ok = bool(ollama_tags.get("ok"))
-    return {
+    ok = bool(ollama_tags.get("ok") or vllm_models.get("ok"))
+    status = {
         "ok": ok,
         "ollama": {
             "endpoint": OLLAMA_URL,
             "api_tags": ollama_tags,
             "api_ps": ollama_ps,
             "models_loaded_now": ollama_ps.get("data", {}).get("models", []) if ollama_ps.get("ok") else [],
+        },
+        "vllm": {
+            "endpoint": VLLM_URL,
+            "api_models": vllm_models,
         },
         "open_webui": open_webui,
         "anythingllm": anythingllm,
@@ -495,6 +605,25 @@ def local_model_health() -> dict[str, Any]:
         "local_first": True,
         "ts": _now_iso(),
     }
+    try:
+        cpu_ratio = 0.0
+        if hasattr(os, "getloadavg"):
+            cpu_ratio = (os.getloadavg()[0] / max(1, os.cpu_count() or 1))
+        status["capacity_governor_vnext"] = capacity_governor_vnext.classify_capacity(
+            cpu_load_ratio=cpu_ratio,
+            ram_used_ratio=0.0,
+            vram_used_ratio=0.0,
+            active_worker_count=0,
+            sustained_samples=1,
+        )
+        if IS_INTEL_NODE:
+            status["capacity_governor_vnext"]["intel_baseline"] = {
+                "required_models": sorted(capacity_governor_vnext.INTEL_BASELINE_MODELS),
+                "loaded_models": sorted(m.get("model") for m in capacity_governor_vnext.ollama_loaded_models() if m.get("model")),
+            }
+    except Exception as exc:
+        status["capacity_governor_vnext"] = {"ok": False, "error": str(exc)}
+    return status
 
 
 def classify_task_runtime(text: str, task_type: str | None = None) -> dict[str, Any]:
@@ -504,6 +633,7 @@ def classify_task_runtime(text: str, task_type: str | None = None) -> dict[str, 
     external_needed = normalized in EXTERNAL_TASKS
     approval_required = privacy_flag or external_needed
     reason = "local-first default"
+    routed = _router_default(normalized)
 
     if normalized in {"architecture_complex", "critical_review"}:
         reason = "complex reasoning or review is better handled externally"
@@ -521,6 +651,8 @@ def classify_task_runtime(text: str, task_type: str | None = None) -> dict[str, 
         "privacy_risk": privacy_risk,
         "local_ok": local_ok,
         "recommended_model": model,
+        "recommended_provider": routed.get("provider_id") if routed else ("local-intel-4" if local_ok else None),
+        "recommended_backend": "vllm" if routed and routed.get("provider_id") == "local-amd-5" else ("ollama" if local_ok else None),
         "external_needed": external_needed,
         "approval_required": approval_required,
         "reason": reason,
@@ -537,6 +669,8 @@ def route_ai_task(title: str, body: str, task_type: str | None = None) -> dict[s
     external_needed = classification["external_needed"]
     approval_required = classification["approval_required"]
     local_model = classification["recommended_model"]
+    provider_id = classification.get("recommended_provider")
+    backend = classification.get("recommended_backend")
 
     if normalized == "coding" and not local_ok:
         runtime = "human_review"
@@ -549,7 +683,7 @@ def route_ai_task(title: str, body: str, task_type: str | None = None) -> dict[s
         model = None
         reason = "high privacy risk"
     elif local_ok and not external_needed:
-        runtime = "local_model"
+        runtime = "local_vllm" if backend == "vllm" else "local_model"
         decision = "execute_local"
         model = local_model
         reason = classification["reason"]
@@ -597,6 +731,9 @@ def route_ai_task(title: str, body: str, task_type: str | None = None) -> dict[s
         "approval_required": approval_required,
         "reason": reason,
         "routing_log": record,
+        "provider_id": provider_id,
+        "backend": backend,
+        "selected_node": "amd" if provider_id == "local-amd-5" else ("intel" if provider_id == "local-intel-4" else None),
     }
 
 
@@ -610,12 +747,32 @@ def run_local_model(
 ) -> dict[str, Any]:
     classification = classify_task_runtime(prompt, task_type=task_type)
     selected = model or classification["recommended_model"] or _pick_model(classification["task_type"])
+    provider_id = classification.get("recommended_provider")
+    backend = classification.get("recommended_backend")
+    ollama_url = _ollama_url_for_provider(provider_id)
+    vllm_url = _vllm_url_for_provider(provider_id)
     health = local_model_health()
-    if not health.get("ok"):
+    provider_health = _http_ok(f"{vllm_url}/v1/models") if backend == "vllm" and provider_id == "local-amd-5" else _http_ok(f"{ollama_url}/api/tags")
+    if backend == "vllm" and provider_id == "local-amd-5" and not provider_health.get("ok"):
         return {
             "ok": False,
-            "error": "ollama_unavailable",
+            "error": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
+            "endpoint": vllm_url,
             "health": health,
+            "provider_health": provider_health,
+            "recommended_model": selected,
+            "selected_model": selected,
+            "selected_node": "amd",
+            "provider_id": provider_id,
+            "fallback_silent": False,
+            "fallback_reason": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
+        }
+    if not (health.get("ok") or provider_health.get("ok")):
+        return {
+            "ok": False,
+            "error": "local_runtime_unavailable",
+            "health": health,
+            "provider_health": provider_health,
             "recommended_model": selected,
         }
 
@@ -631,9 +788,63 @@ def run_local_model(
         "routing": "Decide ruta operativa con criterio pragmatico.",
         "daily_brief": "Genera un daily brief breve, claro y accionable.",
         "notes": "Redacta notas limpias y utiles.",
-        "operational": "Analiza operacion tecnica con foco en datos y pendientes.",
-        "coding": "Ayuda con codigo de forma precisa y directa. Si requiere editar repos, usa Local Execution Plane/dispatcher con rama, tests y evidencia; no finjas cambios no ejecutados.",
+    "operational": "Analiza operacion tecnica con foco en datos y pendientes.",
+    "coding": "Ayuda con codigo de forma precisa y directa. Si requiere editar repos, usa Local Execution Plane/dispatcher con rama, tests y evidencia; no finjas cambios no ejecutados.",
+        "heavy_reasoning": "Razona con rigor sobre arquitectura y codigo. Devuelve resultados estructurados y evita inventar dependencias o rutas.",
     }.get(classification["task_type"], "Responde de forma breve y util.")
+
+    if backend == "vllm" and provider_id == "local-amd-5":
+        result = _vllm_chat(
+            model=selected,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            endpoint=vllm_url,
+        )
+        if not result.get("ok"):
+            _log_route(
+                title=classification["task_type"],
+                body=prompt,
+                task_type=classification["task_type"],
+                runtime="local_vllm",
+                model=selected,
+                local_ok=True,
+                external_needed=False,
+                approval_required=False,
+                reason="vLLM execution failed; no silent fallback",
+                decision="error",
+            )
+            return {
+                **result,
+                "task_type": classification["task_type"],
+                "selected_model": selected,
+                "selected_node": "amd",
+                "provider_id": provider_id,
+                "fallback_silent": False,
+            }
+        log = _log_route(
+            title=classification["task_type"],
+            body=prompt,
+            task_type=classification["task_type"],
+            runtime="local_vllm",
+            model=selected,
+            local_ok=True,
+            external_needed=False,
+            approval_required=False,
+            reason=classification["reason"],
+            decision="executed_local_vllm",
+        )
+        return {
+            **result,
+            "runtime": "local_vllm",
+            "task_type": classification["task_type"],
+            "selected_model": selected,
+            "selected_node": "amd",
+            "provider_id": provider_id,
+            "fallback_silent": False,
+            "routing_log": log,
+        }
 
     payload = {
         "model": selected,
@@ -649,7 +860,7 @@ def run_local_model(
     if max_tokens:
         payload["options"]["num_predict"] = int(max_tokens)
 
-    result = _http_json(f"{OLLAMA_URL}/api/chat", method="POST", body=payload, timeout=180)
+    result = _http_json(f"{ollama_url}/api/chat", method="POST", body=payload, timeout=180)
     if not result.get("ok"):
         _log_route(
             title=classification["task_type"],
@@ -667,6 +878,7 @@ def run_local_model(
             "ok": False,
             "error": result.get("error"),
             "model": selected,
+            "endpoint": f"{ollama_url}/api/chat",
             "payload": payload,
         }
 
@@ -688,10 +900,15 @@ def run_local_model(
         "ok": True,
         "runtime": "local_model",
         "model": selected,
+        "endpoint": f"{ollama_url}/api/chat",
         "task_type": classification["task_type"],
         "response": content,
         "raw": data,
         "routing_log": log,
+        "selected_model": selected,
+        "selected_node": "intel" if provider_id == "local-intel-4" else None,
+        "provider_id": provider_id,
+        "fallback_silent": False,
     }
 
 
