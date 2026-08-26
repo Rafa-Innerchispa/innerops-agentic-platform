@@ -368,6 +368,7 @@ TOOL_SCOPES = {
     "external_repair_run_recover": "ralfia:read",
     "browser_session_start": "ralfia:agents",
     "browser_session_status": "ralfia:read",
+    "browser_session_action": "ralfia:agents",
     "browser_session_stop": "ralfia:agents",
     "local_exec_prepare_repo": "ralfia:agents",
     "local_exec_hydrate_repo": "ralfia:agents",

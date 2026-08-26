@@ -1857,6 +1857,20 @@ def browser_session_status(session_id: str = "", token: str = "") -> dict[str, A
 
 
 @mcp.tool
+def browser_session_action(session_id: str, token: str, kind: str, payload_json: str = "{}") -> dict[str, Any]:
+    """AG-55 human browser: accion atomica navigate/click/type/press/wait/status en sesion autenticada."""
+    payload = json.loads(payload_json or "{}")
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{RAPHI_IA_OPENAI_PORT}/browser/api/session/{session_id}/action?token={urllib.parse.quote(token)}",
+        data=json.dumps({"kind": kind, **payload}).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=40) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+@mcp.tool
 def browser_session_stop(session_id: str, token: str = "") -> dict[str, Any]:
     """AG-55 human browser: cierra una sesion visual."""
     req = urllib.request.Request(
