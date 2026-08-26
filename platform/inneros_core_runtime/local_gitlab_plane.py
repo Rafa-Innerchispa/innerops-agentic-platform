@@ -10,13 +10,16 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import subprocess
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from raphiia_openai import funding_registry, mongo_store, owner_vault
 
@@ -107,6 +110,62 @@ def _run(argv: list[str], timeout: int = 30) -> dict[str, Any]:
         "stderr": _redact(_bounded(proc.stderr)),
         "argv": [argv[0], *argv[1:]],
     }
+
+
+def _run_with_env(argv: list[str], env: dict[str, str], timeout: int = 30) -> dict[str, Any]:
+    run_env = os.environ.copy()
+    run_env.update(env)
+    safe_env = {key: _redact(value) for key, value in env.items() if key != "GITLAB_TOKEN"}
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False, env=run_env)
+    except FileNotFoundError:
+        return {"ok": False, "error": "command_not_found", "argv": [argv[0], *argv[1:]], "env": safe_env}
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "error": "timeout",
+            "stdout": _bounded(exc.stdout or ""),
+            "stderr": _redact(_bounded(exc.stderr or "")),
+            "argv": [argv[0], *argv[1:]],
+            "env": safe_env,
+        }
+    return {
+        "ok": proc.returncode == 0,
+        "returncode": proc.returncode,
+        "stdout": _bounded(proc.stdout),
+        "stderr": _redact(_bounded(proc.stderr)),
+        "argv": [argv[0], *argv[1:]],
+        "env": safe_env,
+    }
+
+
+@contextmanager
+def _gitlab_git_auth_env() -> Iterator[dict[str, str]]:
+    token, source = _token()
+    if not token:
+        yield {"GIT_TERMINAL_PROMPT": "0"}
+        return
+    fd, askpass = tempfile.mkstemp(prefix="inneros-gitlab-askpass-", text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("#!/bin/sh\n")
+            fh.write("case \"$1\" in\n")
+            fh.write("  *Username*) printf '%s\\n' 'oauth2' ;;\n")
+            fh.write("  *Password*) printf '%s\\n' \"$GITLAB_TOKEN\" ;;\n")
+            fh.write("  *) printf '\\n' ;;\n")
+            fh.write("esac\n")
+        os.chmod(askpass, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        yield {
+            "GIT_ASKPASS": askpass,
+            "GIT_TERMINAL_PROMPT": "0",
+            "GITLAB_TOKEN": token,
+            "INNEROS_GITLAB_TOKEN_SOURCE": source,
+        }
+    finally:
+        try:
+            os.unlink(askpass)
+        except FileNotFoundError:
+            pass
 
 
 def project_api_path(project_id_or_path: str) -> str:
@@ -467,6 +526,182 @@ def _issue_summary(item: dict[str, Any]) -> dict[str, Any]:
         "updated_at": item.get("updated_at"),
     }
 
+
+
+def _gitlab_safe_project_path(name: str) -> str:
+    value = re.sub(r"\.git$", "", (name or "").strip())
+    value = re.sub(r"[^A-Za-z0-9_.-]+", "-", value)
+    value = re.sub(r"[-_.]{2,}", "-", value)
+    value = value.strip("-_.")
+    if not value:
+        raise ValueError("gitlab_project_path_empty")
+    return value
+
+
+def _parse_github_repo(url: str) -> tuple[str, str] | None:
+    value = (url or "").strip()
+    patterns = (
+        r"^https://github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$",
+        r"^git@github\.com:([^/\s]+)/([^/\s]+?)(?:\.git)?$",
+    )
+    for pattern in patterns:
+        match = re.match(pattern, value)
+        if match:
+            return match.group(1), match.group(2)
+    return None
+
+
+def _repo_remotes(path: Path) -> dict[str, dict[str, str]]:
+    proc = _run(["git", "-C", str(path), "remote", "-v"], timeout=20)
+    remotes: dict[str, dict[str, str]] = {}
+    if not proc.get("ok"):
+        return remotes
+    for line in str(proc.get("stdout") or "").splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        name, url, mode = parts[0], _redact(parts[1]), parts[2].strip("()")
+        remotes.setdefault(name, {})[mode] = url
+    return remotes
+
+
+def _head_sha(path: Path) -> str:
+    proc = _run(["git", "-C", str(path), "rev-parse", "HEAD"], timeout=20)
+    return str(proc.get("stdout") or "").strip() if proc.get("ok") else ""
+
+
+def _discover_github_worktrees() -> list[dict[str, Any]]:
+    from raphiia_openai import local_execution_plane
+
+    candidates: dict[str, dict[str, Any]] = {}
+    for repo, conf in local_execution_plane.DEFAULT_REPO_PROFILES.items():
+        source = str(conf.get("source_path") or "").strip()
+        if source:
+            candidates[source] = {"policy_repo": repo, "source_path": source, "profile": conf.get("profile")}
+
+    scan_roots = [
+        Path.home() / "inneros" / "inneros_core" / "workspaces",
+        Path.home() / "inneros" / "inneros_core" / "var" / "local_execution" / "repos",
+    ]
+    for scan_root in scan_roots:
+        if not scan_root.exists():
+            continue
+        for git_dir in scan_root.glob("*/.git"):
+            source = str(git_dir.parent)
+            candidates.setdefault(source, {"policy_repo": "", "source_path": source, "profile": ""})
+
+    rows: list[dict[str, Any]] = []
+    for source, item in sorted(candidates.items()):
+        path = Path(source).expanduser()
+        if not (path / ".git").exists():
+            continue
+        remotes = _repo_remotes(path)
+        origin = (remotes.get("origin") or {}).get("fetch") or (remotes.get("origin") or {}).get("push") or ""
+        parsed = _parse_github_repo(origin)
+        if not parsed:
+            continue
+        owner, name = parsed
+        rows.append({**item, "github_owner": owner, "github_repo": name, "origin": origin, "remotes": remotes, "head_sha": _head_sha(path)})
+    return rows
+
+
+def prepare_github_mirrors(
+    namespace: str = "rafagye",
+    create_missing: bool = False,
+    configure_remotes: bool = False,
+    push: bool = False,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    namespace = (namespace or "rafagye").strip()
+    if namespace not in _namespaces():
+        return {"ok": False, "capability": CAPABILITY, "error": "namespace_not_allowlisted", "namespace": namespace, "allowed_namespaces": _namespaces()}
+    status = gitlab_status()
+    if not status.get("auth_ok"):
+        return {"ok": False, "capability": CAPABILITY, "error": "gitlab_auth_not_ready", "status": status}
+
+    actions: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+    for repo in _discover_github_worktrees():
+        name = repo["github_repo"]
+        target_path = _gitlab_safe_project_path(name)
+        target = f"{namespace}/{target_path}"
+        gitlab_url = f"https://gitlab.com/{target}.git"
+        project = project_summary(target)
+        project_ok = bool(project.get("ok"))
+        created = False
+        if not project_ok and create_missing and not dry_run:
+            created_res = _request(
+                "POST",
+                "/projects",
+                payload={"name": name, "path": target_path, "visibility": "private", "initialize_with_readme": False},
+                timeout=60,
+            )
+            created = bool(created_res.get("ok"))
+            if not created:
+                failures.append({"source_path": repo["source_path"], "target": target, "stage": "create_project", "error": {k: v for k, v in created_res.items() if k != "data"}})
+            project_ok = created
+        elif not project_ok:
+            failures.append({"source_path": repo["source_path"], "target": target, "stage": "project_missing", "hint": "rerun with create_missing=true after owner approval"})
+
+        remote_action = "none"
+        remote_ok = False
+        current_gitlab = (repo.get("remotes", {}).get("gitlab") or {}).get("fetch") or ""
+        if project_ok and configure_remotes:
+            if dry_run:
+                remote_action = "would_add" if not current_gitlab else "would_update" if current_gitlab != gitlab_url else "already_configured"
+                remote_ok = True
+            else:
+                cmd = ["git", "-C", repo["source_path"], "remote", "add", "gitlab", gitlab_url] if not current_gitlab else ["git", "-C", repo["source_path"], "remote", "set-url", "gitlab", gitlab_url]
+                res = _run(cmd, timeout=30)
+                remote_action = "add" if not current_gitlab else "set_url"
+                remote_ok = bool(res.get("ok"))
+                if not remote_ok:
+                    failures.append({"source_path": repo["source_path"], "target": target, "stage": "configure_remote", "error": res})
+        elif project_ok:
+            remote_action = "already_configured" if current_gitlab == gitlab_url else "not_configured"
+            remote_ok = current_gitlab == gitlab_url
+
+        push_result: dict[str, Any] | None = None
+        if project_ok and push:
+            if dry_run:
+                push_result = {"ok": True, "dry_run": True, "would_run": ["git push gitlab --all", "git push gitlab --tags"]}
+            else:
+                with _gitlab_git_auth_env() as git_env:
+                    branches = _run_with_env(["git", "-C", repo["source_path"], "push", "gitlab", "--all"], git_env, timeout=600)
+                    tags = _run_with_env(["git", "-C", repo["source_path"], "push", "gitlab", "--tags"], git_env, timeout=600)
+                push_result = {"ok": bool(branches.get("ok")) and bool(tags.get("ok")), "branches": branches, "tags": tags}
+                if not push_result["ok"]:
+                    failures.append({"source_path": repo["source_path"], "target": target, "stage": "push", "error": push_result})
+
+        actions.append({
+            "source_path": repo["source_path"],
+            "github": f"{repo['github_owner']}/{repo['github_repo']}",
+            "target": target,
+            "gitlab_project_path": target_path,
+            "gitlab_url": gitlab_url,
+            "head_sha": repo.get("head_sha"),
+            "project_exists_or_created": project_ok,
+            "created": created,
+            "remote_action": remote_action,
+            "remote_ok": remote_ok,
+            "push": push_result,
+        })
+
+    result = {
+        "ok": not failures,
+        "capability": CAPABILITY,
+        "dry_run": dry_run,
+        "namespace": namespace,
+        "create_missing": create_missing,
+        "configure_remotes": configure_remotes,
+        "push": push,
+        "count": len(actions),
+        "actions": actions,
+        "failures": failures,
+        "policy": "GitHub remains origin; GitLab is secondary remote named gitlab. Push is explicit and non-mirror-delete: branches plus tags only.",
+    }
+    _audit("prepare_github_mirrors", result, {"namespace": namespace, "dry_run": dry_run})
+    return result
 
 def resource_provider_document() -> dict[str, Any]:
     status = gitlab_status()

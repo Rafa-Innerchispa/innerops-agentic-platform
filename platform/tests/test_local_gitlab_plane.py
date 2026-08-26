@@ -59,6 +59,38 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["count"], 1)
 
+    def test_prepare_mirror_push_uses_noninteractive_gitlab_auth(self) -> None:
+        repo = {
+            "source_path": "/tmp/demo",
+            "github_owner": "Rafa-Innerchispa",
+            "github_repo": "demo",
+            "head_sha": "abc123",
+            "remotes": {"gitlab": {"fetch": "https://gitlab.com/rafagye/demo.git"}},
+        }
+        calls: list[tuple[list[str], dict[str, str]]] = []
+
+        def fake_run_with_env(argv: list[str], env: dict[str, str], timeout: int = 30):
+            calls.append((argv, env))
+            return {"ok": True, "returncode": 0, "stdout": "", "stderr": "", "argv": argv}
+
+        with (
+            mock.patch.object(gl, "gitlab_status", return_value={"auth_ok": True}),
+            mock.patch.object(gl, "_discover_github_worktrees", return_value=[repo]),
+            mock.patch.object(gl, "project_summary", return_value={"ok": True}),
+            mock.patch.object(gl, "_namespaces", return_value=["rafagye"]),
+            mock.patch.object(gl, "_gitlab_git_auth_env") as auth_env,
+            mock.patch.object(gl, "_run_with_env", side_effect=fake_run_with_env),
+            mock.patch.object(gl, "_audit"),
+        ):
+            auth_env.return_value.__enter__.return_value = {"GIT_ASKPASS": "/tmp/askpass", "GIT_TERMINAL_PROMPT": "0"}
+            auth_env.return_value.__exit__.return_value = None
+            result = gl.prepare_github_mirrors(namespace="rafagye", configure_remotes=False, push=True, dry_run=False)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(env["GIT_TERMINAL_PROMPT"] == "0" for _, env in calls))
+        self.assertIn("push", calls[0][0])
+
 
 if __name__ == "__main__":
     unittest.main()
