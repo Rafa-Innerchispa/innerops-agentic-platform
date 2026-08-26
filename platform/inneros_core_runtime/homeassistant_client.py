@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
+import websockets
 from dotenv import load_dotenv
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +66,44 @@ def _request(method: str, path: str, *, json_body: dict | None = None, timeout: 
         return {"ok": False, "error": "ha_unreachable", "detail": str(exc)[:200], "url": HA_URL}
 
 
+def _ws_url() -> str:
+    if HA_URL.startswith("https://"):
+        return "wss://" + HA_URL.removeprefix("https://") + "/api/websocket"
+    if HA_URL.startswith("http://"):
+        return "ws://" + HA_URL.removeprefix("http://") + "/api/websocket"
+    return HA_URL.rstrip("/") + "/api/websocket"
+
+
+async def _ws_call_async(message_type: str, payload: dict[str, Any] | None = None, timeout: float = 20.0) -> dict[str, Any]:
+    if not HA_TOKEN:
+        return {"ok": False, "error": "ha_token_missing"}
+    ws_url = _ws_url()
+    try:
+        async with websockets.connect(ws_url, open_timeout=timeout, close_timeout=5) as ws:
+            hello = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
+            if hello.get("type") != "auth_required":
+                return {"ok": False, "error": "ha_ws_protocol_error", "phase": "hello", "message_type": hello.get("type")}
+            await ws.send(json.dumps({"type": "auth", "access_token": HA_TOKEN}))
+            auth = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
+            if auth.get("type") != "auth_ok":
+                return {"ok": False, "error": "ha_ws_auth_failed", "message_type": auth.get("type")}
+            request_id = 1
+            await ws.send(json.dumps({"id": request_id, "type": message_type, **(payload or {})}))
+            while True:
+                reply = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
+                if reply.get("id") == request_id:
+                    if not reply.get("success", False):
+                        return {"ok": False, "error": "ha_ws_command_failed", "message_type": message_type, "ha_error": reply.get("error")}
+                    return {"ok": True, "data": reply.get("result")}
+    except Exception as exc:
+        return {"ok": False, "error": "ha_ws_unreachable", "detail": str(exc)[:200], "url": HA_URL}
+
+
+def ws_call(message_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Execute one Home Assistant WebSocket command; token is kept server-side."""
+    return asyncio.run(_ws_call_async(message_type, payload))
+
+
 def ping() -> dict[str, Any]:
     out = _request("GET", "/api/")
     if out.get("ok"):
@@ -90,6 +130,187 @@ def list_states(*, domain: str | None = None, limit: int = 80) -> dict[str, Any]
             }
         )
     return {"ok": True, "count": len(slim), "entities": slim, "domain_filter": domain}
+
+
+def list_entity_registry(*, limit: int = 500, integration: str | None = None) -> dict[str, Any]:
+    raw = ws_call("config/entity_registry/list")
+    if not raw.get("ok"):
+        return raw
+    rows = raw.get("data") or []
+    if integration:
+        needle = integration.strip().lower()
+        rows = [r for r in rows if needle in str(r.get("platform") or r.get("config_entry_id") or "").lower()]
+    entities = []
+    for row in rows[: max(1, min(limit, 2000))]:
+        entities.append(
+            {
+                "entity_id": row.get("entity_id"),
+                "original_name": row.get("original_name"),
+                "name": row.get("name"),
+                "device_id": row.get("device_id"),
+                "platform": row.get("platform"),
+                "config_entry_id": row.get("config_entry_id"),
+                "area_id": row.get("area_id"),
+                "disabled_by": row.get("disabled_by"),
+            }
+        )
+    return {"ok": True, "count": len(entities), "entities": entities}
+
+
+def list_devices(*, limit: int = 500, integration: str | None = None) -> dict[str, Any]:
+    raw = ws_call("config/device_registry/list")
+    if not raw.get("ok"):
+        return raw
+    rows = raw.get("data") or []
+    if integration:
+        needle = integration.strip().lower()
+        rows = [
+            r
+            for r in rows
+            if needle in json.dumps(r.get("identifiers") or [], ensure_ascii=False).lower()
+            or needle in json.dumps(r.get("connections") or [], ensure_ascii=False).lower()
+            or needle in str(r.get("manufacturer") or "").lower()
+            or needle in str(r.get("model") or "").lower()
+            or needle in str(r.get("name") or "").lower()
+        ]
+    devices = []
+    for row in rows[: max(1, min(limit, 2000))]:
+        devices.append(
+            {
+                "id": row.get("id"),
+                "name": row.get("name"),
+                "name_by_user": row.get("name_by_user"),
+                "manufacturer": row.get("manufacturer"),
+                "model": row.get("model"),
+                "sw_version": row.get("sw_version"),
+                "area_id": row.get("area_id"),
+                "config_entries": row.get("config_entries"),
+                "connections": row.get("connections"),
+                "identifiers": row.get("identifiers"),
+            }
+        )
+    return {"ok": True, "count": len(devices), "devices": devices}
+
+
+def _registry_lookup(rows: list[dict[str, Any]], key: str, value: str) -> dict[str, Any] | None:
+    needle = (value or "").strip().lower()
+    if not needle:
+        return None
+    if key:
+        for row in rows:
+            if str(row.get(key) or "").lower() == needle:
+                return row
+    matches = []
+    for row in rows:
+        haystack = json.dumps(row, ensure_ascii=False).lower()
+        if needle in haystack:
+            matches.append(row)
+    return matches[0] if len(matches) == 1 else None
+
+
+def ha_rename_entity_name(entity_id: str, name: str, *, dry_run: bool = True, allow_entity_id_change: bool = False) -> dict[str, Any]:
+    eid = (entity_id or "").strip()
+    new_name = (name or "").strip()
+    if not eid or not new_name:
+        return {"ok": False, "error": "entity_id_and_name_required"}
+    if allow_entity_id_change:
+        return {"ok": False, "error": "entity_id_change_not_supported_here", "hint": "Use a separate audited flow."}
+    registry = list_entity_registry(limit=2000)
+    if not registry.get("ok"):
+        return registry
+    before = _registry_lookup(registry.get("entities") or [], "entity_id", eid)
+    if not before:
+        return {"ok": False, "error": "entity_not_found", "entity_id": eid}
+    if before.get("name") == new_name:
+        return {"ok": True, "dry_run": dry_run, "changed": False, "reason": "already_named", "before": before, "after": before}
+    payload = {"entity_id": eid, "name": new_name}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "changed": True, "operation": "entity_registry_update_name", "payload": payload, "before": before, "rollback": {"entity_id": eid, "name": before.get("name")}}
+    raw = ws_call("config/entity_registry/update", payload)
+    if not raw.get("ok"):
+        return raw
+    after = raw.get("data") or {}
+    return {"ok": True, "dry_run": False, "changed": True, "before": before, "after": after, "rollback": {"entity_id": eid, "name": before.get("name")}}
+
+
+def ha_rename_device(device_id: str, name: str, *, dry_run: bool = True) -> dict[str, Any]:
+    did = (device_id or "").strip()
+    new_name = (name or "").strip()
+    if not did or not new_name:
+        return {"ok": False, "error": "device_id_and_name_required"}
+    devices = list_devices(limit=2000)
+    if not devices.get("ok"):
+        return devices
+    before = _registry_lookup(devices.get("devices") or [], "id", did)
+    if not before:
+        return {"ok": False, "error": "device_not_found", "device_id": did}
+    current = before.get("name_by_user") or before.get("name")
+    if current == new_name:
+        return {"ok": True, "dry_run": dry_run, "changed": False, "reason": "already_named", "before": before, "after": before}
+    payload = {"device_id": did, "name_by_user": new_name}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "changed": True, "operation": "device_registry_update_name_by_user", "payload": payload, "before": before, "rollback": {"device_id": did, "name_by_user": before.get("name_by_user")}}
+    raw = ws_call("config/device_registry/update", payload)
+    if not raw.get("ok"):
+        return raw
+    after = raw.get("data") or {}
+    return {"ok": True, "dry_run": False, "changed": True, "before": before, "after": after, "rollback": {"device_id": did, "name_by_user": before.get("name_by_user")}}
+
+
+def find_device_by_mac(mac: str) -> dict[str, Any]:
+    needle = (mac or "").replace(":", "").replace("-", "").lower()
+    if not needle:
+        return {"ok": False, "error": "mac_required"}
+    devices = list_devices(limit=2000)
+    if not devices.get("ok"):
+        return devices
+    matches = []
+    for device in devices.get("devices") or []:
+        haystack = json.dumps([device.get("connections"), device.get("identifiers")], ensure_ascii=False).replace(":", "").replace("-", "").lower()
+        if needle in haystack:
+            matches.append(device)
+    if len(matches) != 1:
+        return {"ok": False, "error": "device_match_not_unique", "matches": matches, "match_count": len(matches), "mac": mac}
+    return {"ok": True, "device": matches[0]}
+
+
+def ha_search_entity_references(entity_id: str) -> dict[str, Any]:
+    eid = (entity_id or "").strip()
+    if not eid:
+        return {"ok": False, "error": "entity_id_required"}
+    return ws_call("search/related", {"item_type": "entity", "item_id": eid})
+
+
+def ha_batch_rename(items: list[dict[str, Any]] | str, *, dry_run: bool = True) -> dict[str, Any]:
+    if isinstance(items, str):
+        try:
+            rows = json.loads(items)
+        except json.JSONDecodeError as exc:
+            return {"ok": False, "error": "invalid_items_json", "detail": str(exc)}
+    else:
+        rows = items
+    if not isinstance(rows, list):
+        return {"ok": False, "error": "items_must_be_list"}
+    results = []
+    for item in rows:
+        if not isinstance(item, dict):
+            results.append({"ok": False, "error": "item_must_be_object", "item": item})
+            continue
+        target_type = str(item.get("type") or item.get("target_type") or "entity").lower()
+        if target_type == "device":
+            device_id = str(item.get("device_id") or item.get("id") or "")
+            if not device_id and item.get("mac"):
+                found = find_device_by_mac(str(item.get("mac")))
+                if not found.get("ok"):
+                    results.append(found)
+                    continue
+                device_id = str((found.get("device") or {}).get("id") or "")
+            results.append(ha_rename_device(device_id, str(item.get("name") or ""), dry_run=dry_run))
+        elif target_type == "entity":
+            results.append(ha_rename_entity_name(str(item.get("entity_id") or ""), str(item.get("name") or ""), dry_run=dry_run))
+        else:
+            results.append({"ok": False, "error": "unsupported_target_type", "target_type": target_type})
+    return {"ok": all(r.get("ok") for r in results), "dry_run": dry_run, "count": len(results), "results": results}
 
 
 def get_state(entity_id: str) -> dict[str, Any]:

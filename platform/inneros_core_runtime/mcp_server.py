@@ -3039,6 +3039,54 @@ def ha_get_entity(entity_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+def ha_list_devices(limit: int = 500, integration: str | None = None) -> dict[str, Any]:
+    """Lista devices del registry de Home Assistant via WebSocket."""
+    from raphiia_openai import homeassistant_client as ha
+
+    return ha.list_devices(limit=limit, integration=integration)
+
+
+@mcp.tool
+def ha_list_entity_registry(limit: int = 500, integration: str | None = None) -> dict[str, Any]:
+    """Lista entity registry de Home Assistant via WebSocket."""
+    from raphiia_openai import homeassistant_client as ha
+
+    return ha.list_entity_registry(limit=limit, integration=integration)
+
+
+@mcp.tool
+def ha_rename_device(device_id: str, name: str, dry_run: bool = True) -> dict[str, Any]:
+    """Renombra device name_by_user en HA; dry_run por defecto."""
+    from raphiia_openai import homeassistant_client as ha
+
+    return ha.ha_rename_device(device_id, name, dry_run=dry_run)
+
+
+@mcp.tool
+def ha_rename_entity_name(entity_id: str, name: str, dry_run: bool = True) -> dict[str, Any]:
+    """Renombra friendly/name de entidad HA sin cambiar entity_id."""
+    from raphiia_openai import homeassistant_client as ha
+
+    return ha.ha_rename_entity_name(entity_id, name, dry_run=dry_run)
+
+
+@mcp.tool
+def ha_search_entity_references(entity_id: str) -> dict[str, Any]:
+    """Busca referencias relacionadas a una entidad HA antes de cambios riesgosos."""
+    from raphiia_openai import homeassistant_client as ha
+
+    return ha.ha_search_entity_references(entity_id)
+
+
+@mcp.tool
+def ha_batch_rename(items_json: str, dry_run: bool = True) -> dict[str, Any]:
+    """Batch rename HA seguro: JSON list, dry_run por defecto, sin entity_id changes."""
+    from raphiia_openai import homeassistant_client as ha
+
+    return ha.ha_batch_rename(items_json, dry_run=dry_run)
+
+
+@mcp.tool
 def ha_call_service(domain: str, service: str, entity_id: str | None = None, data_json: str | None = None) -> dict[str, Any]:
     """Invoca servicio HA (light.turn_on, switch.toggle, scene.turn_on…)."""
     import json as _json
