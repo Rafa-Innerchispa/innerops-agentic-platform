@@ -241,10 +241,8 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
     repo = str(task.get("repo") or task.get("repository") or "").strip()
     if repo.startswith("Rafa-Innerchispa/"):
         return repo
-    text = " ".join(str(task.get(k) or "") for k in ("title", "correlation_id")).lower()
-    text += " " + " ".join(str(x) for x in task.get("checklist") or []).lower()
-    correlation = str(task.get("correlation_id") or "")
-    if correlation != "inneros-build-rugir-20260823":
+    text = _task_search_text(task)
+    if _is_non_dev_ops_task(task, text):
         return None
     current_markers = (
         "inneros",
@@ -260,11 +258,56 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
         "dev swarm",
         "codex-continuity",
         "parallel-swarm",
+        "ralphiia-ecosystem-core",
+        "ralphi ia",
+        "resource fabric",
+        "local execution",
     )
     excluded_markers = ("xprize", "devpost", "workforce.pcdoctor.ai", "femar")
     if any(marker in text for marker in current_markers) and not any(marker in text for marker in excluded_markers):
         return SAFE_INNEROS_REPO
     return None
+
+
+def _task_search_text(task: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for key in ("title", "correlation_id", "related_project", "project", "kind", "source"):
+        parts.append(str(task.get(key) or ""))
+    payload = task.get("payload")
+    if isinstance(payload, dict):
+        for key in ("repo", "repository", "related_project", "project", "task_id", "kind", "source"):
+            parts.append(str(payload.get(key) or ""))
+    parts.extend(str(item) for item in task.get("checklist") or [])
+    parts.extend(str(item) for item in task.get("tags") or [])
+    return " ".join(parts).lower()
+
+
+def _is_non_dev_ops_task(task: dict[str, Any], text: str | None = None) -> bool:
+    haystack = text if text is not None else _task_search_text(task)
+    tags = {str(item).lower() for item in task.get("tags") or []}
+    kind = str(task.get("kind") or "").lower()
+    source = str(task.get("source") or "").lower()
+    non_dev_tags = {"email", "email_ops", "finance", "funding", "whatsapp", "quoteops", "notion_sync", "calendar"}
+    non_dev_markers = (
+        "email",
+        "imap",
+        "gmail",
+        "outlook",
+        "finanzas",
+        "finance",
+        "billing",
+        "factura",
+        "invoice",
+        "whatsapp",
+        "cotizacion",
+        "quoteops",
+        "contifico",
+    )
+    if tags & non_dev_tags:
+        return True
+    if any(marker in kind for marker in non_dev_markers) or any(marker in source for marker in non_dev_markers):
+        return True
+    return any(marker in haystack for marker in non_dev_markers) and not any(marker in haystack for marker in ("inneros", "dev swarm", "scheduler", "runtime", "mcp"))
 
 
 def _active_worker_query() -> dict[str, Any]:
@@ -2022,6 +2065,41 @@ def platform_guard_regressions() -> dict[str, Any]:
         "base_sha": base.get("base_sha"),
         "canonical_files": canonical_files,
         "base_error": base.get("error"),
+    }
+    inneros_task = {
+        "task_id": "regression_new_inneros_repo_inference",
+        "status": "proposed",
+        "assignee": "codex",
+        "priority": "p0",
+        "correlation_id": "devswarm-repo-inference-regression",
+        "related_project": "InnerOS platform",
+        "title": "Repair InnerOS Dev Swarm scheduler",
+        "checklist": ["Resource Fabric local execution runtime repair"],
+    }
+    email_task = {
+        "task_id": "regression_email_not_dev",
+        "status": "proposed",
+        "assignee": "codex",
+        "priority": "p0",
+        "title": "Email invoice and WhatsApp follow-up",
+        "checklist": ["Operational mailbox task without code repo"],
+    }
+    workforce_task = {
+        "task_id": "regression_workforce_no_repo",
+        "status": "proposed",
+        "assignee": "codex",
+        "priority": "p0",
+        "title": "Fix workforce.pcdoctor.ai FEMAR schedules",
+        "checklist": ["Product repair must provide explicit repo"],
+    }
+    inneros_ok, inneros_reason, inneros_repo = _eligible_reason(inneros_task)
+    email_ok, email_reason, email_repo = _eligible_reason(email_task)
+    workforce_ok, workforce_reason, workforce_repo = _eligible_reason(workforce_task)
+    results["repo_inference_guard"] = {
+        "ok": inneros_ok and inneros_repo == SAFE_INNEROS_REPO and not email_ok and email_reason == "repo_not_inferred" and not workforce_ok and workforce_reason == "repo_not_inferred",
+        "inneros": {"ok": inneros_ok, "reason": inneros_reason, "repo": inneros_repo},
+        "email": {"ok": email_ok, "reason": email_reason, "repo": email_repo},
+        "workforce": {"ok": workforce_ok, "reason": workforce_reason, "repo": workforce_repo},
     }
     results["ok"] = all(bool(v.get("ok")) for k, v in results.items() if isinstance(v, dict) and k != "base_error")
     return results
