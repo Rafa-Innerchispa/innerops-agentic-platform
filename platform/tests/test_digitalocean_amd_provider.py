@@ -151,6 +151,19 @@ class DigitalOceanAmdProviderTests(unittest.TestCase):
         self.assertTrue(result["ssh_keys"][0]["public_key_present"])
         self.assertNotIn("public_key", result["ssh_keys"][0])
 
+    def test_create_ssh_key_dry_run_redacts_public_key(self):
+        result = do.create_ssh_key("inneros", "ssh-ed25519 AAAATEST user@host", dry_run=True)
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["executed"])
+        self.assertTrue(result["payload"]["public_key_present"])
+        self.assertNotIn("AAAATEST", str(result))
+
+    def test_create_ssh_key_rejects_private_or_invalid_material(self):
+        result = do.create_ssh_key("inneros", "-----BEGIN OPENSSH PRIVATE KEY-----", dry_run=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "ssh_public_key_invalid_or_missing")
+
+
 
 if __name__ == "__main__":
     unittest.main()

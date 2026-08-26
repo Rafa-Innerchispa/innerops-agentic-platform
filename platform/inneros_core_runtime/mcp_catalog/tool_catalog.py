@@ -175,6 +175,8 @@ ALL_MCP_TOOL_NAMES = [
     "digitalocean_list_sizes",
     "digitalocean_list_images",
     "digitalocean_list_ssh_keys",
+    "digitalocean_create_ssh_key",
+    "digitalocean_register_server_public_ssh_key",
     "digitalocean_list_droplets",
     "digitalocean_create_gpu_droplet",
     "digitalocean_get_droplet",

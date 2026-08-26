@@ -166,6 +166,8 @@ TOOL_SCOPES = {
     "digitalocean_list_sizes": "ralfia:read",
     "digitalocean_list_images": "ralfia:read",
     "digitalocean_list_ssh_keys": "ralfia:read",
+    "digitalocean_create_ssh_key": "ralfia:agents",
+    "digitalocean_register_server_public_ssh_key": "ralfia:agents",
     "digitalocean_list_droplets": "ralfia:read",
     "digitalocean_create_gpu_droplet": "ralfia:agents",
     "digitalocean_get_droplet": "ralfia:read",

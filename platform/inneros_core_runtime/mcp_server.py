@@ -1262,6 +1262,22 @@ def digitalocean_list_ssh_keys() -> dict[str, Any]:
 
 
 @mcp.tool
+def digitalocean_create_ssh_key(name: str, public_key: str, dry_run: bool = True) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: registra una SSH public key; dry_run por defecto."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.create_ssh_key(name=name, public_key=public_key, dry_run=dry_run)
+
+
+@mcp.tool
+def digitalocean_register_server_public_ssh_key(name: str = "inneros-amd-5-id-ed25519", public_key_path: str = "~/.ssh/id_ed25519.pub", dry_run: bool = True) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: registra la public key local allowlisted para bootstrap."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.register_server_public_ssh_key(name=name, public_key_path=public_key_path, dry_run=dry_run)
+
+
+@mcp.tool
 def digitalocean_list_droplets(tag_name: str = "inneros-cloud-burst") -> dict[str, Any]:
     """DigitalOcean AMD Cloud: lista droplets del burst tag."""
     from raphiia_openai import digitalocean_amd_provider as do

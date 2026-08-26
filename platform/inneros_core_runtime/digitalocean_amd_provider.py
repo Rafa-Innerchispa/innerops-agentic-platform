@@ -14,6 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from raphiia_openai import mongo_store, owner_vault
@@ -292,6 +293,47 @@ def list_ssh_keys() -> dict[str, Any]:
         ],
         "pages": result.get("pages"),
     }
+
+
+def create_ssh_key(name: str, public_key: str, dry_run: bool = True) -> dict[str, Any]:
+    key_name = str(name or "").strip()[:80]
+    key_material = str(public_key or "").strip()
+    if not key_name:
+        return {"ok": False, "provider": PROVIDER_ID, "error": "ssh_key_name_required"}
+    if not re.match(r"^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521)\s+\S+", key_material):
+        return {"ok": False, "provider": PROVIDER_ID, "error": "ssh_public_key_invalid_or_missing"}
+    payload = {"name": key_name, "public_key": key_material}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "provider": PROVIDER_ID, "payload": {"name": key_name, "public_key_present": True}, "executed": False}
+    result = _request("POST", "/account/keys", payload)
+    key = (result.get("data") or {}).get("ssh_key") or {}
+    if not result.get("ok"):
+        return {"ok": False, "provider": PROVIDER_ID, "executed": False, "error": result.get("error"), "detail": _redact(result.get("data") or {})}
+    _audit("create_ssh_key", {"ok": True, "name": key_name, "id": key.get("id"), "fingerprint": key.get("fingerprint")})
+    return {
+        "ok": True,
+        "provider": PROVIDER_ID,
+        "executed": True,
+        "ssh_key": {"id": key.get("id"), "name": key.get("name"), "fingerprint": key.get("fingerprint"), "public_key_present": bool(key.get("public_key"))},
+    }
+
+
+def register_server_public_ssh_key(name: str = "inneros-amd-5-id-ed25519", public_key_path: str = "~/.ssh/id_ed25519.pub", dry_run: bool = True) -> dict[str, Any]:
+    raw_path = str(public_key_path or "~/.ssh/id_ed25519.pub").strip()
+    path = Path(raw_path).expanduser().resolve()
+    ssh_dir = (Path.home() / ".ssh").resolve()
+    if ssh_dir not in path.parents or path.suffix != ".pub":
+        return {"ok": False, "provider": PROVIDER_ID, "error": "public_key_path_not_allowlisted", "allowed_dir": str(ssh_dir)}
+    try:
+        public_key = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        return {"ok": False, "provider": PROVIDER_ID, "error": "public_key_read_failed", "detail": str(exc), "path": str(path)}
+    existing = list_ssh_keys()
+    if existing.get("ok"):
+        for item in existing.get("ssh_keys") or []:
+            if str(item.get("name") or "") == str(name or "").strip():
+                return {"ok": True, "provider": PROVIDER_ID, "already_exists": True, "executed": False, "ssh_key": item}
+    return create_ssh_key(name=name, public_key=public_key, dry_run=dry_run)
 
 
 def list_droplets(tag_name: str = "inneros-cloud-burst") -> dict[str, Any]:
