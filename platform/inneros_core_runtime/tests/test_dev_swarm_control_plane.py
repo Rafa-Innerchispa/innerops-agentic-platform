@@ -206,6 +206,74 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
             self.assertEqual(result["worktree"]["error"], "worktree_base_sha_mismatch")
             self.assertTrue(result["evidence"]["ok"])
 
+
+    def test_gitlab_reported_paths_must_exist_and_match_policy(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+        with tempfile.TemporaryDirectory() as tmp:
+            worktree = Path(tmp)
+            valid = worktree / "commands" / "helpers" / "cache_archiver.go"
+            valid.parent.mkdir(parents=True)
+            valid.write_text("package helpers\n", encoding="utf-8")
+            allowed = [
+                "commands/helpers/cache_archiver.go",
+                "commands/helpers/cache_archiver_test.go",
+                "commands/helpers/cache_extractor.go",
+                "commands/helpers/cache_extractor_test.go",
+                "commands/helpers/retry_helper.go",
+                "commands/helpers/retry_helper_test.go",
+            ]
+
+            with patch.object(scheduler.local_execution_plane, "_repo_config", return_value={"allowed_paths": allowed, "package_roots": ["."]}):
+                result = scheduler._verified_write_classes(
+                    "gitlab-community/gitlab-org/gitlab-runner",
+                    worktree,
+                    ["commands/helpers/cache_archiver.go", "src/go.mod", "src/internal/cache/cache.go"],
+                )
+
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["classes"]["product"], ["commands/helpers/cache_archiver.go"])
+            rejected = {item["path"]: item["reason"] for item in result["invalid_files"]}
+            self.assertEqual(rejected["src/go.mod"], "path_not_allowed_for_repo_profile")
+            self.assertEqual(rejected["src/internal/cache/cache.go"], "path_not_allowed_for_repo_profile")
+
+    def test_worker_repo_falls_back_to_launch_plan(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+        worker = {
+            "task_id": "ops_launch_repo_only",
+            "launch": {
+                "plan": {"repo": "Rafa-Innerchispa/innerspark-workforce-ai"},
+                "prepared": {"repo": "wrong/fallback"},
+            },
+        }
+
+        self.assertEqual(scheduler._worker_repo(worker), "Rafa-Innerchispa/innerspark-workforce-ai")
+
+    def test_fanout_does_not_duplicate_still_running_worker(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+        existing = {
+            "worker_id": "worker_existing",
+            "task_id": "ops_running",
+            "repo": "gitlab-community/gitlab-org/gitlab-runner",
+            "branch": "chatgpt/fix/running",
+            "status": "running",
+            "launch": {"worktree": {"worktree": "/tmp/worktree"}},
+            "executor": {"status": "running", "phase": "inference"},
+        }
+
+        with (
+            patch.object(scheduler, "_active_worker_for_task", return_value=existing),
+            patch.object(scheduler, "_task_doc", side_effect=AssertionError("must not reload task")),
+        ):
+            result = scheduler._fanout_execute_one("gitlab-community/gitlab-org/gitlab-runner", "ops_running")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["outcome"], "ALREADY_RUNNING")
+        self.assertEqual(result["worker_id"], "worker_existing")
+        self.assertEqual(result["worktree"], "/tmp/worktree")
+
     def test_stale_worker_reclaim_marks_retryable_then_exhausted(self):
         from inneros_core_runtime import dev_swarm_scheduler as scheduler
 

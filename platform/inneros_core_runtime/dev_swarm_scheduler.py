@@ -508,8 +508,15 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
             expected_repo = None
         else:
             ok, invalid_reason, expected_repo = _eligible_reason(task)
+            worker_repo = _worker_repo(worker)
             if ok:
                 continue
+            if invalid_reason == "repo_not_inferred" and worker_repo:
+                policy = local_execution_plane.repo_policy_status(worker_repo)
+                if policy.get("ok") and policy.get("write_scope") not in {"none", "read_only"}:
+                    db[WORKERS_COL].update_one({"task_id": task_id}, {"$set": {"repo": worker_repo, "executor.expected_repo": worker_repo, "updated_at": now_iso}})
+                    continue
+                expected_repo = worker_repo
         blocker = f"invalid_dev_swarm_route:{invalid_reason}"
         db[WORKERS_COL].update_one(
             {"task_id": task_id},
@@ -1118,7 +1125,7 @@ DEV_TASK_TERMS = (
     "corregir", "arreglar", "reparar", "desarrollar", "programar", "prueba", "validar",
 )
 DOCS_TASK_TERMS = ("docs-only", "documentation only", "documentacion", "documentación", "readme", "runbook")
-PRODUCT_PREFIXES = ("src/", "modules/", "app/", "lib/", "components/", "infra/")
+PRODUCT_PREFIXES = ("src/", "modules/", "app/", "lib/", "components/", "infra/", "commands/")
 DIAGNOSTIC_PATH_PARTS = ("/inneros_dev_swarm/", "/__dev_swarm_contracts/", "/diagnostics/", "/dev_swarm_frontend_status")
 NODE_PROJECT_FILES = ("package.json", "tsconfig.json", "vite.config.js", "vite.config.ts")
 TEST_PREFIXES = ("tests/", "__tests__/", "test/")
@@ -1166,6 +1173,8 @@ def _product_roots_for_repo(repo: str, worktree: Path) -> list[str]:
     roots = []
     for root in conf.get("package_roots") or []:
         rel = str(root).strip("/").replace("\\", "/")
+        if rel in {".", "/"}:
+            continue
         if rel and (worktree / rel).exists():
             roots.append(rel)
     return roots
@@ -1256,6 +1265,59 @@ def _implementation_write_classes(repo: str, worktree: Path, files_touched: list
         else:
             other.append(path)
     return {"product": product, "diagnostic": diagnostic, "other": other}
+
+
+def _verified_write_classes(repo: str, worktree: Path, files_touched: list[str]) -> dict[str, Any]:
+    """Validate reported writes against the actual worktree and repo policy."""
+    valid: list[str] = []
+    invalid: list[dict[str, str]] = []
+    try:
+        conf = local_execution_plane._repo_config(repo)
+        allowed_paths = list(conf.get("allowed_paths") or ["."])
+    except Exception as exc:
+        return {
+            "ok": False,
+            "classes": {"product": [], "diagnostic": [], "other": []},
+            "invalid_files": [{"path": "*", "reason": f"repo_policy_unavailable:{exc}"}],
+        }
+    for raw in sorted(set(str(path or "").replace("\\", "/").strip("/") for path in files_touched)):
+        if not raw:
+            continue
+        try:
+            rel = local_execution_plane._validate_relative_path(raw, allowed_paths)
+        except Exception as exc:
+            invalid.append({"path": raw, "reason": str(exc)})
+            continue
+        target = (worktree / rel).resolve()
+        try:
+            base = worktree.resolve()
+        except Exception:
+            base = worktree
+        if target != base and base not in target.parents:
+            invalid.append({"path": rel, "reason": "path_outside_worktree"})
+            continue
+        if not target.is_file():
+            invalid.append({"path": rel, "reason": "file_missing_in_worktree"})
+            continue
+        valid.append(rel)
+    classes = _implementation_write_classes(repo, worktree, valid)
+    return {"ok": not invalid, "classes": classes, "valid_files": valid, "invalid_files": invalid}
+
+
+def _worker_repo(worker: dict[str, Any]) -> str:
+    launch = worker.get("launch") if isinstance(worker.get("launch"), dict) else {}
+    plan = launch.get("plan") if isinstance(launch.get("plan"), dict) else {}
+    prepared = launch.get("prepared") if isinstance(launch.get("prepared"), dict) else {}
+    return str(worker.get("repo") or plan.get("repo") or prepared.get("repo") or "")
+
+
+def _worker_reported_file_validation(task_id: str, files_touched: list[str]) -> dict[str, Any]:
+    worker = _db()[WORKERS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
+    repo = _worker_repo(worker)
+    worktree_raw = _worker_worktree(worker)
+    if not repo or not worktree_raw:
+        return {"ok": False, "valid_files": [], "invalid_files": [{"path": "*", "reason": "worker_repo_or_worktree_missing"}]}
+    return _verified_write_classes(repo, Path(worktree_raw), files_touched)
 
 
 def _repo_architecture_context(repo: str, worktree: Path, objective: str, max_chars: int = 4000) -> str:
@@ -1685,6 +1747,12 @@ def _set_worker_phase(task_id: str, phase: str, **extra: Any) -> None:
     now = _now()
     patch = {"executor.phase": phase, "executor.updated_at": now, "executor.last_progress_at": now, "updated_at": now, "last_heartbeat_at": now}
     for key, value in extra.items():
+        if key == "files_touched" and isinstance(value, list):
+            validation = _worker_reported_file_validation(task_id, value)
+            patch["executor.files_touched"] = validation.get("valid_files", [])
+            if validation.get("invalid_files"):
+                patch["executor.rejected_reported_files"] = validation.get("invalid_files")
+            continue
         patch[f"executor.{key}"] = value
     _db()[WORKERS_COL].update_one({"task_id": task_id}, {"$set": patch})
 
@@ -1717,7 +1785,7 @@ def _fail_worker_early(task_id: str, error: str, outcome: str = "FAIL") -> dict[
 
 def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = True) -> dict[str, Any]:
     task_id = str(worker.get("task_id") or "")
-    repo = str(worker.get("repo") or "")
+    repo = _worker_repo(worker)
     branch = str(worker.get("branch") or "")
     task = _task_doc(task_id)
     objective = _worker_objective(worker, task)
@@ -1818,8 +1886,13 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             writes.append({"path": rel, "ok": bool(result.get("ok")), "result": result})
             if result.get("ok"):
                 files_touched.append(rel)
-        write_classes = _implementation_write_classes(repo, worktree, files_touched)
+        write_validation = _verified_write_classes(repo, worktree, files_touched)
+        write_classes = write_validation["classes"]
         product_task_requires_real_write = _requires_product_writes(objective) and not _is_platform_regression_task(objective)
+        if write_validation.get("invalid_files"):
+            failures = "reported_write_validation_failed: " + str(write_validation.get("invalid_files"))[:2500]
+            attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "write_validation": write_validation, "rejected_files": rejected_files, "error": failures})
+            continue
         if product_task_requires_real_write and not write_classes["product"]:
             failures = (
                 "product_task_contract_only_not_pass: product tasks require at least one real implementation write outside "
@@ -2123,7 +2196,24 @@ def _fanout_create_worktree_from_base(
     return {"ok": bool(worktree_result.get("ok")), "capability": "dev_swarm_scope", "plan": plan, "prepared": base_snapshot, "worktree": worktree_result, "evidence": report}
 
 
+def _active_worker_for_task(task_id: str) -> dict[str, Any] | None:
+    worker = _db()[WORKERS_COL].find_one({"task_id": task_id, **_active_worker_query()}, {"_id": 0})
+    return dict(worker) if worker else None
+
+
 def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
+    existing_worker = _active_worker_for_task(task_id)
+    if existing_worker:
+        return {
+            "ok": True,
+            "task_id": task_id,
+            "repo": existing_worker.get("repo") or repo,
+            "branch": existing_worker.get("branch"),
+            "outcome": "ALREADY_RUNNING",
+            "worker_id": existing_worker.get("worker_id"),
+            "executor": existing_worker.get("executor"),
+            "worktree": _worker_worktree(existing_worker),
+        }
     task = _task_doc(task_id)
     if not task:
         return {"ok": False, "task_id": task_id, "error": "task_not_found"}
@@ -2203,6 +2293,17 @@ def execute_ad_hoc_objective(
     branch = preferred_branch or f"local-agent/{task_id}-{secrets.token_hex(3)}"
     if dry_run:
         return {"ok": True, "dry_run": True, "executor_version": EXECUTOR_VERSION, "repo": repo, "task_id": task_id, "branch": branch}
+    existing_worker = _active_worker_for_task(task_id)
+    if existing_worker:
+        return {
+            "ok": True,
+            "executor_version": EXECUTOR_VERSION,
+            "repo": existing_worker.get("repo") or repo,
+            "task_id": task_id,
+            "branch": existing_worker.get("branch"),
+            "outcome": "ALREADY_RUNNING",
+            "worker": existing_worker,
+        }
     base_snapshot = _fanout_base_snapshot(repo, base_ref=base_ref or "")
     if not base_snapshot.get("ok"):
         return {"ok": False, "task_id": task_id, "branch": branch, "error": "base_snapshot_failed", "base_snapshot": base_snapshot}
