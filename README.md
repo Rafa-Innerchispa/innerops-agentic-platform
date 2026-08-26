@@ -7,12 +7,12 @@ InnerOps All Things Agentic hackathon platform scaffold. Workforce XPRIZE baseli
 
 > Esta sección la mantiene automáticamente el Agente Documental de InnerOS. El contenido humano fuera de estos marcadores no se modifica.
 
-- Última sincronización: 2026-08-25T23:37:07.351451-05:00
+- Última sincronización: 2026-08-25T23:38:09.947538-05:00
 - Project ID: `innerops-agentic-platform`
 - Repositorio: `Rafa-Innerchispa/innerops-agentic-platform`
 - Runtime AMD: `/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform`
 - Runtime primary: `/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform`
-- HEAD remoto antes de sync: `06ab834586823d9d3bc0b5b0014cc486961f0485`
+- HEAD remoto antes de sync: `8b8eadbfba575011203e45ae35fcdba036fc91ea`
 - Policy class: `product-app`
 - Write scope: `worktree`
 
