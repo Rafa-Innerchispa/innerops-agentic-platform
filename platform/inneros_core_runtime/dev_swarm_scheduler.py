@@ -1443,6 +1443,32 @@ def _set_worker_phase(task_id: str, phase: str, **extra: Any) -> None:
     _db()[WORKERS_COL].update_one({"task_id": task_id}, {"$set": patch})
 
 
+def _fail_worker_early(task_id: str, error: str, outcome: str = "FAIL") -> dict[str, Any]:
+    now = _now()
+    patch = {
+        "status": "blocked",
+        "executor.status": "failed",
+        "executor.phase": "failed",
+        "executor.error": error,
+        "executor.outcome": outcome,
+        "executor.updated_at": now,
+        "updated_at": now,
+        "last_heartbeat_at": now,
+    }
+    _db()[WORKERS_COL].update_one({"task_id": task_id}, {"$set": patch})
+    try:
+        coordination_live.update_ops_task_state(
+            task_id,
+            "blocked",
+            actor="dev_swarm",
+            evidence={"status": outcome, "error": error, "executor_version": EXECUTOR_VERSION},
+            force_handoff=True,
+        )
+    except Exception:
+        pass
+    return {"ok": False, "task_id": task_id, "outcome": outcome, "error": error}
+
+
 def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = True) -> dict[str, Any]:
     task_id = str(worker.get("task_id") or "")
     repo = str(worker.get("repo") or "")
@@ -1462,9 +1488,9 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         "last_heartbeat_at": _now(),
     }})
     if _is_docs_only_task(objective):
-        return {"ok": False, "task_id": task_id, "outcome": "FAIL", "error": "docs_only_tasks_must_use_docs_executor"}
+        return _fail_worker_early(task_id, "docs_only_tasks_must_use_docs_executor")
     if not _requires_product_writes(objective):
-        return {"ok": False, "task_id": task_id, "outcome": "FAIL", "error": "development_intent_not_detected"}
+        return _fail_worker_early(task_id, "development_intent_not_detected")
 
     failures = ""
     attempts: list[dict[str, Any]] = []
