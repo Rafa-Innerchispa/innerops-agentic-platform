@@ -1420,13 +1420,14 @@ def cloudflare_dns_upsert(
     content: str,
     proxied: bool = True,
     ttl: int = 1,
+    priority: int | None = None,
     zone_name: str = "pcdoctor.ai",
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """AG-44: crea/actualiza DNS allowlisted por hostname en Cloudflare."""
     from raphiia_openai.agents import ag44_cloud_deployer as ag44
 
-    return ag44.cloudflare_dns_upsert(hostname, record_type, content, proxied=proxied, ttl=ttl, zone_name=zone_name, dry_run=dry_run)
+    return ag44.cloudflare_dns_upsert(hostname, record_type, content, proxied=proxied, ttl=ttl, priority=priority, zone_name=zone_name, dry_run=dry_run)
 
 
 @mcp.tool

@@ -1055,12 +1055,13 @@ def cloudflare_dns_upsert(
     *,
     proxied: bool = True,
     ttl: int = 1,
+    priority: int | None = None,
     zone_name: str = CF_DEFAULT_ZONE,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     rtype = (record_type or "").strip().upper()
-    if rtype not in {"A", "AAAA", "CNAME", "TXT"}:
-        return {"ok": False, "error": "record_type_not_allowed", "allowed": ["A", "AAAA", "CNAME", "TXT"]}
+    if rtype not in {"A", "AAAA", "CNAME", "MX", "TXT"}:
+        return {"ok": False, "error": "record_type_not_allowed", "allowed": ["A", "AAAA", "CNAME", "MX", "TXT"]}
     host = _validate_dns_record_name(hostname, zone_name, rtype)
     if not content.strip():
         return {"ok": False, "error": "content_required"}
@@ -1073,6 +1074,8 @@ def cloudflare_dns_upsert(
         "ttl": int(ttl or 1),
         "proxied": bool(proxied) if rtype in {"A", "AAAA", "CNAME"} else False,
     }
+    if rtype == "MX":
+        payload["priority"] = int(priority if priority is not None else 0)
     if dry_run:
         return {"ok": True, "dry_run": True, "action": "upsert", "zone": zone["name"], "record": _redact_dns(payload), "note": "dry_run does not read existing DNS records"}
     existing = _find_dns_record(zone["id"], host, rtype, creds=creds)
@@ -2035,7 +2038,7 @@ def _classify_cloudflare_auth_error(error: str) -> str:
 def _redact_dns(record: dict[str, Any] | None) -> dict[str, Any] | None:
     if not record:
         return None
-    return {k: record.get(k) for k in ("id", "type", "name", "content", "proxied", "ttl", "created_on", "modified_on") if k in record}
+    return {k: record.get(k) for k in ("id", "type", "name", "content", "priority", "proxied", "ttl", "created_on", "modified_on") if k in record}
 
 
 def _redact_rule(rule: dict[str, Any] | None) -> dict[str, Any] | None:
