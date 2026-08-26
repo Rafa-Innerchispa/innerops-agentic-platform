@@ -81,8 +81,71 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             }
             ok, reason, repo = scheduler._eligible_reason(task)
             self.assertFalse(ok)
-            self.assertEqual(reason, "repo_not_inferred")
+            self.assertEqual(reason, "non_development_ops_filtered")
             self.assertIsNone(repo)
+
+    def test_email_with_development_keywords_still_filtered_by_kind_tag(self) -> None:
+        task = {
+            "task_id": "ops_email_noise",
+            "status": "proposed",
+            "assignee": "chatgpt",
+            "priority": "p0",
+            "kind": "email_ops",
+            "tags": ["email"],
+            "title": "Fix reply workflow for admissions email",
+            "checklist": ["Operational email handling, no repository."],
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "non_development_ops_filtered")
+        self.assertIsNone(repo)
+
+    def test_spanish_platform_repair_terms_are_development_intent(self) -> None:
+        task = {
+            "task_id": "ops_spanish_repair",
+            "status": "proposed",
+            "assignee": "codex",
+            "priority": "p0",
+            "related_project": "InnerOS platform",
+            "title": "Corregir scheduler y reparar verifier del Dev Swarm",
+            "checklist": ["Arreglar runtime local y pruebas de regresion"],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, scheduler.SAFE_INNEROS_REPO)
+
+    def test_innerops_hackathon_with_xprize_context_is_eligible(self) -> None:
+        task = {
+            "task_id": "ops_innerops_bootstrap",
+            "status": "proposed",
+            "assignee": "codex",
+            "priority": "critical",
+            "correlation_id": "innerops-allthingsagentic-20260821",
+            "title": "Bootstrap InnerOps All Things Agentic",
+            "checklist": ["Preserve XPRIZE baseline", "Create innerops-agentic-platform repo and docs"],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, scheduler.SAFE_INNEROS_REPO)
+
+    def test_cloudflare_platform_repair_is_eligible(self) -> None:
+        task = {
+            "task_id": "ops_cloudflare_tools",
+            "status": "proposed",
+            "assignee": "chatgpt",
+            "priority": "p0",
+            "title": "AG-44 Cloudflare tools need DNS WAF and tunnel implementation",
+            "checklist": ["Wire provider tools to owner_vault and MCP runtime"],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, scheduler.SAFE_INNEROS_REPO)
 
     def test_workforce_femar_without_explicit_repo_stays_excluded(self) -> None:
         task = {

@@ -108,9 +108,9 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
             self.assertEqual(commands, [["git", "diff", "--check"]])
             self.assertFalse(any(command[:3] == ["python3", "-m", "unittest"] for command in commands))
 
-    def test_executor_records_use_single_v5_version(self):
+    def test_executor_records_use_single_v9_version(self):
         source = _source("dev_swarm_scheduler.py")
-        self.assertIn('EXECUTOR_VERSION = "autonomous_impl_v5_controlplane"', source)
+        self.assertIn('EXECUTOR_VERSION = "autonomous_impl_v9_platform_contract_base_ref"', source)
         self.assertNotIn("autonomous_impl_v4", source)
         self.assertIn("command_not_allowlisted_non_retryable", source)
 
@@ -123,6 +123,7 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
         self.assertEqual(result["error"], "project_not_registered")
 
     def test_approve_project_resolves_workforce_and_other_project(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
         from inneros_core_runtime import mcp_server
 
         calls = []
@@ -146,8 +147,8 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
                 "repo": repo,
                 "task_id": task_id,
                 "branch": preferred_branch,
-                "executor_version": "autonomous_impl_v5_controlplane",
-                "worker": {"executor": {"version": "autonomous_impl_v5_controlplane"}},
+                "executor_version": scheduler.EXECUTOR_VERSION,
+                "worker": {"executor": {"version": scheduler.EXECUTOR_VERSION}},
             }
 
         with patch.object(mcp_server, "get_project_reuse_analysis", return_value={"ok": False}), \
@@ -164,6 +165,46 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
         self.assertEqual(calls[0]["project_id"], "innerspark-workforce-ai")
         self.assertEqual(calls[1]["project_id"], "cozmo-alive")
 
+
+    def test_existing_worktree_must_match_base_sha(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source"
+            worktrees = Path(tmp) / "worktrees"
+            branch = "local-agent/ops_sha_guard"
+            worktree = worktrees / branch.replace("/", "__")
+            source.mkdir()
+            worktree.mkdir(parents=True)
+
+            def fake_run(command, cwd, timeout_seconds=30):
+                if command[:2] == ["git", "status"]:
+                    return {"ok": True, "stdout": "## local-agent/ops_sha_guard\n"}
+                if command[:2] == ["git", "rev-parse"]:
+                    return {"ok": True, "stdout": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"}
+                raise AssertionError(command)
+
+            with patch.object(scheduler.local_execution_plane, "_run", side_effect=fake_run), \
+                patch.object(scheduler.local_execution_plane, "report_evidence", return_value={"ok": True}):
+                result = scheduler._fanout_create_worktree_from_base(
+                    repo=scheduler.SAFE_INNEROS_REPO,
+                    branch=branch,
+                    base_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    task_id="ops_sha_guard",
+                    correlation_id="sha-guard",
+                    objective="Repair scheduler",
+                    base_snapshot={
+                        "source_path": str(source),
+                        "worktrees_path": str(worktrees),
+                        "requested_base_ref": "main",
+                        "resolved_base_ref": "origin/main",
+                        "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    },
+                )
+
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["worktree"]["error"], "worktree_base_sha_mismatch")
+            self.assertTrue(result["evidence"]["ok"])
 
     def test_stale_worker_reclaim_marks_retryable_then_exhausted(self):
         from inneros_core_runtime import dev_swarm_scheduler as scheduler

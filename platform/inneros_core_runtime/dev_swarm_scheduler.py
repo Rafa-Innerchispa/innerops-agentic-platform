@@ -249,11 +249,19 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
     current_markers = (
         "inneros",
         "innerops",
+        "all things agentic",
+        "agentic platform",
         "zkteco",
         "hikvision",
         "vigil",
         "integration guardian",
+        "cloudflare",
+        "github",
+        "gitlab",
+        "browser ops",
+        "playwright",
         "gcp",
+        "google cloud",
         "gemini agent runtime",
         "scheduler 1",
         "autonomous",
@@ -265,8 +273,11 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
         "resource fabric",
         "local execution",
     )
-    excluded_markers = ("xprize", "devpost", "workforce.pcdoctor.ai", "femar")
-    if any(marker in text for marker in current_markers) and not any(marker in text for marker in excluded_markers):
+    product_only_markers = ("workforce.pcdoctor.ai", "femar")
+    platform_override_markers = ("innerops", "inneros", "all things agentic", "agentic platform", "dev swarm", "resource fabric", "local execution", "cloudflare", "github", "gitlab")
+    if any(marker in text for marker in current_markers):
+        if any(marker in text for marker in product_only_markers) and not any(marker in text for marker in platform_override_markers):
+            return None
         return SAFE_INNEROS_REPO
     return None
 
@@ -444,6 +455,9 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     assignee = str(task.get("assignee") or "").lower()
     if assignee not in ALLOWED_ASSIGNEES:
         return False, f"assignee_not_swarm_eligible:{assignee}", None
+    text = _task_search_text(task)
+    if _is_non_dev_ops_task(task, text):
+        return False, "non_development_ops_filtered", None
     repo = _infer_repo(task)
     if not repo:
         return False, "repo_not_inferred", None
@@ -690,7 +704,18 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     tasks.sort(key=_priority_key)
     selected: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
+    filtered: list[dict[str, Any]] = []
     for task in tasks:
+        text = _task_search_text(task)
+        if _is_non_dev_ops_task(task, text):
+            reason = "non_development_ops_filtered"
+            filtered.append({"task_id": task.get("task_id"), "reason": reason})
+            if not dry_run:
+                db[coordination_live.OPS_TASKS_COL].update_one(
+                    {"task_id": task.get("task_id")},
+                    {"$set": {"dev_swarm_last_skip_reason": reason, "dev_swarm_last_skip_at": _now(), "dev_swarm_last_skip_repo": None}},
+                )
+            continue
         if len(selected) >= available and not dry_run:
             skipped.append({"task_id": task.get("task_id"), "reason": "capacity_full"})
             continue
@@ -708,7 +733,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         if dry_run:
             continue
     if dry_run:
-        return {"ok": True, "dry_run": True, "enabled": bool(state.get("enabled")), "selected": selected, "skipped": skipped, "capacity": capacity, "available": available, "reconcile": reconcile, "admission_policy": "repo_policy_priority_capacity"}
+        return {"ok": True, "dry_run": True, "enabled": bool(state.get("enabled")), "selected": selected, "skipped": skipped, "filtered": filtered, "filtered_count": len(filtered), "capacity": capacity, "available": available, "reconcile": reconcile, "admission_policy": "repo_policy_priority_capacity"}
 
     batches: dict[str, list[str]] = {}
     for row in selected:
@@ -726,6 +751,8 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         "reconcile": reconcile,
         "selected": selected,
         "skipped": skipped,
+        "filtered": filtered,
+        "filtered_count": len(filtered),
         "results": results,
         "admission_policy": "repo_policy_priority_capacity",
     }
@@ -929,11 +956,13 @@ def _fanout_repo_snapshot(worktree: Path, max_chars: int = 16000) -> str:
 DEV_TASK_TERMS = (
     "implement", "build", "code", "feature", "module", "frontend", "runtime",
     "gateway", "contract", "adapter", "api", "test", "tests", "fix", "repair",
+    "debug", "refactor", "regression", "scheduler", "worker", "verifier",
     "crear", "implementar", "construir", "codigo", "modulo", "contrato",
+    "corregir", "arreglar", "reparar", "desarrollar", "programar", "prueba", "validar",
 )
 DOCS_TASK_TERMS = ("docs-only", "documentation only", "documentacion", "documentación", "readme", "runbook")
 PRODUCT_PREFIXES = ("src/", "modules/", "app/", "lib/", "components/", "infra/")
-DIAGNOSTIC_PATH_PARTS = ("/inneros_dev_swarm/", "/__dev_swarm_contracts/", "/diagnostics/")
+DIAGNOSTIC_PATH_PARTS = ("/inneros_dev_swarm/", "/__dev_swarm_contracts/", "/diagnostics/", "/dev_swarm_frontend_status")
 NODE_PROJECT_FILES = ("package.json", "tsconfig.json", "vite.config.js", "vite.config.ts")
 TEST_PREFIXES = ("tests/", "__tests__/", "test/")
 WRITABLE_PREFIXES = PRODUCT_PREFIXES + TEST_PREFIXES + NODE_PROJECT_FILES
@@ -1627,7 +1656,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
                 actor="dev_swarm",
                 task_id=task_id,
                 correlation_id=correlation_id,
-                idempotency_key=f"autonomous-impl-v4-write-{task_id}-{attempt}-{rel}",
+                idempotency_key=f"{EXECUTOR_VERSION}-write-{task_id}-{attempt}-{rel}",
             )
             writes.append({"path": rel, "ok": bool(result.get("ok")), "result": result})
             if result.get("ok"):
@@ -1683,7 +1712,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             actor="dev_swarm",
             task_id=task_id,
             correlation_id=correlation_id,
-            idempotency_key=f"autonomous-impl-v4-commit-{task_id}",
+            idempotency_key=f"{EXECUTOR_VERSION}-commit-{task_id}",
         )
         if not commit.get("ok") or commit.get("idempotent"):
             failures = "feat commit failed or had no changes: " + str(commit)[:2500]
@@ -1900,18 +1929,36 @@ def _fanout_create_worktree_from_base(
     worktree.parent.mkdir(parents=True, exist_ok=True)
     if worktree.exists():
         status = local_execution_plane._run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30)
-        worktree_result = {"ok": True, "idempotent": True, "repo": repo, "base_sha": base_sha, "requested_base_ref": base_snapshot.get("requested_base_ref"), "resolved_base_ref": base_snapshot.get("resolved_base_ref"), "work_branch": branch, "worktree": str(worktree), "status": status}
+        head = local_execution_plane._run(["git", "rev-parse", "HEAD"], worktree, timeout_seconds=30)
+        head_sha = str(head.get("stdout") or "").strip()
+        if head_sha and base_sha and head_sha != base_sha:
+            worktree_result = {
+                "ok": False,
+                "error": "worktree_base_sha_mismatch",
+                "repo": repo,
+                "base_sha": base_sha,
+                "worktree_head": head_sha,
+                "requested_base_ref": base_snapshot.get("requested_base_ref"),
+                "resolved_base_ref": base_snapshot.get("resolved_base_ref"),
+                "work_branch": branch,
+                "worktree": str(worktree),
+                "status": status,
+            }
+        else:
+            worktree_result = {"ok": True, "idempotent": True, "repo": repo, "base_sha": base_sha, "requested_base_ref": base_snapshot.get("requested_base_ref"), "resolved_base_ref": base_snapshot.get("resolved_base_ref"), "work_branch": branch, "worktree": str(worktree), "status": status}
     else:
         result = local_execution_plane._run(["git", "worktree", "add", "-b", branch, str(worktree), base_sha], source, timeout_seconds=120)
         worktree_result = {"ok": result.get("ok"), "repo": repo, "base_sha": base_sha, "work_branch": branch, "worktree": str(worktree), "result": result}
     evidence = {
         "launcher": "fanout_base_once",
+        "fail_closed_base_sha": True,
         "objective": objective,
         "base_sha": base_sha,
         "requested_base_ref": base_snapshot.get("requested_base_ref") or "main",
         "resolved_base_ref": base_snapshot.get("resolved_base_ref") or base_sha,
         "base_ref_explicit": bool(base_snapshot.get("base_ref_explicit")),
         "worktree_ok": bool(worktree_result.get("ok")),
+        "worktree_error": worktree_result.get("error"),
         "work_branch": branch,
         "source_path": str(source),
     }
@@ -2210,7 +2257,7 @@ def platform_guard_regressions() -> dict[str, Any]:
     email_ok, email_reason, email_repo = _eligible_reason(email_task)
     workforce_ok, workforce_reason, workforce_repo = _eligible_reason(workforce_task)
     results["repo_inference_guard"] = {
-        "ok": inneros_ok and inneros_repo == SAFE_INNEROS_REPO and not email_ok and email_reason == "repo_not_inferred" and not workforce_ok and workforce_reason == "repo_not_inferred",
+        "ok": inneros_ok and inneros_repo == SAFE_INNEROS_REPO and not email_ok and email_reason == "non_development_ops_filtered" and not workforce_ok and workforce_reason == "repo_not_inferred",
         "inneros": {"ok": inneros_ok, "reason": inneros_reason, "repo": inneros_repo},
         "email": {"ok": email_ok, "reason": email_reason, "repo": email_repo},
         "workforce": {"ok": workforce_ok, "reason": workforce_reason, "repo": workforce_repo},
