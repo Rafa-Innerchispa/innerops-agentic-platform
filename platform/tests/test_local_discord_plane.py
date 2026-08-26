@@ -35,6 +35,19 @@ class LocalDiscordPlaneTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "guild_id_required")
 
+    def test_create_text_channel_dry_run_sanitizes_name(self) -> None:
+        with mock.patch.object(discord, "_config", return_value={"default_channel_id": "", "default_guild_id": "guild", "application_id": "app", "public_key": "pub", "updated_at": None}):
+            result = discord.create_text_channel("Novedades Ralphi IA!", dry_run=True)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["dry_run"])
+        self.assertEqual(result["channel"]["name"], "novedades-ralphi-ia")
+
+    def test_list_channel_messages_requires_channel_id(self) -> None:
+        with mock.patch.object(discord, "_config", return_value={"default_channel_id": "", "default_guild_id": "guild", "application_id": "app", "public_key": "pub", "updated_at": None}):
+            result = discord.list_channel_messages()
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "channel_id_required")
+
     def test_resource_provider_is_not_model_runtime(self) -> None:
         with mock.patch.object(discord, "discord_status", return_value={"auth_ok": False, "webhook_present": False, "bot_user": None}):
             provider = discord.resource_provider_document()

@@ -203,6 +203,8 @@ ALL_MCP_TOOL_NAMES = [
     "local_discord_oauth_install_url",
     "local_discord_list_guilds",
     "local_discord_list_channels",
+    "local_discord_create_text_channel",
+    "local_discord_list_channel_messages",
     "local_discord_send_channel_message",
     "local_discord_send_webhook_message",
     "local_discord_resource_sync",
@@ -3254,6 +3256,7 @@ _LOCAL_DISCORD_WRITES = {
     "local_discord_store_webhook_url_server_side",
     "local_discord_send_channel_message",
     "local_discord_send_webhook_message",
+    "local_discord_create_text_channel",
     "local_discord_resource_sync",
 }
 for _name in (
@@ -3264,6 +3267,8 @@ for _name in (
     "local_discord_oauth_install_url",
     "local_discord_list_guilds",
     "local_discord_list_channels",
+    "local_discord_create_text_channel",
+    "local_discord_list_channel_messages",
     "local_discord_send_channel_message",
     "local_discord_send_webhook_message",
     "local_discord_resource_sync",

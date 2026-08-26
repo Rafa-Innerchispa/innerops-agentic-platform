@@ -136,6 +136,8 @@ TOOL_SCOPES = {
     "local_discord_oauth_install_url": "ralfia:read",
     "local_discord_list_guilds": "ralfia:read",
     "local_discord_list_channels": "ralfia:read",
+    "local_discord_create_text_channel": "ralfia:agents",
+    "local_discord_list_channel_messages": "ralfia:read",
     "local_discord_send_channel_message": "ralfia:agents",
     "local_discord_send_webhook_message": "ralfia:agents",
     "local_discord_resource_sync": "ralfia:agents",

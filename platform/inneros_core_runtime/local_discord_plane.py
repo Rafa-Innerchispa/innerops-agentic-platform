@@ -249,6 +249,49 @@ def list_channels(guild_id: str = "", limit: int = 100) -> dict[str, Any]:
     }
 
 
+def create_text_channel(name: str, topic: str = "", guild_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    cfg = _config()
+    guild = (guild_id or cfg["default_guild_id"]).strip()
+    channel_name = re.sub(r"[^a-z0-9_-]+", "-", (name or "").strip().lower()).strip("-")[:90]
+    if not guild or not channel_name:
+        return {"ok": False, "error": "guild_id_and_name_required"}
+    payload = {"name": channel_name, "type": 0}
+    if topic:
+        payload["topic"] = topic[:1024]
+    if dry_run:
+        return {"ok": True, "dry_run": True, "guild_id": guild, "channel": payload}
+    res = _request("POST", f"/guilds/{guild}/channels", payload=payload)
+    _audit("create_text_channel", res, {"guild_id": guild, "name": channel_name})
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    return {"ok": bool(res.get("ok")), "status": res.get("status"), "channel_id": data.get("id"), "name": data.get("name") or channel_name, "error": res.get("error"), "detail": res.get("detail")}
+
+
+def list_channel_messages(channel_id: str = "", limit: int = 20) -> dict[str, Any]:
+    cfg = _config()
+    channel = (channel_id or cfg["default_channel_id"]).strip()
+    if not channel:
+        return {"ok": False, "error": "channel_id_required"}
+    res = _request("GET", f"/channels/{channel}/messages?limit={_limit(limit)}")
+    if not res.get("ok"):
+        return res
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    return {
+        "ok": True,
+        "count": len(rows),
+        "channel_id": channel,
+        "messages": [
+            {
+                "id": item.get("id"),
+                "author": (item.get("author") or {}).get("username") if isinstance(item.get("author"), dict) else None,
+                "content": item.get("content"),
+                "timestamp": item.get("timestamp"),
+            }
+            for item in rows
+            if isinstance(item, dict)
+        ],
+    }
+
+
 def send_channel_message(channel_id: str = "", content: str = "", dry_run: bool = True) -> dict[str, Any]:
     cfg = _config()
     channel = (channel_id or cfg["default_channel_id"]).strip()

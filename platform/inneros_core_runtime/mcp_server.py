@@ -5178,6 +5178,18 @@ def local_discord_list_channels(guild_id: str = "", limit: int = 100) -> dict[st
 
 
 @mcp.tool
+def local_discord_create_text_channel(name: str, topic: str = "", guild_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Local Discord Plane: crea canal de texto; dry_run por defecto."""
+    return local_discord_plane.create_text_channel(name=name, topic=topic, guild_id=guild_id, dry_run=dry_run)
+
+
+@mcp.tool
+def local_discord_list_channel_messages(channel_id: str = "", limit: int = 20) -> dict[str, Any]:
+    """Local Discord Plane: lee mensajes recientes de un canal accesible."""
+    return local_discord_plane.list_channel_messages(channel_id=channel_id, limit=limit)
+
+
+@mcp.tool
 def local_discord_send_channel_message(channel_id: str = "", content: str = "", dry_run: bool = True) -> dict[str, Any]:
     """Local Discord Plane: envia mensaje a canal; dry_run por defecto para evitar ruido accidental."""
     return local_discord_plane.send_channel_message(channel_id=channel_id, content=content, dry_run=dry_run)
