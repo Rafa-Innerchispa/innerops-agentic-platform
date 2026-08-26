@@ -5499,6 +5499,30 @@ def local_exec_commit_branch(repo: str, work_branch: str, message: str, actor: s
 
 
 @mcp.tool
+def local_exec_inspect_remotes(repo: str, work_branch: str, actor: str, task_id: str, correlation_id: str) -> dict[str, Any]:
+    """Local Execution Plane: inspecciona remotos git configurados sin mutar el worktree."""
+    return local_execution_plane.inspect_remotes(repo=repo, work_branch=work_branch, actor=actor, task_id=task_id, correlation_id=correlation_id)
+
+
+@mcp.tool
+def local_exec_configure_remote(repo: str, work_branch: str, actor: str, task_id: str, correlation_id: str, idempotency_key: str, remote: str, dry_run: bool = True) -> dict[str, Any]:
+    """Local Execution Plane: agrega/corrige solo remotos definidos por política exacta."""
+    return local_execution_plane.configure_remote(repo=repo, work_branch=work_branch, actor=actor, task_id=task_id, correlation_id=correlation_id, idempotency_key=idempotency_key, remote=remote, dry_run=dry_run)
+
+
+@mcp.tool
+def local_exec_verified_git_author_status(username: str = "rafagye") -> dict[str, Any]:
+    """Local Execution Plane: verifica identidad de autor git sin adivinar email."""
+    return local_execution_plane.verified_git_author_status(username=username)
+
+
+@mcp.tool
+def local_exec_amend_commit_author(repo: str, work_branch: str, actor: str, task_id: str, correlation_id: str, idempotency_key: str, username: str = "rafagye", email: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Local Execution Plane: amend seguro del autor de HEAD solo con email verificado."""
+    return local_execution_plane.amend_commit_author(repo=repo, work_branch=work_branch, actor=actor, task_id=task_id, correlation_id=correlation_id, idempotency_key=idempotency_key, username=username, email=email, dry_run=dry_run)
+
+
+@mcp.tool
 def local_exec_push_branch(repo: str, work_branch: str, actor: str, task_id: str, correlation_id: str, idempotency_key: str, remote: str = "origin", dry_run: bool = True) -> dict[str, Any]:
     """Local Execution Plane: push seguro de rama de trabajo; sin force ni ramas protegidas."""
     return local_execution_plane.push_branch(repo=repo, work_branch=work_branch, actor=actor, task_id=task_id, correlation_id=correlation_id, idempotency_key=idempotency_key, remote=remote, dry_run=dry_run)

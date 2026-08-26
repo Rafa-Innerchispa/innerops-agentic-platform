@@ -54,6 +54,13 @@ OWNER_APPROVED_ALLOWED_PATHS = [
     "next.config.mjs",
     "vite.config.ts",
 ]
+OWNER_APPROVED_REMOTE_POLICIES: dict[str, dict[str, str]] = {
+    "gitlab-community/gitlab-org/gitlab-runner": {
+        "origin": "https://gitlab.com/rafagye/gitlab-runner.git",
+        "community": "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git",
+    }
+}
+VERIFIED_GIT_AUTHORS_ENV = "RALFIA_VERIFIED_GIT_AUTHORS_JSON"
 DENIED_PATH_PARTS = {
     ".env",
     ".ssh",
@@ -233,6 +240,41 @@ def _bounded_output(text: str, max_bytes: int) -> str:
     if len(encoded) <= max_bytes:
         return raw
     return encoded[:max_bytes].decode("utf-8", errors="replace") + "\n[TRUNCATED]"
+
+
+def _parse_git_remotes(output: str) -> dict[str, dict[str, str]]:
+    remotes: dict[str, dict[str, str]] = {}
+    for line in str(output or "").splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        name, url, mode_raw = parts[0], parts[1], parts[2]
+        mode = mode_raw.strip("()")
+        if mode in {"fetch", "push"}:
+            remotes.setdefault(name, {})[mode] = url
+    return remotes
+
+
+def _remote_policy(repo: str) -> dict[str, str]:
+    return dict(OWNER_APPROVED_REMOTE_POLICIES.get(repo) or {})
+
+
+def _validate_remote_for_push(repo: str, worktree: Path, remote_name: str) -> dict[str, Any]:
+    remotes_res = _run(["git", "remote", "-v"], worktree, timeout_seconds=30)
+    remotes = _parse_git_remotes(remotes_res.get("stdout") or "")
+    if remote_name not in remotes:
+        return {"ok": False, "error": "remote_missing", "remote": remote_name, "remotes": remotes}
+    urls = remotes.get(remote_name) or {}
+    policy = _remote_policy(repo)
+    expected = policy.get(remote_name)
+    if expected:
+        fetch_url = urls.get("fetch") or ""
+        push_url = urls.get("push") or fetch_url
+        if fetch_url != expected or push_url != expected:
+            return {"ok": False, "error": "remote_url_mismatch", "remote": remote_name, "expected_url": expected, "actual": urls, "remotes": remotes}
+    elif repo in OWNER_APPROVED_REMOTE_POLICIES:
+        return {"ok": False, "error": "remote_not_in_repo_policy", "remote": remote_name, "allowed_remotes": sorted(policy), "remotes": remotes}
+    return {"ok": True, "remote": remote_name, "url": expected or (urls.get("push") or urls.get("fetch")), "remotes": remotes, "remote_output": remotes_res}
 
 
 def _slug(repo: str) -> str:
@@ -926,6 +968,182 @@ def commit_branch(
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
 
+def inspect_remotes(
+    repo: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+) -> dict[str, Any]:
+    """Inspect configured git remotes in a source repo or isolated worktree without mutating it."""
+    try:
+        _require_metadata(actor, task_id, correlation_id)
+        conf = _repo_config(repo)
+        if work_branch:
+            _validate_branch(work_branch, require_work_branch=True)
+            git_dir = _worktree_path(repo, work_branch, conf)
+            path_kind = "worktree"
+        else:
+            git_dir = Path(conf["source_path"]).expanduser().resolve()
+            path_kind = "source"
+        if not git_dir.exists():
+            return {"ok": False, "error": f"{path_kind}_missing", path_kind: str(git_dir)}
+        remote_v = _run(["git", "remote", "-v"], git_dir, timeout_seconds=30)
+        remotes = _parse_git_remotes(remote_v.get("stdout") or "")
+        policy = _remote_policy(repo)
+        validation = {
+            name: {
+                "expected_url": expected,
+                "actual": remotes.get(name),
+                "ok": bool(remotes.get(name) and (remotes[name].get("fetch") == expected) and ((remotes[name].get("push") or remotes[name].get("fetch")) == expected)),
+            }
+            for name, expected in policy.items()
+        }
+        return {"ok": True, "repo": repo, "work_branch": work_branch, "path_kind": path_kind, "path": str(git_dir), "remotes": remotes, "policy": policy, "validation": validation, "remote_output": remote_v}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+
+
+def configure_remote(
+    repo: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    remote: str,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Add or correct a policy-defined remote in an isolated worktree."""
+    try:
+        _require_metadata(actor, task_id, correlation_id, idempotency_key)
+        remote_name = (remote or "").strip()
+        if not re.match(r"^[A-Za-z0-9_.-]{1,40}$", remote_name):
+            return {"ok": False, "error": "remote_not_allowlisted"}
+        policy = _remote_policy(repo)
+        expected_url = policy.get(remote_name)
+        if not expected_url:
+            return {"ok": False, "error": "remote_not_in_repo_policy", "remote": remote_name, "allowed_remotes": sorted(policy)}
+        conf = _repo_config(repo)
+        if work_branch:
+            _validate_branch(work_branch, require_work_branch=True)
+            git_dir = _worktree_path(repo, work_branch, conf)
+            path_kind = "worktree"
+        else:
+            git_dir = Path(conf["source_path"]).expanduser().resolve()
+            path_kind = "source"
+        if not git_dir.exists():
+            return {"ok": False, "error": f"{path_kind}_missing", path_kind: str(git_dir)}
+        before = inspect_remotes(repo, work_branch, actor, task_id, correlation_id)
+        remotes = before.get("remotes") or {}
+        current = remotes.get(remote_name) or {}
+        current_url = current.get("fetch") or current.get("push") or ""
+        if current_url == expected_url and (current.get("push") or current_url) == expected_url:
+            return {"ok": True, "idempotent": True, "dry_run": dry_run, "remote": remote_name, "expected_url": expected_url, "before": before}
+        command = ["git", "remote", "add", remote_name, expected_url] if remote_name not in remotes else ["git", "remote", "set-url", remote_name, expected_url]
+        if dry_run:
+            return {"ok": True, "dry_run": True, "remote": remote_name, "expected_url": expected_url, "would_execute": command, "before": before}
+        result = _run(command, git_dir, timeout_seconds=30)
+        after = inspect_remotes(repo, work_branch, actor, task_id, correlation_id)
+        return {"ok": bool(result.get("ok") and ((after.get("validation") or {}).get(remote_name) or {}).get("ok")), "remote": remote_name, "expected_url": expected_url, "command_result": result, "before": before, "after": after}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+
+
+def _configured_verified_authors() -> dict[str, dict[str, Any]]:
+    raw = os.getenv(VERIFIED_GIT_AUTHORS_ENV, "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def verified_git_author_status(username: str = "rafagye") -> dict[str, Any]:
+    """Return verified author identity sources without guessing an email."""
+    user = (username or "").strip().lstrip("@")
+    if not re.match(r"^[A-Za-z0-9_.-]{1,80}$", user):
+        return {"ok": False, "error": "invalid_username"}
+    configured = _configured_verified_authors().get(user)
+    if isinstance(configured, dict):
+        emails = [str(item).strip() for item in configured.get("emails") or [] if str(item).strip()]
+        name = str(configured.get("name") or user).strip()
+        if emails:
+            return {"ok": True, "username": user, "name": name, "emails": emails, "source": VERIFIED_GIT_AUTHORS_ENV}
+    api_user = _run(["glab", "api", "user"], Path.cwd(), timeout_seconds=30, max_output_bytes=20000)
+    api_emails = _run(["glab", "api", "user/emails"], Path.cwd(), timeout_seconds=30, max_output_bytes=20000)
+    try:
+        user_data = json.loads(api_user.get("stdout") or "{}") if api_user.get("ok") else {}
+    except Exception:
+        user_data = {}
+    try:
+        email_rows = json.loads(api_emails.get("stdout") or "[]") if api_emails.get("ok") else []
+    except Exception:
+        email_rows = []
+    actual_username = str(user_data.get("username") or "") if isinstance(user_data, dict) else ""
+    if actual_username and actual_username != user:
+        return {"ok": False, "error": "authenticated_user_mismatch", "requested": user, "actual": actual_username}
+    emails = []
+    for row in email_rows if isinstance(email_rows, list) else []:
+        if isinstance(row, dict) and row.get("confirmed_at") and row.get("email"):
+            emails.append(str(row["email"]))
+    if emails:
+        return {"ok": True, "username": user, "name": str(user_data.get("name") or user), "emails": emails, "source": "glab api user/emails"}
+    return {"ok": False, "error": "verified_author_email_unavailable", "username": user, "sources_checked": [VERIFIED_GIT_AUTHORS_ENV, "glab api user/emails"]}
+
+
+def amend_commit_author(
+    repo: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    username: str = "rafagye",
+    email: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Safely amend HEAD author only when the requested email is verified."""
+    try:
+        _require_metadata(actor, task_id, correlation_id, idempotency_key)
+        _validate_branch(work_branch, require_work_branch=True)
+        conf = _repo_config(repo)
+        worktree = _worktree_path(repo, work_branch, conf)
+        if not worktree.exists():
+            return {"ok": False, "error": "worktree_missing", "worktree": str(worktree)}
+        status = _run(["git", "status", "--porcelain"], worktree, timeout_seconds=30)
+        if (status.get("stdout") or "").strip():
+            return {"ok": False, "error": "worktree_has_uncommitted_changes", "status": status}
+        current = _run(["git", "branch", "--show-current"], worktree, timeout_seconds=30)
+        if (current.get("stdout") or "").strip() != work_branch:
+            return {"ok": False, "error": "worktree_branch_mismatch", "current": current}
+        verified = verified_git_author_status(username)
+        if not verified.get("ok"):
+            return {"ok": False, "error": "verified_author_unavailable", "verified": verified}
+        verified_emails = list(verified.get("emails") or [])
+        chosen_email = (email or "").strip()
+        if chosen_email:
+            if chosen_email not in verified_emails:
+                return {"ok": False, "error": "author_email_not_verified", "email": chosen_email, "verified_source": verified.get("source")}
+        elif len(verified_emails) == 1:
+            chosen_email = verified_emails[0]
+        else:
+            return {"ok": False, "error": "author_email_ambiguous", "verified": verified}
+        name = str(verified.get("name") or username).strip()
+        author = f"{name} <{chosen_email}>"
+        head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
+        command = ["git", "commit", "--amend", "--no-edit", "--author", author]
+        if dry_run:
+            return {"ok": True, "dry_run": True, "would_execute": ["git", "commit", "--amend", "--no-edit", "--author", f"{name} <VERIFIED_EMAIL>"], "head": (head.get("stdout") or "").strip(), "verified_source": verified.get("source"), "email_verified": True}
+        result = _run(command, worktree, timeout_seconds=120)
+        new_head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
+        return {"ok": bool(result.get("ok")), "amend": result, "old_head": (head.get("stdout") or "").strip(), "new_head": (new_head.get("stdout") or "").strip(), "verified_source": verified.get("source"), "email_verified": True}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+
+
 def push_branch(
     repo: str,
     work_branch: str,
@@ -953,14 +1171,16 @@ def push_branch(
         status = _run(["git", "status", "--porcelain"], worktree, timeout_seconds=30)
         if (status.get("stdout") or "").strip():
             return {"ok": False, "error": "worktree_has_uncommitted_changes", "status": status}
+        remote_validation = _validate_remote_for_push(repo, worktree, remote_name)
+        if not remote_validation.get("ok"):
+            return {"ok": False, **remote_validation}
         command = ["git", "push", remote_name, f"HEAD:refs/heads/{work_branch}"]
         if dry_run:
-            remote_v = _run(["git", "remote", "-v"], worktree, timeout_seconds=30)
             head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
-            return {"ok": True, "dry_run": True, "would_execute": command, "remote": remote_v, "head": (head.get("stdout") or "").strip()}
+            return {"ok": True, "dry_run": True, "would_execute": command, "remote": remote_name, "remote_validation": remote_validation, "head": (head.get("stdout") or "").strip()}
         push = _run(command, worktree, timeout_seconds=300)
         head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
-        return {"ok": push["ok"], "push": push, "head": (head.get("stdout") or "").strip(), "remote": remote_name, "branch": work_branch}
+        return {"ok": push["ok"], "push": push, "head": (head.get("stdout") or "").strip(), "remote": remote_name, "remote_validation": remote_validation, "branch": work_branch}
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
@@ -1142,6 +1362,10 @@ local_exec_apply_patch = apply_patch
 local_exec_write_file = write_file
 local_exec_run_command_allowlisted = run_command_allowlisted
 local_exec_commit_branch = commit_branch
+local_exec_inspect_remotes = inspect_remotes
+local_exec_configure_remote = configure_remote
+local_exec_amend_commit_author = amend_commit_author
+local_exec_verified_git_author_status = verified_git_author_status
 local_exec_push_branch = push_branch
 local_exec_report_evidence = report_evidence
 dev_swarm_scope_status = dev_swarm_scope_status

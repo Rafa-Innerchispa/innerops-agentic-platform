@@ -390,6 +390,8 @@ ALL_MCP_TOOL_NAMES = [
     "local_model_set_default",
     "local_model_router_status",
     "local_exec_inspect_repo",
+    "local_exec_inspect_remotes",
+    "local_exec_verified_git_author_status",
     "local_exec_repo_policy_status",
     "local_exec_repo_authorize",
     "local_exec_repo_revoke",
@@ -412,6 +414,8 @@ ALL_MCP_TOOL_NAMES = [
     "local_exec_run_command_allowlisted",
     "local_exec_commit_branch",
     "local_exec_push_branch",
+    "local_exec_configure_remote",
+    "local_exec_amend_commit_author",
     "local_exec_report_evidence",
     "local_fs_policy",
     "local_fs_list",
@@ -3004,10 +3008,14 @@ _LOCAL_EXEC_WRITES = {
     "local_exec_run_command_allowlisted",
     "local_exec_commit_branch",
     "local_exec_push_branch",
+    "local_exec_configure_remote",
+    "local_exec_amend_commit_author",
     "local_exec_report_evidence",
 }
 for _name in (
     "local_exec_inspect_repo",
+    "local_exec_inspect_remotes",
+    "local_exec_verified_git_author_status",
     "local_exec_repo_policy_status",
     "local_exec_repo_authorize",
     "local_exec_repo_revoke",
@@ -3023,6 +3031,8 @@ for _name in (
     "local_exec_run_command_allowlisted",
     "local_exec_commit_branch",
     "local_exec_push_branch",
+    "local_exec_configure_remote",
+    "local_exec_amend_commit_author",
     "local_exec_report_evidence",
 ):
     TOOL_DEFINITIONS[_name] = {

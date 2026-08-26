@@ -231,3 +231,74 @@ def test_node_install_outside_package_roots_still_blocked(monkeypatch, tmp_path:
     assert lep._node_package_command_allowed(["npm", "--prefix", "other-service", "ci"], conf) is False
     assert lep._node_package_command_allowed(["npm", "--prefix", "../outside", "ci"], conf) is False
     assert lep._node_package_command_allowed(["npm", "--prefix", "services/femar-mvp-core", "run", "evil"], conf) is False
+
+
+def test_gitlab_push_requires_existing_policy_remote(monkeypatch, tmp_path: Path) -> None:
+    repo = "gitlab-community/gitlab-org/gitlab-runner"
+    branch = "chatgpt/fix/39708-cache-url-redaction"
+    _git(["init", "-b", "main"], tmp_path)
+    _git(["config", "user.name", "Test"], tmp_path)
+    _git(["config", "user.email", "test@example.invalid"], tmp_path)
+    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
+    _git(["add", "README.md"], tmp_path)
+    _git(["commit", "-m", "seed"], tmp_path)
+    _git(["checkout", "-b", branch], tmp_path)
+    _git(["remote", "add", "origin", "https://gitlab.com/rafagye/gitlab-runner.git"], tmp_path)
+
+    monkeypatch.setattr(lep, "_repo_config", lambda repo: {"profile": "go_gitlab_runner"})
+    monkeypatch.setattr(lep, "_worktree_path", lambda repo, work_branch, conf: tmp_path)
+
+    missing = lep.push_branch(repo, branch, "codex", "ops_993f4d288688", "gitlab-community-remote-author-20260826", "idem", remote="community", dry_run=True)
+    assert missing["ok"] is False
+    assert missing["error"] == "remote_missing"
+
+    _git(["remote", "add", "community", "https://gitlab.com/example/wrong.git"], tmp_path)
+    mismatch = lep.push_branch(repo, branch, "codex", "ops_993f4d288688", "gitlab-community-remote-author-20260826", "idem2", remote="community", dry_run=True)
+    assert mismatch["ok"] is False
+    assert mismatch["error"] == "remote_url_mismatch"
+
+    _git(["remote", "set-url", "community", "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git"], tmp_path)
+    ok = lep.push_branch(repo, branch, "codex", "ops_993f4d288688", "gitlab-community-remote-author-20260826", "idem3", remote="community", dry_run=True)
+    assert ok["ok"] is True
+    assert ok["dry_run"] is True
+    assert ok["remote_validation"]["url"] == "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git"
+
+
+def test_configure_remote_uses_exact_policy_url(monkeypatch, tmp_path: Path) -> None:
+    repo = "gitlab-community/gitlab-org/gitlab-runner"
+    branch = "chatgpt/fix/39708-cache-url-redaction"
+    _git(["init", "-b", branch], tmp_path)
+    _git(["remote", "add", "origin", "https://gitlab.com/rafagye/gitlab-runner.git"], tmp_path)
+    monkeypatch.setattr(lep, "_repo_config", lambda repo: {"profile": "go_gitlab_runner"})
+    monkeypatch.setattr(lep, "_worktree_path", lambda repo, work_branch, conf: tmp_path)
+
+    dry = lep.configure_remote(repo, branch, "codex", "ops_993f4d288688", "gitlab-community-remote-author-20260826", "idem", "community", dry_run=True)
+    assert dry["ok"] is True
+    assert dry["would_execute"] == ["git", "remote", "add", "community", "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git"]
+
+    applied = lep.configure_remote(repo, branch, "codex", "ops_993f4d288688", "gitlab-community-remote-author-20260826", "idem2", "community", dry_run=False)
+    assert applied["ok"] is True
+    assert applied["after"]["validation"]["community"]["ok"] is True
+
+
+def test_amend_commit_author_requires_verified_email(monkeypatch, tmp_path: Path) -> None:
+    repo = "gitlab-community/gitlab-org/gitlab-runner"
+    branch = "chatgpt/fix/39708-cache-url-redaction"
+    _git(["init", "-b", branch], tmp_path)
+    _git(["config", "user.name", "Test"], tmp_path)
+    _git(["config", "user.email", "test@example.invalid"], tmp_path)
+    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
+    _git(["add", "README.md"], tmp_path)
+    _git(["commit", "-m", "seed"], tmp_path)
+    monkeypatch.setattr(lep, "_repo_config", lambda repo: {"profile": "go_gitlab_runner"})
+    monkeypatch.setattr(lep, "_worktree_path", lambda repo, work_branch, conf: tmp_path)
+    monkeypatch.setenv("RALFIA_VERIFIED_GIT_AUTHORS_JSON", '{"rafagye":{"name":"Rafael Lopez","emails":["rafael@example.invalid"]}}')
+
+    denied = lep.amend_commit_author(repo, branch, "codex", "ops_993f4d288688", "gitlab-community-remote-author-20260826", "idem", username="rafagye", email="other@example.invalid", dry_run=True)
+    assert denied["ok"] is False
+    assert denied["error"] == "author_email_not_verified"
+
+    ok = lep.amend_commit_author(repo, branch, "codex", "ops_993f4d288688", "gitlab-community-remote-author-20260826", "idem2", username="rafagye", dry_run=True)
+    assert ok["ok"] is True
+    assert ok["email_verified"] is True
+    assert "VERIFIED_EMAIL" in ok["would_execute"][-1]
