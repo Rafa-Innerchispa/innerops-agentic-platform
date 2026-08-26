@@ -3005,6 +3005,30 @@ def sync_email_archive(limit: int = 500) -> dict[str, Any]:
 
 
 @mcp.tool
+def save_productivity_event(payload: dict[str, Any]) -> dict[str, Any]:
+    """Guarda evento KPI/ROI de ahorro humano asistido en productivity_metrics."""
+    from raphiia_openai import productivity_metrics
+
+    return productivity_metrics.save_productivity_event(payload)
+
+
+@mcp.tool
+def list_productivity_events(limit: int = 50, task_key: str = "") -> dict[str, Any]:
+    """Lista eventos KPI/ROI guardados."""
+    from raphiia_openai import productivity_metrics
+
+    return productivity_metrics.list_productivity_events(limit=limit, task_key=task_key)
+
+
+@mcp.tool
+def summarize_productivity_events(limit: int = 500) -> dict[str, Any]:
+    """Resume ahorro humano asistido acumulado."""
+    from raphiia_openai import productivity_metrics
+
+    return productivity_metrics.summarize_productivity_events(limit=limit)
+
+
+@mcp.tool
 def analyze_email_intelligence_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Email Intelligence sin efectos: clasifica documento, entidad, ruta y gate humano."""
     from raphiia_openai.notifications import email_router
