@@ -7,6 +7,31 @@ from raphiia_openai import dev_swarm_scheduler as scheduler
 
 
 class DevSwarmRepoInferenceTests(unittest.TestCase):
+    def test_candidate_loader_includes_new_critical_before_old_normal(self) -> None:
+        class Cursor(list):
+            def sort(self, *_args):
+                return Cursor(sorted(self, key=lambda row: row.get("created_at", ""), reverse=True))
+
+            def limit(self, n):
+                return Cursor(self[:n])
+
+        class Collection:
+            def __init__(self):
+                self.rows = [
+                    {"task_id": "normal_old", "status": "proposed", "priority": "normal", "created_at": "2026-08-20T00:00:00+00:00"},
+                    {"task_id": "critical_new", "status": "proposed", "priority": "critical", "created_at": "2026-08-26T00:00:00+00:00"},
+                ]
+
+            def find(self, query, _projection):
+                rows = [row for row in self.rows if row["status"] == query.get("status")]
+                if "priority" in query:
+                    rows = [row for row in rows if row["priority"] == query["priority"]]
+                return Cursor(rows)
+
+        db = {scheduler.coordination_live.OPS_TASKS_COL: Collection()}
+        rows = scheduler._load_scheduler_candidates(db, {"status": "proposed"}, 1)
+        self.assertEqual(rows[0]["task_id"], "critical_new")
+
     def test_new_inneros_task_without_legacy_correlation_is_eligible(self) -> None:
         task = {
             "task_id": "ops_new_inneros",

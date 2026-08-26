@@ -604,7 +604,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
             ],
         }
     scan_limit = max(max(1, min(limit, 25)) * 5, 50)
-    tasks = list(db[coordination_live.OPS_TASKS_COL].find(query, {"_id": 0}).limit(scan_limit))
+    tasks = _load_scheduler_candidates(db, query, scan_limit)
     retry_ids = [
         row["task_id"]
         for row in db[WORKERS_COL]
@@ -670,6 +670,30 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         "results": results,
         "admission_policy": "repo_policy_priority_capacity",
     }
+
+
+def _load_scheduler_candidates(db: Any, base_query: dict[str, Any], scan_limit: int) -> list[dict[str, Any]]:
+    """Load proposed tasks without letting Mongo natural order hide new P0s."""
+    priorities = ["critical", "p0", "p1", "normal", "p2", "low"]
+    selected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    per_bucket = max(5, min(scan_limit, 100))
+    for priority in priorities:
+        query = {**base_query, "priority": priority}
+        rows = db[coordination_live.OPS_TASKS_COL].find(query, {"_id": 0}).sort("created_at", -1).limit(per_bucket)
+        for row in rows:
+            task_id = str(row.get("task_id") or "")
+            if task_id and task_id not in seen:
+                seen.add(task_id)
+                selected.append(row)
+    if len(selected) < scan_limit:
+        rows = db[coordination_live.OPS_TASKS_COL].find(base_query, {"_id": 0}).sort("created_at", -1).limit(scan_limit)
+        for row in rows:
+            task_id = str(row.get("task_id") or "")
+            if task_id and task_id not in seen:
+                seen.add(task_id)
+                selected.append(row)
+    return selected
 
 
 def _executor_report_markdown(
