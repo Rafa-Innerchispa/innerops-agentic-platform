@@ -273,8 +273,13 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
         "resource fabric",
         "local execution",
     )
+    platform_override_markers = ("innerops", "inneros", "all things agentic", "agentic platform", "dev swarm", "resource fabric", "local execution", "github", "gitlab", "browser ops", "playwright")
+    innerops_context = any(marker in text for marker in ("innerops", "all things agentic", "agentic platform"))
+    if any(marker in text for marker in ("xprize", "devpost")) and not innerops_context:
+        return None
+    if "cloudflare" in text and not any(marker in text for marker in ("ag-44", "mcp", "tool", "toolchain", "owner_vault", "provider", "runtime", "local execution")):
+        return None
     product_only_markers = ("workforce.pcdoctor.ai", "femar")
-    platform_override_markers = ("innerops", "inneros", "all things agentic", "agentic platform", "dev swarm", "resource fabric", "local execution", "cloudflare", "github", "gitlab")
     if any(marker in text for marker in current_markers):
         if any(marker in text for marker in product_only_markers) and not any(marker in text for marker in platform_override_markers):
             return None

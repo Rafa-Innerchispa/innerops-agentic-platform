@@ -147,6 +147,35 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertEqual(reason, "eligible")
         self.assertEqual(repo, scheduler.SAFE_INNEROS_REPO)
 
+    def test_xprize_product_without_innerops_context_is_not_inferred(self) -> None:
+        task = {
+            "task_id": "ops_xprize_product",
+            "status": "proposed",
+            "assignee": "antigravity",
+            "priority": "critical",
+            "correlation_id": "xprize-pre-submit-hardening-20260815",
+            "title": "CORRECCION P0: produccion real, no reemplazar datos DB por demos",
+            "checklist": ["Repo publico cero PII", "Conservar usuarios reales en Firestore", "No tocar Devpost sin validacion"],
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "repo_not_inferred")
+        self.assertIsNone(repo)
+
+    def test_cloudflare_hostname_ops_without_ag44_context_is_not_inferred(self) -> None:
+        task = {
+            "task_id": "ops_cloudflare_hostname",
+            "status": "proposed",
+            "assignee": "cursor",
+            "priority": "critical",
+            "title": "Configurar Cloudflare workforce.pcdoctor.ai ahora",
+            "checklist": ["Verifica DNS TLS y HTTP 200 sin tocar otros hostnames"],
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "repo_not_inferred")
+        self.assertIsNone(repo)
+
     def test_workforce_femar_without_explicit_repo_stays_excluded(self) -> None:
         task = {
             "task_id": "ops_workforce",
