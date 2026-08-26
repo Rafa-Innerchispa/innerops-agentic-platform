@@ -201,6 +201,8 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_credit_status",
     "local_discord_configure_public_app",
     "local_discord_status",
+    "local_discord_interaction_gateway_status",
+    "local_discord_set_interactions_endpoint_url",
     "local_discord_store_bot_token_server_side",
     "local_discord_store_webhook_url_server_side",
     "local_discord_oauth_install_url",
@@ -3284,6 +3286,8 @@ _LOCAL_DISCORD_WRITES = {
 for _name in (
     "local_discord_configure_public_app",
     "local_discord_status",
+    "local_discord_interaction_gateway_status",
+    "local_discord_set_interactions_endpoint_url",
     "local_discord_store_bot_token_server_side",
     "local_discord_store_webhook_url_server_side",
     "local_discord_oauth_install_url",

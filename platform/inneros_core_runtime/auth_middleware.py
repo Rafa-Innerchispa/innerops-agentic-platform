@@ -134,6 +134,8 @@ TOOL_SCOPES = {
     "local_gitlab_credit_status": "ralfia:read",
     "local_discord_configure_public_app": "ralfia:agents",
     "local_discord_status": "ralfia:read",
+    "local_discord_interaction_gateway_status": "ralfia:read",
+    "local_discord_set_interactions_endpoint_url": "ralfia:agents",
     "local_discord_store_bot_token_server_side": "ralfia:agents",
     "local_discord_store_webhook_url_server_side": "ralfia:agents",
     "local_discord_oauth_install_url": "ralfia:read",

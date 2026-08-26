@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse
 
 from raphiia_openai.auth_middleware import ApiKeyMiddleware
 from raphiia_openai import quoteops_mcp_bridge
-from raphiia_openai import coordination_docs, dev_swarm_scheduler, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
+from raphiia_openai import coordination_docs, dev_swarm_scheduler, discord_interaction_gateway, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
 from raphiia_openai.operational import accounting_store, inventory_store, pcdoctor_store, party_store, procurement_store
 from raphiia_openai.settings import (
     GOOGLE_API_KEY,
@@ -1398,11 +1398,11 @@ def cloudflare_dns_delete(hostname: str, record_type: str = "", zone_name: str =
 
 
 @mcp.tool
-def cloudflare_waf_skip_challenge(hostname: str, zone_name: str = "pcdoctor.ai", dry_run: bool = False, note: str = "") -> dict[str, Any]:
-    """AG-44: aplica regla WAF mínima para saltar challenges solo en un hostname."""
+def cloudflare_waf_skip_challenge(hostname: str, zone_name: str = "pcdoctor.ai", path_prefix: str = "", dry_run: bool = False, note: str = "") -> dict[str, Any]:
+    """AG-44: aplica regla WAF minima para saltar challenges en un hostname o path."""
     from raphiia_openai.agents import ag44_cloud_deployer as ag44
 
-    return ag44.cloudflare_waf_skip_challenge(hostname, zone_name=zone_name, dry_run=dry_run, note=note)
+    return ag44.cloudflare_waf_skip_challenge(hostname, zone_name=zone_name, path_prefix=path_prefix, dry_run=dry_run, note=note)
 
 
 @mcp.tool
@@ -5163,6 +5163,18 @@ def local_discord_configure_public_app(application_id: str, public_key: str, def
 def local_discord_status() -> dict[str, Any]:
     """Local Discord Plane: valida configuracion, bot token/webhook y usuario bot sin exponer secretos."""
     return local_discord_plane.discord_status()
+
+
+@mcp.tool
+def local_discord_interaction_gateway_status() -> dict[str, Any]:
+    """Local Discord Plane: muestra estado del endpoint seguro para slash commands."""
+    return discord_interaction_gateway.endpoint_status()
+
+
+@mcp.tool
+def local_discord_set_interactions_endpoint_url(endpoint_url: str, dry_run: bool = True, actor: str = "RAFAEL") -> dict[str, Any]:
+    """Local Discord Plane: fija o simula la URL publica de Discord Interactions."""
+    return local_discord_plane.set_interactions_endpoint_url(endpoint_url=endpoint_url, dry_run=dry_run, actor=actor)
 
 
 @mcp.tool

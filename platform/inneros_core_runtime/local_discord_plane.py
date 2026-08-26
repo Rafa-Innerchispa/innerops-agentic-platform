@@ -11,6 +11,7 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
@@ -59,6 +60,7 @@ def _config() -> dict[str, Any]:
         "public_key": str(doc.get("public_key") or os.getenv("DISCORD_PUBLIC_KEY") or DEFAULT_PUBLIC_KEY).strip(),
         "default_channel_id": str(doc.get("default_channel_id") or os.getenv("DISCORD_DEFAULT_CHANNEL_ID") or "").strip(),
         "default_guild_id": str(doc.get("default_guild_id") or os.getenv("DISCORD_DEFAULT_GUILD_ID") or "").strip(),
+        "interactions_endpoint_url": str(doc.get("interactions_endpoint_url") or os.getenv("DISCORD_INTERACTIONS_ENDPOINT_URL") or "").strip(),
         "channels": {str(k): str(v) for k, v in channels.items()},
         "updated_at": doc.get("updated_at"),
     }
@@ -177,6 +179,7 @@ def discord_status() -> dict[str, Any]:
         "public_key_present": bool(cfg["public_key"]),
         "default_channel_id_present": bool(cfg["default_channel_id"]),
         "default_guild_id_present": bool(cfg["default_guild_id"]),
+        "interactions_endpoint_url": cfg.get("interactions_endpoint_url") or None,
         "bot_token_present": bool(token),
         "bot_token_source": source,
         "webhook_present": bool(webhook),
@@ -184,6 +187,11 @@ def discord_status() -> dict[str, Any]:
         "auth_ok": False,
         "bot_user": None,
         "execution_policy": "alerts and approvals first; command execution requires MCP scope plus explicit approval",
+        "interaction_gateway": {
+            "path": "/discord/interactions",
+            "signature_verification": "ed25519_required",
+            "arbitrary_execution": False,
+        },
     }
     if token:
         me = _request("GET", "/users/@me")
@@ -217,6 +225,37 @@ def oauth_install_url(permissions: int = DEFAULT_BOT_PERMISSIONS) -> dict[str, A
         "scopes": scopes.split(),
         "url": url,
         "permission_notes": ["View Channels", "Send Messages", "Embed Links", "Read Message History"],
+    }
+
+
+def set_interactions_endpoint_url(endpoint_url: str, dry_run: bool = True, actor: str = "RAFAEL") -> dict[str, Any]:
+    cfg = _config()
+    app_id = cfg["application_id"]
+    url = (endpoint_url or "").strip()
+    if not app_id or not url:
+        return {"ok": False, "error": "application_id_and_endpoint_url_required"}
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc or not parsed.path.startswith("/discord/interactions"):
+        return {"ok": False, "error": "https_discord_interactions_url_required", "hint": "Use https://mcp.pcdoctor.ai/discord/interactions"}
+    payload = {"interactions_endpoint_url": url}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "application_id": app_id, "endpoint_url": url}
+    res = _request("PATCH", f"/applications/{app_id}", payload=payload)
+    _audit("set_interactions_endpoint_url", res, {"endpoint_url": url, "actor": actor})
+    if res.get("ok"):
+        mongo_store.get_db()[COL_CONFIG].update_one(
+            {"config_id": "default"},
+            {"$set": {"interactions_endpoint_url": url, "updated_at": _now(), "updated_by": actor}},
+            upsert=True,
+        )
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    return {
+        "ok": bool(res.get("ok")),
+        "status": res.get("status"),
+        "application_id": app_id,
+        "endpoint_url": data.get("interactions_endpoint_url") or url,
+        "error": res.get("error"),
+        "detail": res.get("detail"),
     }
 
 
@@ -460,9 +499,28 @@ def register_guild_commands(guild_id: str = "", dry_run: bool = True) -> dict[st
         return {"ok": False, "error": "guild_id_required"}
     commands = [
         {"name": "inneros-status", "description": "Mostrar estado operativo de InnerOS/RalphiIA"},
-        {"name": "inneros-novedad", "description": "Registrar una novedad para revision/publicacion"},
-        {"name": "inneros-hackathon", "description": "Registrar avance o evidencia de hackathon"},
-        {"name": "inneros-aprobar", "description": "Solicitar aprobacion operativa controlada"},
+        {
+            "name": "inneros-novedad",
+            "description": "Publicar una novedad en un canal controlado",
+            "options": [
+                {"type": 3, "name": "texto", "description": "Texto a publicar", "required": True},
+                {"type": 3, "name": "canal", "description": "Alias o nombre del canal", "required": False},
+            ],
+        },
+        {
+            "name": "inneros-hackathon",
+            "description": "Publicar avance o evidencia de hackathon",
+            "options": [
+                {"type": 3, "name": "texto", "description": "Avance o evidencia", "required": True},
+            ],
+        },
+        {
+            "name": "inneros-aprobar",
+            "description": "Solicitar aprobacion operativa controlada",
+            "options": [
+                {"type": 3, "name": "texto", "description": "Decision o accion a aprobar", "required": True},
+            ],
+        },
     ]
     if dry_run:
         return {"ok": True, "dry_run": True, "guild_id": guild, "commands": commands}
@@ -527,6 +585,7 @@ def resource_provider_document() -> dict[str, Any]:
         "label": "Discord Ops Bridge",
         "kind": "ops_communication_provider",
         "capabilities": ["ops_alerts", "approval_requests", "community_updates", "incident_notifications", "slash_commands", "read_recent_messages", "search_recent_messages", "channel_management", "webhooks", "threads"],
+        "interaction_gateway": "/discord/interactions",
         "local_first": False,
         "status": "active" if (status.get("auth_ok") or status.get("webhook_present")) else "configured_needs_token_or_webhook",
         "requires": ["Discord bot token or channel webhook in owner_vault", "guild/channel IDs for production routing"],

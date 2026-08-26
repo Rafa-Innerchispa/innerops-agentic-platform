@@ -24,6 +24,18 @@ ROADMAP_DOC = Path("/home/rlopez/data/ai_coordination/HUB/ROADMAP_AGENTES_UNIVER
 CF_API_BASE = "https://api.cloudflare.com/client/v4"
 CF_VAULT_CATEGORY = "cloudflare_pcdoctor_ai"
 CF_DEFAULT_ZONE = "pcdoctor.ai"
+CF_ZONE_VAULT_CATEGORIES = {
+    CF_DEFAULT_ZONE: CF_VAULT_CATEGORY,
+    "innerchispa.us": CF_VAULT_CATEGORY,
+    "innerspark.live": CF_VAULT_CATEGORY,
+    "creatoros.dev": CF_VAULT_CATEGORY,
+    "creatorcore.ai": CF_VAULT_CATEGORY,
+    "iskconguayaquil.org": CF_VAULT_CATEGORY,
+    "iskconecuador.org": CF_VAULT_CATEGORY,
+    "servifran.site": CF_VAULT_CATEGORY,
+    "torresdelrio.net": CF_VAULT_CATEGORY,
+    "optica7.com": CF_VAULT_CATEGORY,
+}
 CF_RULESET_PHASE = "http_request_firewall_custom"
 AUDIT_COLLECTION = "ralfia_cloudflare_audit"
 GENERIC_AUDIT_COLLECTION = "ralfia_cloud_ops_audit"
@@ -89,6 +101,14 @@ PROVIDERS = {
         "cli": "Cloudflare API + cloudflared config inspection",
         "secret_source": f"owner_vault:{CF_VAULT_CATEGORY}",
         "note": "DNS/WAF/health/rollback cableados server-side; secretos no salen del host.",
+    },
+    "digitalocean-amd-cloud": {
+        "label": "DigitalOcean AMD Cloud",
+        "status": "mock_ready_requires_owner_vault_pat",
+        "targets": ["amd_gpu_droplets", "cloud_burst_inference", "cost_meter", "auto_destroy"],
+        "cli": "DigitalOcean API",
+        "secret_source": "owner_vault:digitalocean_amd_cloud",
+        "note": "Read/list tools use server-side PAT when present; create/destroy require approval_id + apply window.",
     },
 }
 
@@ -823,11 +843,92 @@ def gcp_cloud_run_status(project_id: str, service: str, region: str = "") -> dic
     return _gcp_read_json("gcp_cloud_run_status", ["run", "services", "describe", service, "--region", _gcp_region(region), "--project", project_id, "--format=json"])
 
 
-def gcp_cloud_run_deploy(project_id: str, service: str, image: str, region: str = "", dry_run: bool = True, approval_id: str = "") -> dict[str, Any]:
+def gcp_build_image(
+    project_id: str,
+    region: str,
+    repository: str,
+    image_name: str,
+    source_path: str = "",
+    repo: str = "",
+    ref: str = "",
+    tag: str = "latest",
+    dry_run: bool = True,
+    approval_id: str = "",
+) -> dict[str, Any]:
+    """Build and push a container image to Artifact Registry via Cloud Build."""
+    deploy_region = _gcp_region(region)
+    validation = _gcp_apply_validation("gcp_build_image", project_id, approval_id, dry_run=dry_run)
+    if not _safe_name(repository):
+        validation = {"ok": False, "error": "artifact_repository_invalid"}
+    if not _safe_name(image_name):
+        validation = {"ok": False, "error": "image_name_invalid"}
+    clean_tag = (tag or "latest").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", clean_tag):
+        validation = {"ok": False, "error": "tag_invalid"}
+    source = _gcp_source_path(source_path=source_path, repo=repo, ref=ref)
+    if not source.get("ok"):
+        validation = {"ok": False, **source}
+    image_uri = f"{deploy_region}-docker.pkg.dev/{project_id}/{repository}/{image_name}:{clean_tag}"
+    markers = (source.get("markers") or {}) if source.get("ok") else {}
+    if markers.get("package_json") and not markers.get("dockerfile") and not markers.get("cloudbuild_yaml"):
+        command = ["gcloud", "builds", "submit", str(source.get("source_path") or source_path or "<source_path_required>"), "--pack", f"image={image_uri}", "--project", project_id, "--quiet"]
+        build_backend = "cloud_buildpacks"
+    else:
+        command = ["gcloud", "builds", "submit", str(source.get("source_path") or source_path or "<source_path_required>"), "--tag", image_uri, "--project", project_id, "--quiet"]
+        build_backend = "cloud_build_docker"
+    result = {
+        "ok": bool(validation.get("ok")),
+        "agent_id": AGENT_ID,
+        "provider": "gcp",
+        "action": "gcp_build_image",
+        "validation": validation,
+        "image_uri": image_uri,
+        "command": command,
+        "build_backend": build_backend,
+        "source": source,
+        "executed": False,
+        "dry_run": dry_run,
+        "spend_guard_usd": 10,
+        "secret_policy": "server-side only; raw credentials are never returned",
+    }
+    _audit_cloud_ops("gcp_build_image", {"provider": "gcp", "project_id": project_id, "image_uri": image_uri, "validation": validation, "executed": False})
+    if not validation.get("ok") or dry_run:
+        return result
+    cli_path = shutil.which("gcloud")
+    if not cli_path:
+        result.update({"ok": False, "error": "gcloud_missing"})
+        return result
+    exec_result = _run_readonly([cli_path, *command[1:]], timeout=1800)
+    result["executed"] = True
+    result["execution"] = exec_result
+    result["ok"] = bool(exec_result.get("ok"))
+    result["build_status"] = "submitted_or_completed" if exec_result.get("ok") else "failed"
+    result["log_ref"] = "See sanitized gcloud builds submit output in execution.stdout/stderr."
+    _audit_cloud_ops("gcp_build_image", {"provider": "gcp", "project_id": project_id, "image_uri": image_uri, "executed": True, "returncode": exec_result.get("returncode")})
+    return result
+
+
+def gcp_cloud_run_deploy(
+    project_id: str,
+    service: str,
+    image: str,
+    region: str = "",
+    dry_run: bool = True,
+    approval_id: str = "",
+    allow_unauthenticated: bool = False,
+    env_vars: dict[str, str] | None = None,
+) -> dict[str, Any]:
     validation = _gcp_apply_validation("cloud_run_deploy", project_id, approval_id, dry_run=dry_run)
     if not _safe_name(service):
         validation = {"ok": False, "error": "service_name_invalid"}
-    command = ["gcloud", "run", "deploy", service, "--image", image, "--region", _gcp_region(region), "--project", project_id, "--platform", "managed"]
+    clean_env = _safe_cloud_run_env(env_vars or {})
+    if not clean_env.get("ok"):
+        validation = {"ok": False, **clean_env}
+    command = ["gcloud", "run", "deploy", service, "--image", image, "--region", _gcp_region(region), "--project", project_id, "--platform", "managed", "--quiet"]
+    if allow_unauthenticated:
+        command.append("--allow-unauthenticated")
+    if clean_env.get("items"):
+        command.extend(["--set-env-vars", ",".join(f"{k}={v}" for k, v in clean_env["items"].items())])
     return _gcp_candidate("gcp_cloud_run_deploy", validation, command, mutates=True)
 
 
@@ -913,27 +1014,38 @@ def gcp_service_health_check(project_id: str, service: str, region: str = "", pa
 
 def cloudflare_status(zone_name: str = CF_DEFAULT_ZONE) -> dict[str, Any]:
     try:
-        creds = _cloudflare_credentials()
+        zone_name = _validate_zone(zone_name)
+        creds = _cloudflare_credentials(zone_name)
         zone = _get_zone(zone_name, creds=creds)
         ruleset = _get_or_create_custom_ruleset(zone["id"], creds=creds, create=False)
+        missing_permissions: list[str] = []
         dns_permission = {"ok": True, "records_count": None}
         try:
             dns_permission["records_count"] = _cf_request("GET", f"/zones/{zone['id']}/dns_records?per_page=1", creds=creds).get("result_info", {}).get("total_count")
         except RuntimeError as exc:
             dns_permission = {"ok": False, "error": _classify_cloudflare_auth_error(str(exc))}
+            missing_permissions.extend(["DNS:Read", "DNS:Edit"])
+        rulesets_permission = {"ok": bool(ruleset)}
+        if not ruleset:
+            missing_permissions.append("Zone WAF/Rulesets:Read/Edit")
         return {
             "ok": True,
             "agent_id": AGENT_ID,
             "provider": "cloudflare",
+            "credential_present": True,
+            "permissions_ok": not missing_permissions,
+            "missing_permissions": sorted(set(missing_permissions)),
+            "required_minimum_permissions": ["Zone:Read", "DNS:Read", "DNS:Edit", "Zone WAF/Rulesets:Read/Edit when hostname rules are used"],
             "zone": {"name": zone.get("name"), "id": zone.get("id")},
             "account_id": creds["account_id"],
-            "vault_category": CF_VAULT_CATEGORY,
+            "vault_category": creds.get("vault_category", CF_VAULT_CATEGORY),
             "custom_ruleset": _redact_ruleset(ruleset) if ruleset else None,
             "dns_permission": dns_permission,
+            "rulesets_permission": rulesets_permission,
             "secret_policy": "owner_vault server-side only; raw values never returned",
         }
     except Exception as exc:
-        return {"ok": False, "agent_id": AGENT_ID, "provider": "cloudflare", "error": str(exc), "secret_policy": "redacted"}
+        return {"ok": False, "agent_id": AGENT_ID, "provider": "cloudflare", "credential_present": False, "permissions_ok": False, "missing_permissions": ["Zone:Read", "DNS:Read", "DNS:Edit"], "error": str(exc), "secret_policy": "redacted"}
 
 
 def cloudflare_dns_upsert(
@@ -946,13 +1058,13 @@ def cloudflare_dns_upsert(
     zone_name: str = CF_DEFAULT_ZONE,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    host = _validate_hostname(hostname, zone_name)
     rtype = (record_type or "").strip().upper()
     if rtype not in {"A", "AAAA", "CNAME", "TXT"}:
         return {"ok": False, "error": "record_type_not_allowed", "allowed": ["A", "AAAA", "CNAME", "TXT"]}
+    host = _validate_dns_record_name(hostname, zone_name, rtype)
     if not content.strip():
         return {"ok": False, "error": "content_required"}
-    creds = _cloudflare_credentials()
+    creds = _cloudflare_credentials(zone_name)
     zone = _get_zone(zone_name, creds=creds)
     payload = {
         "type": rtype,
@@ -974,9 +1086,9 @@ def cloudflare_dns_upsert(
 
 
 def cloudflare_dns_delete(hostname: str, record_type: str = "", zone_name: str = CF_DEFAULT_ZONE, dry_run: bool = False) -> dict[str, Any]:
-    host = _validate_hostname(hostname, zone_name)
     rtype = (record_type or "").strip().upper()
-    creds = _cloudflare_credentials()
+    host = _validate_dns_record_name(hostname, zone_name, rtype or None)
+    creds = _cloudflare_credentials(zone_name)
     zone = _get_zone(zone_name, creds=creds)
     records = _list_dns_records(zone["id"], host, rtype or None, creds=creds)
     if dry_run:
@@ -989,14 +1101,20 @@ def cloudflare_dns_delete(hostname: str, record_type: str = "", zone_name: str =
     return {"ok": True, "deleted_count": len(deleted), "deleted": deleted}
 
 
-def cloudflare_waf_skip_challenge(hostname: str, *, zone_name: str = CF_DEFAULT_ZONE, dry_run: bool = False, note: str = "") -> dict[str, Any]:
+def cloudflare_waf_skip_challenge(hostname: str, *, zone_name: str = CF_DEFAULT_ZONE, path_prefix: str = "", dry_run: bool = False, note: str = "") -> dict[str, Any]:
     host = _validate_hostname(hostname, zone_name)
-    creds = _cloudflare_credentials()
+    prefix = (path_prefix or "").strip()
+    if prefix and (not prefix.startswith("/") or '"' in prefix or "\\" in prefix):
+        raise ValueError("path_prefix_invalid")
+    creds = _cloudflare_credentials(zone_name)
     zone = _get_zone(zone_name, creds=creds)
     ruleset = _get_or_create_custom_ruleset(zone["id"], creds=creds, create=not dry_run)
     existing_rules = list((ruleset or {}).get("rules") or [])
     expression = f'(http.host eq "{host}")'
     desc = f"ralfia AG-44 skip Cloudflare challenges for {host}"
+    if prefix:
+        expression = f'({expression} and starts_with(http.request.uri.path, "{prefix}"))'
+        desc = f"{desc}{prefix}"
     existing = next((r for r in existing_rules if r.get("expression") == expression and r.get("action") == "skip"), None)
     rule = {
         "action": "skip",
@@ -1019,7 +1137,7 @@ def cloudflare_waf_skip_challenge(hostname: str, *, zone_name: str = CF_DEFAULT_
     else:
         new_rules = [rule] + existing_rules
         action = "created"
-    updated = _cf_request("PUT", f"/zones/{zone['id']}/rulesets/{ruleset['id']}", body={**ruleset, "rules": new_rules}, creds=creds).get("result")
+    updated = _cf_request("PUT", f"/zones/{zone['id']}/rulesets/{ruleset['id']}", body=_ruleset_update_payload(ruleset, new_rules), creds=creds).get("result")
     saved = next((r for r in updated.get("rules", []) if r.get("expression") == expression and r.get("action") == "skip"), rule)
     _audit("waf_skip_challenge", host, {"action": action, "rule_id": saved.get("id"), "note": note[:200]})
     return {"ok": True, "action": action, "zone": zone["name"], "ruleset_id": updated.get("id"), "rule": _redact_rule(saved)}
@@ -1027,7 +1145,7 @@ def cloudflare_waf_skip_challenge(hostname: str, *, zone_name: str = CF_DEFAULT_
 
 def cloudflare_waf_delete_hostname_rules(hostname: str, zone_name: str = CF_DEFAULT_ZONE, dry_run: bool = True) -> dict[str, Any]:
     host = _validate_hostname(hostname, zone_name)
-    creds = _cloudflare_credentials()
+    creds = _cloudflare_credentials(zone_name)
     zone = _get_zone(zone_name, creds=creds)
     ruleset = _get_or_create_custom_ruleset(zone["id"], creds=creds, create=False)
     if not ruleset:
@@ -1038,7 +1156,7 @@ def cloudflare_waf_delete_hostname_rules(hostname: str, zone_name: str = CF_DEFA
     if dry_run:
         return {"ok": True, "dry_run": True, "matches": [_redact_rule(r) for r in matches], "count": len(matches)}
     kept = [r for r in rules if r.get("expression") != expression]
-    updated = _cf_request("PUT", f"/zones/{zone['id']}/rulesets/{ruleset['id']}", body={**ruleset, "rules": kept}, creds=creds).get("result")
+    updated = _cf_request("PUT", f"/zones/{zone['id']}/rulesets/{ruleset['id']}", body=_ruleset_update_payload(ruleset, kept), creds=creds).get("result")
     _audit("waf_delete_hostname_rules", host, {"deleted_count": len(matches), "ruleset_id": updated.get("id")})
     return {"ok": True, "deleted_count": len(matches), "ruleset_id": updated.get("id")}
 
@@ -1060,7 +1178,7 @@ def cloudflare_tunnel_ingress_status(hostname: str = "", config_path: str = "") 
 
 
 def cloudflare_hostname_health_check(hostname: str, *, path: str = "/", timeout: float = 12.0) -> dict[str, Any]:
-    host = _validate_hostname(hostname, CF_DEFAULT_ZONE)
+    host = _validate_hostname(hostname, _infer_zone_for_hostname(hostname))
     url = f"https://{host}{path if path.startswith('/') else '/' + path}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "ralfia-ag44-health/1.0"})
@@ -1098,14 +1216,15 @@ def cloudflare_prepare_hostname(
     health_path: str = "/",
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    host = _validate_hostname(hostname, CF_DEFAULT_ZONE)
+    zone_name = _infer_zone_for_hostname(hostname)
+    host = _validate_hostname(hostname, zone_name)
     steps: list[dict[str, Any]] = []
     if dns_type or dns_content:
         if not dns_type or not dns_content:
             return {"ok": False, "error": "dns_type_and_dns_content_required_together"}
-        steps.append({"step": "dns_upsert", "result": cloudflare_dns_upsert(host, dns_type, dns_content, proxied=proxied, dry_run=dry_run)})
+        steps.append({"step": "dns_upsert", "result": cloudflare_dns_upsert(host, dns_type, dns_content, proxied=proxied, zone_name=zone_name, dry_run=dry_run)})
     if ensure_waf_skip:
-        steps.append({"step": "waf_skip_challenge", "result": cloudflare_waf_skip_challenge(host, dry_run=dry_run, note="cloudflare_prepare_hostname")})
+        steps.append({"step": "waf_skip_challenge", "result": cloudflare_waf_skip_challenge(host, zone_name=zone_name, dry_run=dry_run, note="cloudflare_prepare_hostname")})
     steps.append({"step": "tunnel_ingress_status", "result": cloudflare_tunnel_ingress_status(host)})
     if not dry_run:
         steps.append({"step": "health_check", "result": cloudflare_hostname_health_check(host, path=health_path)})
@@ -1128,16 +1247,18 @@ def get_development_roadmap() -> dict[str, Any]:
     }
 
 
-def _cloudflare_credentials() -> dict[str, str]:
+def _cloudflare_credentials(zone_name: str = CF_DEFAULT_ZONE) -> dict[str, str]:
+    vault_category = _zone_vault_category(zone_name)
+
     def get(key: str) -> str:
-        res = owner_vault.get_owner_credential(key, category=CF_VAULT_CATEGORY, reveal=True, actor="RAFAEL")
+        res = owner_vault.get_owner_credential(key, category=vault_category, reveal=True, actor="RAFAEL")
         return str(res.get("secret") or "").strip()
 
     account_id = get("cloudflare_account_id")
     token = get("cloudflare_api_token")
     if not account_id or not token:
-        raise RuntimeError(f"cloudflare_credentials_missing:{CF_VAULT_CATEGORY}")
-    return {"account_id": account_id, "token": token}
+        raise RuntimeError(f"cloudflare_credentials_missing:{vault_category}")
+    return {"account_id": account_id, "token": token, "vault_category": vault_category}
 
 
 def _cf_request(method: str, path: str, *, body: dict[str, Any] | None = None, creds: dict[str, str] | None = None) -> dict[str, Any]:
@@ -1208,7 +1329,7 @@ def _list_dns_records(zone_id: str, hostname: str, record_type: str | None, *, c
 
 def _validate_zone(zone_name: str) -> str:
     zone = (zone_name or CF_DEFAULT_ZONE).strip().lower().rstrip(".")
-    if zone != CF_DEFAULT_ZONE:
+    if zone not in CF_ZONE_VAULT_CATEGORIES:
         raise ValueError(f"zone_not_allowlisted:{zone}")
     return zone
 
@@ -1223,9 +1344,50 @@ def _validate_hostname(hostname: str, zone_name: str) -> str:
     return host
 
 
+def _validate_dns_record_name(hostname: str, zone_name: str, record_type: str | None = None) -> str:
+    """Validate DNS owner names while allowing standard underscore labels."""
+    zone = _validate_zone(zone_name)
+    host = (hostname or "").strip().lower().rstrip(".")
+    rtype = (record_type or "").strip().upper()
+    if not re.fullmatch(r"[a-z0-9._-]+", host):
+        raise ValueError("hostname_invalid")
+    if host != zone and not host.endswith("." + zone):
+        raise ValueError(f"hostname_not_allowlisted:{host}")
+
+    labels = host[: -len(zone)].rstrip(".").split(".") if host != zone else []
+    has_underscore = any(label.startswith("_") or "_" in label for label in labels)
+    if has_underscore and rtype not in {"TXT", "CNAME", "SRV", "CAA"}:
+        raise ValueError(f"underscore_dns_name_requires_txt_cname_srv_caa:{host}")
+    return host
+
+
+def _zone_vault_category(zone_name: str) -> str:
+    zone = _validate_zone(zone_name)
+    return CF_ZONE_VAULT_CATEGORIES[zone]
+
+
+def _infer_zone_for_hostname(hostname: str) -> str:
+    host = (hostname or "").strip().lower().rstrip(".")
+    for zone in sorted(CF_ZONE_VAULT_CATEGORIES, key=len, reverse=True):
+        if host == zone or host.endswith("." + zone):
+            return zone
+    return CF_DEFAULT_ZONE
+
+
 def _normalize_provider(provider: str) -> str:
     value = (provider or "gcp").strip().lower()
-    aliases = {"google": "gcp", "google-cloud": "gcp", "azure": "azure", "aliyun": "alibaba", "ali": "alibaba", "cloudflare": "cloudflare"}
+    aliases = {
+        "google": "gcp",
+        "google-cloud": "gcp",
+        "azure": "azure",
+        "aliyun": "alibaba",
+        "ali": "alibaba",
+        "cloudflare": "cloudflare",
+        "digitalocean": "digitalocean-amd-cloud",
+        "do": "digitalocean-amd-cloud",
+        "amd-cloud": "digitalocean-amd-cloud",
+        "amd-cloud-burst": "digitalocean-amd-cloud",
+    }
     value = aliases.get(value, value)
     if value not in PROVIDERS:
         raise ValueError(f"provider_unknown:{value}")
@@ -1238,6 +1400,57 @@ def _safe_name(value: str) -> bool:
 
 def _gcp_region(region: str = "") -> str:
     return (region or os.getenv("GCP_REGION") or "us-central1").strip()
+
+
+def _gcp_source_path(source_path: str = "", repo: str = "", ref: str = "") -> dict[str, Any]:
+    roots = [
+        Path("/home/rlopez/inneros/inneros_core/workspaces"),
+        Path("/home/rlopez/inneros/inneros_core/var/local_execution/repos"),
+        Path("/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"),
+        Path("/home/rlopez/projects"),
+    ]
+    if source_path:
+        raw = Path(source_path).expanduser()
+    elif repo:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+            return {"ok": False, "error": "repo_invalid"}
+        raw = Path("/home/rlopez/inneros/inneros_core/workspaces") / repo.split("/", 1)[1]
+    else:
+        return {"ok": False, "error": "source_path_or_repo_required"}
+    if not raw.is_absolute():
+        return {"ok": False, "error": "source_path_absolute_required"}
+    try:
+        resolved = raw.resolve()
+        resolved_roots = [root.resolve() for root in roots]
+    except Exception as exc:
+        return {"ok": False, "error": "source_path_resolve_failed", "detail": str(exc)[:200]}
+    if not any(resolved == root or root in resolved.parents for root in resolved_roots):
+        return {"ok": False, "error": "source_path_not_under_trusted_root", "trusted_roots": [str(root) for root in roots]}
+    if not resolved.exists() or not resolved.is_dir():
+        return {"ok": False, "error": "source_path_not_found", "source_path": str(resolved)}
+    marker = {"package_json": (resolved / "package.json").exists(), "dockerfile": (resolved / "Dockerfile").exists(), "cloudbuild_yaml": (resolved / "cloudbuild.yaml").exists()}
+    if ref:
+        if not re.fullmatch(r"[A-Za-z0-9._/@-]{1,120}", ref):
+            return {"ok": False, "error": "ref_invalid"}
+        git_ref = _run_readonly(["git", "-C", str(resolved), "rev-parse", "--verify", f"{ref}^{{commit}}"], timeout=30)
+        if not git_ref.get("ok"):
+            return {"ok": False, "error": "ref_not_found_in_source", "ref": ref, "git": git_ref}
+    return {"ok": True, "source_path": str(resolved), "repo": repo, "ref": ref, "markers": marker}
+
+
+def _safe_cloud_run_env(env_vars: dict[str, str]) -> dict[str, Any]:
+    clean: dict[str, str] = {}
+    for key, value in (env_vars or {}).items():
+        name = str(key or "").strip()
+        item = str(value or "").strip()
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", name):
+            return {"ok": False, "error": "env_name_invalid", "env_name": name}
+        if re.search(r"(?i)(token|secret|password|api[_-]?key)", name + "=" + item):
+            return {"ok": False, "error": "raw_secret_env_denied", "env_name": name}
+        if len(item) > 256 or any(ch in item for ch in "\n\r,"):
+            return {"ok": False, "error": "env_value_invalid", "env_name": name}
+        clean[name] = item
+    return {"ok": True, "items": clean}
 
 
 def _gcp_billing_project_args() -> list[str]:
@@ -1829,6 +2042,15 @@ def _redact_rule(rule: dict[str, Any] | None) -> dict[str, Any] | None:
     if not rule:
         return None
     return {k: rule.get(k) for k in ("id", "action", "description", "enabled", "expression", "logging") if k in rule}
+
+
+def _ruleset_update_payload(ruleset: dict[str, Any], rules: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "name": ruleset.get("name") or "default",
+        "kind": ruleset.get("kind") or "zone",
+        "phase": ruleset.get("phase") or "http_request_firewall_custom",
+        "rules": rules,
+    }
 
 
 def _redact_ruleset(ruleset: dict[str, Any]) -> dict[str, Any]:

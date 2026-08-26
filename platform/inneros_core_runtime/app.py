@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from raphiia_openai.mongo_store import log_sync, ping_mongo
+from raphiia_openai.browser_session_routes import router as browser_session_router
+from raphiia_openai.discord_interaction_routes import router as discord_interaction_router
 from raphiia_openai.editorial_routes import router as editorial_router
 from raphiia_openai.routes import router
 from raphiia_openai.settings import MCP_PORT, MCP_PUBLIC_URL, RAPHI_IA_OPENAI_PORT, RAPHI_IA_PUBLIC_URL
@@ -26,6 +28,8 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(editorial_router)
+app.include_router(browser_session_router)
+app.include_router(discord_interaction_router)
 
 
 @app.on_event("startup")
@@ -52,6 +56,7 @@ def status():
         "endpoints": {
             "health": "GET /api/v1/health",
             "editorial_hub": f"http://127.0.0.1:{RAPHI_IA_OPENAI_PORT}/editorial",
+            "discord_interactions": f"{RAPHI_IA_PUBLIC_URL.rstrip('/')}/discord/interactions",
             "mcp": f"http://127.0.0.1:{MCP_PORT}/mcp (implementar run_mcp.sh)",
         },
     }

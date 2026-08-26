@@ -83,6 +83,21 @@ class LocalDiscordPlaneTests(unittest.TestCase):
         self.assertTrue(result["dry_run"])
         self.assertGreaterEqual(len(result["commands"]), 4)
 
+    def test_set_interactions_endpoint_url_dry_run(self) -> None:
+        cfg = {"default_channel_id": "1", "default_guild_id": "guild", "application_id": "app", "public_key": "pub", "channels": {}, "updated_at": None}
+        with mock.patch.object(discord, "_config", return_value=cfg):
+            result = discord.set_interactions_endpoint_url("https://mcp.pcdoctor.ai/discord/interactions", dry_run=True)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["dry_run"])
+        self.assertEqual(result["endpoint_url"], "https://mcp.pcdoctor.ai/discord/interactions")
+
+    def test_set_interactions_endpoint_url_rejects_non_interactions_url(self) -> None:
+        cfg = {"default_channel_id": "1", "default_guild_id": "guild", "application_id": "app", "public_key": "pub", "channels": {}, "updated_at": None}
+        with mock.patch.object(discord, "_config", return_value=cfg):
+            result = discord.set_interactions_endpoint_url("http://example.com/anything", dry_run=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "https_discord_interactions_url_required")
+
     def test_add_reaction_requires_fields(self) -> None:
         result = discord.add_reaction("", "m", "✅", dry_run=True)
         self.assertFalse(result["ok"])
