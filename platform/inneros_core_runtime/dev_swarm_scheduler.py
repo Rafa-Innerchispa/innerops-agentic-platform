@@ -1876,7 +1876,8 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
     if explicit_base_ref or not base_snapshot:
         base_snapshot = _fanout_base_snapshot(repo, base_ref=explicit_base_ref)
     if not base_snapshot.get("ok"):
-        return {"ok": False, "task_id": task_id, "branch": branch, "error": "base_snapshot_failed", "base_snapshot": base_snapshot}
+        failed = _fail_worker_early(task_id, "base_snapshot_failed")
+        return {**failed, "branch": branch, "base_snapshot": base_snapshot}
     launch = _fanout_create_worktree_from_base(
         repo=repo,
         objective=objective[:5000],
@@ -1887,10 +1888,11 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
         base_snapshot=base_snapshot,
     )
     if not launch.get("ok"):
-        return {"ok": False, "task_id": task_id, "branch": branch, "error": "launch_failed", "launch": launch}
+        failed = _fail_worker_early(task_id, "launch_failed")
+        return {**failed, "branch": branch, "launch": launch}
     worktree_raw = ((launch.get("worktree") or {}).get("worktree") if isinstance(launch.get("worktree"), dict) else None)
     if not worktree_raw:
-        return {"ok": False, "task_id": task_id, "branch": branch, "error": "worktree_missing"}
+        return _fail_worker_early(task_id, "worktree_missing")
     worktree = Path(worktree_raw)
 
     worker = {
