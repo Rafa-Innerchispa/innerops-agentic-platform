@@ -8,6 +8,7 @@ import os
 import socket
 import subprocess
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, TypedDict
@@ -19,7 +20,7 @@ from starlette.responses import JSONResponse
 
 from raphiia_openai.auth_middleware import ApiKeyMiddleware
 from raphiia_openai import quoteops_mcp_bridge
-from raphiia_openai import coordination_docs, dev_swarm_scheduler, editorial_media_upload, editorial_publish, editorial_store, funding_registry as funding_registry_module, image_gen, linkedin_client, local_execution_plane, local_filesystem_plane, local_github_plane, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
+from raphiia_openai import coordination_docs, dev_swarm_scheduler, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
 from raphiia_openai.operational import accounting_store, inventory_store, pcdoctor_store, party_store, procurement_store
 from raphiia_openai.settings import (
     GOOGLE_API_KEY,
@@ -994,11 +995,30 @@ def gcp_cloud_run_status(project_id: str, service: str, region: str = "") -> dic
 
 
 @mcp.tool
-def gcp_cloud_run_deploy(project_id: str, service: str, image: str, region: str = "", dry_run: bool = True, approval_id: str = "") -> dict[str, Any]:
+def gcp_build_image(
+    project_id: str,
+    region: str,
+    repository: str,
+    image_name: str,
+    source_path: str = "",
+    repo: str = "",
+    ref: str = "",
+    tag: str = "latest",
+    dry_run: bool = True,
+    approval_id: str = "",
+) -> dict[str, Any]:
+    """AG-44: build+push GCP Artifact Registry via Cloud Build; dry_run por defecto."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.gcp_build_image(project_id, region, repository, image_name, source_path=source_path, repo=repo, ref=ref, tag=tag, dry_run=dry_run, approval_id=approval_id)
+
+
+@mcp.tool
+def gcp_cloud_run_deploy(project_id: str, service: str, image: str, region: str = "", dry_run: bool = True, approval_id: str = "", allow_unauthenticated: bool = False, env_vars: dict[str, str] | None = None) -> dict[str, Any]:
     """AG-44: deploy Cloud Run gated; dry_run por defecto."""
     from raphiia_openai.agents import ag44_cloud_deployer as ag44
 
-    return ag44.gcp_cloud_run_deploy(project_id, service, image, region=region, dry_run=dry_run, approval_id=approval_id)
+    return ag44.gcp_cloud_run_deploy(project_id, service, image, region=region, dry_run=dry_run, approval_id=approval_id, allow_unauthenticated=allow_unauthenticated, env_vars=env_vars or {})
 
 
 @mcp.tool
@@ -1135,6 +1155,214 @@ def provider_preflight(provider_id: str) -> dict[str, Any]:
     from raphiia_openai import provider_onboarding_plane as pop
 
     return pop.provider_preflight(provider_id)
+
+
+@mcp.tool
+def resource_fabric_bootstrap(dry_run: bool = False) -> dict[str, Any]:
+    """Resource Fabric: registra providers/model providers globales sin ligarlos a proyectos."""
+    from raphiia_openai import resource_fabric
+
+    return resource_fabric.bootstrap_global_resource_fabric(dry_run=dry_run)
+
+
+@mcp.tool
+def resource_fabric_status(limit: int = 20) -> dict[str, Any]:
+    """Resource Fabric: estado de providers/model registry/project links globales."""
+    from raphiia_openai import resource_fabric
+
+    return resource_fabric.resource_fabric_status(limit=limit)
+
+
+@mcp.tool
+def resource_fabric_route(project_id: str, task_class: str, prefer_cloud: bool = False) -> dict[str, Any]:
+    """Resource Fabric: selecciona recurso por capability/costo/evidencia; local-first."""
+    from raphiia_openai import resource_fabric
+
+    return resource_fabric.route_resource_request(project_id=project_id, task_class=task_class, prefer_cloud=prefer_cloud)
+
+
+@mcp.tool
+def resource_fabric_link_project_capability(project_id: str, capability: str, provider_id: str = "", task_id: str = "", dry_run: bool = False) -> dict[str, Any]:
+    """Resource Fabric: vincula proyecto/tarea a una capability sin mover funding ni proveedor al proyecto."""
+    from raphiia_openai import resource_fabric
+
+    return resource_fabric.link_project_capability(project_id=project_id, capability=capability, provider_id=provider_id, task_id=task_id, dry_run=dry_run)
+
+
+@mcp.tool
+def tenant_reconciliation_report(save: bool = True) -> dict[str, Any]:
+    """Workforce/VigilOS: reporte read-only de tenants/clientes antes de cualquier migracion."""
+    from raphiia_openai import tenant_reconciliation
+
+    return tenant_reconciliation.build_tenant_reconciliation_report(save=save)
+
+
+@mcp.tool
+def digitalocean_status() -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: estado seguro sin exponer PAT."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.status()
+
+
+@mcp.tool
+def digitalocean_preflight() -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: preflight provider/resource fabric sin crear recursos."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.preflight()
+
+
+@mcp.tool
+def digitalocean_store_pat_server_side(secret: str, label: str = "DigitalOcean AMD Cloud PAT", actor: str = "RAFAEL") -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: guarda PAT en owner_vault; no retorna el secreto."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.store_pat_server_side(secret=secret, label=label, actor=actor)
+
+
+@mcp.tool
+def digitalocean_list_regions() -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: lista regiones usando PAT server-side si existe."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.list_regions()
+
+
+@mcp.tool
+def digitalocean_list_sizes(gpu_only: bool = True) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: lista sizes, por defecto filtrados a GPU/AMD."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.list_sizes(gpu_only=gpu_only)
+
+
+@mcp.tool
+def digitalocean_list_images() -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: lista imagenes base aprobables."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.list_images()
+
+
+@mcp.tool
+def digitalocean_list_droplets(tag_name: str = "inneros-cloud-burst") -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: lista droplets del burst tag."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.list_droplets(tag_name=tag_name)
+
+
+@mcp.tool
+def digitalocean_create_gpu_droplet(
+    name: str,
+    region: str,
+    size: str,
+    image: str,
+    ssh_key_ids: list[str] | None = None,
+    project_id: str = "",
+    task_id: str = "",
+    approval_id: str = "",
+    dry_run: bool = True,
+    spend_limit_usd: float = 20.0,
+    idle_minutes: int = 30,
+) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: crea GPU droplet gated; dry_run por defecto."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.create_gpu_droplet(
+        name=name,
+        region=region,
+        size=size,
+        image=image,
+        ssh_key_ids=ssh_key_ids,
+        project_id=project_id,
+        task_id=task_id,
+        approval_id=approval_id,
+        dry_run=dry_run,
+        spend_limit_usd=spend_limit_usd,
+        idle_minutes=idle_minutes,
+    )
+
+
+@mcp.tool
+def digitalocean_get_droplet(droplet_id: str) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: consulta droplet por id."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.get_droplet(droplet_id)
+
+
+@mcp.tool
+def digitalocean_destroy_droplet(droplet_id: str, approval_id: str = "", project_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: destruye droplet gated; dry_run por defecto."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.destroy_droplet(droplet_id=droplet_id, approval_id=approval_id, project_id=project_id, dry_run=dry_run)
+
+
+@mcp.tool
+def digitalocean_cost_session_status(session_id: str = "", project_id: str = "", task_id: str = "") -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: costo estimado por sesion y politica destroy."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.cost_session_status(session_id=session_id, project_id=project_id, task_id=task_id)
+
+
+@mcp.tool
+def brightdata_status() -> dict[str, Any]:
+    """Bright Data: estado seguro, balance y MCP remoto sin exponer token."""
+    from raphiia_openai import brightdata_provider as bd
+
+    return bd.status()
+
+
+@mcp.tool
+def brightdata_balance() -> dict[str, Any]:
+    """Bright Data: balance/costos pendientes usando API token server-side."""
+    from raphiia_openai import brightdata_provider as bd
+
+    return bd.balance()
+
+
+@mcp.tool
+def brightdata_store_api_token_server_side(secret: str, label: str = "Bright Data API token", actor: str = "RAFAEL") -> dict[str, Any]:
+    """Bright Data: guarda API token en owner_vault; no retorna el secreto."""
+    from raphiia_openai import brightdata_provider as bd
+
+    return bd.store_api_token_server_side(secret=secret, label=label, actor=actor)
+
+
+@mcp.tool
+def brightdata_mcp_list_tools(limit: int = 80) -> dict[str, Any]:
+    """Bright Data: lista tools disponibles del MCP remoto oficial."""
+    from raphiia_openai import brightdata_provider as bd
+
+    return bd.mcp_list_tools(limit=limit)
+
+
+@mcp.tool
+def brightdata_mcp_call_tool(tool_name: str, arguments: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
+    """Bright Data: llama una tool allowlisted del MCP remoto; dry_run por defecto."""
+    from raphiia_openai import brightdata_provider as bd
+
+    return bd.mcp_call_tool(tool_name=tool_name, arguments=arguments, dry_run=dry_run)
+
+
+@mcp.tool
+def brightdata_search_engine(query: str, engine: str = "google", geo_location: str = "us", dry_run: bool = True) -> dict[str, Any]:
+    """Bright Data: SERP/web search para research y SEO; consume credito si dry_run=false."""
+    from raphiia_openai import brightdata_provider as bd
+
+    return bd.search_engine(query=query, engine=engine, geo_location=geo_location, dry_run=dry_run)
+
+
+@mcp.tool
+def brightdata_scrape_as_markdown(url: str, dry_run: bool = True) -> dict[str, Any]:
+    """Bright Data: obtiene una pagina publica como Markdown; consume credito si dry_run=false."""
+    from raphiia_openai import brightdata_provider as bd
+
+    return bd.scrape_as_markdown(url=url, dry_run=dry_run)
 
 
 @mcp.tool
@@ -1530,6 +1758,8 @@ def agent_browser_run_task(
     extract_selector: str = "",
     dry_run: bool = True,
     timeout_ms: int = 30000,
+    local_preview: bool = False,
+    loopback_ports: list[int] | None = None,
 ) -> dict[str, Any]:
     """AG-55: tarea browser local (navigate|screenshot|fill_form|click|extract). dry_run=True por defecto."""
     from raphiia_openai.agents import ag55_browser_ops_agent as ag55
@@ -1543,7 +1773,59 @@ def agent_browser_run_task(
         extract_selector=extract_selector,
         dry_run=dry_run,
         timeout_ms=timeout_ms,
+        local_preview=local_preview,
+        loopback_ports=loopback_ports,
     )
+
+
+@mcp.tool
+def browser_session_start(
+    url: str,
+    profile: str = "default",
+    ttl_seconds: int = 7200,
+    local_preview: bool = False,
+    loopback_ports: list[int] | None = None,
+) -> dict[str, Any]:
+    """AG-55 human browser: inicia sesion visible/controlable desde Windows por LAN."""
+    payload = {
+        "url": url,
+        "profile": profile,
+        "ttl_seconds": ttl_seconds,
+        "local_preview": local_preview,
+        "loopback_ports": loopback_ports,
+    }
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{RAPHI_IA_OPENAI_PORT}/browser/api/session/start",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+@mcp.tool
+def browser_session_status(session_id: str = "", token: str = "") -> dict[str, Any]:
+    """AG-55 human browser: estado de sesiones visuales y URLs para owner/agente."""
+    if session_id:
+        url = f"http://127.0.0.1:{RAPHI_IA_OPENAI_PORT}/browser/api/session/{session_id}/status?token={urllib.parse.quote(token)}"
+    else:
+        url = f"http://127.0.0.1:{RAPHI_IA_OPENAI_PORT}/browser/api/session/status"
+    with urllib.request.urlopen(url, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+@mcp.tool
+def browser_session_stop(session_id: str, token: str = "") -> dict[str, Any]:
+    """AG-55 human browser: cierra una sesion visual."""
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{RAPHI_IA_OPENAI_PORT}/browser/api/session/{session_id}/stop?token={urllib.parse.quote(token)}",
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 @mcp.tool
@@ -1759,6 +2041,109 @@ def register_client_document(payload: dict[str, Any]) -> dict[str, Any]:
 @mcp.tool
 def list_client_documents(client_id: str, site_id: str = "", visit_id: str = "", asset_id: str = "", limit: int = 50) -> dict[str, Any]:
     return pcdoctor_store.list_client_documents(client_id, site_id=site_id, visit_id=visit_id, asset_id=asset_id, limit=limit)
+
+
+@mcp.tool
+def document_vault_ingest(
+    file_ref: Any = None,
+    local_path: str = "",
+    entity_type: str = "client",
+    entity_ref: str = "",
+    category: str = "general",
+    title: str = "",
+    version_label: str = "",
+    status: str = "",
+    tags: Any = None,
+    make_canonical: bool = False,
+    drive_replica: dict[str, Any] | None = None,
+    document_type: str = "",
+    created_by: str = "agent",
+) -> dict[str, Any]:
+    return document_vault.document_vault_ingest(
+        file_ref=file_ref,
+        local_path=local_path or None,
+        entity_type=entity_type,
+        entity_ref=entity_ref,
+        category=category,
+        title=title,
+        version_label=version_label or None,
+        status=status or None,
+        tags=tags,
+        make_canonical=make_canonical,
+        drive_replica=drive_replica,
+        document_type=document_type or None,
+        created_by=created_by,
+    )
+
+
+@mcp.tool
+def document_vault_register_external(
+    entity_ref: str,
+    external_provider: str,
+    file_id: str = "",
+    url: str = "",
+    metadata: dict[str, Any] | None = None,
+    document_id: str = "",
+    title: str = "",
+    entity_type: str = "client",
+    category: str = "external",
+) -> dict[str, Any]:
+    return document_vault.document_vault_register_external(
+        entity_ref=entity_ref,
+        external_provider=external_provider,
+        file_id=file_id,
+        url=url,
+        metadata=metadata,
+        document_id=document_id,
+        title=title,
+        entity_type=entity_type,
+        category=category,
+    )
+
+
+@mcp.tool
+def document_vault_list(entity_ref: str, filters: dict[str, Any] | None = None, limit: int = 50) -> dict[str, Any]:
+    return document_vault.document_vault_list(entity_ref=entity_ref, filters=filters, limit=limit)
+
+
+@mcp.tool
+def document_vault_search(query: str, entity_ref: str = "", document_type: str = "", status: str = "", limit: int = 10) -> dict[str, Any]:
+    return document_vault.document_vault_search(query=query, entity_ref=entity_ref, document_type=document_type, status=status, limit=limit)
+
+
+@mcp.tool
+def document_vault_get(document_id: str = "", natural_query: str = "", return_file_ref: bool = True) -> dict[str, Any]:
+    return document_vault.document_vault_get(document_id=document_id, natural_query=natural_query, return_file_ref=return_file_ref)
+
+
+@mcp.tool
+def document_vault_set_canonical(document_id: str, actor: str, expected_revision: int | None = None) -> dict[str, Any]:
+    return document_vault.document_vault_set_canonical(document_id=document_id, actor=actor, expected_revision=expected_revision)
+
+
+@mcp.tool
+def document_vault_versions(document_id: str = "", logical_key: str = "") -> dict[str, Any]:
+    return document_vault.document_vault_versions(document_id=document_id, logical_key=logical_key)
+
+
+@mcp.tool
+def document_vault_health() -> dict[str, Any]:
+    return document_vault.document_vault_health()
+
+
+@mcp.tool
+def document_vault_status() -> dict[str, Any]:
+    return document_vault.document_vault_status()
+
+
+@mcp.tool
+def document_vault_replicate(document_id: str, target_node: str = "") -> dict[str, Any]:
+    return document_vault.document_vault_replicate(document_id=document_id, target_node=target_node)
+
+
+@mcp.tool
+def document_vault_export_file(document_id: str) -> dict[str, Any]:
+    return document_vault.document_vault_export_file(document_id=document_id)
 
 
 @mcp.tool
@@ -2683,14 +3068,37 @@ def approve_and_develop_project(project_id: str, custom_requirements: str | None
     if not isinstance(analysis_data, dict):
         analysis_data = {}
 
-    repo = (
+    candidate_repo = (
         analysis_data.get("repo")
         or analysis_data.get("github_repo")
         or analysis_data.get("repository")
         or analysis_data.get("related_repo")
         or (project_ref if "/" in project_ref else "")
-        or "Rafa-Innerchispa/innerops-agentic-platform"
     )
+    resolved_project = project_runtime_registry.resolve_project(
+        project_id=project_ref if "/" not in project_ref else "",
+        repo=candidate_repo,
+        node="primary",
+    )
+    if not resolved_project.get("ok"):
+        return {
+            "ok": False,
+            "stage": "project_runtime_resolve",
+            "error": "project_runtime_resolution_failed",
+            "project_id": project_ref,
+            "candidate_repo": candidate_repo,
+            "resolution": resolved_project,
+            "actionable": "Register the project with project_runtime_register/project_runtime_bootstrap; no silent fallback is allowed.",
+        }
+    repo = str((resolved_project.get("project") or {}).get("repo") or "").strip()
+    if not repo:
+        return {
+            "ok": False,
+            "stage": "project_runtime_resolve",
+            "error": "repo_missing_after_resolution",
+            "project_id": project_ref,
+            "resolution": resolved_project,
+        }
     reqs = (custom_requirements or analysis_data.get("requirements") or analysis_data.get("description") or "").strip()
     if not reqs:
         reqs = f"Owner-approved local development entrypoint for {project_ref}. Prepare an isolated worktree and produce a bounded local implementation plan."
@@ -2722,52 +3130,33 @@ def approve_and_develop_project(project_id: str, custom_requirements: str | None
         f"Project: {project_ref}\nRepo: {repo}\nRequirements:\n{reqs}"
     )
 
-    launch = local_execution_plane.dev_swarm_launch_task(
+    execution = dev_swarm_scheduler.execute_ad_hoc_objective(
         repo=repo,
         objective=objective[:4000],
-        base_branch="main",
-        work_branch=branch,
-        actor="dev_swarm",
         task_id=task_id,
         correlation_id=correlation_id,
-        idempotency_key=idempotency_key,
+        preferred_branch=branch,
+        entrypoint="approve_and_develop_project",
         dry_run=False,
     )
-    lock_release = None
-    if launch.get("ok"):
-        lock_release = local_execution_plane.release_lock(repo, "dev_swarm", task_id, correlation_id)
-        launch["post_launch_lock_release"] = lock_release
-
-    worker = {
-        "worker_id": f"worker_{fingerprint}",
-        "task_id": task_id,
-        "repo": repo,
-        "branch": branch,
-        "node": "amd",
-        "status": "running" if launch.get("ok") else "blocked",
-        "launch": launch,
-        "entrypoint": "approve_and_develop_project",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "last_heartbeat_at": datetime.now(timezone.utc).isoformat(),
-        "executor": {"status": "pending"} if launch.get("ok") else {"status": "blocked"},
-    }
-    db = mongo_store.get_db()
-    db[dev_swarm_scheduler.WORKERS_COL].update_one({"task_id": task_id}, {"$set": worker}, upsert=True)
-    executor = dev_swarm_scheduler.executor_tick(limit=8, dry_run=False, run_tests=True) if launch.get("ok") else {"ok": False, "skipped": "launch_failed"}
-    saved_worker = db[dev_swarm_scheduler.WORKERS_COL].find_one({"task_id": task_id}, {"_id": 0})
     return {
-        "ok": bool(launch.get("ok")) and bool(executor.get("ok")),
+        "ok": bool(execution.get("ok")),
         "message": "Proyecto aprobado y enrutado al dev swarm local con scope ralfia:agents.",
         "admin_scope_required": False,
         "required_scope": "ralfia:agents",
         "repo": repo,
+        "project_runtime": {
+            "project_id": (resolved_project.get("project") or {}).get("project_id"),
+            "project_path": resolved_project.get("project_path"),
+            "node": resolved_project.get("node"),
+        },
         "task_id": task_id,
-        "work_branch": branch,
-        "launch": launch,
-        "lock_release": lock_release,
-        "executor": executor,
-        "worker": saved_worker,
+        "work_branch": execution.get("branch") or branch,
+        "canonical_entrypoint": "dev_swarm_scheduler.execute_ad_hoc_objective",
+        "execution": execution,
+        "launch": execution.get("launch"),
+        "executor": execution.get("executor"),
+        "worker": execution.get("worker"),
     }
 
 
@@ -4189,6 +4578,84 @@ def local_model_health() -> dict[str, Any]:
 
 
 @mcp.tool
+def local_model_catalog_search(query: str, source: str = "huggingface", filters: dict[str, Any] | None = None, limit: int = 10) -> dict[str, Any]:
+    """Busca modelos públicos en catálogo remoto sin descargar ni usar tokens."""
+    return local_model_manager.local_model_catalog_search(query=query, source=source, filters=filters, limit=limit)
+
+
+@mcp.tool
+def local_model_preflight(model_ref: str, node: str = "amd", backend: str = "vllm", quantization: str = "", revision: str = "") -> dict[str, Any]:
+    """Preflight seguro de modelo local: HF metadata, disco, ROCm/vLLM y riesgos antes de descargar."""
+    return local_model_manager.local_model_preflight(model_ref=model_ref, node=node, backend=backend, quantization=quantization, revision=revision)
+
+
+@mcp.tool
+def local_model_download(model_ref: str, node: str = "amd", revision: str = "", quantization: str = "", target_store: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Crea job persistente de descarga de modelo; dry_run por defecto y preflight obligatorio."""
+    return local_model_manager.local_model_download(model_ref=model_ref, node=node, revision=revision, quantization=quantization, target_store=target_store, dry_run=dry_run)
+
+
+@mcp.tool
+def local_model_download_status(job_id: str) -> dict[str, Any]:
+    """Consulta estado de job persistente de descarga de modelo."""
+    return local_model_manager.local_model_download_status(job_id=job_id)
+
+
+@mcp.tool
+def local_model_worker_start(job_id: str = "", node: str = "amd") -> dict[str, Any]:
+    """Lanza worker persistente para un job queued de descarga de modelo local."""
+    return local_model_manager.local_model_worker_start(job_id=job_id, node=node)
+
+
+@mcp.tool
+def local_model_list(node: str = "", backend: str = "") -> dict[str, Any]:
+    """Lista modelos/artefactos registrados o presentes en el store local canónico."""
+    return local_model_manager.local_model_list(node=node, backend=backend)
+
+
+@mcp.tool
+def local_model_serve(model_ref: str, node: str = "amd", backend: str = "vllm", alias: str = "", context_length: int = 8192, gpu_memory_utilization: float = 0.85, dry_run: bool = True) -> dict[str, Any]:
+    """Planifica/encola serving local privado vLLM OpenAI-compatible; dry_run por defecto."""
+    return local_model_manager.local_model_serve(model_ref=model_ref, node=node, backend=backend, alias=alias, context_length=context_length, gpu_memory_utilization=gpu_memory_utilization, dry_run=dry_run)
+
+
+@mcp.tool
+def local_model_runtime_status(node: str = "amd", backend: str = "vllm") -> dict[str, Any]:
+    """Estado del runtime local de modelos: vLLM/Ollama, puertos privados, GPU y versiones."""
+    return local_model_manager.local_model_runtime_status(node=node, backend=backend)
+
+
+@mcp.tool
+def local_model_stop(alias: str = "", model_ref: str = "", node: str = "amd") -> dict[str, Any]:
+    """Detiene únicamente servicios allowlisted inneros-vllm-* por alias/model_ref."""
+    return local_model_manager.local_model_stop(alias=alias, model_ref=model_ref, node=node)
+
+
+@mcp.tool
+def local_model_delete(model_ref: str, node: str = "amd", dry_run: bool = True) -> dict[str, Any]:
+    """Elimina modelo del store local con dry_run por defecto y guards de serving/default."""
+    return local_model_manager.local_model_delete(model_ref=model_ref, node=node, dry_run=dry_run)
+
+
+@mcp.tool
+def local_model_benchmark(model_ref: str = "", alias: str = "", prompt_suite: str = "format_contract", task_class: str = "coding", repo_context_ref: str = "") -> dict[str, Any]:
+    """Benchmark fixture de modelo local; no modifica productos y reporta runtime/métricas disponibles."""
+    return local_model_manager.local_model_benchmark(model_ref=model_ref, alias=alias, prompt_suite=prompt_suite, task_class=task_class, repo_context_ref=repo_context_ref)
+
+
+@mcp.tool
+def local_model_set_default(task_class: str, model_ref: str, provider_id: str = "local-amd-5") -> dict[str, Any]:
+    """Fija default de router por task_class para Resource Fabric/Dev Swarm."""
+    return local_model_manager.local_model_set_default(task_class=task_class, model_ref=model_ref, provider_id=provider_id)
+
+
+@mcp.tool
+def local_model_router_status(project_id: str = "", task_class: str = "") -> dict[str, Any]:
+    """Consulta defaults de router local por proyecto/task_class."""
+    return local_model_manager.local_model_router_status(project_id=project_id, task_class=task_class)
+
+
+@mcp.tool
 def classify_task_runtime(text: str, task_type: str | None = None) -> dict[str, Any]:
     """Clasifica una tarea y sugiere runtime local/external."""
     return local_model_router.classify_task_runtime(text, task_type=task_type)
@@ -4243,6 +4710,7 @@ def local_exec_repo_authorize(
     write_scope: str = "worktree",
     allowed_paths: list[str] | None = None,
     allowed_commands_profile: str = "",
+    package_roots: list[str] | None = None,
     approval_id: str = "",
     actor: str = "chatgpt",
     task_id: str = "",
@@ -4256,6 +4724,7 @@ def local_exec_repo_authorize(
         write_scope=write_scope,
         allowed_paths=allowed_paths,
         allowed_commands_profile=allowed_commands_profile,
+        package_roots=package_roots,
         approval_id=approval_id,
         actor=actor,
         task_id=task_id,
@@ -4358,6 +4827,122 @@ def dev_swarm_executor_status() -> dict[str, Any]:
 def dev_swarm_executor_tick(limit: int = 2, dry_run: bool = False, run_tests: bool = True) -> dict[str, Any]:
     """Ejecuta un ciclo del worker executor: checks, plan local, evidencia y commit de reporte."""
     return dev_swarm_scheduler.executor_tick(limit=limit, dry_run=dry_run, run_tests=run_tests)
+
+
+@mcp.tool
+def dev_swarm_fanout_execute(repo: str, task_ids: list[str], concurrency: int = 6, dry_run: bool = False) -> dict[str, Any]:
+    """Ejecuta N lanes de desarrollo local en worktrees aislados con executor autónomo."""
+    return dev_swarm_scheduler.fanout_execute(repo=repo, task_ids=task_ids, concurrency=concurrency, dry_run=dry_run)
+
+
+@mcp.tool
+def dev_swarm_capacity_status() -> dict[str, Any]:
+    """Snapshot del capacity governor sin consumo LLM: CPU/RAM/GPU/disk/workers y concurrencia recomendada."""
+    return dev_swarm_scheduler.capacity_status()
+
+
+@mcp.tool
+def dev_swarm_capacity_tick(simulated_load: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Toma y publica un snapshot de capacidad; simulated_load es solo para pruebas de throttling."""
+    return dev_swarm_scheduler.capacity_status(simulated_load=simulated_load)
+
+
+@mcp.tool
+def external_repair_agent_status(provider: str = "") -> dict[str, Any]:
+    """External Repair Agent: matriz Codex/Cursor/Antigravity + credit governor."""
+    return external_repair_agent.external_repair_agent_status(provider=provider)
+
+
+@mcp.tool
+def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = True, limit: int = 10, task_id: str = "") -> dict[str, Any]:
+    """External Repair Agent: claim atomico proposed→accepted si provider/cupo estan listos."""
+    return external_repair_agent.external_repair_agent_claim_next(provider=provider, dry_run=dry_run, limit=limit, task_id=task_id)
+
+
+@mcp.tool
+def external_repair_agent_run_task(
+    provider: str,
+    task_id: str,
+    dry_run: bool = True,
+    allow_external_spend: bool = False,
+    approval_id: str = "",
+) -> dict[str, Any]:
+    """External Repair Agent: admision de ejecucion externa con gate de creditos/aprobacion."""
+    return external_repair_agent.external_repair_agent_run_task(
+        provider=provider,
+        task_id=task_id,
+        dry_run=dry_run,
+        allow_external_spend=allow_external_spend,
+        approval_id=approval_id,
+    )
+
+
+@mcp.tool
+def external_repair_run_start(
+    provider: str,
+    task_id: str,
+    correlation_id: str = "",
+    repo: str = "",
+    branch: str = "",
+    worktree: str = "",
+    dry_run: bool = True,
+    chargeable: bool = False,
+    context_bundle: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """External Repair Agent: inicia registro durable de run sin gastar creditos por defecto."""
+    return external_repair_agent.start_external_repair_run(
+        provider=provider,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        repo=repo,
+        branch=branch,
+        worktree=worktree,
+        dry_run=dry_run,
+        chargeable=chargeable,
+        context_bundle=context_bundle,
+    )
+
+
+@mcp.tool
+def external_repair_run_checkpoint(
+    run_id: str,
+    phase: str,
+    evidence: dict[str, Any] | None = None,
+    files_touched: list[str] | None = None,
+) -> dict[str, Any]:
+    """External Repair Agent: guarda checkpoint/heartbeat recuperable en Mongo."""
+    return external_repair_agent.checkpoint_external_repair_run(
+        run_id,
+        phase=phase,
+        evidence=evidence,
+        files_touched=files_touched,
+    )
+
+
+@mcp.tool
+def external_repair_run_complete(
+    run_id: str,
+    outcome: str = "completed",
+    result: str = "PASS",
+    evidence: dict[str, Any] | None = None,
+    report_to: str = "chatgpt",
+    update_task: bool = True,
+) -> dict[str, Any]:
+    """External Repair Agent: cierra run, actualiza ops_task y reporta handoff automaticamente."""
+    return external_repair_agent.complete_external_repair_run(
+        run_id,
+        outcome=outcome,
+        result=result,
+        evidence=evidence,
+        report_to=report_to,
+        update_task=update_task,
+    )
+
+
+@mcp.tool
+def external_repair_run_recover(provider: str = "", mark_stale_after_seconds: int = 3600) -> dict[str, Any]:
+    """External Repair Agent: recupera runs activos tras restart y marca stale si aplica."""
+    return external_repair_agent.recover_external_repair_runs(provider=provider, mark_stale_after_seconds=mark_stale_after_seconds)
 
 
 @mcp.tool
@@ -4482,6 +5067,72 @@ def local_project_bootstrap(
         create_remote=create_remote,
         private=private,
     )
+
+
+@mcp.tool
+def local_gitlab_status() -> dict[str, Any]:
+    """Local GitLab Plane: valida API/glab/usuario real sin exponer token."""
+    return local_gitlab_plane.gitlab_status()
+
+
+@mcp.tool
+def local_gitlab_store_pat_server_side(secret: str, label: str = "GitLab Personal Access Token", actor: str = "RAFAEL") -> dict[str, Any]:
+    """Local GitLab Plane: guarda PAT en owner_vault; no retorna el secreto."""
+    return local_gitlab_plane.store_pat_server_side(secret=secret, label=label, actor=actor)
+
+
+@mcp.tool
+def local_gitlab_glab_preflight() -> dict[str, Any]:
+    """Local GitLab Plane: revisa disponibilidad de glab CLI sin mutar."""
+    return local_gitlab_plane.glab_preflight()
+
+
+@mcp.tool
+def local_gitlab_list_projects(search: str = "", owned: bool = False, membership: bool = True, limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: lista proyectos accesibles via API GitLab."""
+    return local_gitlab_plane.list_projects(search=search, owned=owned, membership=membership, limit=limit)
+
+
+@mcp.tool
+def local_gitlab_list_groups(search: str = "", limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: lista grupos accesibles via API GitLab."""
+    return local_gitlab_plane.list_groups(search=search, limit=limit)
+
+
+@mcp.tool
+def local_gitlab_project_summary(project_id_or_path: str) -> dict[str, Any]:
+    """Local GitLab Plane: resumen seguro de repo/proyecto GitLab."""
+    return local_gitlab_plane.project_summary(project_id_or_path=project_id_or_path)
+
+
+@mcp.tool
+def local_gitlab_list_merge_requests(project_id_or_path: str, state: str = "opened", limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: lista merge requests para trazabilidad y code review."""
+    return local_gitlab_plane.list_merge_requests(project_id_or_path=project_id_or_path, state=state, limit=limit)
+
+
+@mcp.tool
+def local_gitlab_list_issues(project_id_or_path: str, state: str = "opened", limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: lista issues para trazabilidad de proyecto."""
+    return local_gitlab_plane.list_issues(project_id_or_path=project_id_or_path, state=state, limit=limit)
+
+
+@mcp.tool
+def local_gitlab_list_pipelines(project_id_or_path: str, ref: str = "", limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: lista pipelines CI/CD sin disparar ejecuciones."""
+    return local_gitlab_plane.list_pipelines(project_id_or_path=project_id_or_path, ref=ref, limit=limit)
+
+
+@mcp.tool
+def local_gitlab_resource_sync(dry_run: bool = False) -> dict[str, Any]:
+    """Local GitLab Plane: registra GitLab en Resource Fabric sin volverlo motor default."""
+    return local_gitlab_plane.register_resource_provider(dry_run=dry_run)
+
+
+@mcp.tool
+def local_gitlab_credit_status(register_if_missing: bool = True, dry_run: bool = False) -> dict[str, Any]:
+    """Local GitLab Plane: reconcilia creditos Contributor Rewards como no gastables hasta verificar."""
+    return local_gitlab_plane.gitlab_credit_status(register_if_missing=register_if_missing, dry_run=dry_run)
 
 
 @mcp.tool
