@@ -147,3 +147,30 @@ def test_gitlab_runner_go_profile_allows_only_safe_go_and_gitlab_reads() -> None
     assert lep._command_allowed(["git", "push", "origin", "main"], "go_gitlab_runner") is False
     assert lep._command_allowed(["glab", "issue", "update", "39712"], "go_gitlab_runner") is False
     assert lep._command_allowed(["glab", "mr", "merge", "1"], "go_gitlab_runner") is False
+
+def test_workforce_nested_package_root_allows_npm_ci(monkeypatch, tmp_path: Path) -> None:
+    root = tmp_path / "local_exec"
+    core = tmp_path / "inneros_core"
+    source = core / "workspaces" / "innerspark-workforce-ai"
+    source.mkdir(parents=True)
+    (source / ".git").mkdir()
+    monkeypatch.setenv("RALFIA_LOCAL_EXEC_ROOT", str(root))
+    monkeypatch.setenv("INNEROS_CORE_ROOT", str(core))
+    conf = lep._repo_config("Rafa-Innerchispa/innerspark-workforce-ai")
+    assert "services/femar-mvp-core" in conf["package_roots"]
+    assert lep._node_package_command_allowed(["npm", "--prefix", "services/femar-mvp-core", "ci"], conf) is True
+    assert lep._node_package_command_allowed(["npm", "ci", "--prefix", "services/femar-mvp-core"], conf) is True
+
+
+def test_node_install_outside_package_roots_still_blocked(monkeypatch, tmp_path: Path) -> None:
+    root = tmp_path / "local_exec"
+    core = tmp_path / "inneros_core"
+    source = core / "workspaces" / "innerspark-workforce-ai"
+    source.mkdir(parents=True)
+    (source / ".git").mkdir()
+    monkeypatch.setenv("RALFIA_LOCAL_EXEC_ROOT", str(root))
+    monkeypatch.setenv("INNEROS_CORE_ROOT", str(core))
+    conf = lep._repo_config("Rafa-Innerchispa/innerspark-workforce-ai")
+    assert lep._node_package_command_allowed(["npm", "--prefix", "other-service", "ci"], conf) is False
+    assert lep._node_package_command_allowed(["npm", "--prefix", "../outside", "ci"], conf) is False
+    assert lep._node_package_command_allowed(["npm", "--prefix", "services/femar-mvp-core", "run", "evil"], conf) is False

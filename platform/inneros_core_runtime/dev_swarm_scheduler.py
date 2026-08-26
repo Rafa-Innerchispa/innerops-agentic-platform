@@ -240,6 +240,43 @@ def _worker_objective(worker: dict[str, Any], task: dict[str, Any] | None) -> st
     return str(plan.get("objective") or worker.get("task_id") or "").strip()
 
 
+CANONICAL_REPO_HINTS = {
+    "innerops-agentic-platform": SAFE_INNEROS_REPO,
+    "innerspark-workforce-ai": "Rafa-Innerchispa/innerspark-workforce-ai",
+}
+
+
+def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
+    candidates: list[str] = []
+    for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo"):
+        value = str(task.get(key) or "").strip()
+        if value:
+            candidates.append(value)
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+    for obj in (payload, metadata):
+        for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo", "project", "related_project"):
+            value = str((obj or {}).get(key) or "").strip()
+            if value:
+                candidates.append(value)
+    for value in candidates:
+        if value.startswith("Rafa-Innerchispa/"):
+            return value
+        lowered = value.lower()
+        for marker, repo in CANONICAL_REPO_HINTS.items():
+            if marker in lowered:
+                return repo
+    if "services/femar-mvp-core" in text:
+        return "Rafa-Innerchispa/innerspark-workforce-ai"
+    if "innerspark-workforce-ai" in text:
+        return "Rafa-Innerchispa/innerspark-workforce-ai"
+    workforce_dev = "workforce" in text and any(marker in text for marker in ("dev swarm", "implementation", "implementacion", "implementar", "tests", "jest", "package_root", "package roots", "femar", "node_modules", "npm ci", "worktree", "base_ref"))
+    hostname_only = "workforce.pcdoctor.ai" in text and not any(marker in text for marker in ("innerspark-workforce-ai", "services/femar-mvp-core", "dev swarm", "npm ci", "worktree"))
+    if workforce_dev and not hostname_only:
+        return "Rafa-Innerchispa/innerspark-workforce-ai"
+    return None
+
+
 def _infer_repo(task: dict[str, Any]) -> str | None:
     tags = set(str(x) for x in task.get("tags") or [])
     if "dev_swarm_fixture" in tags:
@@ -247,10 +284,10 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
     task_id = str(task.get("task_id") or "")
     if task_id in LEGACY_SAFE_TASK_IDS:
         return SAFE_INNEROS_REPO
-    repo = str(task.get("repo") or task.get("repository") or "").strip()
-    if repo.startswith("Rafa-Innerchispa/"):
-        return repo
     text = _task_search_text(task)
+    repo = _explicit_repo_hint(task, text)
+    if repo:
+        return repo
     if _is_non_dev_ops_task(task, text):
         return None
     current_markers = (
@@ -790,19 +827,27 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         }
     scan_limit = max(max(1, min(limit, 25)) * 5, 50)
     tasks = _load_scheduler_candidates(db, query, scan_limit)
+    retry_query: dict[str, Any]
+    if include_fixtures:
+        retry_query = {
+            "status": "blocked",
+            "$or": [
+                {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
+                {"tags": "dev_swarm_fixture"},
+            ],
+        }
+    else:
+        retry_query = {
+            "status": "blocked",
+            "$or": [
+                {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
+                {"owner": "dev_swarm"},
+            ],
+        }
     retry_ids = [
         row["task_id"]
         for row in db[WORKERS_COL]
-        .find(
-            {
-                "status": "blocked",
-                "$or": [
-                    {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
-                    {"owner": "dev_swarm"},
-                ],
-            },
-            {"_id": 0, "task_id": 1},
-        )
+        .find(retry_query, {"_id": 0, "task_id": 1})
         .limit(max(1, min(limit, 25)))
         if row.get("task_id")
     ]

@@ -21,7 +21,8 @@ DEFAULT_ROOT = DEFAULT_INNEROS_CORE_ROOT / "var" / "local_execution"
 MAX_OUTPUT_BYTES_DEFAULT = 60000
 MAX_TIMEOUT_SECONDS = 1200
 
-REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+){1,2}$")
+GITLAB_COMMUNITY_RUNNER_REPO = "gitlab-community/gitlab-org/gitlab-runner"
 BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$")
 PROTECTED_BRANCHES = {"main", "master", "production", "prod", "develop"}
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa"}
@@ -70,11 +71,19 @@ OWNER_APPROVED_REPO_CLASSES = {
         "repo_class": "product-app",
         "profile": "node-tests",
         "allowed_paths": OWNER_APPROVED_ALLOWED_PATHS,
+        "package_roots": ["services/femar-mvp-core"],
     },
     "innerops-agentic-platform": {
         "repo_class": "product-app",
         "profile": "node-tests",
         "allowed_paths": OWNER_APPROVED_ALLOWED_PATHS,
+        "package_roots": ["."],
+    },
+    "gitlab-runner": {
+        "repo_class": "external_fork_docs_only",
+        "profile": "go_gitlab_runner",
+        "allowed_paths": ["docs/configuration/init.md", "README.md", "CONTRIBUTING.md", "AGENTS.md"],
+        "package_roots": [],
     },
 }
 REPO_POLICY_COLLECTION = "ralfia_local_exec_repo_policy"
@@ -111,6 +120,24 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("git", "log", "--oneline", "-n"),
         ("python", "-m", "json.tool"),
         ("python3", "-m", "json.tool"),
+    ],
+    "go_gitlab_runner": [
+        ("git", "status", "--short", "--branch"),
+        ("git", "diff", "--check"),
+        ("git", "diff", "--stat"),
+        ("git", "diff", "--name-only"),
+        ("git", "log", "--oneline", "-n"),
+        ("go", "version"),
+        ("go", "test"),
+        ("gofmt", "-l"),
+        ("gofmt", "-d"),
+        ("gofmt", "-w"),
+        ("scripts/lint-docs",),
+        ("scripts/lint-i18n-docs",),
+        ("glab", "issue", "view"),
+        ("glab", "issue", "list"),
+        ("glab", "mr", "view"),
+        ("glab", "mr", "list"),
     ],
     "python-tests": [
         ("python", "-m", "pytest"),
@@ -284,6 +311,7 @@ def _repo_config(repo: str) -> dict[str, Any]:
     conf.setdefault("worktrees_path", str(root / "worktrees" / _slug(repo)))
     conf.setdefault("remote_url", f"https://github.com/{repo}.git")
     conf.setdefault("protected_branches", sorted(PROTECTED_BRANCHES))
+    conf.setdefault("package_roots", [])
     conf.setdefault("requires_approval", True)
     conf.setdefault("write_scope", "worktree")
     conf.setdefault("status", "active")
@@ -293,9 +321,26 @@ def _repo_config(repo: str) -> dict[str, Any]:
 
 def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
     owner, name = repo.split("/", 1)
+    core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
+    if repo == GITLAB_COMMUNITY_RUNNER_REPO:
+        known = OWNER_APPROVED_REPO_CLASSES["gitlab-runner"]
+        source = (core / "workspaces" / "gitlab-runner").resolve()
+        return {
+            "profile": known["profile"],
+            "source_path": str(source),
+            "allowed_paths": list(known["allowed_paths"]),
+            "package_roots": [],
+            "owner_approved_auto": True,
+            "repo_class": known["repo_class"],
+            "write_scope": "worktree",
+            "requires_approval": True,
+            "remote_url": "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git",
+            "status": "active",
+            "owner": owner,
+            "external_nested_fork": True,
+        }
     if owner not in OWNER_APPROVED_GITHUB_OWNERS:
         return None
-    core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
     workspace_source = (core / "workspaces" / name).resolve()
     workspace_root = (core / "workspaces").resolve()
     if workspace_source != workspace_root and workspace_root not in workspace_source.parents:
@@ -309,6 +354,7 @@ def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
         "profile": profile,
         "source_path": str(source),
         "allowed_paths": list(known.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS),
+        "package_roots": list(known.get("package_roots") or []),
         "owner_approved_auto": True,
         "repo_class": known.get("repo_class") or "owner-approved-readonly",
         "write_scope": write_scope,
@@ -332,6 +378,7 @@ def _policy_doc_to_config(doc: dict[str, Any]) -> dict[str, Any]:
         "repo_class": doc.get("repo_class") or known.get("repo_class") or "owner-approved-readonly",
         "write_scope": doc.get("write_scope") or "read_only",
         "protected_branches": list(doc.get("protected_branches") or sorted(PROTECTED_BRANCHES)),
+        "package_roots": list(doc.get("package_roots") or known.get("package_roots") or []),
         "requires_approval": bool(doc.get("requires_approval", True)),
         "owner": doc.get("owner") or owner,
         "status": doc.get("status") or "active",
@@ -370,9 +417,10 @@ def _validate_policy_payload(
     if not REPO_PATTERN.match(repo or ""):
         raise ValueError("repo_must_be_owner_name")
     owner, name = repo.split("/", 1)
-    if owner not in OWNER_APPROVED_GITHUB_OWNERS:
+    if owner not in OWNER_APPROVED_GITHUB_OWNERS and repo != GITLAB_COMMUNITY_RUNNER_REPO:
         raise PermissionError("repo_owner_not_approved")
-    known = OWNER_APPROVED_REPO_CLASSES.get(name, {})
+    known_name = "gitlab-runner" if repo == GITLAB_COMMUNITY_RUNNER_REPO else name
+    known = OWNER_APPROVED_REPO_CLASSES.get(known_name, {})
     scope = (write_scope or "read_only").strip()
     if scope not in {"read_only", "worktree", "docs", "project"}:
         raise ValueError("invalid_write_scope")
@@ -397,6 +445,7 @@ def _validate_policy_payload(
         "allowed_paths": clean_paths,
         "allowed_commands": profile,
         "protected_branches": sorted(PROTECTED_BRANCHES),
+        "package_roots": list(known.get("package_roots") or []),
         "requires_approval": scope != "read_only",
         "remote_url": f"https://github.com/{repo}.git",
     }
@@ -445,11 +494,30 @@ def _require_metadata(actor: str, task_id: str, correlation_id: str, idempotency
         raise ValueError("idempotency_key_required")
 
 
+def _execution_env() -> dict[str, str]:
+    env = dict(os.environ)
+    path_parts = [
+        "/home/rlopez/inneros/inneros_core/tools/go/bin",
+        "/home/rlopez/.local/opt",
+        "/home/rlopez/.local/bin",
+        "/home/rlopez/.nvm/versions/node/v24.18.0/bin",
+        "/home/rlopez/.nvm/versions/node/v20.20.2/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+    ]
+    existing = [part for part in path_parts if Path(part).exists()]
+    current = env.get("PATH", "")
+    env["PATH"] = ":".join([*existing, current] if current else existing)
+    return env
+
+
 def _run(argv: list[str], cwd: Path, *, timeout_seconds: int = 120, max_output_bytes: int = MAX_OUTPUT_BYTES_DEFAULT) -> dict[str, Any]:
     timeout = max(1, min(int(timeout_seconds or 120), MAX_TIMEOUT_SECONDS))
     proc = subprocess.run(
         argv,
         cwd=str(cwd),
+        env=_execution_env(),
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -477,6 +545,50 @@ def _command_allowed(command: list[str], profile: str) -> bool:
             return True
     return False
 
+
+def _clean_package_root(root: str) -> str:
+    rel = str(root or "").replace("\\", "/").strip().strip("/")
+    if rel in {"", "."}:
+        return "."
+    if rel.startswith("../") or "/../" in rel or rel == ".." or rel.startswith("/"):
+        raise PermissionError("package_root_path_denied")
+    parts = {part.lower() for part in rel.split("/") if part}
+    if parts & DENIED_PATH_PARTS:
+        raise PermissionError("package_root_path_denied")
+    return rel
+
+
+def _node_package_command_allowed(command: list[str], conf: dict[str, Any]) -> bool:
+    if not command or command[0] != "npm":
+        return False
+    if any(re.search(r"[;&|`$<>]", part) for part in command):
+        return False
+    try:
+        package_roots = {_clean_package_root(root) for root in (conf.get("package_roots") or [])}
+    except PermissionError:
+        return False
+    if not package_roots:
+        return False
+    safe_actions = {"ci", "install"}
+    package_root = "."
+    action = ""
+    if len(command) == 2 and command[1] in safe_actions:
+        action = command[1]
+    elif len(command) == 4 and command[1] == "--prefix" and command[3] in safe_actions:
+        try:
+            package_root = _clean_package_root(command[2])
+        except PermissionError:
+            return False
+        action = command[3]
+    elif len(command) == 4 and command[1] in safe_actions and command[2] == "--prefix":
+        action = command[1]
+        try:
+            package_root = _clean_package_root(command[3])
+        except PermissionError:
+            return False
+    else:
+        return False
+    return bool(action and package_root in package_roots)
 
 def _worktree_path(repo: str, work_branch: str, conf: dict[str, Any]) -> Path:
     branch_slug = re.sub(r"[^A-Za-z0-9_.-]+", "__", work_branch)
@@ -580,9 +692,31 @@ def create_worktree(
         worktree.parent.mkdir(parents=True, exist_ok=True)
         if worktree.exists():
             status = _run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30)
-            return {"ok": True, "idempotent": True, "repo": repo, "work_branch": work_branch, "worktree": str(worktree), "status": status}
-        result = _run(["git", "worktree", "add", "-b", work_branch, str(worktree), base_branch], source, timeout_seconds=120)
-        return {"ok": result["ok"], "repo": repo, "base_branch": base_branch, "work_branch": work_branch, "worktree": str(worktree), "result": result}
+            return {
+                "ok": bool(status.get("ok") and (worktree / ".git").exists()),
+                "idempotent": True,
+                "repo": repo,
+                "work_branch": work_branch,
+                "worktree": str(worktree),
+                "status": status,
+                "verified_exists": (worktree / ".git").exists(),
+            }
+        add_cmd = ["git", "worktree", "add", "-b", work_branch, str(worktree), base_branch]
+        result = _run(add_cmd, source, timeout_seconds=120)
+        if not result.get("ok") and "already exists" in (result.get("stderr") or ""):
+            result = _run(["git", "worktree", "add", str(worktree), work_branch], source, timeout_seconds=120)
+        status = _run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30) if worktree.exists() else {"ok": False, "error": "worktree_path_missing"}
+        exists = worktree.exists() and (worktree / ".git").exists()
+        return {
+            "ok": bool(result.get("ok") and exists and status.get("ok")),
+            "repo": repo,
+            "base_branch": base_branch,
+            "work_branch": work_branch,
+            "worktree": str(worktree),
+            "result": result,
+            "status": status,
+            "verified_exists": exists,
+        }
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
@@ -674,7 +808,7 @@ def run_command_allowlisted(
         conf = _repo_config(repo)
         _assert_write_allowed(conf, "run_command_allowlisted")
         profile = str(conf.get("profile") or "python-tests")
-        if not _command_allowed(command, profile):
+        if not (_command_allowed(command, profile) or (profile == "node-tests" and _node_package_command_allowed(command, conf))):
             return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command}
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
@@ -774,6 +908,7 @@ def repo_policy_status(repo: str | None = None) -> dict[str, Any]:
                 "policy_source": conf.get("policy_source") or ("owner_approved_auto" if conf.get("owner_approved_auto") else "static"),
                 "allowed_paths": conf.get("allowed_paths", []),
                 "allowed_commands": conf.get("profile"),
+                "package_roots": conf.get("package_roots", []),
                 "protected_branches": conf.get("protected_branches", sorted(PROTECTED_BRANCHES)),
                 "source_exists": source.exists(),
                 "source_is_git": (source / ".git").exists(),

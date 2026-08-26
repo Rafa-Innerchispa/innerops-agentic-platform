@@ -191,5 +191,101 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertIsNone(repo)
 
 
+    def test_workforce_devswarm_task_resolves_to_workforce_repo_not_platform(self) -> None:
+        task = {
+            "task_id": "ops_workforce_devswarm",
+            "status": "blocked",
+            "owner": "dev_swarm",
+            "assignee": "ralfia",
+            "priority": "p0",
+            "correlation_id": "workforce-full-parity-gemini-analytics-20260824",
+            "title": "P0 Workforce parity + Gemini HR/Payroll analytics + 2-year synthetic dataset",
+            "checklist": [
+                "Preservar Workforce existente y tenants/auth/datos; no recrear FEMAR.",
+                "Implementacion de features grandes por Dev Swarm/modelos locales.",
+                "Browser QA de todos los menus CRUD/reportes.",
+            ],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, "Rafa-Innerchispa/innerspark-workforce-ai")
+
+    def test_workforce_explicit_package_root_resolves_to_workforce_repo(self) -> None:
+        task = {
+            "task_id": "ops_workforce_nested",
+            "status": "proposed",
+            "assignee": "chatgpt",
+            "priority": "p0",
+            "correlation_id": "devswarm-code-repair-20260826",
+            "title": "Restore Jest dependencies",
+            "checklist": ["Run npm ci in services/femar-mvp-core inside isolated worktree"],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, "Rafa-Innerchispa/innerspark-workforce-ai")
+
+    def test_scheduler_dry_run_selects_p0_when_capacity_free(self) -> None:
+        class Cursor(list):
+            def sort(self, *_args):
+                return Cursor(sorted(self, key=lambda row: row.get("created_at", ""), reverse=True))
+
+            def limit(self, n):
+                return Cursor(self[:n])
+
+        class Tasks:
+            rows = [
+                {
+                    "task_id": "ops_workforce_nested",
+                    "status": "proposed",
+                    "assignee": "chatgpt",
+                    "priority": "p0",
+                    "created_at": "2026-08-26T20:00:00+00:00",
+                    "checklist": ["Run npm ci in services/femar-mvp-core"],
+                },
+                {
+                    "task_id": "ops_email",
+                    "status": "proposed",
+                    "assignee": "ralfia",
+                    "priority": "normal",
+                    "created_at": "2026-08-26T19:00:00+00:00",
+                    "kind": "email_ops",
+                    "tags": ["email"],
+                    "title": "Process invoice email",
+                },
+            ]
+
+            def find(self, query, _projection):
+                rows = [r for r in self.rows if r.get("status") == query.get("status")]
+                if "priority" in query:
+                    rows = [r for r in rows if r.get("priority") == query["priority"]]
+                return Cursor(rows)
+
+            def update_one(self, *_args, **_kwargs):
+                return None
+
+        class Workers:
+            def count_documents(self, _query):
+                return 0
+
+            def find(self, *_args, **_kwargs):
+                return Cursor([])
+
+        db = {scheduler.coordination_live.OPS_TASKS_COL: Tasks(), scheduler.WORKERS_COL: Workers(), "ralfia_coordination_locks": Workers()}
+        with mock.patch.object(scheduler, "_db", return_value=db), \
+             mock.patch.object(scheduler, "_state", return_value={"enabled": True, "max_concurrent": 4}), \
+             mock.patch.object(scheduler, "capacity_status", return_value={"recommendation": {"recommended_concurrency_total": 4}}), \
+             mock.patch.object(scheduler, "reconcile_capacity_state", return_value={"ok": True, "active_worker_count": 0}), \
+             mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            result = scheduler.scheduler_tick(limit=4, dry_run=True)
+        self.assertEqual(result["available"], 4)
+        self.assertEqual(result["selected"][0]["task_id"], "ops_workforce_nested")
+        self.assertEqual(result["selected"][0]["repo"], "Rafa-Innerchispa/innerspark-workforce-ai")
+        self.assertEqual(result["filtered"][0]["reason"], "non_development_ops_filtered")
+
+
 if __name__ == "__main__":
     unittest.main()

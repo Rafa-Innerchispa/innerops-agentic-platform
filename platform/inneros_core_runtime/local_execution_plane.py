@@ -162,6 +162,7 @@ DEFAULT_REPO_PROFILES = {
     "Rafa-Innerchispa/innerspark-workforce-ai": {
         "profile": "node-tests",
         "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai",
+        "package_roots": ["services/femar-mvp-core"],
         "allowed_paths": [
             "app",
             "components",
@@ -184,6 +185,7 @@ DEFAULT_REPO_PROFILES = {
     "Rafa-Innerchispa/innerops-agentic-platform": {
         "profile": "node-tests",
         "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
+        "package_roots": ["."],
         "allowed_paths": [
             "app",
             "components",
@@ -317,6 +319,7 @@ def _repo_config(repo: str) -> dict[str, Any]:
     root = _root()
     conf.setdefault("profile", "python-tests")
     conf.setdefault("allowed_paths", ["."])
+    conf.setdefault("package_roots", [])
     conf.setdefault("source_path", str(root / "repos" / _slug(repo)))
     conf.setdefault("worktrees_path", str(root / "worktrees" / _slug(repo)))
     return conf
@@ -350,12 +353,15 @@ def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
         return None
     if not source.exists() or not (source / ".git").exists():
         return None
-    profile = "node-tests" if (source / "package.json").exists() else "python-tests"
+    known = DEFAULT_REPO_PROFILES.get(repo, {})
+    profile = str(known.get("profile") or ("node-tests" if (source / "package.json").exists() else "python-tests"))
     return {
         "profile": profile,
         "source_path": str(source),
-        "allowed_paths": OWNER_APPROVED_ALLOWED_PATHS,
+        "allowed_paths": list(known.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS),
+        "package_roots": list(known.get("package_roots") or []),
         "owner_approved_auto": True,
+        "repo_class": known.get("repo_class") or "owner-approved",
     }
 
 
@@ -453,6 +459,50 @@ def _command_allowed(command: list[str], profile: str) -> bool:
             return True
     return False
 
+
+def _clean_package_root(root: str) -> str:
+    rel = str(root or "").replace("\\", "/").strip().strip("/")
+    if rel in {"", "."}:
+        return "."
+    if rel.startswith("/") or rel.startswith("../") or "/../" in rel or rel == "..":
+        raise PermissionError("package_root_path_denied")
+    parts = {part.lower() for part in rel.split("/") if part}
+    if parts & DENIED_PATH_PARTS:
+        raise PermissionError("package_root_path_denied")
+    return rel
+
+
+def _node_package_command_allowed(command: list[str], conf: dict[str, Any]) -> bool:
+    if not command or command[0] != "npm":
+        return False
+    if any(re.search(r"[;&|`$<>]", part) for part in command):
+        return False
+    try:
+        package_roots = {_clean_package_root(root) for root in (conf.get("package_roots") or [])}
+    except PermissionError:
+        return False
+    if not package_roots:
+        return False
+    safe_actions = {"ci", "install"}
+    package_root = "."
+    action = ""
+    if len(command) == 2 and command[1] in safe_actions:
+        action = command[1]
+    elif len(command) == 4 and command[1] == "--prefix" and command[3] in safe_actions:
+        try:
+            package_root = _clean_package_root(command[2])
+        except PermissionError:
+            return False
+        action = command[3]
+    elif len(command) == 4 and command[1] in safe_actions and command[2] == "--prefix":
+        action = command[1]
+        try:
+            package_root = _clean_package_root(command[3])
+        except PermissionError:
+            return False
+    else:
+        return False
+    return bool(action and package_root in package_roots)
 
 def _worktree_path(repo: str, work_branch: str, conf: dict[str, Any]) -> Path:
     branch_slug = re.sub(r"[^A-Za-z0-9_.-]+", "__", work_branch)
@@ -763,7 +813,7 @@ def run_command_allowlisted(
         _validate_branch(work_branch, require_work_branch=True)
         conf = _repo_config(repo)
         profile = str(conf.get("profile") or "python-tests")
-        if not _command_allowed(command, profile):
+        if not (_command_allowed(command, profile) or (profile == "node-tests" and _node_package_command_allowed(command, conf))):
             return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command}
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
