@@ -27,6 +27,8 @@ EXECUTOR_VERSION = "autonomous_impl_v9_platform_contract_base_ref"
 executor_version = EXECUTOR_VERSION
 DEFAULT_MAX_CONCURRENT = 4
 STALE_WORKER_SECONDS = 3600
+STALE_PROGRESS_SECONDS = 1800
+MAX_STALE_RECLAIMS = 2
 CAPACITY_STATE_KEY = "dev_swarm_capacity_governor"
 ELIGIBLE_STATUSES = ("proposed",)
 PRIORITY_ORDER = {"critical": 0, "p0": 1, "p1": 2, "normal": 3, "p2": 4, "low": 5}
@@ -320,11 +322,75 @@ def _active_worker_query() -> dict[str, Any]:
     }
 
 
+def _worker_progress_time(worker: dict[str, Any]) -> datetime | None:
+    executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
+    candidates = [
+        executor.get("last_progress_at"),
+        executor.get("updated_at"),
+        worker.get("last_heartbeat_at"),
+        worker.get("updated_at"),
+    ]
+    parsed = [_parse_dt(value) for value in candidates]
+    parsed = [value for value in parsed if value]
+    return max(parsed) if parsed else None
+
+
+def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso: str, reason: str) -> dict[str, int]:
+    retriable = 0
+    exhausted = 0
+    for worker in stale_workers:
+        task_id = str(worker.get("task_id") or "")
+        if not task_id:
+            continue
+        executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
+        reclaim_count = int(executor.get("stale_reclaim_count") or 0) + 1
+        retryable = reclaim_count <= MAX_STALE_RECLAIMS
+        executor_status = "failed_retryable" if retryable else "blocked"
+        blocker = "stale_worker_reclaimed_for_retry" if retryable else "stale_worker_retry_budget_exhausted"
+        db[WORKERS_COL].update_one(
+            {"task_id": task_id},
+            {
+                "$set": {
+                    "owner": "dev_swarm",
+                    "status": "blocked",
+                    "capacity_reconciled_at": now_iso,
+                    "capacity_reconcile_reason": reason,
+                    "blocker": blocker,
+                    "slot_reclaimed_at": now_iso,
+                    "executor.status": executor_status,
+                    "executor.phase": "stale",
+                    "executor.blocker": blocker,
+                    "executor.stale_reclaim_count": reclaim_count,
+                    "executor.updated_at": now_iso,
+                }
+            },
+        )
+        db[coordination_live.OPS_TASKS_COL].update_one(
+            {"task_id": task_id},
+            {
+                "$set": {
+                    "owner": "dev_swarm",
+                    "status": "blocked",
+                    "dev_swarm_last_skip_reason": blocker,
+                    "dev_swarm_last_skip_at": now_iso,
+                    "dev_swarm_retry_requested": retryable,
+                    "updated_at": now_iso,
+                }
+            },
+        )
+        if retryable:
+            retriable += 1
+        else:
+            exhausted += 1
+    return {"retriable": retriable, "exhausted": exhausted}
+
+
 def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     db = _db()
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
     stale_before = now.timestamp() - STALE_WORKER_SECONDS
+    stale_progress_before = now.timestamp() - STALE_PROGRESS_SECONDS
     terminal_filter = {
         "status": {"$in": ["starting", "running"]},
         "executor.status": {"$in": list(TERMINAL_EXECUTOR_STATUSES)},
@@ -345,24 +411,15 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
             "status": {"$in": ["starting", "running"]},
             "$or": [{"executor.status": {"$exists": False}}, {"executor.status": {"$nin": list(TERMINAL_EXECUTOR_STATUSES)}}],
         },
-        {"_id": 0, "task_id": 1, "last_heartbeat_at": 1, "updated_at": 1},
+        {"_id": 0},
     ):
         heartbeat = _parse_dt(worker.get("last_heartbeat_at") or worker.get("updated_at"))
-        if heartbeat and heartbeat.timestamp() < stale_before:
-            stale_workers.append(worker.get("task_id"))
-    stale_res = None
-    if stale_workers:
-        stale_res = db[WORKERS_COL].update_many(
-            {"task_id": {"$in": [task_id for task_id in stale_workers if task_id]}},
-            {
-                "$set": {
-                    "status": "stale",
-                    "capacity_reconciled_at": now_iso,
-                    "capacity_reconcile_reason": reason,
-                    "blocker": "stale_worker_heartbeat_expired",
-                }
-            },
-        )
+        progress = _worker_progress_time(worker)
+        heartbeat_expired = bool(heartbeat and heartbeat.timestamp() < stale_before)
+        progress_expired = bool(progress and progress.timestamp() < stale_progress_before)
+        if heartbeat_expired or progress_expired:
+            stale_workers.append(worker)
+    stale_reclaim = _reclaim_stale_workers(db, stale_workers, now_iso, reason) if stale_workers else {"retriable": 0, "exhausted": 0}
     lock_res = db["ralfia_coordination_locks"].update_many(
         {"status": "active", "expires_at": {"$lt": now_iso}},
         {"$set": {"status": "expired", "expired_at": now_iso, "updated_at": now_iso, "expired_by": "dev_swarm_reconciler"}},
@@ -372,7 +429,9 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         "ok": True,
         "reason": reason,
         "terminal_workers_reconciled": terminal_res.modified_count,
-        "stale_workers_reconciled": 0 if stale_res is None else stale_res.modified_count,
+        "stale_workers_reconciled": stale_reclaim["retriable"] + stale_reclaim["exhausted"],
+        "stale_workers_retryable": stale_reclaim["retriable"],
+        "stale_workers_exhausted": stale_reclaim["exhausted"],
         "expired_locks": lock_res.modified_count,
         "active_worker_count": active,
     }
@@ -1437,7 +1496,8 @@ def _test_commands_for_policy(repo: str, worktree: Path, files_touched: list[str
 
 
 def _set_worker_phase(task_id: str, phase: str, **extra: Any) -> None:
-    patch = {"executor.phase": phase, "executor.updated_at": _now(), "updated_at": _now(), "last_heartbeat_at": _now()}
+    now = _now()
+    patch = {"executor.phase": phase, "executor.updated_at": now, "executor.last_progress_at": now, "updated_at": now, "last_heartbeat_at": now}
     for key, value in extra.items():
         patch[f"executor.{key}"] = value
     _db()[WORKERS_COL].update_one({"task_id": task_id}, {"$set": patch})
@@ -1962,10 +2022,12 @@ def execute_ad_hoc_objective(
         "status": "running",
         "launch": launch,
         "entrypoint": entrypoint,
+        "owner": "dev_swarm",
         "created_at": _now(),
         "updated_at": _now(),
         "last_heartbeat_at": _now(),
-        "executor": {"version": EXECUTOR_VERSION, "status": "running", "phase": "queued"},
+        "owner": "dev_swarm",
+        "executor": {"version": EXECUTOR_VERSION, "status": "running", "phase": "queued", "last_progress_at": _now()},
     }
     _db()[WORKERS_COL].update_one({"task_id": task_id}, {"$set": worker}, upsert=True)
     executor = _execute_existing_worker_generic(worker, run_tests=True)
