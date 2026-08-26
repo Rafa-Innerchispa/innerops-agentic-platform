@@ -11,6 +11,7 @@ from typing import Any
 
 from raphiia_openai import funding_registry, mongo_store
 from raphiia_openai import digitalocean_amd_provider
+from raphiia_openai import local_discord_plane
 from raphiia_openai import local_gitlab_plane
 
 COL_PROVIDERS = "inneros_resource_providers"
@@ -53,6 +54,7 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
             "requires": ["owner_vault PAT", "approval_id", "apply_window"],
         },
         local_gitlab_plane.resource_provider_document(),
+        local_discord_plane.resource_provider_document(),
     ]
     models = [
         {

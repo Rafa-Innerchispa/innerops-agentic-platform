@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse
 
 from raphiia_openai.auth_middleware import ApiKeyMiddleware
 from raphiia_openai import quoteops_mcp_bridge
-from raphiia_openai import coordination_docs, dev_swarm_scheduler, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
+from raphiia_openai import coordination_docs, dev_swarm_scheduler, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
 from raphiia_openai.operational import accounting_store, inventory_store, pcdoctor_store, party_store, procurement_store
 from raphiia_openai.settings import (
     GOOGLE_API_KEY,
@@ -5133,6 +5133,66 @@ def local_gitlab_resource_sync(dry_run: bool = False) -> dict[str, Any]:
 def local_gitlab_credit_status(register_if_missing: bool = True, dry_run: bool = False) -> dict[str, Any]:
     """Local GitLab Plane: reconcilia creditos Contributor Rewards como no gastables hasta verificar."""
     return local_gitlab_plane.gitlab_credit_status(register_if_missing=register_if_missing, dry_run=dry_run)
+
+
+@mcp.tool
+def local_discord_configure_public_app(application_id: str, public_key: str, default_channel_id: str = "", default_guild_id: str = "", actor: str = "RAFAEL") -> dict[str, Any]:
+    """Local Discord Plane: registra Application ID/Public Key y IDs por defecto sin secretos."""
+    return local_discord_plane.configure_public_app(application_id=application_id, public_key=public_key, default_channel_id=default_channel_id, default_guild_id=default_guild_id, actor=actor)
+
+
+@mcp.tool
+def local_discord_status() -> dict[str, Any]:
+    """Local Discord Plane: valida configuracion, bot token/webhook y usuario bot sin exponer secretos."""
+    return local_discord_plane.discord_status()
+
+
+@mcp.tool
+def local_discord_store_bot_token_server_side(secret: str, label: str = "Discord Bot Token", actor: str = "RAFAEL") -> dict[str, Any]:
+    """Local Discord Plane: guarda bot token en owner_vault; no retorna el secreto."""
+    return local_discord_plane.store_bot_token_server_side(secret=secret, label=label, actor=actor)
+
+
+@mcp.tool
+def local_discord_store_webhook_url_server_side(secret: str, label: str = "Discord Ops Webhook URL", actor: str = "RAFAEL") -> dict[str, Any]:
+    """Local Discord Plane: guarda webhook URL en owner_vault; no retorna el secreto."""
+    return local_discord_plane.store_webhook_url_server_side(secret=secret, label=label, actor=actor)
+
+
+@mcp.tool
+def local_discord_list_guilds(limit: int = 20) -> dict[str, Any]:
+    """Local Discord Plane: lista servidores donde el bot esta instalado."""
+    return local_discord_plane.list_guilds(limit=limit)
+
+
+@mcp.tool
+def local_discord_oauth_install_url(permissions: int = 84992) -> dict[str, Any]:
+    """Local Discord Plane: genera URL OAuth para instalar el bot con permisos minimos."""
+    return local_discord_plane.oauth_install_url(permissions=permissions)
+
+
+@mcp.tool
+def local_discord_list_channels(guild_id: str = "", limit: int = 100) -> dict[str, Any]:
+    """Local Discord Plane: lista canales de un servidor para elegir destino por nombre/ID."""
+    return local_discord_plane.list_channels(guild_id=guild_id, limit=limit)
+
+
+@mcp.tool
+def local_discord_send_channel_message(channel_id: str = "", content: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Local Discord Plane: envia mensaje a canal; dry_run por defecto para evitar ruido accidental."""
+    return local_discord_plane.send_channel_message(channel_id=channel_id, content=content, dry_run=dry_run)
+
+
+@mcp.tool
+def local_discord_send_webhook_message(content: str, dry_run: bool = True) -> dict[str, Any]:
+    """Local Discord Plane: envia alerta por webhook; dry_run por defecto para evitar ruido accidental."""
+    return local_discord_plane.send_webhook_message(content=content, dry_run=dry_run)
+
+
+@mcp.tool
+def local_discord_resource_sync(dry_run: bool = False) -> dict[str, Any]:
+    """Local Discord Plane: registra Discord en Resource Fabric como canal ops/aprobaciones."""
+    return local_discord_plane.register_resource_provider(dry_run=dry_run)
 
 
 @mcp.tool

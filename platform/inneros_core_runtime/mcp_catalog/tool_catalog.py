@@ -196,6 +196,16 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_list_pipelines",
     "local_gitlab_resource_sync",
     "local_gitlab_credit_status",
+    "local_discord_configure_public_app",
+    "local_discord_status",
+    "local_discord_store_bot_token_server_side",
+    "local_discord_store_webhook_url_server_side",
+    "local_discord_oauth_install_url",
+    "local_discord_list_guilds",
+    "local_discord_list_channels",
+    "local_discord_send_channel_message",
+    "local_discord_send_webhook_message",
+    "local_discord_resource_sync",
     "cloudflare_status",
     "cloudflare_dns_upsert",
     "cloudflare_dns_delete",
@@ -3235,6 +3245,38 @@ for _name in (
         "input_schema": {"project_id_or_path": "string", "state": "string|null", "limit": "number|null", "dry_run": "bool|null"},
         "output_schema": {"ok": "bool", "capability": "local_gitlab_plane"},
         "example_payload": {"project_id_or_path": "rafagye/example", "state": "opened", "limit": 20, "dry_run": True},
+    }
+
+
+_LOCAL_DISCORD_WRITES = {
+    "local_discord_configure_public_app",
+    "local_discord_store_bot_token_server_side",
+    "local_discord_store_webhook_url_server_side",
+    "local_discord_send_channel_message",
+    "local_discord_send_webhook_message",
+    "local_discord_resource_sync",
+}
+for _name in (
+    "local_discord_configure_public_app",
+    "local_discord_status",
+    "local_discord_store_bot_token_server_side",
+    "local_discord_store_webhook_url_server_side",
+    "local_discord_oauth_install_url",
+    "local_discord_list_guilds",
+    "local_discord_list_channels",
+    "local_discord_send_channel_message",
+    "local_discord_send_webhook_message",
+    "local_discord_resource_sync",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"Local Discord Plane: {_name.replace('local_discord_', '').replace('_', ' ')} para alertas, aprobaciones, comunidad y publicacion; ejecucion queda detras de scopes MCP.",
+        "required_scopes": ["ralfia:agents"] if _name in _LOCAL_DISCORD_WRITES else ["ralfia:read"],
+        "risk_level": "medium" if _name in _LOCAL_DISCORD_WRITES else "low",
+        "writes_to": ["owner_vault", "discord_channel", "inneros_resource_fabric", "ralfia_discord_audit"] if _name in _LOCAL_DISCORD_WRITES else [],
+        "reads_from": ["discord_api", "owner_vault", "resource_fabric"],
+        "input_schema": {"application_id": "string|null", "public_key": "string|null", "channel_id": "string|null", "content": "string|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "capability": "local_discord_plane"},
+        "example_payload": {"channel_id": "1234567890", "content": "InnerOS alert", "dry_run": True},
     }
 
 

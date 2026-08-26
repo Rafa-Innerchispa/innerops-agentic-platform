@@ -1,0 +1,311 @@
+"""Discord provider plane for InnerOS Resource Fabric.
+
+Discord is an operations/community surface for alerts, approvals, publishing,
+and read-only coordination. Local command execution stays behind MCP scopes and
+separate approval gates.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from typing import Any
+
+from raphiia_openai import mongo_store, owner_vault
+
+CAPABILITY = "local_discord_plane"
+PROVIDER_ID = "discord-ops"
+VAULT_CATEGORY = "discord"
+BOT_TOKEN_KEY = "bot_token"
+WEBHOOK_URL_KEY = "ops_webhook_url"
+API_BASE = "https://discord.com/api/v10"
+COL_CONFIG = "inneros_discord_config"
+COL_AUDIT = "ralfia_discord_audit"
+
+DEFAULT_APPLICATION_ID = "1534410918962663425"
+DEFAULT_PUBLIC_KEY = "45ba549cabf8c5fc61798bb894d7facac2d22f14eaf0e3cb82cac1df49bde0d2"
+DEFAULT_BOT_PERMISSIONS = 84992
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _redact(value: str) -> str:
+    text = value or ""
+    text = re.sub(r"Bot\s+[A-Za-z0-9._\-]+", "Bot [REDACTED]", text, flags=re.IGNORECASE)
+    text = re.sub(r"(discord(?:app)?\.com/api/webhooks/)[^\s\"']+", r"\1[REDACTED]", text, flags=re.IGNORECASE)
+    text = re.sub(r"(Authorization)(:\s*|=\s*)(Bot\s+)?[^\s,;]+", r"\1\2[REDACTED]", text, flags=re.IGNORECASE)
+    return text
+
+
+def _limit(limit: int) -> int:
+    try:
+        value = int(limit)
+    except (TypeError, ValueError):
+        value = 20
+    return max(1, min(value, 100))
+
+
+def _config() -> dict[str, Any]:
+    doc = mongo_store.get_db()[COL_CONFIG].find_one({"config_id": "default"}, {"_id": 0}) or {}
+    return {
+        "application_id": str(doc.get("application_id") or os.getenv("DISCORD_APPLICATION_ID") or DEFAULT_APPLICATION_ID).strip(),
+        "public_key": str(doc.get("public_key") or os.getenv("DISCORD_PUBLIC_KEY") or DEFAULT_PUBLIC_KEY).strip(),
+        "default_channel_id": str(doc.get("default_channel_id") or os.getenv("DISCORD_DEFAULT_CHANNEL_ID") or "").strip(),
+        "default_guild_id": str(doc.get("default_guild_id") or os.getenv("DISCORD_DEFAULT_GUILD_ID") or "").strip(),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+def configure_public_app(
+    application_id: str = DEFAULT_APPLICATION_ID,
+    public_key: str = DEFAULT_PUBLIC_KEY,
+    default_channel_id: str = "",
+    default_guild_id: str = "",
+    actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    if actor.upper() != "RAFAEL":
+        return {"ok": False, "error": "owner_only"}
+    app_id = (application_id or "").strip()
+    pub = (public_key or "").strip()
+    if not app_id or not pub:
+        return {"ok": False, "error": "application_id_and_public_key_required"}
+    doc = {
+        "config_id": "default",
+        "application_id": app_id,
+        "public_key": pub,
+        "default_channel_id": (default_channel_id or "").strip(),
+        "default_guild_id": (default_guild_id or "").strip(),
+        "updated_at": _now(),
+        "updated_by": actor.upper(),
+    }
+    mongo_store.get_db()[COL_CONFIG].update_one({"config_id": "default"}, {"$set": doc, "$setOnInsert": {"created_at": doc["updated_at"]}}, upsert=True)
+    public = {k: v for k, v in doc.items() if k != "public_key"}
+    return {"ok": True, "config": public, "public_key_present": True}
+
+
+def store_bot_token_server_side(secret: str, label: str = "Discord Bot Token", actor: str = "RAFAEL") -> dict[str, Any]:
+    result = owner_vault.save_owner_credential(
+        key=BOT_TOKEN_KEY,
+        secret=secret,
+        category=VAULT_CATEGORY,
+        label=label,
+        actor=actor,
+        metadata={"provider": PROVIDER_ID, "stored_for": CAPABILITY},
+    )
+    return {**result, "secret_stored": bool(result.get("ok")), "secret_returned": False}
+
+
+def store_webhook_url_server_side(secret: str, label: str = "Discord Ops Webhook URL", actor: str = "RAFAEL") -> dict[str, Any]:
+    result = owner_vault.save_owner_credential(
+        key=WEBHOOK_URL_KEY,
+        secret=secret,
+        category=VAULT_CATEGORY,
+        label=label,
+        actor=actor,
+        metadata={"provider": PROVIDER_ID, "stored_for": CAPABILITY},
+    )
+    return {**result, "secret_stored": bool(result.get("ok")), "secret_returned": False}
+
+
+def _secret(key: str) -> tuple[str, str]:
+    cred = owner_vault.get_owner_credential(key, category=VAULT_CATEGORY, reveal=True)
+    secret = str(cred.get("secret") or "").strip() if cred.get("ok") else ""
+    if secret:
+        return secret, f"owner_vault:discord/{key}"
+    env_key = "DISCORD_BOT_TOKEN" if key == BOT_TOKEN_KEY else "DISCORD_OPS_WEBHOOK_URL"
+    env_secret = (os.getenv(env_key) or "").strip()
+    if env_secret:
+        return env_secret, f"env:{env_key}"
+    return "", "missing"
+
+
+def _request(method: str, path: str, payload: dict[str, Any] | None = None, timeout: int = 25) -> dict[str, Any]:
+    token, source = _secret(BOT_TOKEN_KEY)
+    if not token:
+        return {"ok": False, "error": "discord_bot_token_missing", "token_source": source, "hint": "store token with local_discord_store_bot_token_server_side"}
+    data = json.dumps(payload or {}).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(
+        f"{API_BASE}{path}",
+        data=data,
+        method=method.upper(),
+        headers={"Authorization": f"Bot {token}", "Content-Type": "application/json", "User-Agent": "InnerOS-Discord-Plane/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            parsed = json.loads(raw) if raw else None
+            return {"ok": 200 <= resp.status < 300, "status": resp.status, "data": parsed, "token_source": source}
+    except urllib.error.HTTPError as exc:
+        detail = _redact(exc.read().decode("utf-8", errors="replace")[:2000])
+        return {"ok": False, "status": exc.code, "error": "discord_http_error", "detail": detail, "token_source": source}
+    except urllib.error.URLError as exc:
+        return {"ok": False, "error": "discord_unreachable", "detail": _redact(str(exc.reason)), "token_source": source}
+
+
+def _audit(action: str, result: dict[str, Any], metadata: dict[str, Any] | None = None) -> None:
+    try:
+        mongo_store.get_db()[COL_AUDIT].insert_one(
+            {"action": action, "result_ok": bool(result.get("ok")), "result": {k: v for k, v in result.items() if k != "data"}, "metadata": metadata or {}, "created_at": _now(), "capability": CAPABILITY}
+        )
+    except Exception:
+        pass
+
+
+def discord_status() -> dict[str, Any]:
+    cfg = _config()
+    token, source = _secret(BOT_TOKEN_KEY)
+    webhook, webhook_source = _secret(WEBHOOK_URL_KEY)
+    result: dict[str, Any] = {
+        "ok": True,
+        "capability": CAPABILITY,
+        "provider_id": PROVIDER_ID,
+        "application_id": cfg["application_id"],
+        "public_key_present": bool(cfg["public_key"]),
+        "default_channel_id_present": bool(cfg["default_channel_id"]),
+        "default_guild_id_present": bool(cfg["default_guild_id"]),
+        "bot_token_present": bool(token),
+        "bot_token_source": source,
+        "webhook_present": bool(webhook),
+        "webhook_source": webhook_source,
+        "auth_ok": False,
+        "bot_user": None,
+        "execution_policy": "alerts and approvals first; command execution requires MCP scope plus explicit approval",
+    }
+    if token:
+        me = _request("GET", "/users/@me")
+        result["auth_ok"] = bool(me.get("ok"))
+        result["auth_status"] = me.get("status")
+        if me.get("ok") and isinstance(me.get("data"), dict):
+            data = me["data"]
+            result["bot_user"] = {"id": data.get("id"), "username": data.get("username"), "bot": data.get("bot")}
+        else:
+            result["auth_error"] = {k: v for k, v in me.items() if k != "data"}
+    return result
+
+
+def oauth_install_url(permissions: int = DEFAULT_BOT_PERMISSIONS) -> dict[str, Any]:
+    cfg = _config()
+    app_id = cfg["application_id"]
+    if not app_id:
+        return {"ok": False, "error": "application_id_required"}
+    scopes = "bot applications.commands"
+    url = (
+        "https://discord.com/oauth2/authorize"
+        f"?client_id={app_id}"
+        f"&permissions={int(permissions)}"
+        "&integration_type=0"
+        f"&scope={scopes.replace(' ', '+')}"
+    )
+    return {
+        "ok": True,
+        "application_id": app_id,
+        "permissions": int(permissions),
+        "scopes": scopes.split(),
+        "url": url,
+        "permission_notes": ["View Channels", "Send Messages", "Embed Links", "Read Message History"],
+    }
+
+
+def list_guilds(limit: int = 20) -> dict[str, Any]:
+    res = _request("GET", "/users/@me/guilds")
+    if not res.get("ok"):
+        return res
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    items = rows[: _limit(limit)]
+    return {"ok": True, "count": len(items), "guilds": [{"id": g.get("id"), "name": g.get("name"), "owner": g.get("owner"), "permissions": g.get("permissions")} for g in items if isinstance(g, dict)]}
+
+
+def list_channels(guild_id: str = "", limit: int = 100) -> dict[str, Any]:
+    cfg = _config()
+    guild = (guild_id or cfg["default_guild_id"]).strip()
+    if not guild:
+        return {"ok": False, "error": "guild_id_required"}
+    res = _request("GET", f"/guilds/{guild}/channels")
+    if not res.get("ok"):
+        return res
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    items = rows[: _limit(limit)]
+    return {
+        "ok": True,
+        "count": len(items),
+        "guild_id": guild,
+        "channels": [
+            {
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "type": item.get("type"),
+                "parent_id": item.get("parent_id"),
+                "position": item.get("position"),
+            }
+            for item in items
+            if isinstance(item, dict)
+        ],
+    }
+
+
+def send_channel_message(channel_id: str = "", content: str = "", dry_run: bool = True) -> dict[str, Any]:
+    cfg = _config()
+    channel = (channel_id or cfg["default_channel_id"]).strip()
+    text = (content or "").strip()
+    if not channel or not text:
+        return {"ok": False, "error": "channel_id_and_content_required"}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "channel_id": channel, "content_preview": text[:500]}
+    res = _request("POST", f"/channels/{channel}/messages", payload={"content": text[:1900]})
+    _audit("send_channel_message", res, {"channel_id": channel})
+    return {"ok": bool(res.get("ok")), "status": res.get("status"), "message_id": (res.get("data") or {}).get("id") if isinstance(res.get("data"), dict) else None, "error": res.get("error")}
+
+
+def send_webhook_message(content: str, dry_run: bool = True) -> dict[str, Any]:
+    webhook, source = _secret(WEBHOOK_URL_KEY)
+    text = (content or "").strip()
+    if not webhook:
+        return {"ok": False, "error": "discord_webhook_missing", "webhook_source": source, "hint": "store webhook with local_discord_store_webhook_url_server_side"}
+    if not text:
+        return {"ok": False, "error": "content_required"}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "webhook_source": source, "content_preview": text[:500]}
+    req = urllib.request.Request(webhook, data=json.dumps({"content": text[:1900]}).encode("utf-8"), method="POST", headers={"Content-Type": "application/json", "User-Agent": "InnerOS-Discord-Plane/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            result = {"ok": 200 <= resp.status < 300, "status": resp.status, "webhook_source": source}
+    except urllib.error.HTTPError as exc:
+        result = {"ok": False, "status": exc.code, "error": "discord_webhook_http_error", "detail": _redact(exc.read().decode("utf-8", errors="replace")[:1000]), "webhook_source": source}
+    except urllib.error.URLError as exc:
+        result = {"ok": False, "error": "discord_webhook_unreachable", "detail": _redact(str(exc.reason)), "webhook_source": source}
+    _audit("send_webhook_message", result)
+    return result
+
+
+def resource_provider_document() -> dict[str, Any]:
+    status = discord_status()
+    return {
+        "provider_id": PROVIDER_ID,
+        "label": "Discord Ops Bridge",
+        "kind": "ops_communication_provider",
+        "capabilities": ["ops_alerts", "approval_requests", "community_updates", "incident_notifications", "slash_commands_optional"],
+        "local_first": False,
+        "status": "active" if (status.get("auth_ok") or status.get("webhook_present")) else "configured_needs_token_or_webhook",
+        "requires": ["Discord bot token or channel webhook in owner_vault", "guild/channel IDs for production routing"],
+        "cost_policy": "external_messaging_only_no_model_spend",
+        "verified_user": status.get("bot_user"),
+        "updated_at": _now(),
+        "registry_version": "resource_fabric_v1",
+    }
+
+
+def register_resource_provider(dry_run: bool = False) -> dict[str, Any]:
+    provider = resource_provider_document()
+    if dry_run:
+        return {"ok": True, "dry_run": True, "provider": provider}
+    now = _now()
+    provider["updated_at"] = now
+    mongo_store.get_db()["inneros_resource_providers"].update_one({"provider_id": provider["provider_id"]}, {"$set": provider, "$setOnInsert": {"created_at": now}}, upsert=True)
+    _audit("register_resource_provider", {"ok": True, "provider_id": PROVIDER_ID})
+    return {"ok": True, "provider": provider}

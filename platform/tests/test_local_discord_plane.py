@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+import unittest
+from unittest import mock
+
+from raphiia_openai import local_discord_plane as discord
+
+
+class LocalDiscordPlaneTests(unittest.TestCase):
+    def test_redact_removes_bot_token_and_webhook(self) -> None:
+        text = "Authorization: Bot abc.def.ghi https://discord.com/api/webhooks/123/secret"
+        redacted = discord._redact(text)
+        self.assertNotIn("abc.def.ghi", redacted)
+        self.assertNotIn("/123/secret", redacted)
+        self.assertIn("[REDACTED]", redacted)
+
+    def test_status_without_token_or_webhook_is_configured_not_active(self) -> None:
+        with mock.patch.object(discord, "_secret", return_value=("", "missing")):
+            status = discord.discord_status()
+        self.assertTrue(status["ok"])
+        self.assertFalse(status["auth_ok"])
+        self.assertFalse(status["bot_token_present"])
+        self.assertFalse(status["webhook_present"])
+
+    def test_send_channel_message_dry_run_does_not_require_token(self) -> None:
+        with mock.patch.object(discord, "_config", return_value={"default_channel_id": "123", "default_guild_id": "", "application_id": "app", "public_key": "pub", "updated_at": None}):
+            result = discord.send_channel_message(content="hello", dry_run=True)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["dry_run"])
+        self.assertEqual(result["channel_id"], "123")
+
+    def test_list_channels_requires_guild_id(self) -> None:
+        with mock.patch.object(discord, "_config", return_value={"default_channel_id": "", "default_guild_id": "", "application_id": "app", "public_key": "pub", "updated_at": None}):
+            result = discord.list_channels()
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "guild_id_required")
+
+    def test_resource_provider_is_not_model_runtime(self) -> None:
+        with mock.patch.object(discord, "discord_status", return_value={"auth_ok": False, "webhook_present": False, "bot_user": None}):
+            provider = discord.resource_provider_document()
+        self.assertEqual(provider["provider_id"], "discord-ops")
+        self.assertEqual(provider["cost_policy"], "external_messaging_only_no_model_spend")
+        self.assertIn("approval_requests", provider["capabilities"])
+
+
+if __name__ == "__main__":
+    unittest.main()
