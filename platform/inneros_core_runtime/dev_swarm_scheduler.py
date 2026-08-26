@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import capacity_governor_vnext, coordination_live, local_execution_plane, local_model_router, mongo_store
+from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, local_execution_plane, local_model_router, mongo_store
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -62,6 +62,13 @@ def _parse_dt(value: Any) -> datetime | None:
 
 def _db():
     return mongo_store.get_db()
+
+
+def _record_watchdog_anomaly_safe(anomaly: dict[str, Any], repair_task_id: str = "ops_e85143bd8ffc") -> None:
+    try:
+        dev_swarm_watchdog.record_anomaly(anomaly, repair_task_id=repair_task_id, actor="dev_swarm_reconciler")
+    except Exception:
+        pass
 
 
 def _state() -> dict[str, Any]:
@@ -279,7 +286,21 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
         return None
     if "cloudflare" in text and not any(marker in text for marker in ("ag-44", "mcp", "tool", "toolchain", "owner_vault", "provider", "runtime", "local execution")):
         return None
-    product_only_markers = ("workforce.pcdoctor.ai", "femar")
+    product_only_markers = (
+        "workforce",
+        "workforce.pcdoctor.ai",
+        "femar",
+        "payroll",
+        "hr/payroll",
+        "pre-nomina",
+        "pre-nómina",
+        "empleados",
+        "marcaciones",
+    )
+    # A product task that merely says "use Dev Swarm" must not be rewritten as
+    # platform work. Product repos need an explicit repo/project policy path.
+    if any(marker in text for marker in product_only_markers) and not repo:
+        return None
     if any(marker in text for marker in current_markers):
         if any(marker in text for marker in product_only_markers) and not any(marker in text for marker in platform_override_markers):
             return None
@@ -394,6 +415,20 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
                 }
             },
         )
+        _record_watchdog_anomaly_safe(
+            {
+                "type": blocker,
+                "component": "dev_swarm_scheduler",
+                "task_id": task_id,
+                "repo_actual": worker.get("repo"),
+                "worker": worker.get("worker_id") or worker.get("id"),
+                "node": worker.get("node"),
+                "model": worker.get("model"),
+                "profile": worker.get("profile"),
+                "severity": "high",
+                "evidence": {"reason": reason, "reclaim_count": reclaim_count, "retryable": retryable},
+            }
+        )
         if retryable:
             retriable += 1
         else:
@@ -407,20 +442,86 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     now_iso = now.isoformat()
     stale_before = now.timestamp() - STALE_WORKER_SECONDS
     stale_progress_before = now.timestamp() - STALE_PROGRESS_SECONDS
-    terminal_filter = {
-        "status": {"$in": ["starting", "running"]},
-        "executor.status": {"$in": list(TERMINAL_EXECUTOR_STATUSES)},
-    }
-    terminal_res = db[WORKERS_COL].update_many(
-        terminal_filter,
-        {
-            "$set": {
-                "status": "verification",
-                "capacity_reconciled_at": now_iso,
-                "capacity_reconcile_reason": reason,
-            }
-        },
+    executed_res = db[WORKERS_COL].update_many(
+        {"status": {"$in": ["starting", "running", "verification"]}, "executor.status": "executed"},
+        {"$set": {"status": "executed", "capacity_reconciled_at": now_iso, "capacity_reconcile_reason": reason}},
     )
+    failed_res = db[WORKERS_COL].update_many(
+        {"status": {"$in": ["starting", "running", "verification"]}, "executor.status": {"$in": ["failed", "needs_implementation"]}},
+        {"$set": {"status": "blocked", "capacity_reconciled_at": now_iso, "capacity_reconcile_reason": reason}},
+    )
+    blocked_res = db[WORKERS_COL].update_many(
+        {"status": {"$in": ["starting", "running", "verification"]}, "executor.status": "blocked"},
+        {"$set": {"status": "blocked", "capacity_reconciled_at": now_iso, "capacity_reconcile_reason": reason}},
+    )
+    terminal_modified = executed_res.modified_count + failed_res.modified_count + blocked_res.modified_count
+
+    invalid_route_count = 0
+    for worker in db[WORKERS_COL].find(
+        {
+            "status": {"$in": ["starting", "running"]},
+            "$or": [{"executor.status": {"$exists": False}}, {"executor.status": {"$nin": list(TERMINAL_EXECUTOR_STATUSES)}}],
+        },
+        {"_id": 0},
+    ):
+        task_id = str(worker.get("task_id") or "")
+        task = _task_doc(task_id) if task_id else None
+        if not task:
+            invalid_reason = "task_not_found"
+            expected_repo = None
+        else:
+            ok, invalid_reason, expected_repo = _eligible_reason(task)
+            if ok:
+                continue
+        blocker = f"invalid_dev_swarm_route:{invalid_reason}"
+        db[WORKERS_COL].update_one(
+            {"task_id": task_id},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "capacity_reconciled_at": now_iso,
+                    "capacity_reconcile_reason": reason,
+                    "blocker": blocker,
+                    "slot_reclaimed_at": now_iso,
+                    "executor.status": "blocked",
+                    "executor.phase": "invalid_route",
+                    "executor.blocker": blocker,
+                    "executor.expected_repo": expected_repo,
+                    "executor.updated_at": now_iso,
+                }
+            },
+        )
+        if task_id:
+            db[coordination_live.OPS_TASKS_COL].update_one(
+                {"task_id": task_id},
+                {
+                    "$set": {
+                        "owner": "dev_swarm",
+                        "status": "blocked",
+                        "dev_swarm_last_skip_reason": blocker,
+                        "dev_swarm_last_skip_at": now_iso,
+                        "dev_swarm_retry_requested": False,
+                        "updated_at": now_iso,
+                    }
+                },
+            )
+        _record_watchdog_anomaly_safe(
+            {
+                "type": blocker,
+                "component": "dev_swarm_scheduler",
+                "task_id": task_id,
+                "repo_expected": expected_repo,
+                "repo_actual": worker.get("repo"),
+                "worker": worker.get("worker_id") or worker.get("id"),
+                "node": worker.get("node"),
+                "model": worker.get("model"),
+                "profile": worker.get("profile"),
+                "severity": "high",
+                "evidence": {"reason": invalid_reason, "reconcile_reason": reason},
+            }
+        )
+        invalid_route_count += 1
+
     stale_workers = []
     for worker in db[WORKERS_COL].find(
         {
@@ -444,7 +545,8 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     return {
         "ok": True,
         "reason": reason,
-        "terminal_workers_reconciled": terminal_res.modified_count,
+        "terminal_workers_reconciled": terminal_modified,
+        "invalid_route_workers_reconciled": invalid_route_count,
         "stale_workers_reconciled": stale_reclaim["retriable"] + stale_reclaim["exhausted"],
         "stale_workers_retryable": stale_reclaim["retriable"],
         "stale_workers_exhausted": stale_reclaim["exhausted"],
@@ -645,10 +747,10 @@ def _cleanup_generated_python_artifacts(worktree: Path) -> list[str]:
 
 
 def scheduler_start(max_concurrent: int = DEFAULT_MAX_CONCURRENT, dry_run: bool = False) -> dict[str, Any]:
-    max_c = max(1, min(int(max_concurrent or DEFAULT_MAX_CONCURRENT), 12))
+    max_c = max(DEFAULT_MAX_CONCURRENT, min(int(max_concurrent or DEFAULT_MAX_CONCURRENT), 12))
     if dry_run:
         return {"ok": True, "dry_run": True, "would_set": {"enabled": True, "max_concurrent": max_c}}
-    state = _save_state({"enabled": True, "max_concurrent": max_c, "started_at": _now(), "stopped_at": None})
+    state = _save_state({"enabled": True, "max_concurrent": max_c, "started_at": _now(), "stopped_at": None, "stop_reason": ""})
     coordination_live.bump_revision(reason="dev_swarm_scheduler enabled", source="dev_swarm")
     return {"ok": True, "state": state}
 
@@ -667,7 +769,12 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     state = _state()
     capacity = capacity_status()
     recommended = int((capacity.get("recommendation") or {}).get("recommended_concurrency_total") or DEFAULT_MAX_CONCURRENT)
-    max_concurrent = max(1, min(int(state.get("max_concurrent") or DEFAULT_MAX_CONCURRENT), recommended or 1, 12))
+    configured = int(state.get("max_concurrent") or DEFAULT_MAX_CONCURRENT)
+    # Older persisted state sometimes pinned the swarm to 1/2 even when the
+    # capacity governor admitted four lanes. Treat DEFAULT_MAX_CONCURRENT as
+    # the floor for normal operation and let the governor remain the ceiling.
+    effective_configured = max(DEFAULT_MAX_CONCURRENT, configured)
+    max_concurrent = max(1, min(effective_configured, recommended or DEFAULT_MAX_CONCURRENT, 12))
     active = db[WORKERS_COL].count_documents(_active_worker_query())
     available = max(0, max_concurrent - active)
     if not state.get("enabled") and not dry_run:

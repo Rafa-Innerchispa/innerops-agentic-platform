@@ -247,8 +247,7 @@ def create_ops_task(
         {
             "correlation_id": cid,
             "assignee": assignee_l,
-            "title": title.strip(),
-            "status": {"$nin": ["cancelled", "failed"]},
+            "status": {"$nin": ["cancelled", "failed", "superseded"]},
         },
         {"_id": 0},
     )

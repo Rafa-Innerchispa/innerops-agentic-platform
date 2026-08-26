@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse
 
 from raphiia_openai.auth_middleware import ApiKeyMiddleware
 from raphiia_openai import quoteops_mcp_bridge
-from raphiia_openai import coordination_docs, dev_swarm_scheduler, discord_interaction_gateway, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
+from raphiia_openai import coordination_docs, dev_swarm_scheduler, dev_swarm_watchdog, discord_interaction_gateway, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
 from raphiia_openai.operational import accounting_store, inventory_store, pcdoctor_store, party_store, procurement_store
 from raphiia_openai.settings import (
     GOOGLE_API_KEY,
@@ -565,11 +565,11 @@ def project_runtime_migrate_existing(actor: str = "codex") -> dict[str, Any]:
 
 
 @mcp.tool
-def sync_platform_to_intel(dry_run: bool = False) -> dict[str, Any]:
+def sync_platform_to_intel(dry_run: bool = False, restart_intel: bool = True) -> dict[str, Any]:
     """AG-43: rsync platform AMD→Intel y restart MCP (ejecutar desde AMD)."""
     from raphiia_openai.agents import ag43_platform_sync_agent as ag43
 
-    return ag43.sync_platform_to_intel(dry_run=dry_run)
+    return ag43.sync_platform_to_intel(dry_run=dry_run, restart_intel=restart_intel)
 
 
 @mcp.tool
@@ -2991,6 +2991,30 @@ def sync_email_archive(limit: int = 500) -> dict[str, Any]:
 
 
 @mcp.tool
+def analyze_email_intelligence_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Email Intelligence sin efectos: clasifica documento, entidad, ruta y gate humano."""
+    from raphiia_openai.notifications import email_router
+
+    return email_router.analyze_email_payload(payload)
+
+
+@mcp.tool
+def process_email_intelligence_mail(mail_id: str, create_task: bool = False, hydrate: bool = True) -> dict[str, Any]:
+    """Reprocesa un correo por mail_id. Por defecto NO crea ops_task."""
+    from raphiia_openai.notifications import email_router
+
+    return email_router.process_mail_id(mail_id, create_task=create_task, hydrate=hydrate)
+
+
+@mcp.tool
+def email_intelligence_summary(limit: int = 50) -> dict[str, Any]:
+    """Resumen de clasificacion documental y ruido suprimido para correo."""
+    from raphiia_openai.notifications import email_router
+
+    return email_router.intelligence_summary(limit=limit)
+
+
+@mcp.tool
 def ha_ping() -> dict[str, Any]:
     """Comprueba conexión a Home Assistant local (:8123)."""
     from raphiia_openai import homeassistant_client as ha
@@ -3058,6 +3082,7 @@ def list_pending_projects() -> dict[str, Any]:
     import os
     
     mongo_uri = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
+    client = None
     try:
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
         db = client["hackathon_autopilot"]
@@ -3070,6 +3095,9 @@ def list_pending_projects() -> dict[str, Any]:
         return {"ok": True, "count": len(pending), "projects": pending}
     except Exception as e:
         return {"ok": False, "error": f"Error conectando a MongoDB: {e}"}
+    finally:
+        if client is not None:
+            client.close()
 
 
 @mcp.tool
@@ -3080,6 +3108,7 @@ def get_project_reuse_analysis(project_id: str) -> dict[str, Any]:
     import os
     
     mongo_uri = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
+    client = None
     try:
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
         db = client["hackathon_autopilot"]
@@ -3095,6 +3124,9 @@ def get_project_reuse_analysis(project_id: str) -> dict[str, Any]:
         return {"ok": True, "analysis": p}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+    finally:
+        if client is not None:
+            client.close()
 
 
 @mcp.tool
@@ -4853,6 +4885,36 @@ def dev_swarm_scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixt
 
 
 @mcp.tool
+def dev_swarm_watchdog_record_anomaly(anomaly: dict[str, Any], repair_task_id: str = "", dry_run: bool = False) -> dict[str, Any]:
+    """Registra una anomalía Dev Swarm y crea/actualiza una ops_task deduplicada."""
+    return dev_swarm_watchdog.record_anomaly(anomaly, repair_task_id=repair_task_id, actor="mcp", dry_run=dry_run)
+
+
+@mcp.tool
+def dev_swarm_watchdog_close_anomaly(fingerprint: str, repair_task_id: str = "", evidence: dict[str, Any] | None = None, dry_run: bool = False) -> dict[str, Any]:
+    """Cierra una anomalía watchdog con evidencia de reparación/verificación."""
+    return dev_swarm_watchdog.close_anomaly(fingerprint, repair_task_id=repair_task_id, evidence=evidence, actor="mcp", dry_run=dry_run)
+
+
+@mcp.tool
+def dev_swarm_watchdog_summary(limit: int = 20) -> dict[str, Any]:
+    """Resumen consultable para agentes: anomalías, regresiones y P0 activos."""
+    return dev_swarm_watchdog.summary(limit=limit)
+
+
+@mcp.tool
+def dev_swarm_watchdog_demo_closed_loop(dry_run: bool = True) -> dict[str, Any]:
+    """Prueba detectar→task→cerrar→reinyectar→regression sin duplicar."""
+    return dev_swarm_watchdog.demo_closed_loop(dry_run=dry_run)
+
+
+@mcp.tool
+def dev_swarm_watchdog_dedupe_ops(correlation_id: str, canonical_task_id: str = "", duplicate_task_ids: list[str] | None = None, dry_run: bool = False) -> dict[str, Any]:
+    """Reconcilia ops_tasks duplicadas por correlation_id sin borrar evidencia."""
+    return dev_swarm_watchdog.canonicalize_duplicate_ops(correlation_id=correlation_id, canonical_task_id=canonical_task_id, duplicate_task_ids=duplicate_task_ids, actor="mcp", dry_run=dry_run)
+
+
+@mcp.tool
 def dev_swarm_create_fixture_tasks(count: int = 2) -> dict[str, Any]:
     """Crea fixtures P0 seguras para probar ejecución concurrente del scheduler."""
     return dev_swarm_scheduler.create_fixture_tasks(count=count)
@@ -5186,6 +5248,12 @@ def local_gitlab_list_pipelines(project_id_or_path: str, ref: str = "", limit: i
 def local_gitlab_resource_sync(dry_run: bool = False) -> dict[str, Any]:
     """Local GitLab Plane: registra GitLab en Resource Fabric sin volverlo motor default."""
     return local_gitlab_plane.register_resource_provider(dry_run=dry_run)
+
+
+@mcp.tool
+def local_gitlab_prepare_github_mirrors(namespace: str = "rafagye", create_missing: bool = False, configure_remotes: bool = False, push: bool = False, dry_run: bool = True) -> dict[str, Any]:
+    """Local GitLab Plane: inventaria/prepara mirrors GitHub->GitLab manteniendo GitHub como origin."""
+    return local_gitlab_plane.prepare_github_mirrors(namespace=namespace, create_missing=create_missing, configure_remotes=configure_remotes, push=push, dry_run=dry_run)
 
 
 @mcp.tool
