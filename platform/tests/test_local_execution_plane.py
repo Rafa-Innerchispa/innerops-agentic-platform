@@ -167,12 +167,43 @@ def test_gitlab_community_nested_runner_can_be_authorized_narrowly(tmp_path: Pat
 def test_gitlab_runner_go_profile_allows_only_safe_go_and_gitlab_reads() -> None:
     assert lep._command_allowed(["go", "version"], "go_gitlab_runner") is True
     assert lep._command_allowed(["go", "test", "./commands", "-run", "NoSuchTest", "-count=0"], "go_gitlab_runner") is True
+    assert lep._command_allowed(["go", "test", "-race", "./commands/helpers"], "go_gitlab_runner") is True
+    assert lep._command_allowed(["go", "build", "./..."], "go_gitlab_runner") is True
+    assert lep._command_allowed(["go", "vet", "./..."], "go_gitlab_runner") is True
+    assert lep._command_allowed(["make", "tools"], "go_gitlab_runner") is True
+    assert lep._command_allowed(["make", "development_setup"], "go_gitlab_runner") is True
+    assert lep._command_allowed(["make", "lint"], "go_gitlab_runner") is True
     assert lep._command_allowed(["gofmt", "-w", "commands/foo.go"], "go_gitlab_runner") is True
     assert lep._command_allowed(["glab", "issue", "view", "39712", "-R", "gitlab-org/gitlab-runner"], "go_gitlab_runner") is True
     assert lep._command_allowed(["glab", "mr", "list", "-R", "gitlab-org/gitlab-runner"], "go_gitlab_runner") is True
+    assert lep._command_allowed(["make", "shell"], "go_gitlab_runner") is False
     assert lep._command_allowed(["git", "push", "origin", "main"], "go_gitlab_runner") is False
     assert lep._command_allowed(["glab", "issue", "update", "39712"], "go_gitlab_runner") is False
     assert lep._command_allowed(["glab", "mr", "merge", "1"], "go_gitlab_runner") is False
+
+
+def test_allowlisted_command_records_durable_status(monkeypatch, tmp_path: Path) -> None:
+    records = []
+
+    monkeypatch.setattr(lep, "_repo_config", lambda repo: {"profile": "go_gitlab_runner"})
+    monkeypatch.setattr(lep, "_worktree_path", lambda repo, branch, conf: tmp_path)
+    monkeypatch.setattr(lep, "_record_command_run", lambda command_run_id, payload: records.append((command_run_id, payload)))
+    monkeypatch.setattr(lep, "_run", lambda command, cwd, timeout_seconds=120, max_output_bytes=lep.MAX_OUTPUT_BYTES_DEFAULT: {"ok": True, "returncode": 0, "stdout": "ok", "stderr": "", "argv": command})
+
+    result = lep.run_command_allowlisted(
+        "gitlab-community/gitlab-org/gitlab-runner",
+        "chatgpt/fix/39708-cache-url-redaction",
+        ["go", "build", "./..."],
+        "chatgpt_b",
+        "ops_fe4f61f14625",
+        "gitlab-contrib-runner-39708-local-supervised-20260826",
+        timeout_seconds=1200,
+    )
+
+    assert result["ok"] is True
+    assert result["command_run_id"]
+    assert [item[1]["status"] for item in records] == ["running", "completed"]
+    assert records[-1][1]["command_result"]["ok"] is True
 
 def test_workforce_nested_package_root_allows_npm_ci(monkeypatch, tmp_path: Path) -> None:
     root = tmp_path / "local_exec"

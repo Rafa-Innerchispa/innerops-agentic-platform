@@ -102,6 +102,11 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("git", "log", "--oneline", "-n"),
         ("go", "version"),
         ("go", "test"),
+        ("go", "build"),
+        ("go", "vet"),
+        ("make", "tools"),
+        ("make", "development_setup"),
+        ("make", "lint"),
         ("gofmt", "-l"),
         ("gofmt", "-d"),
         ("gofmt", "-w"),
@@ -798,6 +803,34 @@ def write_file(
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
 
+def _command_run_id(repo: str, work_branch: str, command: list[str], actor: str, task_id: str, correlation_id: str) -> str:
+    raw = json.dumps(
+        {
+            "repo": repo,
+            "work_branch": work_branch,
+            "command": command,
+            "actor": actor,
+            "task_id": task_id,
+            "correlation_id": correlation_id,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def _record_command_run(command_run_id: str, payload: dict[str, Any]) -> None:
+    try:
+        from raphiia_openai import mongo_store
+
+        mongo_store.get_db()["ralfia_local_exec_command_runs"].update_one(
+            {"command_run_id": command_run_id},
+            {"$set": {**payload, "updated_at": _now_iso()}, "$setOnInsert": {"created_at": _now_iso()}},
+            upsert=True,
+        )
+    except Exception:
+        pass
+
+
 def run_command_allowlisted(
     repo: str,
     work_branch: str,
@@ -809,19 +842,50 @@ def run_command_allowlisted(
     max_output_bytes: int = MAX_OUTPUT_BYTES_DEFAULT,
 ) -> dict[str, Any]:
     """Run a structurally allowlisted command in the isolated worktree."""
+    command_run_id = _command_run_id(repo, work_branch, command, actor, task_id, correlation_id)
     try:
         _require_metadata(actor, task_id, correlation_id)
         _validate_branch(work_branch, require_work_branch=True)
         conf = _repo_config(repo)
         profile = str(conf.get("profile") or "python-tests")
         if not (_command_allowed(command, profile) or (profile == "node-tests" and _node_package_command_allowed(command, conf))):
-            return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command}
+            return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command, "command_run_id": command_run_id}
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
-            return {"ok": False, "error": "worktree_missing", "worktree": str(worktree)}
-        return {"ok": True, "profile": profile, "command_result": _run(command, worktree, timeout_seconds=timeout_seconds, max_output_bytes=max_output_bytes)}
+            return {"ok": False, "error": "worktree_missing", "worktree": str(worktree), "command_run_id": command_run_id}
+        _record_command_run(
+            command_run_id,
+            {
+                "status": "running",
+                "repo": repo,
+                "work_branch": work_branch,
+                "profile": profile,
+                "command": command,
+                "actor": actor,
+                "task_id": task_id,
+                "correlation_id": correlation_id,
+                "timeout_seconds": max(1, min(int(timeout_seconds or 120), MAX_TIMEOUT_SECONDS)),
+            },
+        )
+        command_result = _run(command, worktree, timeout_seconds=timeout_seconds, max_output_bytes=max_output_bytes)
+        _record_command_run(
+            command_run_id,
+            {
+                "status": "completed" if command_result.get("ok") else "failed",
+                "repo": repo,
+                "work_branch": work_branch,
+                "profile": profile,
+                "command": command,
+                "actor": actor,
+                "task_id": task_id,
+                "correlation_id": correlation_id,
+                "command_result": command_result,
+            },
+        )
+        return {"ok": True, "profile": profile, "command_run_id": command_run_id, "command_result": command_result}
     except Exception as exc:
-        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+        _record_command_run(command_run_id, {"status": "error", "repo": repo, "work_branch": work_branch, "command": command, "actor": actor, "task_id": task_id, "correlation_id": correlation_id, "error": str(exc)})
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc), "command_run_id": command_run_id}
 
 
 def commit_branch(
