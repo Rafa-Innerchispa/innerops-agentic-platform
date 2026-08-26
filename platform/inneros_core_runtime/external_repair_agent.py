@@ -229,12 +229,17 @@ def list_active_runs(provider: str = "", limit: int = 20) -> list[dict[str, Any]
     )
 
 
-def list_provider_active_tasks(provider: str = "codex", limit: int = 20) -> list[dict[str, Any]]:
+def list_provider_active_tasks(provider: str = "codex", limit: int = 20, stale_after_seconds: int = 7200) -> list[dict[str, Any]]:
     provider_n = (provider or "codex").strip().lower()
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=max(60, int(stale_after_seconds or 7200)))).isoformat()
     query = {
         "assignee": provider_n,
         "owner": provider_n,
-        "status": {"$in": sorted(ACTIVE_STATUSES)},
+        "status": {"$in": ["accepted", "in_progress"]},
+        "$or": [
+            {"last_heartbeat_at": {"$gte": cutoff}},
+            {"updated_at": {"$gte": cutoff}},
+        ],
     }
     return list(
         _db()[coordination_live.OPS_TASKS_COL]

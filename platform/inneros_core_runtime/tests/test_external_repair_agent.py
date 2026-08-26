@@ -280,6 +280,7 @@ class ExternalRepairAgentTests(unittest.TestCase):
                 "revision": 3,
                 "created_at": "2026-08-26T00:00:00+00:00",
                 "updated_at": "2026-08-26T00:10:00+00:00",
+                "last_heartbeat_at": ext._now(),
             },
             {
                 "task_id": "ops_waiting",
@@ -302,6 +303,42 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertEqual(result["claim"]["reason"], "provider_has_active_tasks")
         waiting = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_waiting"})
         self.assertEqual(waiting["status"], "proposed")
+
+    def test_reconcile_ignores_stale_active_task_when_no_live_run(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.extend([
+            {
+                "task_id": "ops_stale",
+                "assignee": "codex",
+                "status": "in_progress",
+                "owner": "codex",
+                "priority": "p0",
+                "revision": 3,
+                "created_at": "2026-08-24T00:00:00+00:00",
+                "updated_at": "2026-08-24T00:10:00+00:00",
+                "last_heartbeat_at": "2026-08-24T00:10:00+00:00",
+            },
+            {
+                "task_id": "ops_waiting",
+                "assignee": "codex",
+                "status": "proposed",
+                "owner": None,
+                "priority": "p0",
+                "revision": 1,
+                "created_at": "2026-08-26T00:11:00+00:00",
+            },
+        ])
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "_auto_claim_enabled", return_value=True), \
+            patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "codex", "status": "ready", "auth_ready": True}), \
+            patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}), \
+            patch.object(ext, "external_credit_status", return_value={"ok": True, "providers": []}), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db):
+            result = ext.external_repair_agent_reconcile(provider="codex", auto_claim=True, dry_run=False)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["claim"]["claimed"])
+        waiting = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_waiting"})
+        self.assertEqual(waiting["status"], "in_progress")
 
     def test_claim_blocks_candidate_when_budget_disallows(self):
         db = FakeDb()
