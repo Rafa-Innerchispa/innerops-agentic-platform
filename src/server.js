@@ -1,4 +1,5 @@
 const http = require('http');
+const { getTenantByDomain, getTenantById, resolveRequestContext } = require('./tenantRegistry.js');
 
 const PORT = Number(process.env.PORT || 8080);
 const modules = ['Overview','Workforce','Payroll','Access','Visitors','Credentials','Devices','ARIA','Workflows','Approvals','Audit','Settings'];
