@@ -165,6 +165,8 @@ def test_gitlab_community_nested_runner_can_be_authorized_narrowly(tmp_path: Pat
         raise AssertionError("Nested GitLab community fork must stay docs-only")
 
 def test_gitlab_runner_go_profile_allows_only_safe_go_and_gitlab_reads() -> None:
+    assert lep._command_allowed(["git", "log", "--format=fuller", "-1"], "go_gitlab_runner") is True
+    assert lep._command_allowed(["git", "commit", "--amend", "-m", "Fix cache URL redaction\n\nPreserve retry behavior while redacting cache URLs."], "go_gitlab_runner") is True
     assert lep._command_allowed(["go", "version"], "go_gitlab_runner") is True
     assert lep._command_allowed(["go", "test", "./commands", "-run", "NoSuchTest", "-count=0"], "go_gitlab_runner") is True
     assert lep._command_allowed(["go", "test", "-race", "./commands/helpers"], "go_gitlab_runner") is True
@@ -177,6 +179,7 @@ def test_gitlab_runner_go_profile_allows_only_safe_go_and_gitlab_reads() -> None
     assert lep._command_allowed(["glab", "issue", "view", "39712", "-R", "gitlab-org/gitlab-runner"], "go_gitlab_runner") is True
     assert lep._command_allowed(["glab", "mr", "list", "-R", "gitlab-org/gitlab-runner"], "go_gitlab_runner") is True
     assert lep._command_allowed(["make", "shell"], "go_gitlab_runner") is False
+    assert lep._command_allowed(["git", "commit", "--amend", "--no-edit"], "go_gitlab_runner") is False
     assert lep._command_allowed(["git", "push", "origin", "main"], "go_gitlab_runner") is False
     assert lep._command_allowed(["glab", "issue", "update", "39712"], "go_gitlab_runner") is False
     assert lep._command_allowed(["glab", "mr", "merge", "1"], "go_gitlab_runner") is False

@@ -111,6 +111,8 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("git", "diff", "--stat"),
         ("git", "diff", "--name-only"),
         ("git", "log", "--oneline", "-n"),
+        ("git", "log", "--format=fuller", "-1"),
+        ("git", "commit", "--amend", "-m"),
         ("go", "version"),
         ("go", "test"),
         ("go", "build"),
