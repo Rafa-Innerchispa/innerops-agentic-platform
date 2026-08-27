@@ -180,6 +180,9 @@ DEFAULT_REPO_PROFILES = {
         "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai",
         "package_roots": ["services/femar-mvp-core"],
         "allowed_paths": [
+            "platform",
+            "infra",
+            "modules",
             "app",
             "components",
             "docs",
@@ -199,9 +202,9 @@ DEFAULT_REPO_PROFILES = {
         ],
     },
     "Rafa-Innerchispa/innerops-agentic-platform": {
-        "profile": "node-tests",
+        "profile": "python-tests",
         "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
-        "package_roots": ["."],
+        "package_roots": [".", "platform"],
         "allowed_paths": [
             "app",
             "components",
@@ -364,10 +367,11 @@ def _repo_config(repo: str) -> dict[str, Any]:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-    if repo in profiles:
-        conf = dict(profiles[repo])
-    elif repo in registry:
+    # Project Runtime Registry policy must win over bundled defaults.
+    if repo in registry:
         conf = dict(registry[repo])
+    elif repo in profiles:
+        conf = dict(profiles[repo])
     else:
         conf = owner_auto
         if not conf:
@@ -1500,3 +1504,75 @@ def prepare_repo(
 
 local_exec_prepare_repo = prepare_repo
 local_exec_hydrate_repo = prepare_repo
+
+
+# Runtime policy precedence hotfix, 2026-08-26.
+# Explicit Project Runtime Registry policy is authoritative over bundled defaults
+# and file-presence heuristics. This block intentionally overrides the helpers
+# above so older deployed source can be repaired without rewriting the module.
+for _prefix in (("python", "-m", "unittest"), ("python3", "-m", "unittest")):
+    if _prefix not in ALLOWLISTED_COMMANDS["python-tests"]:
+        ALLOWLISTED_COMMANDS["python-tests"].append(_prefix)
+
+
+def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
+    try:
+        from raphiia_openai import project_runtime_registry as prr
+
+        data = prr._load()
+    except Exception:
+        return {}
+    profiles: dict[str, dict[str, Any]] = {}
+    for entry in (data.get("projects") or {}).values():
+        repo = str(entry.get("repo") or "")
+        if not _repo_name_allowed(repo):
+            continue
+        path = (entry.get("paths") or {}).get("primary") or ""
+        try:
+            safe = prr._safe_path(path)
+        except Exception:
+            continue
+        detected_profile = "node-tests" if (safe / "package.json").exists() else "python-tests"
+        registered_profile = str(entry.get("allowed_commands_profile") or "").strip()
+        profile = registered_profile if registered_profile in ALLOWLISTED_COMMANDS else detected_profile
+        profiles[repo] = {
+            "profile": profile,
+            "source_path": str(safe),
+            "allowed_paths": entry.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS,
+            "package_roots": entry.get("package_roots") or ["."],
+            "worktrees_path": str(_root() / "worktrees" / _slug(repo)),
+            "project_id": entry.get("project_id"),
+            "registry_backed": True,
+        }
+    return profiles
+
+
+def _repo_config(repo: str) -> dict[str, Any]:
+    if not _repo_name_allowed(repo or ""):
+        raise ValueError("repo_must_be_owner_name")
+    saved_env = {key: os.environ.get(key) for key in ("INNEROS_CORE_ROOT", "RALFIA_LOCAL_EXEC_ROOT")}
+    owner_auto = _owner_approved_repo_config(repo)
+    profiles = _load_repo_profiles()
+    try:
+        registry = _registry_repo_profiles()
+    finally:
+        for key, value in saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+    if repo in registry:
+        conf = dict(registry[repo])
+    elif repo in profiles:
+        conf = dict(profiles[repo])
+    else:
+        conf = owner_auto
+        if not conf:
+            raise PermissionError("repo_not_allowlisted")
+    root = _root()
+    conf.setdefault("profile", "python-tests")
+    conf.setdefault("allowed_paths", ["."])
+    conf.setdefault("package_roots", [])
+    conf.setdefault("source_path", str(root / "repos" / _slug(repo)))
+    conf.setdefault("worktrees_path", str(root / "worktrees" / _slug(repo)))
+    return conf
