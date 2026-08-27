@@ -91,6 +91,75 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         self.assertTrue(all(env["GIT_TERMINAL_PROMPT"] == "0" for _, env in calls))
         self.assertIn("push", calls[0][0])
 
+    def test_create_draft_merge_request_dry_run_is_allowlisted(self) -> None:
+        with (
+            mock.patch.object(gl, "project_summary", side_effect=[
+                {"ok": True, "project": {"id": 101, "path_with_namespace": "gitlab-community/gitlab-org/gitlab-runner"}},
+                {"ok": True, "project": {"id": 202, "path_with_namespace": "gitlab-org/gitlab-runner"}},
+            ]),
+            mock.patch.object(gl, "_request") as request,
+        ):
+            result = gl.create_draft_merge_request(
+                source_project="gitlab-community/gitlab-org/gitlab-runner",
+                source_branch="chatgpt/fix/39708-cache-url-redaction",
+                target_project="gitlab-org/gitlab-runner",
+                target_branch="main",
+                title="Fix cache URL redaction docs",
+                description="Owner-approved draft merge request dry run for GitLab Runner contribution.",
+                dry_run=True,
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["dry_run"])
+        self.assertTrue(result["payload"]["title"].startswith("Draft:"))
+        self.assertEqual(result["payload"]["target_project_id"], 202)
+        request.assert_not_called()
+
+    def test_create_draft_merge_request_rejects_unallowlisted_pair(self) -> None:
+        result = gl.create_draft_merge_request(
+            source_project="rafagye/demo",
+            source_branch="chatgpt/fix/demo",
+            target_project="gitlab-org/gitlab-runner",
+            title="Demo",
+            description="This should be rejected before any API call.",
+            dry_run=True,
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "merge_request_pair_not_allowlisted")
+
+    def test_create_draft_merge_request_posts_only_when_not_dry_run(self) -> None:
+        created = {
+            "ok": True,
+            "data": {
+                "id": 1,
+                "iid": 77,
+                "title": "Draft: Fix cache URL redaction docs",
+                "state": "opened",
+                "source_branch": "chatgpt/fix/39708-cache-url-redaction",
+                "target_branch": "main",
+                "web_url": "https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/77",
+            },
+        }
+        with (
+            mock.patch.object(gl, "project_summary", side_effect=[
+                {"ok": True, "project": {"id": 101, "path_with_namespace": "gitlab-community/gitlab-org/gitlab-runner"}},
+                {"ok": True, "project": {"id": 202, "path_with_namespace": "gitlab-org/gitlab-runner"}},
+            ]),
+            mock.patch.object(gl, "_request", return_value=created) as request,
+        ):
+            result = gl.create_draft_merge_request(
+                source_project="gitlab-community/gitlab-org/gitlab-runner",
+                source_branch="chatgpt/fix/39708-cache-url-redaction",
+                target_project="gitlab-org/gitlab-runner",
+                title="Fix cache URL redaction docs",
+                description="Owner-approved draft merge request creation after branch push has succeeded.",
+                dry_run=False,
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["merge_request"]["iid"], 77)
+        request.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

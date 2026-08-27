@@ -471,6 +471,72 @@ def list_merge_requests(project_id_or_path: str, state: str = "opened", limit: i
     return {"ok": True, "count": len(rows), "merge_requests": [_mr_summary(item) for item in rows if isinstance(item, dict)]}
 
 
+def create_draft_merge_request(
+    source_project: str,
+    source_branch: str,
+    target_project: str,
+    target_branch: str = "main",
+    title: str = "",
+    description: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    allowed_pairs = {
+        ("gitlab-community/gitlab-org/gitlab-runner", "gitlab-org/gitlab-runner"),
+    }
+    source_project = (source_project or "").strip()
+    target_project = (target_project or "").strip()
+    source_branch = (source_branch or "").strip()
+    target_branch = (target_branch or "main").strip()
+    if (source_project, target_project) not in allowed_pairs:
+        return {"ok": False, "error": "merge_request_pair_not_allowlisted", "allowed_pairs": sorted([list(item) for item in allowed_pairs])}
+    if not re.match(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$", source_branch):
+        return {"ok": False, "error": "source_branch_not_allowlisted"}
+    if target_branch != "main":
+        return {"ok": False, "error": "target_branch_not_allowlisted", "allowed": ["main"]}
+    clean_title = (title or "").strip()
+    if not clean_title:
+        return {"ok": False, "error": "title_required"}
+    if not clean_title.lower().startswith(("draft:", "draft -", "wip:", "wip -")):
+        clean_title = f"Draft: {clean_title}"
+    clean_description = (description or "").strip()
+    if len(clean_description) < 20:
+        return {"ok": False, "error": "description_too_short"}
+
+    source = project_summary(source_project)
+    target = project_summary(target_project)
+    if not source.get("ok"):
+        return {"ok": False, "error": "source_project_unavailable", "source": source}
+    if not target.get("ok"):
+        return {"ok": False, "error": "target_project_unavailable", "target": target}
+    target_id = (target.get("project") or {}).get("id")
+    payload = {
+        "source_branch": source_branch,
+        "target_branch": target_branch,
+        "target_project_id": target_id,
+        "title": clean_title,
+        "description": clean_description,
+        "remove_source_branch": False,
+        "allow_collaboration": False,
+        "squash": False,
+    }
+    safe_payload = {**payload, "description": clean_description[:500]}
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "source_project": source_project,
+            "target_project": target_project,
+            "would_post": f"/projects/{project_api_path(source_project)}/merge_requests",
+            "payload": safe_payload,
+            "note": "No merge request created.",
+        }
+    created = _request("POST", f"/projects/{project_api_path(source_project)}/merge_requests", payload=payload, timeout=60)
+    if not created.get("ok"):
+        return {key: value for key, value in created.items() if key != "data"} | {"ok": False, "error": "create_draft_merge_request_failed"}
+    data = created.get("data") if isinstance(created.get("data"), dict) else {}
+    return {"ok": True, "dry_run": False, "merge_request": _mr_summary(data), "web_url": data.get("web_url")}
+
+
 def list_issues(project_id_or_path: str, state: str = "opened", limit: int = 20) -> dict[str, Any]:
     encoded = project_api_path(project_id_or_path)
     res = _request("GET", f"/projects/{encoded}/issues", query={"state": state, "per_page": _limit(limit)})

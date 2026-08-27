@@ -10,10 +10,13 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
+import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 CAPABILITY = "local_execution_plane"
 DEFAULT_INNEROS_CORE_ROOT = Path("/home/rlopez/inneros/inneros_core")
@@ -82,6 +85,7 @@ SECRET_PATTERNS = [
     re.compile(r"(?i)(api[_-]?key|token|secret|password|passwd|private[_-]?key)\s*[:=]\s*[^\s]+"),
     re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
     re.compile(r"gh[opsu]_[A-Za-z0-9_]{20,}"),
+    re.compile(r"glpat-[A-Za-z0-9_.-]{10,}"),
 ]
 
 ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
@@ -230,7 +234,12 @@ def _now_iso() -> str:
 def _redact(value: str) -> str:
     redacted = value or ""
     for pattern in SECRET_PATTERNS:
-        redacted = pattern.sub(lambda m: m.group(0).split("=", 1)[0].split(":", 1)[0] + "=[REDACTED]", redacted)
+        redacted = pattern.sub(
+            lambda m: m.group(0).split("=", 1)[0].split(":", 1)[0] + "=[REDACTED]"
+            if re.search(r"[:=]", m.group(0))
+            else "[REDACTED]",
+            redacted,
+        )
     return redacted
 
 
@@ -493,6 +502,85 @@ def _run(argv: list[str], cwd: Path, *, timeout_seconds: int = 120, max_output_b
         "stderr": stderr,
         "argv": argv,
     }
+
+
+def _run_with_env(
+    argv: list[str],
+    cwd: Path,
+    env: dict[str, str],
+    *,
+    timeout_seconds: int = 120,
+    max_output_bytes: int = MAX_OUTPUT_BYTES_DEFAULT,
+) -> dict[str, Any]:
+    timeout = max(1, min(int(timeout_seconds or 120), MAX_TIMEOUT_SECONDS))
+    run_env = _execution_env()
+    run_env.update(env)
+    safe_env = {key: _redact(value) for key, value in env.items() if key != "GITLAB_TOKEN"}
+    proc = subprocess.run(
+        argv,
+        cwd=str(cwd),
+        env=run_env,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+    return {
+        "ok": proc.returncode == 0,
+        "returncode": proc.returncode,
+        "stdout": _bounded_output(proc.stdout, max_output_bytes),
+        "stderr": _bounded_output(proc.stderr, max_output_bytes),
+        "argv": argv,
+        "env": safe_env,
+    }
+
+
+def _owner_vault_gitlab_token() -> tuple[str, str]:
+    try:
+        from raphiia_openai import owner_vault
+
+        cred = owner_vault.get_owner_credential("personal_access_token", category="gitlab", reveal=True)
+        secret = str(cred.get("secret") or "").strip() if cred.get("ok") else ""
+        if secret:
+            return secret, "owner_vault:gitlab/personal_access_token"
+    except Exception:
+        pass
+    env_secret = (os.getenv("GITLAB_TOKEN") or os.getenv("GITLAB_ACCESS_TOKEN") or os.getenv("GLAB_TOKEN") or "").strip()
+    if env_secret:
+        return env_secret, "env:GITLAB_TOKEN"
+    return "", "missing"
+
+
+@contextmanager
+def _gitlab_push_auth_env(remote_url: str) -> Iterator[dict[str, str]]:
+    if "gitlab.com" not in (remote_url or "").lower():
+        yield {"GIT_TERMINAL_PROMPT": "0"}
+        return
+    token, source = _owner_vault_gitlab_token()
+    if not token:
+        yield {"GIT_TERMINAL_PROMPT": "0", "INNEROS_GITLAB_TOKEN_SOURCE": source}
+        return
+    fd, askpass = tempfile.mkstemp(prefix="inneros-local-exec-gitlab-askpass-", text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("#!/bin/sh\n")
+            fh.write("case \"$1\" in\n")
+            fh.write("  *Username*) printf '%s\\n' 'oauth2' ;;\n")
+            fh.write("  *Password*) printf '%s\\n' \"$GITLAB_TOKEN\" ;;\n")
+            fh.write("  *) printf '\\n' ;;\n")
+            fh.write("esac\n")
+        os.chmod(askpass, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        yield {
+            "GIT_ASKPASS": askpass,
+            "GIT_TERMINAL_PROMPT": "0",
+            "GITLAB_TOKEN": token,
+            "INNEROS_GITLAB_TOKEN_SOURCE": source,
+        }
+    finally:
+        try:
+            os.unlink(askpass)
+        except FileNotFoundError:
+            pass
 
 
 def _command_allowed(command: list[str], profile: str) -> bool:
@@ -1178,7 +1266,8 @@ def push_branch(
         if dry_run:
             head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
             return {"ok": True, "dry_run": True, "would_execute": command, "remote": remote_name, "remote_validation": remote_validation, "head": (head.get("stdout") or "").strip()}
-        push = _run(command, worktree, timeout_seconds=300)
+        with _gitlab_push_auth_env(str(remote_validation.get("url") or "")) as git_env:
+            push = _run_with_env(command, worktree, git_env, timeout_seconds=300)
         head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
         return {"ok": push["ok"], "push": push, "head": (head.get("stdout") or "").strip(), "remote": remote_name, "remote_validation": remote_validation, "branch": work_branch}
     except Exception as exc:

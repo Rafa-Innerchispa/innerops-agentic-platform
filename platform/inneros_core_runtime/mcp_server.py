@@ -5325,6 +5325,20 @@ def local_gitlab_list_merge_requests(project_id_or_path: str, state: str = "open
 
 
 @mcp.tool
+def local_gitlab_create_draft_merge_request(source_project: str, source_branch: str, target_project: str, target_branch: str = "main", title: str = "", description: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Local GitLab Plane: crea un Draft MR allowlisted; por defecto solo simula."""
+    return local_gitlab_plane.create_draft_merge_request(
+        source_project=source_project,
+        source_branch=source_branch,
+        target_project=target_project,
+        target_branch=target_branch,
+        title=title,
+        description=description,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
 def local_gitlab_list_issues(project_id_or_path: str, state: str = "opened", limit: int = 20) -> dict[str, Any]:
     """Local GitLab Plane: lista issues para trazabilidad de proyecto."""
     return local_gitlab_plane.list_issues(project_id_or_path=project_id_or_path, state=state, limit=limit)

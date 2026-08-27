@@ -219,6 +219,60 @@ def test_workforce_nested_package_root_allows_npm_ci(monkeypatch, tmp_path: Path
     assert lep._node_package_command_allowed(["npm", "ci", "--prefix", "services/femar-mvp-core"], conf) is True
 
 
+def test_local_exec_push_branch_gitlab_auth_is_ephemeral_and_redacted(monkeypatch, tmp_path: Path) -> None:
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    calls = []
+
+    monkeypatch.setattr(lep, "_repo_config", lambda repo: {"profile": "go_gitlab_runner"})
+    monkeypatch.setattr(lep, "_worktree_path", lambda repo, branch, conf: worktree)
+    monkeypatch.setattr(lep, "_validate_remote_for_push", lambda repo, wt, remote: {"ok": True, "remote": "community", "url": "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git"})
+    monkeypatch.setattr(lep, "_owner_vault_gitlab_token", lambda: ("glpat-super-secret-token", "owner_vault:gitlab/personal_access_token"))
+
+    def fake_run(command, cwd, timeout_seconds=120, max_output_bytes=lep.MAX_OUTPUT_BYTES_DEFAULT):
+        if command == ["git", "branch", "--show-current"]:
+            return {"ok": True, "returncode": 0, "stdout": "chatgpt/fix/39708-cache-url-redaction\n", "stderr": "", "argv": command}
+        if command == ["git", "status", "--porcelain"]:
+            return {"ok": True, "returncode": 0, "stdout": "", "stderr": "", "argv": command}
+        if command == ["git", "rev-parse", "--short", "HEAD"]:
+            return {"ok": True, "returncode": 0, "stdout": "5ace783e4\n", "stderr": "", "argv": command}
+        raise AssertionError(f"unexpected command {command}")
+
+    def fake_run_with_env(command, cwd, env, timeout_seconds=120, max_output_bytes=lep.MAX_OUTPUT_BYTES_DEFAULT):
+        calls.append((command, env))
+        return {
+            "ok": False,
+            "returncode": 128,
+            "stdout": lep._bounded_output("token glpat-super-secret-token", max_output_bytes),
+            "stderr": lep._bounded_output("fatal: could not read Username for https://gitlab.com", max_output_bytes),
+            "argv": command,
+            "env": {key: lep._redact(value) for key, value in env.items() if key != "GITLAB_TOKEN"},
+        }
+
+    monkeypatch.setattr(lep, "_run", fake_run)
+    monkeypatch.setattr(lep, "_run_with_env", fake_run_with_env)
+
+    result = lep.push_branch(
+        repo="gitlab-community/gitlab-org/gitlab-runner",
+        work_branch="chatgpt/fix/39708-cache-url-redaction",
+        actor="chatgpt_b",
+        task_id="ops_fe4f61f14625",
+        correlation_id="gitlab-vault-authenticated-push-mr-20260826",
+        idempotency_key="idem-push",
+        remote="community",
+        dry_run=False,
+    )
+
+    assert result["ok"] is False
+    assert result["push"]["returncode"] == 128
+    assert calls
+    assert calls[0][1]["GIT_TERMINAL_PROMPT"] == "0"
+    assert "GIT_ASKPASS" in calls[0][1]
+    serialized = str(result)
+    assert "glpat-super-secret-token" not in serialized
+    assert "GITLAB_TOKEN" not in result["push"]["env"]
+
+
 def test_node_install_outside_package_roots_still_blocked(monkeypatch, tmp_path: Path) -> None:
     root = tmp_path / "local_exec"
     core = tmp_path / "inneros_core"

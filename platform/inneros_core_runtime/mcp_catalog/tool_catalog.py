@@ -200,6 +200,7 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_discover_contribution_issues",
     "local_gitlab_project_summary",
     "local_gitlab_list_merge_requests",
+    "local_gitlab_create_draft_merge_request",
     "local_gitlab_list_issues",
     "local_gitlab_list_pipelines",
     "local_gitlab_resource_sync",
@@ -3424,6 +3425,7 @@ _LOCAL_GITLAB_WRITES = {
     "local_gitlab_store_pat_server_side",
     "local_gitlab_resource_sync",
     "local_gitlab_prepare_github_mirrors",
+    "local_gitlab_create_draft_merge_request",
 }
 for _name in (
     "local_gitlab_status",
@@ -3436,6 +3438,7 @@ for _name in (
     "local_gitlab_discover_contribution_issues",
     "local_gitlab_project_summary",
     "local_gitlab_list_merge_requests",
+    "local_gitlab_create_draft_merge_request",
     "local_gitlab_list_issues",
     "local_gitlab_list_pipelines",
     "local_gitlab_resource_sync",

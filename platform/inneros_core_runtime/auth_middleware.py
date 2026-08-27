@@ -128,6 +128,7 @@ TOOL_SCOPES = {
     "local_gitlab_discover_contribution_issues": "ralfia:read",
     "local_gitlab_project_summary": "ralfia:read",
     "local_gitlab_list_merge_requests": "ralfia:read",
+    "local_gitlab_create_draft_merge_request": "ralfia:agents",
     "local_gitlab_list_issues": "ralfia:read",
     "local_gitlab_list_pipelines": "ralfia:read",
     "local_gitlab_resource_sync": "ralfia:agents",
