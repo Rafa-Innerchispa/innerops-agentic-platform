@@ -422,11 +422,11 @@ def _active_worker_query() -> dict[str, Any]:
 
 def _worker_progress_time(worker: dict[str, Any]) -> datetime | None:
     executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
+    # Heartbeat proves process liveness, not useful progress.
     candidates = [
         executor.get("last_progress_at"),
-        executor.get("updated_at"),
-        worker.get("last_heartbeat_at"),
-        worker.get("updated_at"),
+        worker.get("started_at"),
+        worker.get("created_at"),
     ]
     parsed = [_parse_dt(value) for value in candidates]
     parsed = [value for value in parsed if value]
@@ -448,7 +448,11 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
         if not task_id:
             continue
         executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-        reclaim_count = int(executor.get("stale_reclaim_count") or 0) + 1
+        task = _task_doc(task_id) or {}
+        reclaim_count = max(
+            int(executor.get("stale_reclaim_count") or 0),
+            int(task.get("dev_swarm_retry_count") or 0),
+        ) + 1
         retryable = reclaim_count <= MAX_STALE_RECLAIMS
         executor_status = "failed_retryable" if retryable else "blocked"
         blocker = "stale_worker_reclaimed_for_retry" if retryable else "stale_worker_retry_budget_exhausted"
@@ -479,6 +483,7 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
                     "dev_swarm_last_skip_reason": blocker,
                     "dev_swarm_last_skip_at": now_iso,
                     "dev_swarm_retry_requested": retryable,
+                    "dev_swarm_retry_count": reclaim_count,
                     "updated_at": now_iso,
                 }
             },
@@ -676,7 +681,12 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
 
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     status = str(task.get("status") or "").lower()
-    if status not in ELIGIBLE_STATUSES and not (status in {"accepted", "in_progress", "blocked"} and task.get("owner") == "dev_swarm"):
+    retryable_existing = (
+        status in {"accepted", "in_progress", "blocked"}
+        and task.get("owner") == "dev_swarm"
+        and task.get("dev_swarm_retry_requested") is True
+    )
+    if status not in ELIGIBLE_STATUSES and not retryable_existing:
         return False, "status_not_proposed", None
     assignee = str(task.get("assignee") or "").lower()
     if assignee not in ALLOWED_ASSIGNEES:
@@ -913,6 +923,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     if include_fixtures:
         retry_query = {
             "status": "blocked",
+            "executor.status": "failed_retryable",
             "$or": [
                 {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
                 {"tags": "dev_swarm_fixture"},
@@ -921,10 +932,8 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     else:
         retry_query = {
             "status": "blocked",
-            "$or": [
-                {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
-                {"owner": "dev_swarm"},
-            ],
+            "executor.status": "failed_retryable",
+            "owner": "dev_swarm",
         }
     retry_ids = [
         row["task_id"]
@@ -936,7 +945,12 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     if retry_ids:
         seen = {task.get("task_id") for task in tasks}
         retry_tasks = db[coordination_live.OPS_TASKS_COL].find(
-            {"task_id": {"$in": retry_ids}, "owner": "dev_swarm", "status": {"$in": ["accepted", "in_progress", "blocked"]}},
+            {
+                "task_id": {"$in": retry_ids},
+                "owner": "dev_swarm",
+                "status": {"$in": ["accepted", "in_progress", "blocked"]},
+                "dev_swarm_retry_requested": True,
+            },
             {"_id": 0},
         )
         tasks.extend(task for task in retry_tasks if task.get("task_id") not in seen)
