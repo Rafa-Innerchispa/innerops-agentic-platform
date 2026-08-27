@@ -1578,3 +1578,92 @@ def _repo_config(repo: str) -> dict[str, Any]:
     conf.setdefault("source_path", str(root / "repos" / _slug(repo)))
     conf.setdefault("worktrees_path", str(root / "worktrees" / _slug(repo)))
     return conf
+
+
+# GitLab ContributorOps: safe history-rewrite fallback for owner-fork work branches.
+# Normal pushes remain unchanged. A non-fast-forward retry is allowed only against
+# rafagye/gitlab-runner origin and is guarded by an exact --force-with-lease SHA.
+_push_branch_without_lease = push_branch
+
+
+def push_branch(
+    repo: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    remote: str = "origin",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    result = _push_branch_without_lease(
+        repo=repo,
+        work_branch=work_branch,
+        actor=actor,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        remote=remote,
+        dry_run=dry_run,
+    )
+    if dry_run or result.get("ok"):
+        return result
+
+    remote_name = (remote or "origin").strip()
+    failure = result.get("push") or {}
+    failure_text = f"{failure.get('stdout') or ''}\n{failure.get('stderr') or ''}".lower()
+    lease_retry_allowed = (
+        repo == "gitlab-community/gitlab-org/gitlab-runner"
+        and remote_name == "origin"
+        and any(marker in failure_text for marker in ("non-fast-forward", "fetch first"))
+    )
+    if not lease_retry_allowed:
+        return result
+
+    conf = _repo_config(repo)
+    worktree = _worktree_path(repo, work_branch, conf)
+    remote_validation = _validate_remote_for_push(repo, worktree, remote_name)
+    if not remote_validation.get("ok"):
+        return {**result, "force_with_lease_used": False, "lease_error": "remote_validation_failed"}
+
+    remote_ref = f"refs/heads/{work_branch}"
+    with _gitlab_push_auth_env(str(remote_validation.get("url") or "")) as git_env:
+        remote_head = _run_with_env(
+            ["git", "ls-remote", "--heads", remote_name, remote_ref],
+            worktree,
+            git_env,
+            timeout_seconds=60,
+        )
+        first_line = (remote_head.get("stdout") or "").strip().splitlines()[:1]
+        first_value = first_line[0].split()[0] if first_line and first_line[0].split() else ""
+        if not (remote_head.get("ok") and re.fullmatch(r"[0-9a-fA-F]{40}", first_value)):
+            return {
+                **result,
+                "force_with_lease_used": False,
+                "lease_error": "remote_head_unavailable",
+                "remote_head": remote_head,
+            }
+        expected_sha = first_value.lower()
+        lease_command = [
+            "git",
+            "push",
+            f"--force-with-lease={remote_ref}:{expected_sha}",
+            remote_name,
+            f"HEAD:{remote_ref}",
+        ]
+        lease_push = _run_with_env(lease_command, worktree, git_env, timeout_seconds=300)
+
+    head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
+    return {
+        "ok": bool(lease_push.get("ok")),
+        "push": lease_push,
+        "head": (head.get("stdout") or "").strip(),
+        "remote": remote_name,
+        "remote_validation": remote_validation,
+        "branch": work_branch,
+        "force_with_lease_used": bool(lease_push.get("ok")),
+        "remote_head_before": expected_sha,
+    }
+
+
+local_exec_push_branch = push_branch
