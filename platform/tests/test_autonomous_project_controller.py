@@ -9,7 +9,7 @@ PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 if str(PLATFORM_ROOT) not in sys.path:
     sys.path.insert(0, str(PLATFORM_ROOT))
 
-from raphiia_openai import a2a_agent_registry, a2a_bridge, autonomous_project_controller, dev_swarm_scheduler, work_liveness
+from raphiia_openai import a2a_agent_registry, a2a_bridge, a2a_controller, autonomous_project_controller, dev_swarm_scheduler, work_liveness
 
 
 class _CountCollection:
@@ -44,6 +44,30 @@ class AutonomousControllerTests(unittest.TestCase):
         self.assertIn("inneros_core_runtime/", dev_swarm_scheduler.PRODUCT_PREFIXES)
         self.assertIn("platform/inneros_core_runtime/", dev_swarm_scheduler.PRODUCT_PREFIXES)
         self.assertEqual(dev_swarm_scheduler.EXECUTOR_VERSION, "autonomous_impl_v10_a2a_liveness")
+
+    def test_a2a_runner_timeout_does_not_block_root_controller(self):
+        class FakeFuture:
+            def result(self, timeout):
+                raise a2a_controller.FutureTimeout()
+
+            def cancel(self):
+                return True
+
+        class FakePool:
+            def __init__(self, *args, **kwargs):
+                self.shutdown_args = None
+
+            def submit(self, *args, **kwargs):
+                return FakeFuture()
+
+            def shutdown(self, **kwargs):
+                self.shutdown_args = kwargs
+
+        with mock.patch.object(a2a_controller, "ThreadPoolExecutor", FakePool):
+            result = a2a_controller._invoke_agent_bounded("AG-20", "probe", 1)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "agent_execution_timeout")
+        self.assertEqual(result["timeout_seconds"], 1)
 
     def test_liveness_escalates_repeated_zero_worker_stall(self):
         db = {work_liveness.coordination_live.OPS_TASKS_COL: _CountCollection(7)}
