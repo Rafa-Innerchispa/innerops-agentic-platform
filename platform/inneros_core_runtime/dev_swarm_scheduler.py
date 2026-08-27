@@ -23,7 +23,7 @@ from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
-EXECUTOR_VERSION = "autonomous_impl_v9_platform_contract_base_ref"
+EXECUTOR_VERSION = "autonomous_impl_v10_a2a_liveness"
 executor_version = EXECUTOR_VERSION
 DEFAULT_MAX_CONCURRENT = 4
 STALE_WORKER_SECONDS = 3600
@@ -1125,7 +1125,10 @@ DEV_TASK_TERMS = (
     "corregir", "arreglar", "reparar", "desarrollar", "programar", "prueba", "validar",
 )
 DOCS_TASK_TERMS = ("docs-only", "documentation only", "documentacion", "documentación", "readme", "runbook")
-PRODUCT_PREFIXES = ("src/", "modules/", "app/", "lib/", "components/", "infra/", "commands/")
+PRODUCT_PREFIXES = (
+    "src/", "modules/", "app/", "lib/", "components/", "infra/", "commands/",
+    "inneros_core_runtime/", "platform/inneros_core_runtime/",
+)
 DIAGNOSTIC_PATH_PARTS = ("/inneros_dev_swarm/", "/__dev_swarm_contracts/", "/diagnostics/", "/dev_swarm_frontend_status")
 NODE_PROJECT_FILES = ("package.json", "tsconfig.json", "vite.config.js", "vite.config.ts")
 TEST_PREFIXES = ("tests/", "__tests__/", "test/")
@@ -2091,8 +2094,10 @@ def _fanout_base_snapshot(repo: str, base_ref: str = "") -> dict[str, Any]:
         )
         if not prepared.get("ok"):
             return {"ok": False, "error": "source_repo_prepare_failed", "source_path": str(source), "prepare": prepared}
-    if (source / "package.json").exists():
-        conf["profile"] = "node-tests"
+    # Project Runtime Registry is authoritative. Auto-detect only when a
+    # repository has no explicit execution profile.
+    if not str(conf.get("profile") or "").strip():
+        conf["profile"] = "node-tests" if (source / "package.json").exists() else "python-tests"
     resolved = _resolve_base_ref(source, base_ref)
     if not resolved.get("ok"):
         return {"ok": False, "error": "base_ref_failed", "repo": repo, "source_path": str(source), "base_ref": base_ref or "main", "base_resolution": resolved}
