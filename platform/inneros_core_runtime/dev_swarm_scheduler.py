@@ -266,6 +266,30 @@ def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
         for marker, repo in CANONICAL_REPO_HINTS.items():
             if marker in lowered:
                 return repo
+
+    # Human-authored ops tasks frequently carry the canonical repository in
+    # the checklist instead of a structured ``repo`` field. A labelled repo is
+    # authoritative and must win before keyword heuristics. Otherwise a phrase
+    # such as "Repo explícito: <platform>; no tocar Workforce" can be routed to
+    # Workforce merely because the negative sentence contains that product
+    # name.
+    raw_parts = [
+        str(task.get("title") or ""),
+        *[str(item) for item in task.get("checklist") or []],
+    ]
+    raw_text = " ".join(raw_parts)
+    labelled = re.search(
+        r"\b(?:repo|repository|repositorio)\s+(?:expl[ií]cito|explicit)\s*[:=]\s*(Rafa-Innerchispa/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)",
+        raw_text,
+        flags=re.IGNORECASE,
+    )
+    if labelled:
+        repo_name = labelled.group(1).split("/", 1)[1]
+        for marker, repo in CANONICAL_REPO_HINTS.items():
+            if marker == repo_name.lower():
+                return repo
+        return f"Rafa-Innerchispa/{repo_name}"
+
     if "services/femar-mvp-core" in text:
         return "Rafa-Innerchispa/innerspark-workforce-ai"
     if "innerspark-workforce-ai" in text:
