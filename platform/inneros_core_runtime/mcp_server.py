@@ -1049,6 +1049,38 @@ def gcp_cloud_run_status(project_id: str, service: str, region: str = "") -> dic
 
 
 @mcp.tool
+def gcp_cloud_run_domain_mapping_status(project_id: str, domain: str, region: str = "") -> dict[str, Any]:
+    """AG-44: describe custom-domain mapping Cloud Run y DNS requerido por Google."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.gcp_cloud_run_domain_mapping_status(project_id, domain, region=region)
+
+
+@mcp.tool
+def gcp_cloud_run_domain_mapping_create(
+    project_id: str,
+    service: str,
+    domain: str,
+    region: str = "",
+    dry_run: bool = True,
+    approval_id: str = "",
+    force_override: bool = False,
+) -> dict[str, Any]:
+    """AG-44: crea custom-domain mapping Cloud Run con approval/apply gate."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.gcp_cloud_run_domain_mapping_create(
+        project_id,
+        service,
+        domain,
+        region=region,
+        dry_run=dry_run,
+        approval_id=approval_id,
+        force_override=force_override,
+    )
+
+
+@mcp.tool
 def gcp_build_image(
     project_id: str,
     region: str,

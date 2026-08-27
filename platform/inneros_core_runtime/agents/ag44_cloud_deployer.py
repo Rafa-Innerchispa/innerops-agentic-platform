@@ -843,6 +843,79 @@ def gcp_cloud_run_status(project_id: str, service: str, region: str = "") -> dic
     return _gcp_read_json("gcp_cloud_run_status", ["run", "services", "describe", service, "--region", _gcp_region(region), "--project", project_id, "--format=json"])
 
 
+def gcp_cloud_run_domain_mapping_status(project_id: str, domain: str, region: str = "") -> dict[str, Any]:
+    """Describe a Cloud Run custom-domain mapping and expose Google's DNS records."""
+    if not _valid_gcp_project_id(project_id):
+        return {"ok": False, "agent_id": AGENT_ID, "error": "gcp_project_id_invalid", "project_id": project_id}
+    try:
+        zone = _infer_zone_for_hostname(domain)
+        host = _validate_hostname(domain, zone)
+    except Exception as exc:
+        return {"ok": False, "agent_id": AGENT_ID, "error": "domain_not_allowlisted", "detail": str(exc)[:200]}
+    result = _gcp_read_json(
+        "gcp_cloud_run_domain_mapping_status",
+        [
+            "beta", "run", "domain-mappings", "describe",
+            "--domain", host,
+            "--region", _gcp_region(region),
+            "--project", project_id,
+            "--format=json",
+        ],
+        timeout=60,
+    )
+    data = result.get("data") if isinstance(result.get("data"), dict) else {}
+    status = data.get("status") if isinstance(data, dict) else {}
+    records = status.get("resourceRecords") if isinstance(status, dict) else []
+    result["domain"] = host
+    result["project_id"] = project_id
+    result["region"] = _gcp_region(region)
+    result["resource_records"] = records if isinstance(records, list) else []
+    return result
+
+
+def gcp_cloud_run_domain_mapping_create(
+    project_id: str,
+    service: str,
+    domain: str,
+    region: str = "",
+    dry_run: bool = True,
+    approval_id: str = "",
+    force_override: bool = False,
+) -> dict[str, Any]:
+    """Create a Cloud Run custom-domain mapping behind the standard GCP apply gates."""
+    validation = _gcp_apply_validation("cloud_run_domain_mapping_create", project_id, approval_id, dry_run=dry_run)
+    if not _safe_name(service):
+        validation = {"ok": False, "error": "service_name_invalid"}
+    try:
+        zone = _infer_zone_for_hostname(domain)
+        host = _validate_hostname(domain, zone)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "agent_id": AGENT_ID,
+            "provider": "gcp",
+            "action": "gcp_cloud_run_domain_mapping_create",
+            "error": "domain_not_allowlisted",
+            "detail": str(exc)[:200],
+            "executed": False,
+        }
+    command = [
+        "gcloud", "beta", "run", "domain-mappings", "create",
+        "--service", service,
+        "--domain", host,
+        "--region", _gcp_region(region),
+        "--project", project_id,
+        "--quiet",
+    ]
+    if force_override:
+        command.append("--force-override")
+    result = _gcp_candidate("gcp_cloud_run_domain_mapping_create", validation, command, mutates=True)
+    result["domain"] = host
+    result["service"] = service
+    result["region"] = _gcp_region(region)
+    return result
+
+
 def gcp_build_image(
     project_id: str,
     region: str,
