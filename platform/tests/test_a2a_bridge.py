@@ -1,4 +1,10 @@
+from pathlib import Path
+import sys
 import unittest
+
+PLATFORM_ROOT = Path(__file__).resolve().parents[1]
+if str(PLATFORM_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLATFORM_ROOT))
 
 from raphiia_openai import a2a_bridge
 

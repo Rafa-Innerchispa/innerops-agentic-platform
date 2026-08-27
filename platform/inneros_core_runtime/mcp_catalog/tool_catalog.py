@@ -8,6 +8,10 @@ MCP_VERSION = "2.68.0"
 
 ALL_MCP_TOOL_NAMES = [
     "ack_coordination_revision",
+    "a2a_status",
+    "a2a_agent_cards",
+    "a2a_dispatch",
+    "a2a_task_status",
     "accounting_summary",
     "ack_agent_message",
     "poll_agent_inbox",
@@ -4143,6 +4147,12 @@ def describe_tool(name: str) -> dict[str, Any]:
     if meta is None:
         if key in ALL_MCP_TOOL_NAMES:
             meta = _generic_tool_definition(key)
+            if key == "a2a_dispatch":
+                meta["required_scopes"] = ["ralfia:agents"]
+                meta["risk_level"] = "medium"
+                meta["writes_to"] = ["ralfia_ops_tasks", "ralfia_a2a_tasks"]
+            elif key.startswith("a2a_"):
+                meta["reads_from"] = ["ralfia_ops_tasks", "ralfia_a2a_tasks"]
         else:
             return {"ok": False, "error": f"unknown_tool: {key}", "hint": "call list_mcp_capabilities()"}
     return {

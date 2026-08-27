@@ -74,6 +74,60 @@ if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
 
 
+
+# --- MOD-A2A (Agent2Agent transport over durable InnerOS control plane) ---
+
+@mcp.tool
+def a2a_status() -> dict[str, Any]:
+    """A2A: estado del bridge, protocolo, SDK y agentes publicados."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.status()
+
+
+@mcp.tool
+def a2a_agent_cards() -> dict[str, Any]:
+    """A2A: Agent Cards de los roles disponibles en InnerOS."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.agent_cards()
+
+
+@mcp.tool
+def a2a_dispatch(
+    agent_id: str,
+    title: str,
+    body: str,
+    correlation_id: str = "",
+    context_id: str = "",
+    priority: str = "p0",
+    related_project: str = "inneros",
+    dry_run: bool = False,
+    protocol_task_id: str = "",
+) -> dict[str, Any]:
+    """A2A: delega trabajo durable sin saltarse RACB ni ops_tasks."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.dispatch(
+        agent_id=agent_id,
+        title=title,
+        body=body,
+        correlation_id=correlation_id,
+        context_id=context_id,
+        priority=priority,
+        related_project=related_project or None,
+        dry_run=dry_run,
+        protocol_task_id=protocol_task_id,
+    )
+
+
+@mcp.tool
+def a2a_task_status(a2a_task_id: str) -> dict[str, Any]:
+    """A2A: proyecta estado RACB/Mongo y artifacts de una tarea A2A."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.task_status(a2a_task_id)
+
 @mcp.resource("resource://RalfIA_MCP", name=MCP_DISPLAY_NAME, mime_type="application/json")
 async def ralfia_mcp_manifest() -> dict[str, Any]:
     """Manifiesto vivo de herramientas y recursos expuestos por este servidor MCP."""

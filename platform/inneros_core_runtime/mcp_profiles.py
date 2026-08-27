@@ -317,11 +317,26 @@ PROFILES: dict[str, dict[str, Any]] = {
             "contifico_get_party_360",
         ],
     },
+    "a2a": {
+        "label": "A2A multiagent transport",
+        "model_minimum": "small",
+        "max_tools": 4,
+        "tools": [
+            "a2a_status",
+            "a2a_agent_cards",
+            "a2a_dispatch",
+            "a2a_task_status",
+        ],
+    },
     "coordination": {
         "label": "RACB coordinación multiagente",
         "model_minimum": "small",
-        "max_tools": 20,
+        "max_tools": 24,
         "tools": [
+            "a2a_status",
+            "a2a_agent_cards",
+            "a2a_dispatch",
+            "a2a_task_status",
             "get_coordination_live",
             "ack_coordination_revision",
             "list_agent_messages",
