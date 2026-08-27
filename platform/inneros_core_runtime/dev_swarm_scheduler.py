@@ -2082,10 +2082,18 @@ def _resolve_base_ref(source: Path, requested_base_ref: str) -> dict[str, Any]:
     if requested.startswith("origin/"):
         fetch_ref = requested.split("/", 1)[1]
     fetch = local_execution_plane._run(["git", "fetch", "origin", fetch_ref], source, timeout_seconds=180)
-    candidates = []
+    candidates: list[str] = []
     if re.fullmatch(r"[a-fA-F0-9]{7,40}", requested):
         candidates.extend([requested])
-    candidates.extend([requested, f"origin/{fetch_ref}", "origin/main" if not explicit else ""])
+    # GitHub main is canonical. After fetch, prefer the refreshed remote ref
+    # over a potentially stale local main. Explicit non-main repair branches
+    # keep their exact branch semantics.
+    if requested in {"main", "origin/main"}:
+        candidates.extend(["origin/main", "main"])
+    else:
+        candidates.extend([requested, f"origin/{fetch_ref}"])
+        if not explicit:
+            candidates.append("origin/main")
     attempts = []
     for candidate in [c for c in candidates if c]:
         res = local_execution_plane._run(["git", "rev-parse", "--verify", f"{candidate}^{{commit}}"], source, timeout_seconds=30)

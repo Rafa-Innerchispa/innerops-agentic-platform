@@ -96,13 +96,21 @@ def guardian_tick(limit: int = 4, dry_run: bool = False, db: Any | None = None) 
         }
         if verdict["ok"]:
             database[WORKERS_COL].update_one({"task_id": task_id}, {"$set": {
-                "status": "executed", "guardian.status": "PASS", "guardian.evidence": evidence,
+                "status": "executed",
+                "guardian.status": "PASS",
+                "guardian.evidence": evidence,
+                "executor.final_status": "PASS",
+                "executor.finalized_by": "integration_guardian",
             }})
             coordination_live.update_ops_task_state(task_id, "completed", actor="ralfia", evidence=evidence, force_handoff=True)
         else:
             database[WORKERS_COL].update_one({"task_id": task_id}, {"$set": {
-                "status": "blocked", "guardian.status": "FAIL", "guardian.evidence": evidence,
+                "status": "blocked",
+                "guardian.status": "FAIL",
+                "guardian.evidence": evidence,
                 "blocker": "integration_guardian_failed",
+                "executor.final_status": "FAIL",
+                "executor.finalized_by": "integration_guardian",
             }})
             coordination_live.update_ops_task_state(task_id, "blocked", actor="ralfia", evidence=evidence, force_handoff=True)
             coordination_live.heartbeat_ops_task(task_id, "ralfia", next_action="repair Guardian findings", blocker=";".join(verdict["reasons"])[:1000])
