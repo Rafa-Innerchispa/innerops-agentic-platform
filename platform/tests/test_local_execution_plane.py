@@ -356,3 +356,41 @@ def test_amend_commit_author_requires_verified_email(monkeypatch, tmp_path: Path
     assert ok["ok"] is True
     assert ok["email_verified"] is True
     assert "VERIFIED_EMAIL" in ok["would_execute"][-1]
+
+
+def test_project_runtime_registry_policy_overrides_bundled_default(monkeypatch, tmp_path: Path) -> None:
+    source = tmp_path / "innerops-agentic-platform"
+    source.mkdir()
+    (source / ".git").mkdir()
+    repo = "Rafa-Innerchispa/innerops-agentic-platform"
+    monkeypatch.setattr(
+        lep,
+        "_load_repo_profiles",
+        lambda: {
+            repo: {
+                "profile": "node-tests",
+                "source_path": str(source),
+                "allowed_paths": ["src"],
+                "package_roots": ["."],
+            }
+        },
+    )
+    monkeypatch.setattr(
+        lep,
+        "_registry_repo_profiles",
+        lambda: {
+            repo: {
+                "profile": "python-tests",
+                "source_path": str(source),
+                "allowed_paths": ["platform"],
+                "package_roots": [".", "platform"],
+                "registry_backed": True,
+            }
+        },
+    )
+
+    conf = lep._repo_config(repo)
+    assert conf["profile"] == "python-tests"
+    assert conf["allowed_paths"] == ["platform"]
+    assert conf["package_roots"] == [".", "platform"]
+    assert conf["registry_backed"] is True
