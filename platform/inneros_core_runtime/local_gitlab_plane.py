@@ -482,6 +482,7 @@ def create_draft_merge_request(
 ) -> dict[str, Any]:
     allowed_pairs = {
         ("gitlab-community/gitlab-org/gitlab-runner", "gitlab-org/gitlab-runner"),
+        ("rafagye/gitlab-runner", "gitlab-org/gitlab-runner"),
     }
     source_project = (source_project or "").strip()
     target_project = (target_project or "").strip()
