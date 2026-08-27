@@ -433,6 +433,13 @@ def _worker_progress_time(worker: dict[str, Any]) -> datetime | None:
     return max(parsed) if parsed else None
 
 
+def _worker_needs_executor_upgrade(worker: dict[str, Any]) -> bool:
+    """Detect an active durable worker created by an older executor."""
+    executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
+    version = str(executor.get("version") or "").strip()
+    return bool(version and version != EXECUTOR_VERSION)
+
+
 def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso: str, reason: str) -> dict[str, int]:
     retriable = 0
     exhausted = 0
@@ -516,6 +523,50 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         {"$set": {"status": "blocked", "capacity_reconciled_at": now_iso, "capacity_reconcile_reason": reason}},
     )
     terminal_modified = executed_res.modified_count + failed_res.modified_count + blocked_res.modified_count
+
+    # A service restart kills the in-memory execution that owned old-version
+    # workers, but their Mongo rows can still say "running". Never relabel such
+    # ghosts as current. Reclaim them and let the scheduler relaunch the same
+    # durable task under the current executor from the canonical base.
+    version_mismatch_count = 0
+    for worker in db[WORKERS_COL].find(_active_worker_query(), {"_id": 0}):
+        if not _worker_needs_executor_upgrade(worker):
+            continue
+        task_id = str(worker.get("task_id") or "")
+        if not task_id:
+            continue
+        executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
+        previous_version = str(executor.get("version") or "unknown")
+        blocker = "executor_version_mismatch_reclaimed"
+        db[WORKERS_COL].update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "owner": "dev_swarm",
+                "status": "blocked",
+                "blocker": blocker,
+                "slot_reclaimed_at": now_iso,
+                "capacity_reconciled_at": now_iso,
+                "capacity_reconcile_reason": reason,
+                "executor.status": "failed_retryable",
+                "executor.phase": "version_mismatch",
+                "executor.blocker": blocker,
+                "executor.previous_version": previous_version,
+                "executor.target_version": EXECUTOR_VERSION,
+                "executor.updated_at": now_iso,
+            }},
+        )
+        db[coordination_live.OPS_TASKS_COL].update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "owner": "dev_swarm",
+                "status": "blocked",
+                "dev_swarm_last_skip_reason": blocker,
+                "dev_swarm_last_skip_at": now_iso,
+                "dev_swarm_retry_requested": True,
+                "updated_at": now_iso,
+            }},
+        )
+        version_mismatch_count += 1
 
     invalid_route_count = 0
     for worker in db[WORKERS_COL].find(

@@ -108,9 +108,9 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
             self.assertEqual(commands, [["git", "diff", "--check"]])
             self.assertFalse(any(command[:3] == ["python3", "-m", "unittest"] for command in commands))
 
-    def test_executor_records_use_single_v9_version(self):
+    def test_executor_records_use_single_v10_version(self):
         source = _source("dev_swarm_scheduler.py")
-        self.assertIn('EXECUTOR_VERSION = "autonomous_impl_v9_platform_contract_base_ref"', source)
+        self.assertIn('EXECUTOR_VERSION = "autonomous_impl_v10_a2a_liveness"', source)
         self.assertNotIn("autonomous_impl_v4", source)
         self.assertIn("command_not_allowlisted_non_retryable", source)
 
