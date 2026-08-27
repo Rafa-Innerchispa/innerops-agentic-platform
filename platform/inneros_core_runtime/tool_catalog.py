@@ -3455,6 +3455,35 @@ for _name in (
         "example_payload": {"project_id_or_path": "rafagye/example", "state": "opened", "limit": 20, "dry_run": True},
     }
 
+TOOL_DEFINITIONS["local_gitlab_create_draft_merge_request"].update(
+    {
+        "description": "Local GitLab Plane: crea un Draft MR allowlisted via API con token del owner vault; por defecto dry-run y nunca mergea/asigna.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["gitlab_merge_requests"] ,
+        "reads_from": ["gitlab_api", "owner_vault"],
+        "input_schema": {
+            "source_project": "string",
+            "source_branch": "string",
+            "target_project": "string",
+            "target_branch": "string default main",
+            "title": "string",
+            "description": "string",
+            "dry_run": "bool default true",
+        },
+        "output_schema": {"ok": "bool", "dry_run": "bool", "merge_request": "object|null", "web_url": "string|null"},
+        "example_payload": {
+            "source_project": "gitlab-community/gitlab-org/gitlab-runner",
+            "source_branch": "chatgpt/fix/39708-cache-url-redaction",
+            "target_project": "gitlab-org/gitlab-runner",
+            "target_branch": "main",
+            "title": "Fix cache URL redaction",
+            "description": "Owner-approved Draft MR with final checks and redaction evidence.",
+            "dry_run": True,
+        },
+    }
+)
+
 
 _LOCAL_DISCORD_WRITES = {
     "local_discord_configure_public_app",

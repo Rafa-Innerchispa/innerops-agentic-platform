@@ -4,6 +4,7 @@ import unittest
 from unittest import mock
 
 from raphiia_openai import local_gitlab_plane as gl
+from raphiia_openai import tool_catalog
 
 
 class LocalGitLabPlaneTests(unittest.TestCase):
@@ -159,6 +160,16 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["merge_request"]["iid"], 77)
         request.assert_called_once()
+
+    def test_draft_merge_request_catalog_schema_is_specific(self) -> None:
+        described = tool_catalog.describe_tool("local_gitlab_create_draft_merge_request")
+        self.assertTrue(described["ok"])
+        schema = described["input_schema"]
+        self.assertIn("source_project", schema)
+        self.assertIn("source_branch", schema)
+        self.assertIn("target_project", schema)
+        self.assertIn("title", schema)
+        self.assertNotIn("project_id_or_path", schema)
 
 
 if __name__ == "__main__":
