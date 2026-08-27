@@ -95,7 +95,7 @@ def _ensure_repair_task(anomaly: dict[str, Any], *, fingerprint: str, repair_tas
     existing = database[OPS_TASKS_COL].find_one({"task_id": repair_task_id}, {"_id": 0}) if repair_task_id else None
     if not existing:
         existing = database[OPS_TASKS_COL].find_one(
-            {"correlation_id": correlation_id, "assignee": "codex", "status": {"$nin": list(TERMINAL_TASK_STATUSES)}},
+            {"correlation_id": correlation_id, "assignee": "ralfia", "status": {"$nin": list(TERMINAL_TASK_STATUSES)}},
             {"_id": 0},
         )
     if existing:
@@ -110,7 +110,7 @@ def _ensure_repair_task(anomaly: dict[str, Any], *, fingerprint: str, repair_tas
         doc = {
             "task_id": task_id,
             "correlation_id": correlation_id,
-            "assignee": "codex",
+            "assignee": "ralfia",
             "from_agent": actor.upper(),
             "title": _title_for(anomaly),
             "priority": anomaly.get("severity") or "high",
@@ -125,7 +125,7 @@ def _ensure_repair_task(anomaly: dict[str, Any], *, fingerprint: str, repair_tas
         database[OPS_TASKS_COL].insert_one(doc)
         return {"ok": True, "created": True, "task_id": task_id, "task": doc, "correlation_id": correlation_id}
     created = coordination_live.create_ops_task(
-        assignee="codex",
+        assignee="ralfia",
         title=_title_for(anomaly),
         checklist=[
             "Inspect the watchdog anomaly and identify the root cause.",
