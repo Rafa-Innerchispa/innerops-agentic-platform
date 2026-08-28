@@ -1,0 +1,10 @@
+[Unit]
+Description=Run RalfIA Service Guardian every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

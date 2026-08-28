@@ -1,0 +1,328 @@
+{
+  "featured": [
+    {
+      "id": "admin",
+      "section": "Trabajo diario",
+      "company": "both",
+      "name": "PC Doctor Admin",
+      "desc": "Mini-ERP: clientes, inventario, cotizaciones, visitas. Trabajo operativo del negocio.",
+      "port": 5173,
+      "path": "",
+      "icon": "📋",
+      "shared_port": true
+    },
+    {
+      "id": "datacenter",
+      "section": "Trabajo diario",
+      "company": "both",
+      "name": "Centro de Datos (chat + voz)",
+      "desc": "Crear y consultar por conversación. Probar micrófono Whisper aquí.",
+      "port": 5173,
+      "path": "/datacenter",
+      "icon": "💬",
+      "shared_port": true
+    },
+    {
+      "id": "files",
+      "section": "Trabajo diario",
+      "company": "both",
+      "name": "Gestor de archivos",
+      "desc": "Arrastra carpetas desde Windows, sube archivos y edita textos sin SSH.",
+      "port": 8081,
+      "path": "",
+      "icon": "📁"
+    },
+    {
+      "id": "api",
+      "section": "Trabajo diario",
+      "company": "both",
+      "name": "Swarm-OS API",
+      "desc": "Cerebro operativo: inspecciones, gates, documentos, voz→texto.",
+      "port": 8100,
+      "path": "/docs",
+      "icon": "⚡"
+    },
+    {
+      "id": "raphiia-status",
+      "section": "Trabajo diario",
+      "company": "both",
+      "name": "Ralphi IA — Control Plane",
+      "desc": "Health/status del puente MCP y resumen operativo de MongoDB pcdoctor_swarm.",
+      "port": 8101,
+      "path": "/status",
+      "icon": "🧭"
+    },
+    {
+      "id": "raphiia-mcp",
+      "section": "Trabajo diario",
+      "company": "both",
+      "name": "Conector RalfIA MCP",
+      "desc": "Puente MCP para ChatGPT, Cursor y agentes (nombre técnico RalfIA). API protegida.",
+      "port": 8102,
+      "path": "/mcp",
+      "icon": "🔐",
+      "web": false
+    },
+    {
+      "id": "raphiia-auth",
+      "section": "Trabajo diario",
+      "company": "both",
+      "name": "Ralphi IA OAuth",
+      "desc": "Servidor de autorizacion OAuth para ChatGPT Connector y clientes MCP externos.",
+      "port": 8103,
+      "path": "/health",
+      "icon": "🔑",
+      "web": false
+    },
+    {
+      "id": "smart-quoter",
+      "section": "Trabajo diario",
+      "company": "both",
+      "name": "InnerSpark Smart Quoter",
+      "desc": "Cotizaciones con audio, Whisper, Ollama, paquetes, PDF y envío preparado. Vertical: estudio fotográfico.",
+      "port": 2026,
+      "path": "/",
+      "icon": "💰"
+    },
+    {
+      "id": "whisper",
+      "section": "Voz y chat",
+      "company": "innerchispa",
+      "name": "Whisper — voz a texto",
+      "desc": "Habla y el sistema transcribe (español). Ligero, corre local en el servidor.",
+      "port": 9001,
+      "path": "/docs",
+      "icon": "🎙️"
+    },
+    {
+      "id": "hackathon-autopilot",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "Hackathon Autopilot",
+      "desc": "Buscador global de código, elegibilidad y copiloto de hackatones.",
+      "port": 8090,
+      "path": "",
+      "icon": "✈️"
+    },
+    {
+      "id": "gitlab-transcend",
+      "section": "Seguridad",
+      "company": "innerchispa",
+      "name": "GitLab Transcend",
+      "desc": "Auditoría de seguridad y análisis estático continuo de repositorios GitLab.",
+      "port": 8095,
+      "path": "",
+      "icon": "🦊"
+    },
+    {
+      "id": "ralphi-sre",
+      "section": "Infraestructura",
+      "company": "innerchispa",
+      "name": "Ralphi SRE (Proyectos)",
+      "desc": "Automatización y orquestación de nuevos proyectos e infraestructura del servidor.",
+      "port": 8096,
+      "path": "",
+      "icon": "🛠️"
+    },
+    {
+      "id": "hackathon-band-ui",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "Hackathon Band UI",
+      "desc": "Interfaz web para la postulación y gestión de equipos en hackatones.",
+      "port": 5190,
+      "path": "",
+      "icon": "🎸"
+    },
+    {
+      "id": "swarm-os-google-ai-studio",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "Google AI Studio Swarm",
+      "desc": "Entorno Node.js integrado con la API de Gemini para procesamiento y generación.",
+      "port": 5180,
+      "path": "",
+      "icon": "♊"
+    },
+    {
+      "id": "hackathon-funding-hub",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "Hackathon & Funding Hub",
+      "desc": "Conecta hackatones y fondos de capital con demos locales reales para conseguir financiamiento.",
+      "port": 8099,
+      "path": "",
+      "icon": "💰"
+    }
+  ],
+  "services": [
+    {
+      "id": "innerchispa-astro-live",
+      "section": "Sitios y mapas",
+      "company": "innerchispa",
+      "name": "InnerChispa — Ecosistema vivo (Astro)",
+      "desc": "Web operativa bilingüe conectada al registro MCP/MongoDB de proyectos y hackatones.",
+      "port": 5185,
+      "path": "/staging-web/",
+      "public_url": "https://sworn-profusely-alongside.ngrok-free.dev/staging-web/",
+      "tier": "operativo",
+      "icon": "✦"
+    },
+    {
+      "id": "innerchispa-conscious-map",
+      "section": "Sitios y mapas",
+      "company": "innerchispa",
+      "name": "InnerChispa — Mapa de sistemas conscientes",
+      "desc": "Experiencia experimental ES/EN sobre memoria autorizada, patrones, contexto, bienestar y agencia humana.",
+      "port": 443,
+      "path": "/",
+      "public_url": "https://innerchispa-live-lab.innerchispa.chatgpt.site/",
+      "external_only": true,
+      "tier": "operativo",
+      "icon": "◎"
+    },
+    {
+      "id": "openwebui",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "Open WebUI",
+      "desc": "Chat con modelos locales Ollama.",
+      "port": 3000,
+      "path": "",
+      "icon": "💬"
+    },
+    {
+      "id": "anythingllm",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "AnythingLLM",
+      "desc": "RAG: preguntar sobre PDFs, manuales y documentos indexados.",
+      "port": 3001,
+      "path": "",
+      "icon": "📚"
+    },
+    {
+      "id": "ollama",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "Ollama API",
+      "desc": "Motor de modelos locales (API REST).",
+      "port": 11434,
+      "path": "",
+      "icon": "🧠",
+      "note": "API, no interfaz visual"
+    },
+    {
+      "id": "litellm",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "LiteLLM Gateway",
+      "desc": "Puente unificado de modelos (local + APIs externas).",
+      "port": 4000,
+      "path": "",
+      "icon": "🔀"
+    },
+    {
+      "id": "qdrant",
+      "section": "Inteligencia artificial",
+      "company": "innerchispa",
+      "name": "Qdrant",
+      "desc": "Base de vectores para búsqueda semántica.",
+      "port": 6333,
+      "path": "/dashboard",
+      "icon": "🔍"
+    },
+    {
+      "id": "n8n",
+      "section": "Automatización",
+      "company": "innerchispa",
+      "name": "n8n",
+      "desc": "Flujos y automatizaciones visuales.",
+      "port": 5678,
+      "path": "",
+      "icon": "🔗"
+    },
+    {
+      "id": "evolution",
+      "section": "Automatización",
+      "company": "both",
+      "name": "Evolution API",
+      "desc": "WhatsApp y mensajería.",
+      "port": 8082,
+      "path": "",
+      "icon": "📱"
+    },
+    {
+      "id": "portainer",
+      "section": "Infraestructura",
+      "company": "both",
+      "name": "Portainer",
+      "desc": "Administrar contenedores Docker.",
+      "port": 9000,
+      "path": "",
+      "icon": "🐳"
+    },
+    {
+      "id": "cockpit",
+      "section": "Infraestructura",
+      "company": "both",
+      "name": "Cockpit",
+      "desc": "Administración del servidor Linux (el que recuerdas en :9090).",
+      "port": 9090,
+      "path": "",
+      "icon": "🖥️"
+    },
+    {
+      "id": "homeassistant",
+      "section": "Infraestructura",
+      "company": "both",
+      "name": "Home Assistant",
+      "desc": "Domótica y automatización hogar/oficina.",
+      "port": 8123,
+      "path": "",
+      "icon": "🏠"
+    },
+    {
+      "id": "ralphi-gateway",
+      "section": "Infraestructura",
+      "company": "innerchispa",
+      "name": "Ralphi Gateway",
+      "desc": "API gateway legacy (ai-server-v2).",
+      "port": 8091,
+      "path": "/docs",
+      "icon": "🌐"
+    },
+    {
+      "id": "mongodb",
+      "section": "Bases de datos",
+      "company": "both",
+      "name": "MongoDB",
+      "desc": "Base operativa pcdoctor_swarm (solo conexión, no UI web).",
+      "port": 27017,
+      "path": "",
+      "icon": "🍃",
+      "web": false
+    },
+    {
+      "id": "postgres",
+      "section": "Bases de datos",
+      "company": "both",
+      "name": "PostgreSQL",
+      "desc": "Base relacional (Evolution, Ralphi). Sin UI web directa.",
+      "port": 5432,
+      "path": "",
+      "icon": "🐘",
+      "web": false
+    },
+    {
+      "id": "hackathon-band-api",
+      "section": "Automatización",
+      "company": "innerchispa",
+      "name": "Hackathon Band API",
+      "desc": "API para las integraciones y flujos del equipo de hackatón.",
+      "port": 8200,
+      "path": "/docs",
+      "icon": "🔌"
+    }
+  ]
+}

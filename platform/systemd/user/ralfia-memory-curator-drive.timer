@@ -1,0 +1,10 @@
+[Unit]
+Description=Memory Curator Drive — cada 6h (prioridad correos, no 24/7)
+
+[Timer]
+OnCalendar=*-*-* 02,08,14,20:15:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

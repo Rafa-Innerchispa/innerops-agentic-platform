@@ -1,0 +1,12 @@
+[Unit]
+Description=RalfIA AG-57 Backlog Steward — recordatorio WhatsApp diario
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/run_backlog_whatsapp_daily.py
+
+[Install]
+WantedBy=default.target

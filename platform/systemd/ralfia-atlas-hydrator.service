@@ -1,0 +1,16 @@
+[Unit]
+Description=AG-39 Atlas — hidratación local catálogo Contifico (one-shot)
+After=network-online.target mongod.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+Environment=OLLAMA_URL=http://127.0.0.1:11434
+ExecStart=/home/rlopez/inneros/inneros_core/platform/scripts/run_ag39_atlas_hydrator.sh
+StandardOutput=append:/home/rlopez/data/logs/atlas_hydrator.log
+StandardError=append:/home/rlopez/data/logs/atlas_hydrator.log
+
+[Install]
+WantedBy=default.target

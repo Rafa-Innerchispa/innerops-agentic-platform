@@ -1,0 +1,6 @@
+version: "2"
+# Túnel MCP dedicado RaphiIA (subdominio aleatorio ngrok free)
+tunnels:
+  raphiia-mcp:
+    addr: 8102
+    proto: http

@@ -1,0 +1,22 @@
+[Unit]
+Description=RalfIA AG-34 VKR ingest worker %i (AMD GPU / Ollama)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+Environment=MONGO_URI_PRIMARY=mongodb://192.168.1.4:27017/
+Environment=OLLAMA_URL=http://127.0.0.1:11434
+Environment=MEMORY_CURATOR_MODEL=qwen2.5:7b
+Environment=OLLAMA_KEEP_ALIVE=5m
+Environment=INGEST_WORKER_ID=vkr-%i
+Environment=INGEST_WORKER_SHARD=%i
+Environment=INGEST_WORKER_SHARDS=1
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/run_local_ingest_fleet.py --vkr-only --email-limit 25 --max-cycles 50000 --sleep 90 --idle-backoff-max 1800
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,19 @@
+services:
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - /home/rlopez:/srv
+      - /mnt/datos_agentes:/srv/datos_agentes:ro
+      - filebrowser_config:/config
+    command:
+      - --root=/srv
+      - --address=0.0.0.0
+      - --port=80
+      - --database=/config/filebrowser.db
+
+volumes:
+  filebrowser_config:

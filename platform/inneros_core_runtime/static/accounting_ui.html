@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RalfIA · Contabilidad</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root{--bg:#080b10;--panel:#10151d;--panel2:#141b25;--line:#263241;--text:#eef4fb;--muted:#8c9aaa;--green:#3ddc84;--amber:#f5b942;--red:#ff6b6b;--cyan:#5bd8ff;--blue:#78a8ff;--radius:10px}
+    *{box-sizing:border-box}body{margin:0;font-family:Outfit,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    a{color:var(--cyan);text-decoration:none}.shell{max-width:1440px;margin:0 auto;padding:20px}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;flex-wrap:wrap}
+    h1{margin:0;font-size:1.55rem}.sub{color:var(--muted);margin-top:4px;font-size:.92rem}
+    .pills{display:flex;gap:8px;flex-wrap:wrap}.pill{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 12px;font:500 .78rem "JetBrains Mono",monospace;color:var(--muted)}
+    .pill.ok{color:#afffd1;border-color:rgba(61,220,132,.3)}.pill.warn{color:#ffe2a8;border-color:rgba(245,185,66,.3)}
+    .layout{display:grid;grid-template-columns:280px 1fr;gap:18px}
+    @media(max-width:960px){.layout{grid-template-columns:1fr}}
+    .side{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;height:fit-content;position:sticky;top:16px}
+    .side h2{margin:0 0 10px;font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .nav{display:grid;gap:6px}.nav button{width:100%;text-align:left;border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:8px;padding:10px 12px;cursor:pointer;font-weight:600}
+    .nav button.active,.nav button:hover{color:var(--text);border-color:#3c5167;background:#17202b}
+    .quick{margin-top:14px;display:grid;gap:8px}.quick button{background:#18405a;border-color:#24617f;color:#dff7ff}
+    .main{display:grid;gap:16px}
+    .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+    .kpi{background:linear-gradient(135deg,#111923,#0d1219);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+    .kpi strong{display:block;font-size:1.35rem}.kpi span{color:var(--muted);font-size:.78rem}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+    .card h3{margin:0 0 12px;font-size:1rem}
+    .head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+    .btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:700;font-size:.82rem}
+    .btn:hover{border-color:#3b4c61;background:#172131}.btn.primary{background:#18405a;border-color:#24617f;color:#dff7ff}
+    .btn.success{background:rgba(61,220,132,.12);border-color:rgba(61,220,132,.35);color:#afffd1}
+    .btn.danger{background:rgba(255,107,107,.08);border-color:rgba(255,107,107,.25);color:#ffc9c9}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:700px){.grid2{grid-template-columns:1fr}}
+    label{display:block;margin:8px 0 4px;font-size:.8rem;color:var(--muted)}
+    input,select,textarea{width:100%;background:#0b1017;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 11px;font-family:inherit}
+    textarea{min-height:90px;resize:vertical}
+    table{width:100%;border-collapse:collapse;font-size:.84rem}
+    th,td{border-bottom:1px solid rgba(255,255,255,.06);padding:10px 8px;text-align:left}
+    th{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+    .tag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:3px 8px;font:500 .68rem "JetBrains Mono",monospace;color:var(--muted)}
+    .tag.paid{color:#afffd1;border-color:rgba(61,220,132,.25)}.tag.overdue{color:#ffd0d0;border-color:rgba(255,107,107,.25)}
+    .panel{display:none}.panel.active{display:block}
+    .toast{position:fixed;right:18px;bottom:18px;max-width:360px;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#121a24;box-shadow:0 10px 30px rgba(0,0,0,.35);display:none;z-index:50}
+    .toast.show{display:block}.toast.ok{border-color:rgba(61,220,132,.35)}.toast.err{border-color:rgba(255,107,107,.35)}
+    .hint{background:#0c1118;border:1px dashed var(--line);border-radius:8px;padding:12px;color:var(--muted);font-size:.86rem;line-height:1.45}
+    code{font-family:"JetBrains Mono",monospace;font-size:.78rem;color:var(--cyan)}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <div class="top">
+    <div>
+      <h1>MOD-ACCOUNTING</h1>
+      <div class="sub">Cuentas por pagar · cobrar · compras · inventario · WhatsApp contable</div>
+    </div>
+    <div class="pills">
+      <span class="pill ok" id="pill-mcp">MCP 2.22</span>
+      <span class="pill" id="pill-wa">WhatsApp…</span>
+      <a class="pill" href="/">← Control Center</a>
+    </div>
+  </div>
+  <div class="layout">
+    <aside class="side">
+      <h2>Módulos</h2>
+      <div class="nav" id="nav">
+        <button class="active" data-panel="dashboard">📊 Resumen</button>
+        <button data-panel="ap">💳 Cuentas por pagar</button>
+        <button data-panel="ar">💰 Cuentas por cobrar</button>
+        <button data-panel="po">📦 Compras</button>
+        <button data-panel="inv">🏷 Inventario</button>
+        <button data-panel="wa">💬 WhatsApp contable</button>
+      </div>
+      <div class="quick">
+        <button class="btn primary" onclick="openForm('ap')">+ Nuevo cheque</button>
+        <button class="btn" onclick="openForm('ar')">+ Nuevo cobro</button>
+        <button class="btn" onclick="openForm('po')">+ Nueva compra</button>
+      </div>
+    </aside>
+    <main class="main">
+      <section class="panel active" id="panel-dashboard">
+        <div class="kpis" id="kpis"></div>
+        <div class="card"><div class="head"><h3>Próximos vencimientos</h3><button class="btn" onclick="loadAll()">Actualizar</button></div><div id="dash-due"></div></div>
+      </section>
+      <section class="panel" id="panel-ap">
+        <div class="card" id="form-ap">
+          <h3>Registrar cheque / cuenta por pagar</h3>
+          <div class="grid2">
+            <div><label>Proveedor *</label><input id="ap_supplier" placeholder="Ej. Honeywell"></div>
+            <div><label>RUC / tax_id</label><input id="ap_tax" placeholder="179..."></div>
+            <div><label>Monto (USD) *</label><input id="ap_amount" type="number" step="0.01"></div>
+            <div><label>Fecha vencimiento *</label><input id="ap_due" type="date"></div>
+            <div><label>Nº cheque / referencia</label><input id="ap_check" placeholder="CHK-001"></div>
+            <div><label>Entidad</label><select id="ap_entity"><option value="ent_pcdoctor">PC Doctor</option><option value="ent_innerchispa">Inner Chispa</option><option value="ent_innerspark">Inner Spark</option></select></div>
+            <div><label>Banco</label><input id="ap_bank" placeholder="Opcional"></div>
+            <div><label>Notas</label><input id="ap_notes" placeholder="Factura, proyecto…"></div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn success" onclick="createPayable(false)">Guardar borrador</button>
+            <button class="btn primary" onclick="createPayable(true)">Guardar y aprobar</button>
+          </div>
+        </div>
+        <div class="card"><div class="head"><h3>Listado AP</h3></div><div id="ap-table"></div></div>
+      </section>
+      <section class="panel" id="panel-ar">
+        <div class="card" id="form-ar">
+          <h3>Registrar cobro (AR)</h3>
+          <div class="grid2">
+            <div><label>Cliente *</label><input id="ar_client" placeholder="Nombre cliente"></div>
+            <div><label>Monto *</label><input id="ar_amount" type="number" step="0.01"></div>
+            <div><label>Vence</label><input id="ar_due" type="date"></div>
+            <div><label>quote_id (opcional)</label><input id="ar_quote" placeholder="quotedraft_…"></div>
+            <div><label>Entidad</label><select id="ar_entity"><option value="ent_pcdoctor">PC Doctor</option><option value="ent_innerchispa">Inner Chispa</option></select></div>
+          </div>
+          <button class="btn success" onclick="createReceivable()">Crear cobro</button>
+        </div>
+        <div class="card"><h3>Cobros abiertos</h3><div id="ar-table"></div></div>
+      </section>
+      <section class="panel" id="panel-po">
+        <div class="card" id="form-po">
+          <h3>Orden de compra</h3>
+          <div class="grid2">
+            <div><label>Proveedor *</label><input id="po_supplier"></div>
+            <div><label>Referencia PO</label><input id="po_ref" placeholder="PO-2026-001"></div>
+            <div><label>SKU</label><input id="po_sku"></div>
+            <div><label>Descripción</label><input id="po_desc"></div>
+            <div><label>Cantidad</label><input id="po_qty" type="number" value="1"></div>
+            <div><label>Precio unit.</label><input id="po_price" type="number" step="0.01"></div>
+          </div>
+          <button class="btn primary" onclick="createPO()">Crear orden</button>
+        </div>
+        <div class="card"><h3>Compras abiertas</h3><div id="po-table"></div></div>
+      </section>
+      <section class="panel" id="panel-inv">
+        <div class="card"><h3>Inventario</h3><div id="inv-table"></div></div>
+      </section>
+      <section class="panel" id="panel-wa">
+        <div class="card">
+          <h3>Grupo contable WhatsApp</h3>
+          <div class="hint" style="margin-bottom:12px">
+            En el grupo de contabilidad, envía mensajes con prefijo para captura automática:<br>
+            <code>cheque: Proveedor 1500 vence 2026-07-25</code><br>
+            <code>ap: Factura ACME 800 vence 2026-08-01</code><br>
+            <code>pagar: Servicio mensual 200</code>
+          </div>
+          <label>Simular mensaje del grupo (prueba)</label>
+          <textarea id="wa_msg" placeholder="cheque: Honeywell 2500 vence 2026-07-30"></textarea>
+          <button class="btn primary" onclick="parseWhatsApp()">Procesar como WhatsApp</button>
+        </div>
+        <div class="card">
+          <h3>Buscar contacto</h3>
+          <div class="grid2">
+            <div><label>Nombre o teléfono</label><input id="contact_q" placeholder="Buscar…" onkeydown="if(event.key==='Enter')searchContact()"></div>
+            <div style="display:flex;align-items:flex-end"><button class="btn" onclick="searchContact()">Buscar</button></div>
+          </div>
+          <div id="contact-results" style="margin-top:10px"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $=id=>document.getElementById(id);
+function toast(msg,ok=true){const t=$('toast');t.textContent=msg;t.className='toast show '+(ok?'ok':'err');setTimeout(()=>t.classList.remove('show'),4500)}
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');$('panel-'+b.dataset.panel).classList.add('active');
+});
+function openForm(kind){document.querySelector(`[data-panel="${kind}"]`).click()}
+function tableHtml(headers,rows){if(!rows.length)return'<p style="color:var(--muted)">Sin registros</p>';return`<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`}
+function statusTag(s,due){if(s==='paid')return'<span class="tag paid">pagado</span>';if(due&&due<new Date().toISOString().slice(0,10))return'<span class="tag overdue">vencido</span>';return`<span class="tag">${s||'—'}</span>`}
+async function loadSummary(){
+  const s=await fetch('/api/accounting/summary').then(r=>r.json());
+  $('kpis').innerHTML=`
+    <div class="kpi"><strong>$${s.ap_open_total||0}</strong><span>AP abiertas (${s.ap_open_count||0})</span></div>
+    <div class="kpi"><strong>$${s.ar_open_total||0}</strong><span>AR por cobrar (${s.ar_open_count||0})</span></div>
+    <div class="kpi"><strong>${s.ap_paid_count||0}</strong><span>Cheques pagados</span></div>
+    <div class="kpi"><strong>$${s.net_position||0}</strong><span>Posición neta</span></div>`;
+  const d=await fetch('/api/accounting/payables/due?days_ahead=30').then(r=>r.json());
+  $('dash-due').innerHTML=tableHtml(['Proveedor','Monto','Vence','Estado'],(d.payables||[]).slice(0,8).map(p=>`<tr><td>${p.supplier_name||'—'}</td><td>$${p.amount}</td><td>${p.due_date||'—'}</td><td>${statusTag(p.status,p.due_date)}</td></tr>`));
+}
+async function loadAP(){
+  const d=await fetch('/api/accounting/payables/due?days_ahead=90').then(r=>r.json());
+  $('ap-table').innerHTML=tableHtml(['Proveedor','Monto','Vence','Estado','Acciones'],(d.payables||[]).map(p=>{
+    const id=p.payable_id||p.draft_id;const pid=p.payable_id||'';
+    const acts=p.status!=='paid'?`<button class="btn" onclick="approvePay('${id}')">Aprobar</button> ${pid?`<button class="btn success" onclick="payNow('${pid}')">Pagar</button>`:''}`:'—';
+    return `<tr><td>${p.supplier_name||'—'}</td><td>$${p.amount}</td><td>${p.due_date||'—'}</td><td>${statusTag(p.status,p.due_date)}</td><td>${acts}</td></tr>`;
+  }));
+}
+async function createPayable(andApprove){
+  const body={supplier_name:$('ap_supplier').value,tax_id:$('ap_tax').value,amount:+$('ap_amount').value,due_date:$('ap_due').value,check_number:$('ap_check').value,entity_id:$('ap_entity').value,bank_name:$('ap_bank').value,notes:$('ap_notes').value,payable_type:'check'};
+  const r=await fetch('/api/accounting/payables/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+  if(!r.ok)return toast(JSON.stringify(r),false);
+  if(andApprove){await fetch('/api/accounting/payables/upsert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payable_draft_id:r.draft_id,status:'approved'})});}
+  toast(r.reused?'Ya existía — reutilizado':'Cheque registrado');loadAll();
+}
+async function approvePay(id){
+  const r=await fetch('/api/accounting/payables/upsert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payable_draft_id:id,payable_id:id.startsWith('payable')?id:undefined,status:'approved'})}).then(r=>r.json());
+  toast(r.ok?'Aprobado':'Error',r.ok);loadAll();
+}
+async function payNow(pid){
+  const r=await fetch('/api/accounting/payables/pay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payable_id:pid,method:'check',receive_inventory:true})}).then(r=>r.json());
+  toast(r.ok?'Pago registrado':'Error',r.ok);loadAll();
+}
+async function loadAR(){
+  const d=await fetch('/api/accounting/receivables/open').then(r=>r.json());
+  $('ar-table').innerHTML=tableHtml(['Cliente','Monto','Estado','Cotización','Acción'],(d.receivables||[]).map(r=>{
+    const act=r.receivable_id?`<button class="btn success" onclick="collectAR('${r.receivable_id}',${r.amount})">Cobrar</button>`:'—';
+    return `<tr><td>${r.client_name||'—'}</td><td>$${r.amount}</td><td>${statusTag(r.status)}</td><td>${r.quote_id||'—'}</td><td>${act}</td></tr>`;
+  }));
+}
+async function createReceivable(){
+  const body={client_name:$('ar_client').value,amount:+$('ar_amount').value,due_date:$('ar_due').value,quote_id:$('ar_quote').value,entity_id:$('ar_entity').value};
+  const r=await fetch('/api/accounting/receivables/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+  toast(r.ok?'Cobro creado':'Error',r.ok);loadAll();
+}
+async function collectAR(id,amt){
+  const r=await fetch('/api/accounting/receivables/collect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receivable_id:id,amount:amt})}).then(r=>r.json());
+  toast(r.ok?'Cobro registrado':'Error',r.ok);loadAll();
+}
+async function loadPO(){
+  const d=await fetch('/api/procurement/open').then(r=>r.json());
+  $('po-table').innerHTML=tableHtml(['Proveedor','Total','Estado','Acción'],(d.purchases||[]).map(p=>`<tr><td>${p.supplier_name}</td><td>$${p.total}</td><td>${statusTag(p.status)}</td><td><button class="btn" onclick="receivePO('${p.purchase_id}')">Recibir stock</button></td></tr>`));
+}
+async function createPO(){
+  const body={supplier_name:$('po_supplier').value,reference:$('po_ref').value,entity_id:'ent_pcdoctor',line_items:[{sku:$('po_sku').value,description:$('po_desc').value,quantity:+$('po_qty').value,unit_price:+$('po_price').value}]};
+  const r=await fetch('/api/procurement/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+  if(r.ok)await fetch('/api/procurement/upsert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({purchase_draft_id:r.draft_id,status:'ordered'})});
+  toast(r.ok?'Compra creada':'Error',r.ok);loadAll();
+}
+async function receivePO(id){
+  const r=await fetch('/api/inventory/receive',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({purchase_id:id})}).then(r=>r.json());
+  toast(r.ok?`Recibido (${r.count} líneas)`:'Error',r.ok);loadAll();
+}
+async function loadInv(){
+  const d=await fetch('/api/inventory/items').then(r=>r.json());
+  $('inv-table').innerHTML=tableHtml(['SKU','Producto','Stock','Ubicación'],(d.items||[]).map(i=>`<tr><td>${i.sku||'—'}</td><td>${i.name||'—'}</td><td>${i.qty_on_hand}</td><td>${i.location||'—'}</td></tr>`));
+}
+async function parseWhatsApp(){
+  const r=await fetch('/api/accounting/whatsapp-parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:$('wa_msg').value})}).then(r=>r.json());
+  toast(r.ok?'Capturado desde WhatsApp':'Error',r.ok);loadAll();
+}
+async function searchContact(){
+  const q=$('contact_q').value;const d=await fetch('/api/contacts/search?q='+encodeURIComponent(q)).then(r=>r.json());
+  $('contact-results').innerHTML=tableHtml(['Nombre','WhatsApp','Entidades'],(d.contacts||[]).slice(0,10).map(c=>`<tr><td>${c.name}</td><td>${c.whatsapp||c.phone||'—'}</td><td>${(c.entity_ids||[]).join(', ')}</td></tr>`));
+}
+async function loadWhatsAppStatus(){
+  try{const d=await fetch('/api/whatsapp/status').then(r=>r.json());const ok=d.nodes?.primary?.connected||d.connected;$('pill-wa').textContent=ok?'WhatsApp OK':'WhatsApp off';$('pill-wa').className='pill '+(ok?'ok':'warn');}catch(e){$('pill-wa').textContent='WhatsApp ?'}
+}
+function loadAll(){loadSummary();loadAP();loadAR();loadPO();loadInv();loadWhatsAppStatus()}
+loadAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run RalfIA Deferred tasks scan every 6 hours
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=12h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

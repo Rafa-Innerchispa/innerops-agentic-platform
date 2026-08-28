@@ -1,0 +1,9 @@
+[Unit]
+Description=Run RalfIA Daily Companion at 07:00 and 19:00
+
+[Timer]
+OnCalendar=*-*-* 07,19:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

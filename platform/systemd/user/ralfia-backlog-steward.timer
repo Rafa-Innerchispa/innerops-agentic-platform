@@ -1,0 +1,10 @@
+[Unit]
+Description=Recordatorio WhatsApp backlog Rafael — 08:00 diario
+
+[Timer]
+# 08:00 hora Ecuador (GYT = UTC-5) → 13:00 UTC
+OnCalendar=*-*-* 13:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

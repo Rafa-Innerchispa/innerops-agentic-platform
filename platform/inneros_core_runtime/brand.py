@@ -1,0 +1,11 @@
+"""Marca y versión canónica Ralphi IA — UI, SSH banner, APIs."""
+
+PRODUCT_NAME = "Ralphi IA"
+PRODUCT_NAME_EN = "RalfAI"
+PRODUCT_STYLIZED = "RalfiIA"
+VERSION = "2.0"
+VERSION_FULL = "2.0.0"
+TAGLINE_EN = "your second brain"
+TAGLINE_ES = "tu second brain"
+MCP_CONNECTOR = "RalfIA MCP"
+PANEL_URL = "http://192.168.1.4:2002/"

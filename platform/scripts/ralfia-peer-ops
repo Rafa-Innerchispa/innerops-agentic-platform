@@ -1,0 +1,68 @@
+#!/bin/sh
+# Forced-command endpoint for the dedicated RalfIA peer-ops SSH identity.
+set -eu
+set -f
+
+original=${SSH_ORIGINAL_COMMAND:-}
+set -- $original
+
+allowed_unit() {
+  case "$1" in
+    ralfia-app.service|ralfia-auth.service|ralfia-mcp.service|ralfia-portal.service|ralfia-coordination-daemon.service|ralfia-dual-node-monitor.service|whatsapp-automation.service)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+allowed_container() {
+  case "$1" in
+    evolution_api|evolution_api_amd|n8n)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if [ "$#" -eq 1 ] && [ "$1" = "hostname" ]; then
+  exec /usr/bin/hostname
+fi
+
+if [ "$#" -eq 4 ] && [ "$1" = "systemctl" ] && [ "$2" = "--user" ]; then
+  action=$3
+  unit=$4
+  allowed_unit "$unit" || action=deny
+  case "$action" in
+    is-active|start|restart)
+      exec /usr/bin/systemctl --user "$action" "$unit" ;;
+  esac
+fi
+
+if [ "$#" -eq 7 ] && [ "$1" = "journalctl" ] && [ "$2" = "--user" ] && [ "$3" = "-u" ] && [ "$5" = "-n" ] && [ "$7" = "--no-pager" ]; then
+  unit=$4
+  lines=$6
+  allowed_unit "$unit" && case "$lines" in ''|*[!0-9]*) false;; *) [ "$lines" -ge 1 ] && [ "$lines" -le 50 ];; esac \
+    && exec /usr/bin/journalctl --user -u "$unit" -n "$lines" --no-pager
+fi
+
+if [ "$#" -eq 5 ] && [ "$1" = "docker" ] && [ "$2" = "inspect" ] && [ "$3" = "-f" ] && [ "$4" = "{{.State.Running}}" ]; then
+  allowed_container "$5" && exec /usr/bin/docker inspect -f '{{.State.Running}}' "$5"
+fi
+
+if [ "$#" -eq 5 ] && [ "$1" = "docker" ] && [ "$2" = "logs" ] && [ "$3" = "--tail" ]; then
+  lines=$4
+  container=$5
+  allowed_container "$container" && case "$lines" in ''|*[!0-9]*) false;; *) [ "$lines" -ge 1 ] && [ "$lines" -le 50 ];; esac \
+    && exec /usr/bin/docker logs --tail "$lines" "$container"
+fi
+
+if [ "$#" -eq 3 ] && [ "$1" = "docker" ]; then
+  action=$2
+  container=$3
+  allowed_container "$container" || action=deny
+  case "$action" in
+    start|restart) exec /usr/bin/docker "$action" "$container" ;;
+  esac
+fi
+
+/usr/bin/logger -t ralfia-peer-ops -- "denied forced command"
+echo "peer_ops_command_denied" >&2
+exit 126

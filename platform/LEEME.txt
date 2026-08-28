@@ -1,0 +1,24 @@
+=== RaphiIA-OpenAI — LEEME ===
+
+SERVIDOR: 192.168.1.4 (ralphi-ia-ver-10)
+RUTA:     /home/rlopez/projects/raphiia-openai
+
+NO ejecutar en Windows. Abrir Cursor Remote SSH → rlopez@192.168.1.4
+
+DOCS (orden):
+  1. docs/CONEXION.md       ← conexión + arranque servidor
+  2. docs/CURSOR_SSH.md     ← Cursor Remote SSH
+  3. docs/ARRANQUE_RAPIDO.md
+  4. docs/MCP_CHATGPT.md    ← ChatGPT Connectors
+  5. docs/HANDOFF.md
+
+ARRANQUE (terminal del servidor):
+  cd /home/rlopez/projects/raphiia-openai
+  source venv/bin/activate
+  ./run.sh          # :8099
+  ./run_mcp.sh      # :8102/mcp
+  ./scripts/setup_ngrok.sh   # HTTPS ChatGPT
+
+PROMPT CHAT NUEVO:
+  Workspace: /home/rlopez/projects/raphiia-openai (SSH 192.168.1.4)
+  Lee docs/CONEXION.md. Trabaja SOLO en el servidor.

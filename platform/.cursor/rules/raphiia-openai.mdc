@@ -1,0 +1,41 @@
+---
+description: RaphiIA-OpenAI — MCP + coordinación obligatoria (servidor 192.168.1.4)
+globs: "**/*"
+alwaysApply: true
+---
+
+# RaphiIA-OpenAI + Coordinación RalfIA
+
+## Al iniciar CUALQUIER chat (obligatorio)
+
+1. Leer **`/home/rlopez/data/ai_coordination/00_LEER_PRIMERO.md`** y seguir el orden indicado.
+2. Leer **`cursor/OUTBOX.md`**, **`TASKS.md`**, **`ESTADO_ACTUAL.md`**.
+3. Docs proyecto: `docs/CONEXION.md`, `docs/HANDOFF.md`, `docs/MCP_CHATGPT.md`.
+
+## Al terminar trabajo (obligatorio)
+
+1. Detalle en **`/home/rlopez/data/ai_coordination/cursor/journal/YYYY-MM-DD.md`**.
+2. **`finalize_session_handoff`** (MCP) con resumen + items backlog (hecho/planificado/discutido).
+3. **`get_dev_backlog_summary`** al inicio de la próxima sesión — ver `HUB/PROTOCOLO_BACKLOG_SESION.md`.
+4. Registrar en Mongo vía MCP `log_coordination_event(agent=CURSOR, ...)` o script legacy.
+5. Actualizar **`cursor/OUTBOX.md`**, **`ESTADO_ACTUAL.md`**, **`TASKS.md`** si aplica.
+
+## Backlog canónico (ideas / hecho / pendiente / olvidado)
+
+- Mongo: **`ralfia_dev_backlog`**
+- MCP: `capture_backlog_item`, `list_dev_backlog`, `update_dev_backlog_item`, `get_dev_backlog_summary`, `finalize_session_handoff`
+- Idea mid-chat → capturar al momento, no esperar al cierre
+- Promover `planned` → `create_ops_task` cuando haya owner
+
+## Workspace
+
+- Servidor `192.168.1.4` — `/home/rlopez/projects/raphiia-openai`
+- Remote SSH — no Windows local
+- Puertos: health **8101**, MCP **8102** — no tocar :8099/:8100/:8097/:8098
+- Mongo `pcdoctor_swarm` — MCP sin `sk-`
+- Tools MCP: **search** + **fetch** obligatorios
+
+## Coordinación con Codex
+
+- Codex escribe en `ai_coordination/codex/`
+- Rafael no pega prompts: «lee la carpeta coordinación»

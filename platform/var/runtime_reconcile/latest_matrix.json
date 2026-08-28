@@ -1,0 +1,481 @@
+{
+  "ok": false,
+  "agent_id": "AG-40_RUNTIME_RECONCILER",
+  "dry_run": true,
+  "generated_at": "2026-08-23T17:58:09.630202+00:00",
+  "ts_display": "2026-08-23 12:58 GYT (GMT-5)",
+  "local_node": "amd",
+  "fleet_nodes": {
+    "intel": {
+      "node": "intel",
+      "host": "192.168.1.4",
+      "tcp_ok": true,
+      "mcp_ok": true,
+      "ok": true,
+      "server_version": "3.5.0",
+      "mcp_url": "http://192.168.1.4:8102/mcp",
+      "checked_at": "2026-08-23T17:58:04.918037+00:00"
+    },
+    "amd": {
+      "node": "amd",
+      "host": "192.168.1.5",
+      "tcp_ok": true,
+      "mcp_ok": true,
+      "ok": true,
+      "server_version": "3.5.0",
+      "mcp_url": "http://192.168.1.5:8102/mcp",
+      "checked_at": "2026-08-23T17:58:04.918327+00:00"
+    }
+  },
+  "cockpit": {
+    "portal": "down",
+    "editorial": "up",
+    "ralphia-app": "up",
+    "mcp": "up",
+    "admin": "down",
+    "swarm-api": "down",
+    "smart-quoter": "down",
+    "uipath-copilot": "down",
+    "ngrok": "up",
+    "coordination": "up",
+    "open-webui": "up",
+    "evolution": "up",
+    "n8n": "up",
+    "filebrowser": "up",
+    "qdrant": "up",
+    "anythingllm": "up",
+    "whisper": "up",
+    "ollama": "up"
+  },
+  "watch_registry": {
+    "raphiia-oauth": "unknown",
+    "raphiia-mcp": "unknown",
+    "ngrok-public-tunnel": "unknown",
+    "public-gateway": "unknown",
+    "ralfia-voice-gateway": "unknown",
+    "portal-control-center": "unknown",
+    "swarm-api": "unknown",
+    "ollama-router": "unknown",
+    "ops-panel": "down",
+    "uipath-copilot": "unknown",
+    "vllm-rocm": "unknown",
+    "raphiia-health": "unknown",
+    "portal-8800": "down",
+    "portal-whisper-amd": "down",
+    "portal-ollama-router": "down",
+    "portal-comfyui": "up",
+    "portal-vllm-amd": "down",
+    "portal-ralfia-voice": "down",
+    "portal-innerchispa-conscious-map": "unknown",
+    "portal-innerchispa-astro-live": "unknown",
+    "portal-whisper": "unknown",
+    "portal-evolution": "unknown",
+    "portal-n8n": "unknown",
+    "portal-litellm": "unknown",
+    "portal-ollama": "unknown",
+    "portal-anythingllm": "unknown",
+    "portal-openwebui": "unknown",
+    "portal-hackathon-funding-hub": "unknown",
+    "portal-swarm-os-google-ai-studio": "unknown",
+    "portal-hackathon-band-ui": "unknown",
+    "portal-ralphi-sre": "unknown",
+    "portal-gitlab-transcend": "unknown",
+    "portal-hackathon-autopilot": "unknown",
+    "portal-qdrant": "unknown",
+    "portal-raphiia-auth": "unknown",
+    "portal-raphiia-mcp": "unknown",
+    "portal-raphiia-status": "unknown",
+    "portal-api": "unknown",
+    "portal-files": "unknown",
+    "portal-datacenter": "unknown",
+    "portal-admin": "unknown",
+    "portal-cockpit": "unknown",
+    "portal-smart-quoter": "unknown",
+    "portal-8800-redirect": "unknown",
+    "portal-hackathon-band-api": "unknown",
+    "portal-mongodb": "unknown",
+    "portal-portainer": "unknown",
+    "portal-homeassistant": "unknown",
+    "portal-postgres": "unknown",
+    "portal-ralphi-gateway": "unknown"
+  },
+  "core_matrix": [
+    {
+      "node": "intel",
+      "host": "192.168.1.4",
+      "service": "raphiia-mcp",
+      "port": 8102,
+      "tier": "critical",
+      "tcp_ok": true,
+      "http": 200,
+      "ok": true,
+      "expected_on_node": true
+    },
+    {
+      "node": "intel",
+      "host": "192.168.1.4",
+      "service": "raphiia-oauth",
+      "port": 8103,
+      "tier": "critical",
+      "tcp_ok": false,
+      "http": null,
+      "ok": false,
+      "expected_on_node": true
+    },
+    {
+      "node": "intel",
+      "host": "192.168.1.4",
+      "service": "raphiia-health",
+      "port": 8101,
+      "tier": "high",
+      "tcp_ok": true,
+      "http": 200,
+      "ok": true,
+      "expected_on_node": true
+    },
+    {
+      "node": "intel",
+      "host": "192.168.1.4",
+      "service": "portal-control-center",
+      "port": 2002,
+      "tier": "critical",
+      "tcp_ok": true,
+      "http": 200,
+      "ok": true,
+      "expected_on_node": true
+    },
+    {
+      "node": "intel",
+      "host": "192.168.1.4",
+      "service": "ralfia-voice-gateway",
+      "port": 8200,
+      "tier": "medium",
+      "tcp_ok": false,
+      "http": null,
+      "ok": false,
+      "expected_on_node": true
+    },
+    {
+      "node": "amd",
+      "host": "192.168.1.5",
+      "service": "raphiia-mcp",
+      "port": 8102,
+      "tier": "critical",
+      "tcp_ok": true,
+      "http": 200,
+      "ok": true,
+      "expected_on_node": true
+    },
+    {
+      "node": "amd",
+      "host": "192.168.1.5",
+      "service": "vllm-rocm",
+      "port": 8000,
+      "tier": "on_demand",
+      "tcp_ok": false,
+      "http": null,
+      "ok": false,
+      "expected_on_node": true
+    },
+    {
+      "node": "amd",
+      "host": "192.168.1.5",
+      "service": "ollama-router",
+      "port": 11435,
+      "tier": "on_demand",
+      "tcp_ok": false,
+      "http": null,
+      "ok": false,
+      "expected_on_node": true
+    },
+    {
+      "node": "amd",
+      "host": "192.168.1.5",
+      "service": "comfyui-amd",
+      "port": 8188,
+      "tier": "on_demand",
+      "tcp_ok": false,
+      "http": null,
+      "ok": false,
+      "expected_on_node": true
+    },
+    {
+      "node": "amd",
+      "host": "192.168.1.5",
+      "service": "whisper-amd",
+      "port": 9000,
+      "tier": "on_demand",
+      "tcp_ok": false,
+      "http": null,
+      "ok": false,
+      "expected_on_node": true
+    }
+  ],
+  "systemd_units_dual": [
+    {
+      "unit": "ralfia-mcp.service",
+      "intel": "active",
+      "amd": "Host key verification failed."
+    },
+    {
+      "unit": "ralfia-auth.service",
+      "intel": "activating",
+      "amd": "not_applicable"
+    },
+    {
+      "unit": "ralfia-coordination-daemon.service",
+      "intel": "active",
+      "amd": "Host key verification failed."
+    },
+    {
+      "unit": "opportunityops-cloudflared.service",
+      "intel": "active",
+      "amd": "not_applicable"
+    },
+    {
+      "unit": "ralfia-voice-gateway.service",
+      "intel": "active",
+      "amd": "Host key verification failed."
+    }
+  ],
+  "registry_classification_counts": {
+    "REAL_DOWN": 21,
+    "CORE_DEGRADED": 2,
+    "LEGACY": 3,
+    "UNMONITORED": 10,
+    "PORTAL_MIRROR": 38,
+    "AUTO_DISCOVERED_STALE": 50,
+    "ON_DEMAND": 1
+  },
+  "false_down_corrected_count": 102,
+  "false_down_sample": [
+    "ngrok-public-tunnel",
+    "public-gateway",
+    "ralfia-voice-gateway",
+    "portal-control-center",
+    "swarm-api",
+    "ollama-router",
+    "uipath-copilot",
+    "vllm-rocm",
+    "raphiia-health",
+    "portal-8800",
+    "discovered-9222",
+    "discovered-8765",
+    "discovered-8876",
+    "discovered-8777",
+    "discovered-8776",
+    "discovered-4327",
+    "discovered-8775",
+    "discovered-8774",
+    "discovered-8773",
+    "discovered-5185"
+  ],
+  "real_core_issues": [
+    {
+      "node": "intel",
+      "host": "192.168.1.4",
+      "service": "raphiia-oauth",
+      "port": 8103,
+      "tier": "critical",
+      "tcp_ok": false,
+      "http": null,
+      "ok": false,
+      "expected_on_node": true
+    }
+  ],
+  "real_down_registry_sample": [
+    {
+      "service_id": "datacenter",
+      "name": "Centro de Datos (chat + voz)",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "admin",
+      "name": "PC Doctor Admin",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "raphiia-auth",
+      "name": "RalfIA OAuth",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "hackathon-band-api",
+      "name": "Hackathon Band API",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "postgres",
+      "name": "PostgreSQL",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "ralphi-gateway",
+      "name": "Ralphi Gateway",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "homeassistant",
+      "name": "Home Assistant",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "cockpit",
+      "name": "Cockpit",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "portainer",
+      "name": "Portainer",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "litellm",
+      "name": "LiteLLM Gateway",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "api",
+      "name": "Swarm-OS API",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "gitlab-transcend",
+      "name": "GitLab Transcend",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "ralphi-sre",
+      "name": "Ralphi SRE (Proyectos)",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "hackathon-band-ui",
+      "name": "Hackathon Band UI",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "swarm-os-google-ai-studio",
+      "name": "Google AI Studio Swarm",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "hackathon-funding-hub",
+      "name": "Hackathon & Funding Hub",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "hackathon-autopilot",
+      "name": "Hackathon Autopilot",
+      "status": "down",
+      "risk": null,
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "raphiia-oauth",
+      "name": "Ralphi IA OAuth",
+      "status": "unknown",
+      "risk": "critical",
+      "classification": "CORE_DEGRADED"
+    },
+    {
+      "service_id": "raphiia-mcp",
+      "name": "Conector RalfIA MCP",
+      "status": "unknown",
+      "risk": "critical",
+      "classification": "CORE_DEGRADED"
+    },
+    {
+      "service_id": "ops-panel",
+      "name": "RalfIA Ops Panel",
+      "status": "down",
+      "risk": "high",
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "proj-ai-gateway",
+      "name": "AI Server Gateway",
+      "status": "down",
+      "risk": "medium",
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "proj-funding-hub",
+      "name": "Hackathon Funding Hub",
+      "status": "down",
+      "risk": "medium",
+      "classification": "REAL_DOWN"
+    },
+    {
+      "service_id": "proj-ralphia-oauth",
+      "name": "Ralphi IA OAuth",
+      "status": "down",
+      "risk": "medium",
+      "classification": "REAL_DOWN"
+    }
+  ],
+  "warm_standby_amd": {
+    "amd_always": [
+      "raphiia-mcp",
+      "ralfia-voice-gateway (optional peer)"
+    ],
+    "amd_on_demand": [
+      "vllm-rocm",
+      "ollama-router",
+      "comfyui-amd",
+      "whisper-amd",
+      "ralfia-app"
+    ],
+    "intel_only": [
+      "raphiia-oauth",
+      "opportunityops-cloudflared",
+      "portal-control-center",
+      "ralfia-coordination-daemon (primary)"
+    ],
+    "note": "Registry debe marcar preferred_node/eligible_nodes para evitar falsos DOWN cruzados"
+  },
+  "summary": {
+    "fleet_ok": true,
+    "core_issues": 1,
+    "false_down_corrected": 102,
+    "registry_degraded": 37
+  },
+  "next_steps": [
+    "Actualizar service_registry con preferred_node por servicio",
+    "Archivar discovered-* stale del registry",
+    "vLLM/Comfy/Ollama: levantar on-demand en AMD cuando route_ai_task lo pida",
+    "Failover dry-run: scripts/failover_intel_to_amd.sh sin --execute"
+  ]
+}

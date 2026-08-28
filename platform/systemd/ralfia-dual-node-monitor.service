@@ -1,0 +1,15 @@
+[Unit]
+Description=RalfIA dual-node .4/.5 health monitor (active/standby)
+After=network-online.target ralfia-mcp.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rlopez/projects/raphiia-openai
+Environment=PYTHONPATH=/home/rlopez/projects/raphiia-openai
+ExecStart=/home/rlopez/projects/raphiia-openai/venv/bin/python3 /home/rlopez/projects/raphiia-openai/scripts/dual_node_monitor_daemon.py
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target
