@@ -78,8 +78,18 @@ def _http(host: str, port: int, path: str, timeout: float = 8.0) -> int | str | 
 
 
 def _systemctl(host: str | None, unit: str) -> str:
+    is_local = not host or host in {"127.0.0.1", "localhost"}
+    try:
+        hostname = socket.gethostname().lower()
+        if host == RALFIA_AMD_HOST and "amd" in hostname:
+            is_local = True
+        elif host == RALFIA_INTEL_HOST and "amd" not in hostname:
+            is_local = True
+    except Exception:
+        pass
+
     cmd = ["systemctl", "--user", "is-active", unit]
-    if host and host not in {"127.0.0.1", "localhost"}:
+    if not is_local:
         cmd = ["ssh", "-o", "BatchMode=yes", f"rlopez@{host}", "systemctl", "--user", "is-active", unit]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
