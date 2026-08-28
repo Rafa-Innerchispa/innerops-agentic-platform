@@ -10,7 +10,10 @@ def _slug_skill(agent: dict[str, Any]) -> str:
 
 def _catalog_snapshot() -> tuple[list[dict[str, Any]], str]:
     """Prefer runtime-verified agents without making A2A depend on every optional import."""
-    from raphiia_openai.agents import agent_catalog
+    try:
+        from raphiia_openai.agents import agent_catalog
+    except Exception:
+        return [], "catalog_unavailable"
     try:
         verified = agent_catalog.get_agent_catalog(functional_only=True)
         return list(verified.get("agents") or []), "runtime_verified"

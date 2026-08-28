@@ -33,7 +33,7 @@ class GovernedGeminiTests(unittest.TestCase):
     def test_governed_runtime_executes_sanitization_evidence_and_memory_sync(
         self, mock_save_memory, mock_publish, mock_save_evidence, mock_sanitize
     ):
-        mock_sanitize.side_effect = lambda proj, text, mode: f"sanitized_{text}"
+        mock_sanitize.side_effect = lambda proj, text, mode: (f"sanitized_{text}", False)
         mock_save_memory.return_value = {"ok": True}
         
         result = self.runtime.run(
@@ -83,7 +83,7 @@ class GovernedGeminiTests(unittest.TestCase):
         
         # Calling sanitization should return the sanitized version or raise error
         res = gr._sanitize_with_model_armor("test-proj", "jailbreak_text", mode="prompt")
-        self.assertEqual(res, "blocked_input")
+        self.assertEqual(res, ("blocked_input", False))
 
     @patch("urllib.request.urlopen")
     @patch("google.auth.default")
