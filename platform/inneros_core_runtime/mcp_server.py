@@ -6296,3 +6296,46 @@ def a2a_task_status(a2a_task_id: str) -> dict[str, Any]:
     from raphiia_openai import a2a_bridge
 
     return a2a_bridge.task_status(a2a_task_id)
+
+
+# --- IDE Task Bridge: direct durable dispatch to coding IDE agents ---
+@mcp.tool
+def ide_task_bridge_status() -> dict[str, Any]:
+    """IDE bridge status and readiness for Antigravity/Cursor/Codex/Gemini."""
+    from raphiia_openai import ide_task_bridge
+    return ide_task_bridge.bridge_status()
+
+
+@mcp.tool
+def ide_dispatch_task(ide: str, title: str, body: str, repo: str = "", branch: str = "", worktree: str = "", correlation_id: str = "", priority: str = "p0", from_agent: str = "CHATGPT_A", require_evidence: bool = True, approval_required: bool = False, idempotency_key: str = "") -> dict[str, Any]:
+    """Dispatch one durable task directly to an IDE inbox without claiming execution."""
+    from raphiia_openai import ide_task_bridge
+    return ide_task_bridge.dispatch_task(ide=ide, title=title, body=body, repo=repo, branch=branch, worktree=worktree, correlation_id=correlation_id, priority=priority, from_agent=from_agent, require_evidence=require_evidence, approval_required=approval_required, idempotency_key=idempotency_key)
+
+
+@mcp.tool
+def ide_task_status(dispatch_id: str) -> dict[str, Any]:
+    """Return delivery versus execution state for a direct IDE dispatch."""
+    from raphiia_openai import ide_task_bridge
+    return ide_task_bridge.task_status(dispatch_id)
+
+
+@mcp.tool
+def ide_claim_task(dispatch_id: str, ide: str) -> dict[str, Any]:
+    """IDE claims a queued task before touching code."""
+    from raphiia_openai import ide_task_bridge
+    return ide_task_bridge.claim_task(dispatch_id, ide)
+
+
+@mcp.tool
+def ide_mark_task_running(dispatch_id: str, ide: str) -> dict[str, Any]:
+    """IDE marks a delivered/claimed task as actively running."""
+    from raphiia_openai import ide_task_bridge
+    return ide_task_bridge.mark_running(dispatch_id, ide)
+
+
+@mcp.tool
+def ide_complete_task(dispatch_id: str, ide: str, result: str = "completed", evidence: dict[str, Any] | None = None) -> dict[str, Any]:
+    """IDE completes a task; successful completion requires evidence by default."""
+    from raphiia_openai import ide_task_bridge
+    return ide_task_bridge.complete_task(dispatch_id, ide, result=result, evidence=evidence)

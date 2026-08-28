@@ -782,3 +782,14 @@ class ApiKeyMiddleware(Middleware):
             scopes=[],
         )
         raise ToolError("Unauthorized: OAuth Bearer token required")
+
+
+# IDE Task Bridge scopes (appended to preserve the large static registry safely).
+TOOL_SCOPES.update({
+    "ide_task_bridge_status": "ralfia:read",
+    "ide_dispatch_task": "ralfia:agents",
+    "ide_task_status": "ralfia:read",
+    "ide_claim_task": "ralfia:agents",
+    "ide_mark_task_running": "ralfia:agents",
+    "ide_complete_task": "ralfia:agents",
+})
