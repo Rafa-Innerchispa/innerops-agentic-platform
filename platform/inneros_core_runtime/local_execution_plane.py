@@ -320,6 +320,16 @@ def _load_repo_profiles() -> dict[str, dict[str, Any]]:
     return profiles
 
 
+def _detect_test_profile(safe: Path) -> str:
+    if (safe / "platform" / "inneros_core_runtime").exists():
+        return "python-tests"
+    if (safe / "platform" / "tests").exists():
+        return "python-tests"
+    if (safe / "package.json").exists():
+        return "node-tests"
+    return "python-tests"
+
+
 def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
     try:
         from raphiia_openai import project_runtime_registry as prr
@@ -337,7 +347,7 @@ def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
             safe = prr._safe_path(path)
         except Exception:
             continue
-        detected_profile = "node-tests" if (safe / "package.json").exists() else "python-tests"
+        detected_profile = _detect_test_profile(safe)
         registered_profile = str(entry.get("allowed_commands_profile") or "").strip()
         if registered_profile in {"python-tests", "node-tests"} and registered_profile != detected_profile:
             profile = detected_profile
@@ -1534,7 +1544,7 @@ def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
             safe = prr._safe_path(path)
         except Exception:
             continue
-        detected_profile = "node-tests" if (safe / "package.json").exists() else "python-tests"
+        detected_profile = _detect_test_profile(safe)
         registered_profile = str(entry.get("allowed_commands_profile") or "").strip()
         profile = registered_profile if registered_profile in ALLOWLISTED_COMMANDS else detected_profile
         profiles[repo] = {

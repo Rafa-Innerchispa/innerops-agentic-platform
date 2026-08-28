@@ -77,10 +77,21 @@ def _state() -> dict[str, Any]:
     state.pop("_id", None)
     state.pop("key", None)
     state.setdefault("enabled", False)
+    state.setdefault("enable_blocked", False)
+    state.setdefault("enable_block_reason", "")
     state.setdefault("max_concurrent", DEFAULT_MAX_CONCURRENT)
     state.setdefault("primary_node", "amd")
     state.setdefault("secondary_node", "intel")
     return state
+
+
+def _scheduler_enable_allowed(*, force: bool = False) -> tuple[bool, str]:
+    if force or os.getenv("DEV_SWARM_SCHEDULER_FORCE_ENABLE") == "1":
+        return True, ""
+    state = _state()
+    if state.get("enable_blocked"):
+        return False, str(state.get("enable_block_reason") or "scheduler_enable_blocked")
+    return True, ""
 
 
 def _save_state(patch: dict[str, Any]) -> dict[str, Any]:
@@ -382,7 +393,23 @@ def _task_search_text(task: dict[str, Any]) -> str:
     return " ".join(parts).lower()
 
 
+def _is_live_verifier_ops_task(task: dict[str, Any], text: str | None = None) -> bool:
+    haystack = text if text is not None else _task_search_text(task)
+    haystack_l = haystack.lower()
+    correlation = str(task.get("correlation_id") or "").lower()
+    assignee = str(task.get("assignee") or "").lower()
+    if assignee == "gemini" and "verifier" in haystack_l:
+        return True
+    if "live verifier" in haystack_l or "live-verification" in correlation:
+        return True
+    if "gemini_verifier" in haystack_l or "gemini-live-verification" in correlation:
+        return True
+    return False
+
+
 def _is_non_dev_ops_task(task: dict[str, Any], text: str | None = None) -> bool:
+    if _is_live_verifier_ops_task(task, text):
+        return True
     haystack = text if text is not None else _task_search_text(task)
     tags = {str(item).lower() for item in task.get("tags") or []}
     kind = str(task.get("kind") or "").lower()
@@ -875,19 +902,54 @@ def _cleanup_generated_python_artifacts(worktree: Path) -> list[str]:
     return removed
 
 
-def scheduler_start(max_concurrent: int = DEFAULT_MAX_CONCURRENT, dry_run: bool = False) -> dict[str, Any]:
+def scheduler_start(
+    max_concurrent: int = DEFAULT_MAX_CONCURRENT,
+    dry_run: bool = False,
+    force: bool = False,
+) -> dict[str, Any]:
     max_c = max(DEFAULT_MAX_CONCURRENT, min(int(max_concurrent or DEFAULT_MAX_CONCURRENT), 12))
+    allowed, block_reason = _scheduler_enable_allowed(force=force)
     if dry_run:
-        return {"ok": True, "dry_run": True, "would_set": {"enabled": True, "max_concurrent": max_c}}
-    state = _save_state({"enabled": True, "max_concurrent": max_c, "started_at": _now(), "stopped_at": None, "stop_reason": ""})
+        return {
+            "ok": allowed,
+            "dry_run": True,
+            "would_set": {"enabled": True, "max_concurrent": max_c},
+            "enable_blocked": not allowed,
+            "block_reason": block_reason,
+        }
+    if not allowed:
+        return {"ok": False, "error": "scheduler_enable_blocked", "block_reason": block_reason, "state": _state()}
+    state = _save_state(
+        {
+            "enabled": True,
+            "max_concurrent": max_c,
+            "started_at": _now(),
+            "stopped_at": None,
+            "stop_reason": "",
+            "enable_blocked": False,
+            "enable_block_reason": "",
+        }
+    )
     coordination_live.bump_revision(reason="dev_swarm_scheduler enabled", source="dev_swarm")
     return {"ok": True, "state": state}
 
 
-def scheduler_stop(reason: str = "", dry_run: bool = False) -> dict[str, Any]:
+def scheduler_stop(
+    reason: str = "",
+    dry_run: bool = False,
+    block_reenable: bool = True,
+) -> dict[str, Any]:
     if dry_run:
-        return {"ok": True, "dry_run": True, "would_set": {"enabled": False, "reason": reason}}
-    state = _save_state({"enabled": False, "stopped_at": _now(), "stop_reason": reason[:300]})
+        return {
+            "ok": True,
+            "dry_run": True,
+            "would_set": {"enabled": False, "reason": reason, "block_reenable": block_reenable},
+        }
+    patch: dict[str, Any] = {"enabled": False, "stopped_at": _now(), "stop_reason": reason[:300]}
+    if block_reenable:
+        patch["enable_blocked"] = True
+        patch["enable_block_reason"] = (reason or "scheduler_stopped")[:300]
+    state = _save_state(patch)
     coordination_live.bump_revision(reason="dev_swarm_scheduler stopped", source="dev_swarm")
     return {"ok": True, "state": state}
 
@@ -1809,11 +1871,33 @@ def _worktree_has_python_markers(worktree: Path, files_touched: list[str]) -> bo
     return any(path.is_file() and path.suffix == ".py" for path in (worktree / "tests").rglob("*")) if (worktree / "tests").exists() else False
 
 
+def _python_test_roots_for_package(worktree: Path, package_root: str) -> list[str]:
+    root = worktree / package_root
+    candidates: list[str] = []
+    tests_dir = root / "tests"
+    if tests_dir.exists() and any(path.is_file() and path.suffix == ".py" for path in tests_dir.rglob("*")):
+        candidates.append(str(tests_dir.relative_to(worktree)))
+    runtime_dir = root / "inneros_core_runtime"
+    if runtime_dir.exists():
+        runtime_tests = root / "tests"
+        if runtime_tests.exists():
+            rel = str(runtime_tests.relative_to(worktree))
+            if rel not in candidates:
+                candidates.append(rel)
+    return candidates
+
+
 def _test_commands_for_policy(repo: str, worktree: Path, files_touched: list[str]) -> list[list[str]]:
     commands: list[list[str]] = [["git", "diff", "--check"]]
     package_roots = _product_roots_for_repo(repo, worktree)
     if package_roots:
         for package_root in package_roots:
+            py_roots = _python_test_roots_for_package(worktree, package_root)
+            if py_roots or (worktree / package_root / "inneros_core_runtime").exists():
+                for rel_root in py_roots or [f"{package_root}/tests"]:
+                    if (worktree / rel_root).exists():
+                        commands.append(["python3", "-m", "unittest", "discover", "-s", rel_root, "-v"])
+                continue
             if (worktree / package_root / "package-lock.json").exists() and not (worktree / package_root / "node_modules" / ".bin" / "jest").exists():
                 commands.append(["npm", "--prefix", package_root, "ci"])
             commands.append(["npm", "--prefix", package_root, "test", "--", "--runInBand"])
@@ -2524,7 +2608,6 @@ def fanout_execute(repo: str, task_ids: list[str], concurrency: int = 6, dry_run
     if dry_run:
         return {"ok": True, "dry_run": True, "repo": repo, "task_ids": ids, "admitted_task_ids": admitted_ids, "queued_task_ids": queued_ids, "concurrency": max_workers, "capacity": capacity}
 
-    scheduler_start(max_concurrent=max_workers, dry_run=False)
     started_at = _now()
     base_snapshot = _fanout_base_snapshot(repo)
     if not base_snapshot.get("ok"):
