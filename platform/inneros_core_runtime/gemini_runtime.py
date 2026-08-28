@@ -342,7 +342,7 @@ class GeminiInteractionsClient:
                     contents=prompt,
                 )
                 output_text = response.text or ""
-                interaction_id = f"gen-{_now().strftime('%Y%m%d%H%M%S')}"
+                interaction_id = f"gen-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
                 steps = []
                 function_calls = []
                 status = "success"
@@ -427,7 +427,7 @@ class GeminiInteractionsClient:
                     contents=f"Function result: {result} for tool {tool_name}.",
                 )
                 output_text = response.text or ""
-                interaction_id = f"gen-cont-{_now().strftime('%Y%m%d%H%M%S')}"
+                interaction_id = f"gen-cont-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
                 steps = []
                 status = "success"
                 simulated = False
