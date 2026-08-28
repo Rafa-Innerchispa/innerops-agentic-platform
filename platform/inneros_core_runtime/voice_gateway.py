@@ -2317,13 +2317,56 @@ def _ollama_reachable() -> bool:
     return False
 
 
+_INSTALLED_OLLAMA_MODELS: set[str] | None = None
+VOICE_MODEL_FALLBACKS = (
+    "qwen2.5:7b-instruct-q4_K_M",
+    "qwen2.5:3b-instruct-q4_K_M",
+    "llama3.2:3b",
+)
+
+
+def _installed_ollama_models() -> set[str]:
+    global _INSTALLED_OLLAMA_MODELS
+    if _INSTALLED_OLLAMA_MODELS is not None:
+        return _INSTALLED_OLLAMA_MODELS
+    models: set[str] = set()
+    for base in (OLLAMA_DIRECT, OLLAMA_CHAT):
+        try:
+            payload = _http_json(f"{base}/api/tags", timeout=3.0)
+            for row in payload.get("models") or []:
+                name = str(row.get("name") or "").strip()
+                if name:
+                    models.add(name)
+        except Exception:
+            continue
+    _INSTALLED_OLLAMA_MODELS = models
+    return models
+
+
+def _resolve_configured_voice_model(configured: str, *, fallbacks: tuple[str, ...] = VOICE_MODEL_FALLBACKS) -> str:
+    model = str(configured or "").strip()
+    if not model:
+        raise ValueError("voice_model_not_configured")
+    installed = _installed_ollama_models()
+    if not installed:
+        return model
+    if model in installed:
+        return model
+    for candidate in fallbacks:
+        if candidate in installed:
+            return candidate
+    raise ValueError(f"voice_model_not_installed:{model}")
+
+
 def _pick_ollama_model(user_text: str, *, heavy: bool = False) -> str:
+    configured = VOICE_HEAVY_MODEL if heavy else VOICE_MODEL
     if heavy:
-        return VOICE_HEAVY_MODEL
-    low = user_text.lower()
-    if any(k in low for k in ("código", "programa", "python", "script", "implementa", "refactor", "bug", "api ")):
-        return VOICE_HEAVY_MODEL
-    return VOICE_MODEL
+        low = user_text.lower()
+        if any(k in low for k in ("código", "programa", "python", "script", "implementa", "refactor", "bug", "api ")):
+            configured = VOICE_HEAVY_MODEL
+        else:
+            configured = VOICE_MODEL
+    return _resolve_configured_voice_model(configured)
 
 
 def _build_chat_messages(
@@ -2607,7 +2650,7 @@ def _fluid_ollama_reply(
     )
     ollama_msgs: list[dict[str, str]] = [{"role": "system", "content": system}]
     ollama_msgs.extend(msgs)
-    model = VOICE_FLUID_MODEL if VOICE_FLUID_FAST else _pick_ollama_model(query or user_text, heavy=False)
+    model = _resolve_configured_voice_model(VOICE_FLUID_MODEL) if VOICE_FLUID_FAST else _pick_ollama_model(query or user_text, heavy=False)
     body: dict[str, Any] = {
         "model": model,
         "messages": ollama_msgs,

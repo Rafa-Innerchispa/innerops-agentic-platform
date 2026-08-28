@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from raphiia_openai import coordination_live, mongo_store
+from raphiia_openai import coordination_live, gpu_inference_lease, mongo_store
 
 A2A_TITLE_RE = re.compile(r"^\[A2A:(AG-\d{1,2})\]\s*(.*)$", re.IGNORECASE)
 TERMINAL = {"completed", "failed", "cancelled", "superseded"}
@@ -221,11 +221,37 @@ def controller_tick(
                 })
                 continue
 
+            gpu_lease = gpu_inference_lease.acquire_gpu_inference_lease(
+                agent="a2a",
+                task_id=task_id,
+                task_type="a2a",
+            )
+            if not gpu_lease.get("ok"):
+                executed.append(
+                    {
+                        **plan,
+                        "ok": True,
+                        "status": "queued_gpu",
+                        "skipped": True,
+                        "reason": gpu_lease.get("error"),
+                        "queued": bool(gpu_lease.get("queued")),
+                        "gpu_lease": gpu_lease,
+                    }
+                )
+                continue
+            resource_lease_id = str(gpu_lease.get("resource_lease_id") or "")
+
             if current_status == "proposed":
                 coordination_live.update_ops_task_state(task_id, "accepted", actor="ralfia", force_handoff=True)
+
             coordination_live.update_ops_task_state(task_id, "in_progress", actor="ralfia", force_handoff=True)
             lease = _acquire_execution_lease(database, task_id, agent_id, max(1, int(agent_timeout_seconds)))
             if not lease.get("ok"):
+                gpu_inference_lease.release_gpu_inference_lease(
+                    agent="a2a",
+                    task_id=task_id,
+                    resource_lease_id=resource_lease_id,
+                )
                 executed.append({
                     **plan,
                     "ok": True,
@@ -239,7 +265,14 @@ def controller_tick(
             executed.append({**plan, "ok": False, "error": f"claim_failed:{exc}"})
             continue
 
-        result = _invoke_agent_bounded(agent_id, message, max(1, int(agent_timeout_seconds)))
+        try:
+            result = _invoke_agent_bounded(agent_id, message, max(1, int(agent_timeout_seconds)))
+        finally:
+            gpu_inference_lease.release_gpu_inference_lease(
+                agent="a2a",
+                task_id=task_id,
+                resource_lease_id=resource_lease_id,
+            )
         ok = bool(result.get("ok"))
         timed_out = result.get("error") == "agent_execution_timeout"
         evidence = {
