@@ -36,6 +36,7 @@ ROLES=(
   "roles/pubsub.viewer"
   "roles/aiplatform.user"
   "roles/logging.logWriter"
+  "roles/modelarmor.user"
 )
 for role in "${ROLES[@]}"; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \

@@ -21,11 +21,12 @@ from typing import Any, Callable, Iterable
 logger = logging.getLogger("inneros.gemini_runtime")
 
 PROVIDER_ID = "google-gemini-vertex"
-MODEL_ID = "gemini-3.5-flash"
+# gemini-3.6-flash and gemini-3.5-flash return 404 on Vertex for this project
+# (verified 2026-08-28 via platform/scripts/vertex_live_model_probe.py).
+MODEL_ID = "gemini-2.5-flash"
 DEFAULT_PROJECT_ID = "innerops-agentic-platform"
-# Gemini 3.5 Flash PayGo is served through global/us/eu endpoints. Agent Runtime
-# can remain in us-central1 while model calls use the US multi-region endpoint.
-DEFAULT_MODEL_LOCATION = "us"
+# gemini-2.5-flash is live on us-central1 for this project (404 on global `us`).
+DEFAULT_MODEL_LOCATION = "us-central1"
 DEFAULT_AGENT_LOCATION = "us-central1"
 
 
