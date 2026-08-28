@@ -64,7 +64,7 @@ def google_gemini_remote_card() -> dict[str, Any]:
             "inneros_role": "google-gemini",
             "assignee": "gemini",
             "provider": "google-gemini-vertex",
-            "model": "gemini-3.5-flash",
+            "model": "gemini-2.5-flash",
             "adk_pattern": ADK_PATTERN,
             "quota_blocked": True,
             "live_mode": LIVE_MODE,
