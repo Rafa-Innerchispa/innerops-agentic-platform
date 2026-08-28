@@ -1,16 +1,18 @@
-#!/bin/bash
-# Test de baseline ROCm
+#!/usr/bin/env bash
+# Test de baseline ROCm canary (no toca :8000 productivo)
+set -euo pipefail
 
-# Ejecutar script de baseline
+CANARY_DIR="${ROCM_CANARY_DIR:-/home/rlopez/data/rocm10-canary}"
+
 bash src/rocm/rocm_baseline.sh
 
-# Verificar resultados
 echo "Verificando archivos de salida..."
-if [ -d "/home/rlopez/data/rocm-baseline-*" ]; then
-  echo "✓ Baseline capturada correctamente"
-  ls -la /home/rlopez/data/rocm-baseline-*/
+latest="$CANARY_DIR/latest"
+if [[ -L "$latest" ]] && [[ -d "$latest" ]]; then
+  echo "✓ Baseline capturada correctamente en $latest"
+  ls -la "$latest"
 else
-  echo "✗ Error al capturar baseline"
+  echo "✗ Error: symlink latest no apunta a baseline válida en $CANARY_DIR"
   exit 1
 fi
 
