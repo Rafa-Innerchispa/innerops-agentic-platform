@@ -125,7 +125,15 @@ class GeminiRuntimeTests(unittest.TestCase):
         self.assertEqual(result["error"], "external_execution_not_authorized")
         self.assertEqual(self.fake.interactions.calls, [])
 
-    def test_runtime_emits_correlation_and_bounded_tool_evidence(self):
+    @patch("inneros_core_runtime.gemini_runtime._save_evidence_to_firestore")
+    @patch("inneros_core_runtime.gemini_runtime._publish_event_to_pubsub")
+    @patch("inneros_core_runtime.gemini_runtime._sanitize_with_model_armor")
+    @patch("inneros_core_runtime.gcp_memory_bank.save_memory")
+    def test_runtime_emits_correlation_and_bounded_tool_evidence(
+        self, mock_save_memory, mock_sanitize, mock_publish, mock_save_evidence
+    ):
+        mock_sanitize.side_effect = lambda proj, text, mode: (text, False)
+        mock_save_memory.return_value = {"ok": True}
         self.fake.interactions.responses.append(
             FakeInteraction(
                 interaction_id="ix-3",
@@ -159,7 +167,7 @@ class GeminiRuntimeTests(unittest.TestCase):
         self.assertEqual(evidence[0]["interaction_id"], "ix-3")
         self.assertEqual(evidence[0]["requested_tools"], ["read_signal"])
         self.assertEqual(evidence[0]["requested_tool_risks"]["read_signal"], "low")
-        self.assertFalse(evidence[0]["verified"])
+        self.assertTrue(evidence[0]["verified"])
 
     def test_resource_documents_make_gemini_discoverable_without_replacing_local_first(self):
         provider = gr.resource_provider_document()
