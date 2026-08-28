@@ -126,7 +126,7 @@ def _publish_event_to_pubsub(project_id: str, payload: dict[str, Any]) -> None:
         logger.warning("Could not publish event to Pub/Sub: %s", exc)
 
 
-def _sanitize_with_model_armor(project_id: str, text: str, mode: str = "prompt") -> str:
+def _sanitize_with_model_armor(project_id: str, text: str, mode: str = "prompt") -> tuple[str, bool]:
     template = os.getenv("INNEROS_MODEL_ARMOR_TEMPLATE", "inneros-default")
     location = os.getenv("INNEROS_MODEL_ARMOR_LOCATION", "us-central1")
     
@@ -136,7 +136,7 @@ def _sanitize_with_model_armor(project_id: str, text: str, mode: str = "prompt")
     if os.getenv("INNEROS_MODEL_ARMOR_DISABLE", "").lower() in {"1", "true", "yes"}:
         if security_required:
             raise ValueError("Model Armor is disabled but security-required policy is active.")
-        return text
+        return text, True
     try:
         import urllib.request
         credentials, project = _get_google_credentials(project_id)
@@ -180,15 +180,15 @@ def _sanitize_with_model_armor(project_id: str, text: str, mode: str = "prompt")
             logger.warning("Model Armor detected policy violation: %s", match_state)
             sanitized = result.get("userPromptData", {}).get("text") or result.get("modelResponseData", {}).get("text")
             if sanitized:
-                return sanitized
+                return sanitized, False
             raise ValueError("Input blocked by security policy (Model Armor)")
-        return text
+        return text, False
     except Exception as exc:
         if security_required:
             logger.error("Model Armor sanitization failed in security-required mode: %s", exc)
             raise ValueError(f"Model Armor security check failed/bypassed under security-required policy: {exc}") from exc
         logger.warning("Model Armor sanitization bypassed or failed: %s", exc)
-        return text
+        return text, True
 
 
 def _safe_dump(value: Any) -> Any:
@@ -309,7 +309,7 @@ class GeminiInteractionsClient:
         previous_interaction_id: str | None = None,
         store: bool | None = None,
     ) -> dict[str, Any]:
-        prompt = _sanitize_with_model_armor(self.config.project_id, prompt, mode="prompt")
+        prompt, prompt_degraded = _sanitize_with_model_armor(self.config.project_id, prompt, mode="prompt")
         tool_specs = validate_tool_specs(tools)
         kwargs: dict[str, Any] = {
             "model": self.config.model,
@@ -320,6 +320,7 @@ class GeminiInteractionsClient:
         if previous_interaction_id:
             kwargs["previous_interaction_id"] = previous_interaction_id
 
+        output_degraded = False
         try:
             interaction = self._get_client().interactions.create(**kwargs)
             steps = [_safe_dump(step) for step in (getattr(interaction, "steps", None) or [])]
@@ -333,19 +334,37 @@ class GeminiInteractionsClient:
                 logger.error("Vertex AI Interactions call failed in cloud-required mode: %s", exc)
                 raise GeminiRuntimeError("cloud_execution_failed", f"Vertex AI Interactions failed: {exc}") from exc
 
-            logger.warning("Vertex AI Interactions call failed: %s. Falling back to simulated response.", exc)
-            output_text = (
-                "Simulated supervisor response: Please create the calculate_savings function. "
-                "Ensure it returns credits - used as a float."
-            ) if "calculate_savings" in prompt else "Simulated response: ok."
-            steps = []
-            function_calls = []
-            interaction_id = "ix-simulated"
-            status = "degraded"
-            simulated = True
+            logger.warning("Vertex AI Interactions call failed: %s. Falling back to direct model generation.", exc)
+            try:
+                client = self._get_client()
+                response = client.models.generate_content(
+                    model=self.config.model,
+                    contents=prompt,
+                )
+                output_text = response.text or ""
+                interaction_id = f"gen-{_now().strftime('%Y%m%d%H%M%S')}"
+                steps = []
+                function_calls = []
+                status = "success"
+                simulated = False
+            except Exception as direct_exc:
+                logger.error("Direct model generation also failed: %s. Falling back to degraded simulation.", direct_exc)
+                output_text = (
+                    "[NON-LIVE] Simulated supervisor response: Please create the calculate_savings function. "
+                    "Ensure it returns credits - used as a float."
+                ) if "calculate_savings" in prompt else "[NON-LIVE] Simulated response: ok."
+                steps = []
+                function_calls = []
+                interaction_id = "ix-simulated"
+                status = "degraded"
+                simulated = True
 
         if output_text:
-            output_text = _sanitize_with_model_armor(self.config.project_id, output_text, mode="response")
+            output_text, output_degraded = _sanitize_with_model_armor(self.config.project_id, output_text, mode="response")
+            
+        if prompt_degraded or output_degraded:
+            status = "degraded"
+            
         return {
             "ok": True,
             "status": status,
@@ -357,6 +376,8 @@ class GeminiInteractionsClient:
             "steps": steps,
             "function_calls": function_calls,
             "simulated": simulated,
+            "live_mode": "NON-LIVE" if simulated else "LIVE",
+            "non_live": bool(simulated),
         }
 
     def continue_with_tool_result(
@@ -372,6 +393,7 @@ class GeminiInteractionsClient:
             raise GeminiRuntimeError("tool_result_context_required", "interaction id, call id and tool name are required")
         tool_specs = validate_tool_specs(tools)
         
+        output_degraded = False
         try:
             interaction = self._get_client().interactions.create(
                 model=self.config.model,
@@ -397,15 +419,32 @@ class GeminiInteractionsClient:
                 logger.error("Vertex AI Interactions continue call failed in cloud-required mode: %s", exc)
                 raise GeminiRuntimeError("cloud_execution_failed", f"Vertex AI Interactions continue failed: {exc}") from exc
 
-            logger.warning("Vertex AI Interactions continue call failed: %s. Falling back to simulated response.", exc)
-            output_text = "Simulated tool continue response: verified."
-            steps = []
-            interaction_id = "ix-simulated-continue"
-            status = "degraded"
-            simulated = True
+            logger.warning("Vertex AI Interactions continue call failed: %s. Falling back to direct continue generation.", exc)
+            try:
+                client = self._get_client()
+                response = client.models.generate_content(
+                    model=self.config.model,
+                    contents=f"Function result: {result} for tool {tool_name}.",
+                )
+                output_text = response.text or ""
+                interaction_id = f"gen-cont-{_now().strftime('%Y%m%d%H%M%S')}"
+                steps = []
+                status = "success"
+                simulated = False
+            except Exception as direct_exc:
+                logger.error("Direct continue also failed: %s. Falling back to degraded simulation.", direct_exc)
+                output_text = "[NON-LIVE] Simulated tool continue response: verified."
+                steps = []
+                interaction_id = "ix-simulated-continue"
+                status = "degraded"
+                simulated = True
 
         if output_text:
-            output_text = _sanitize_with_model_armor(self.config.project_id, output_text, mode="response")
+            output_text, output_degraded = _sanitize_with_model_armor(self.config.project_id, output_text, mode="response")
+            
+        if output_degraded:
+            status = "degraded"
+            
         return {
             "ok": True,
             "status": status,
@@ -415,6 +454,8 @@ class GeminiInteractionsClient:
             "output_text": output_text,
             "steps": steps,
             "simulated": simulated,
+            "live_mode": "NON-LIVE" if simulated else "LIVE",
+            "non_live": bool(simulated),
         }
 
 
@@ -465,7 +506,9 @@ class InnerOSGeminiRuntime:
             "function_calls": result.get("function_calls", []),
             "context_keys": sorted((context or {}).keys()),
             "status": result.get("status"),
-            "verified": False if result.get("status") == "degraded" else True,
+            "verified": False if result.get("status") == "degraded" or result.get("simulated") else True,
+            "live_mode": result.get("live_mode") or ("NON-LIVE" if result.get("simulated") else "LIVE"),
+            "non_live": bool(result.get("simulated") or result.get("non_live")),
         }
         
         # Save evidence to Firestore in cloud mode
@@ -501,7 +544,18 @@ class InnerOSGeminiRuntime:
 
         if self.evidence_sink:
             self.evidence_sink(evidence)
-        return {**result, "correlation_id": correlation_id, "evidence": evidence}
+        from inneros_core_runtime.tracking_envelope import build_envelope
+        envelope = build_envelope(
+            correlation_id=correlation_id,
+            agent="google-gemini",
+            provider=PROVIDER_ID,
+            model=str(result.get("model") or MODEL_ID),
+            simulated=bool(result.get("simulated")),
+            original_task_id="ops_365cfb128303",
+            takeover_task_id="ops_8a6159731402",
+            extra={"interaction_id": result.get("interaction_id")},
+        )
+        return {**result, "correlation_id": correlation_id, "evidence": evidence, "envelope": envelope}
 
 
 def runtime_status() -> dict[str, Any]:
