@@ -22,20 +22,24 @@ fi
 echo "PASS: venv python executable"
 
 gfx_ok=false
+smi_out=""
+roc_out=""
 if [[ -x /opt/rocm/bin/rocm-smi ]]; then
-  if /opt/rocm/bin/rocm-smi --showproductname 2>/dev/null | grep -qiE 'gfx1201|R9700|r9700'; then
+  smi_out="$(/opt/rocm/bin/rocm-smi --showproductname 2>/dev/null || true)"
+  if grep -qiE 'gfx1201|R9700|r9700' <<<"$smi_out"; then
     gfx_ok=true
     echo "PASS: rocm-smi reports gfx1201/R9700"
   else
     echo "WARN: rocm-smi did not match gfx1201/R9700"
-    /opt/rocm/bin/rocm-smi --showproductname 2>&1 || true
+    printf '%s\n' "$smi_out"
   fi
 else
   echo "WARN: /opt/rocm/bin/rocm-smi not found"
 fi
 
 if [[ "$gfx_ok" == false ]] && [[ -x /opt/rocm/bin/rocminfo ]]; then
-  if /opt/rocm/bin/rocminfo 2>/dev/null | grep -q 'gfx1201'; then
+  roc_out="$(/opt/rocm/bin/rocminfo 2>/dev/null || true)"
+  if grep -q 'gfx1201' <<<"$roc_out"; then
     gfx_ok=true
     echo "PASS: rocminfo reports gfx1201"
   else
