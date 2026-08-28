@@ -102,29 +102,52 @@ def _get_google_credentials(project_id: str | None = None) -> tuple[Any, str]:
         return None, project_id
 
 
-def _save_evidence_to_firestore(project_id: str, evidence: dict[str, Any]) -> None:
+def _save_evidence_to_firestore(project_id: str, evidence: dict[str, Any]) -> dict[str, Any]:
+    doc_id = f"ev_{evidence.get('correlation_id')}_{evidence.get('interaction_id') or 'init'}"
     try:
         from google.cloud import firestore
         credentials, project = _get_google_credentials(project_id)
         db = firestore.Client(project=project, credentials=credentials)
-        doc_id = f"ev_{evidence.get('correlation_id')}_{evidence.get('interaction_id') or 'init'}"
         db.collection("gemini_evidence").document(doc_id).set(evidence)
         logger.info("Successfully saved Gemini evidence to Firestore: %s", doc_id)
+        return {"ok": True, "collection": "gemini_evidence", "document_id": doc_id, "project_id": project}
     except Exception as exc:
         logger.warning("Could not write evidence to Firestore: %s", exc)
+        return {"ok": False, "error": str(exc), "document_id": doc_id}
 
 
-def _publish_event_to_pubsub(project_id: str, payload: dict[str, Any]) -> None:
+def _publish_event_to_pubsub(project_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     try:
         from google.cloud import pubsub_v1
         credentials, project = _get_google_credentials(project_id)
         publisher = pubsub_v1.PublisherClient(credentials=credentials)
         topic_path = publisher.topic_path(project, "inneros-events")
         data = json.dumps(payload, default=str).encode("utf-8")
-        publisher.publish(topic_path, data)
-        logger.info("Successfully published Gemini event to Pub/Sub")
+        future = publisher.publish(topic_path, data, correlation_id=str(payload.get("correlation_id") or ""))
+        message_id = future.result(timeout=15)
+        logger.info("Successfully published Gemini event to Pub/Sub: %s", message_id)
+        return {
+            "ok": True,
+            "topic": "inneros-events",
+            "message_id": message_id,
+            "project_id": project,
+        }
     except Exception as exc:
         logger.warning("Could not publish event to Pub/Sub: %s", exc)
+        return {"ok": False, "error": str(exc), "topic": "inneros-events"}
+
+
+def _write_cloud_log(project_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        import google.cloud.logging
+        credentials, project = _get_google_credentials(project_id)
+        client = google.cloud.logging.Client(project=project, credentials=credentials)
+        logger_client = client.logger("inneros-gemini-runtime")
+        logger_client.log_struct(payload, severity="INFO")
+        return {"ok": True, "log_name": f"projects/{project}/logs/inneros-gemini-runtime"}
+    except Exception as exc:
+        logger.warning("Could not write structured Cloud Logging entry: %s", exc)
+        return {"ok": False, "error": str(exc), "log_name": "inneros-gemini-runtime"}
 
 
 def _sanitize_with_model_armor(project_id: str, text: str, mode: str = "prompt") -> tuple[str, bool]:
@@ -518,16 +541,28 @@ class InnerOSGeminiRuntime:
         }
         
         # Save evidence to Firestore in cloud mode
-        _save_evidence_to_firestore(self.client.config.project_id, evidence)
-        
-        # Publish event to Pub/Sub
-        _publish_event_to_pubsub(self.client.config.project_id, {
+        firestore_ref = _save_evidence_to_firestore(self.client.config.project_id, evidence)
+        evidence["firestore"] = firestore_ref
+
+        pubsub_payload = {
             "event": "gemini_interaction_completed",
             "correlation_id": correlation_id,
             "interaction_id": result.get("interaction_id"),
             "model": result.get("model"),
-            "ts": evidence["ts"]
-        })
+            "ts": evidence["ts"],
+        }
+        pubsub_ref = _publish_event_to_pubsub(self.client.config.project_id, pubsub_payload)
+        evidence["pubsub"] = pubsub_ref
+        evidence["cloud_logging"] = _write_cloud_log(
+            self.client.config.project_id,
+            {
+                "event": "gemini_interaction_completed",
+                "correlation_id": correlation_id,
+                "interaction_id": result.get("interaction_id"),
+                "model": result.get("model"),
+                "verified": evidence.get("verified"),
+            },
+        )
         
         # Mirror memory to Memory Bank
         if result.get("ok"):
@@ -540,11 +575,12 @@ class InnerOSGeminiRuntime:
                     "correlation_id": correlation_id,
                     "status": result.get("status"),
                 }
-                gcp_memory_bank.save_memory(
+                memory_result = gcp_memory_bank.save_memory(
                     agent_id="google-gemini-vertex",
                     content=memory_content,
                     correlation_id=correlation_id,
                 )
+                evidence["memory_bank"] = memory_result
             except Exception as exc:
                 logger.warning("Could not sync memory to Memory Bank: %s", exc)
 

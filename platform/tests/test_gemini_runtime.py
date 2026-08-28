@@ -125,15 +125,19 @@ class GeminiRuntimeTests(unittest.TestCase):
         self.assertEqual(result["error"], "external_execution_not_authorized")
         self.assertEqual(self.fake.interactions.calls, [])
 
+    @patch("inneros_core_runtime.gemini_runtime._write_cloud_log")
     @patch("inneros_core_runtime.gemini_runtime._save_evidence_to_firestore")
     @patch("inneros_core_runtime.gemini_runtime._publish_event_to_pubsub")
     @patch("inneros_core_runtime.gemini_runtime._sanitize_with_model_armor")
     @patch("inneros_core_runtime.gcp_memory_bank.save_memory")
     def test_runtime_emits_correlation_and_bounded_tool_evidence(
-        self, mock_save_memory, mock_sanitize, mock_publish, mock_save_evidence
+        self, mock_save_memory, mock_sanitize, mock_publish, mock_save_evidence, mock_cloud_log
     ):
         mock_sanitize.side_effect = lambda proj, text, mode: (text, False)
-        mock_save_memory.return_value = {"ok": True}
+        mock_save_evidence.return_value = {"ok": True, "document_id": "ev_test"}
+        mock_publish.return_value = {"ok": True, "message_id": "msg_test"}
+        mock_cloud_log.return_value = {"ok": True}
+        mock_save_memory.return_value = {"ok": True, "document_id": "mem_test"}
         self.fake.interactions.responses.append(
             FakeInteraction(
                 interaction_id="ix-3",
