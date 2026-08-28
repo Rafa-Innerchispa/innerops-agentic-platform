@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, local_execution_plane, local_model_router, mongo_store
+from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, gpu_inference_lease, local_execution_plane, local_model_router, mongo_store
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -1927,7 +1927,52 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             f"ARCHITECTURE CONTEXT:\n{_repo_architecture_context(repo, worktree, objective, max_chars=4000)}\n\n"
             f"REPOSITORY SNAPSHOT:\n{_fanout_repo_snapshot(worktree, max_chars=5000)}"
         )
-        model = local_model_router.run_local_model(task_type="coding", prompt=prompt, max_tokens=3072)
+        lease = gpu_inference_lease.acquire_gpu_inference_lease(agent="dev_swarm", task_id=task_id, task_type="coding")
+        if not lease.get("ok"):
+            failures = str(lease.get("error") or "gpu_inference_lease_denied")
+            attempts.append(
+                {
+                    "attempt": attempt,
+                    "phase": "inference",
+                    "model_ok": False,
+                    "error": failures,
+                    "gpu_lease": lease,
+                    "queued": bool(lease.get("queued")),
+                }
+            )
+            if lease.get("queued"):
+                db[WORKERS_COL].update_one(
+                    {"task_id": task_id},
+                    {
+                        "$set": {
+                            "executor.phase": "queued_gpu",
+                            "executor.blocker": failures,
+                            "executor.resource_lease_id": None,
+                            "updated_at": _now(),
+                        }
+                    },
+                )
+                return {
+                    "ok": False,
+                    "task_id": task_id,
+                    "outcome": "QUEUED",
+                    "error": failures,
+                    "gpu_lease": lease,
+                }
+            continue
+        resource_lease_id = str(lease.get("resource_lease_id") or "")
+        db[WORKERS_COL].update_one(
+            {"task_id": task_id},
+            {"$set": {"executor.resource_lease_id": resource_lease_id, "updated_at": _now()}},
+        )
+        try:
+            model = local_model_router.run_local_model(task_type="coding", prompt=prompt, max_tokens=3072)
+        finally:
+            gpu_inference_lease.release_gpu_inference_lease(
+                agent="dev_swarm",
+                task_id=task_id,
+                resource_lease_id=resource_lease_id,
+            )
         local_model_ok = local_model_ok or bool(model.get("ok"))
         last_model_route = {
             "ok": bool(model.get("ok")),
