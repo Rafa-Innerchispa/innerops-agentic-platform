@@ -20,7 +20,36 @@ from starlette.responses import JSONResponse
 
 from raphiia_openai.auth_middleware import ApiKeyMiddleware
 from raphiia_openai import quoteops_mcp_bridge
-from raphiia_openai import coordination_docs, dev_swarm_scheduler, dev_swarm_watchdog, discord_interaction_gateway, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
+from raphiia_openai import coordination_docs, dev_swarm_scheduler, dev_swarm_watchdog, discord_interaction_gateway, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
+
+
+def _optional_runtime_module(name: str) -> Any:
+    """Load optional tool modules without breaking MCP startup."""
+    import importlib
+
+    try:
+        return importlib.import_module(f"raphiia_openai.{name}")
+    except Exception as exc:
+        details = str(exc)
+
+        class _MissingModule:
+            def __getattr__(self, attr: str):
+                def _missing(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+                    return {
+                        "ok": False,
+                        "error": "module_unavailable",
+                        "module": name,
+                        "function": attr,
+                        "details": details,
+                    }
+
+                return _missing
+
+        return _MissingModule()
+
+
+document_vault = _optional_runtime_module("document_vault")
+local_model_manager = _optional_runtime_module("local_model_manager")
 from raphiia_openai.operational import accounting_store, inventory_store, pcdoctor_store, party_store, procurement_store
 from raphiia_openai.settings import (
     GOOGLE_API_KEY,
@@ -6239,6 +6268,86 @@ def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
     }
 
 
+# --- IDE Task Bridge: direct durable dispatch to coding IDE agents ---
+@mcp.tool
+def ide_task_bridge_status() -> dict[str, Any]:
+    """IDE bridge status and readiness for Antigravity/Cursor/Codex/Gemini."""
+    from raphiia_openai import ide_task_bridge
+
+    return ide_task_bridge.bridge_status()
+
+
+@mcp.tool
+def ide_dispatch_task(
+    ide: str,
+    title: str,
+    body: str,
+    repo: str = "",
+    branch: str = "",
+    worktree: str = "",
+    correlation_id: str = "",
+    priority: str = "p0",
+    from_agent: str = "CHATGPT_A",
+    require_evidence: bool = True,
+    approval_required: bool = False,
+    idempotency_key: str = "",
+) -> dict[str, Any]:
+    """Dispatch one durable task directly to an IDE inbox without claiming execution."""
+    from raphiia_openai import ide_task_bridge
+
+    return ide_task_bridge.dispatch_task(
+        ide=ide,
+        title=title,
+        body=body,
+        repo=repo,
+        branch=branch,
+        worktree=worktree,
+        correlation_id=correlation_id,
+        priority=priority,
+        from_agent=from_agent,
+        require_evidence=require_evidence,
+        approval_required=approval_required,
+        idempotency_key=idempotency_key,
+    )
+
+
+@mcp.tool
+def ide_task_status(dispatch_id: str) -> dict[str, Any]:
+    """Return delivery versus execution state for a direct IDE dispatch."""
+    from raphiia_openai import ide_task_bridge
+
+    return ide_task_bridge.task_status(dispatch_id)
+
+
+@mcp.tool
+def ide_claim_task(dispatch_id: str, ide: str) -> dict[str, Any]:
+    """IDE claims a queued task before touching code."""
+    from raphiia_openai import ide_task_bridge
+
+    return ide_task_bridge.claim_task(dispatch_id, ide)
+
+
+@mcp.tool
+def ide_mark_task_running(dispatch_id: str, ide: str) -> dict[str, Any]:
+    """IDE marks a delivered/claimed task as actively running."""
+    from raphiia_openai import ide_task_bridge
+
+    return ide_task_bridge.mark_running(dispatch_id, ide)
+
+
+@mcp.tool
+def ide_complete_task(
+    dispatch_id: str,
+    ide: str,
+    result: str = "completed",
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """IDE completes a task; successful completion requires evidence by default."""
+    from raphiia_openai import ide_task_bridge
+
+    return ide_task_bridge.complete_task(dispatch_id, ide, result=result, evidence=evidence)
+
+
 if __name__ == "__main__":
     runtime_profile = os.getenv("MCP_TOOL_PROFILE", "").strip().lower()
     if runtime_profile:
@@ -6246,53 +6355,3 @@ if __name__ == "__main__":
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
     mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp")
-
-
-# --- InnerOS A2A transport bridge ---
-
-@mcp.tool
-def a2a_status() -> dict[str, Any]:
-    """A2A bridge health, SDK visibility and registered InnerOS agent roles."""
-    from raphiia_openai import a2a_bridge
-
-    return a2a_bridge.status()
-
-
-@mcp.tool
-def a2a_agent_cards() -> dict[str, Any]:
-    """Return the five canonical Agent Cards exposed by the InnerOS A2A bridge."""
-    from raphiia_openai import a2a_bridge
-
-    return a2a_bridge.agent_cards()
-
-
-@mcp.tool
-def a2a_dispatch(
-    agent_id: str,
-    title: str,
-    body: str,
-    correlation_id: str = "",
-    priority: str = "p0",
-    related_project: str = "inneros",
-    dry_run: bool = False,
-) -> dict[str, Any]:
-    """Submit durable agent work over A2A while RACB/ops_tasks remain source of truth."""
-    from raphiia_openai import a2a_bridge
-
-    return a2a_bridge.dispatch(
-        agent_id=agent_id,
-        title=title,
-        body=body,
-        correlation_id=correlation_id,
-        priority=priority,
-        related_project=related_project or None,
-        dry_run=dry_run,
-    )
-
-
-@mcp.tool
-def a2a_task_status(a2a_task_id: str) -> dict[str, Any]:
-    """Project an InnerOS RACB task into its A2A state and evidence artifacts."""
-    from raphiia_openai import a2a_bridge
-
-    return a2a_bridge.task_status(a2a_task_id)

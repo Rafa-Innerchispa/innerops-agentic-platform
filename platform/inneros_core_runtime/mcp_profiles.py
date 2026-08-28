@@ -269,6 +269,21 @@ PROFILES: dict[str, dict[str, Any]] = {
             "dev_swarm_scheduler_status",
         ],
     },
+    "ide_task_bridge": {
+        "label": "IDE dispatch bridge",
+        "model_minimum": "small",
+        "max_tools": 8,
+        "tools": [
+            "get_coordination_live",
+            "create_agent_message",
+            "ide_task_bridge_status",
+            "ide_dispatch_task",
+            "ide_task_status",
+            "ide_claim_task",
+            "ide_mark_task_running",
+            "ide_complete_task",
+        ],
+    },
     "funding": {
         "label": "Funding + credits registry",
         "model_minimum": "small",
