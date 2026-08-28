@@ -97,6 +97,30 @@ class IdeTaskBridgeTests(unittest.TestCase):
         out = bridge.dispatch_task(ide="codex", title="Repair", body="Review", store=self.store)
         self.assertEqual(out["transport"], "external_repair")
 
+    def test_catalog_and_profile_expose_bridge_tools(self):
+        from inneros_core_runtime import mcp_profiles, tool_catalog
+
+        wanted = {
+            "ide_task_bridge_status",
+            "ide_dispatch_task",
+            "ide_task_status",
+            "ide_claim_task",
+            "ide_mark_task_running",
+            "ide_complete_task",
+            "a2a_status",
+            "a2a_agent_cards",
+            "a2a_dispatch",
+            "a2a_task_status",
+        }
+        self.assertTrue(wanted.issubset(set(tool_catalog.ALL_MCP_TOOL_NAMES)))
+        for name in wanted:
+            self.assertIn(name, tool_catalog.TOOL_DEFINITIONS)
+
+        profile = mcp_profiles.get_profile("ide_task_bridge")
+        self.assertTrue(profile["ok"])
+        self.assertLessEqual(profile["tool_count"], 8)
+        self.assertIn("ide_dispatch_task", profile["tools"])
+
     @unittest.skipUnless(FAST_MCP_AVAILABLE, "fastmcp is installed only in the production platform venv")
     def test_auth_scopes_expose_ide_bridge(self):
         from inneros_core_runtime.auth_middleware import TOOL_SCOPES
@@ -108,6 +132,13 @@ class IdeTaskBridgeTests(unittest.TestCase):
         from inneros_core_runtime import mcp_server
         names = {tool.name for tool in asyncio.run(mcp_server.mcp.list_tools())}
         self.assertTrue({"ide_dispatch_task", "ide_task_status", "ide_claim_task", "ide_complete_task"}.issubset(names))
+
+    @unittest.skipUnless(FAST_MCP_AVAILABLE, "fastmcp is installed only in the production platform venv")
+    def test_optional_runtime_modules_do_not_break_startup(self):
+        from inneros_core_runtime import mcp_server
+
+        self.assertEqual(mcp_server.document_vault.document_vault_status()["error"], "module_unavailable")
+        self.assertEqual(mcp_server.local_model_manager.local_model_runtime_status()["error"], "module_unavailable")
 
 
 if __name__ == "__main__":

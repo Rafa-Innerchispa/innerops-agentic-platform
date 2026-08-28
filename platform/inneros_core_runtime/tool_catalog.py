@@ -206,6 +206,12 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_resource_sync",
     "local_gitlab_prepare_github_mirrors",
     "local_gitlab_credit_status",
+    "ide_task_bridge_status",
+    "ide_dispatch_task",
+    "ide_task_status",
+    "ide_claim_task",
+    "ide_mark_task_running",
+    "ide_complete_task",
     "dev_swarm_watchdog_record_anomaly",
     "dev_swarm_watchdog_close_anomaly",
     "dev_swarm_watchdog_summary",
@@ -244,6 +250,10 @@ ALL_MCP_TOOL_NAMES = [
     "cloudflare_tunnel_ingress_status",
     "cloudflare_hostname_health_check",
     "cloudflare_prepare_hostname",
+    "a2a_status",
+    "a2a_agent_cards",
+    "a2a_dispatch",
+    "a2a_task_status",
     "complete_ops_task",
     "codex_continuity_checkpoint",
     "dev_swarm_scheduler_status",
@@ -3480,6 +3490,83 @@ TOOL_DEFINITIONS["local_gitlab_create_draft_merge_request"].update(
             "title": "Fix cache URL redaction",
             "description": "Owner-approved Draft MR with final checks and redaction evidence.",
             "dry_run": True,
+        },
+    }
+)
+
+
+_A2A_WRITES = {"a2a_dispatch"}
+for _name in (
+    "a2a_status",
+    "a2a_agent_cards",
+    "a2a_dispatch",
+    "a2a_task_status",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"InnerOS A2A bridge: {_name.replace('a2a_', '').replace('_', ' ')} sobre ops_tasks/RACB sin saltarse gobernanza.",
+        "required_scopes": ["ralfia:agents"] if _name in _A2A_WRITES else ["ralfia:read"],
+        "risk_level": "medium" if _name in _A2A_WRITES else "low",
+        "writes_to": ["ralfia_ops_tasks", "ralfia_agent_messages", "a2a_task_records"] if _name in _A2A_WRITES else [],
+        "reads_from": ["agent_cards", "ralfia_ops_tasks", "ralfia_agent_messages"],
+        "input_schema": {"agent_id": "string|null", "title": "string|null", "body": "string|null", "correlation_id": "string|null", "priority": "string|null", "related_project": "string|null", "dry_run": "bool|null", "a2a_task_id": "string|null"},
+        "output_schema": {"ok": "bool", "a2a_task_id": "string|null", "ops_task_id": "string|null", "status": "string|null"},
+        "example_payload": {"agent_id": "codex", "title": "Review bounded branch", "body": "Run tests and report evidence.", "correlation_id": "example-corr", "dry_run": True},
+    }
+
+
+_IDE_BRIDGE_WRITES = {
+    "ide_dispatch_task",
+    "ide_claim_task",
+    "ide_mark_task_running",
+    "ide_complete_task",
+}
+for _name in (
+    "ide_task_bridge_status",
+    "ide_dispatch_task",
+    "ide_task_status",
+    "ide_claim_task",
+    "ide_mark_task_running",
+    "ide_complete_task",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"IDE Task Bridge: {_name.replace('ide_', '').replace('_', ' ')} con separación durable entre entrega al inbox y ejecución real.",
+        "required_scopes": ["ralfia:agents"] if _name in _IDE_BRIDGE_WRITES else ["ralfia:read"],
+        "risk_level": "medium" if _name in _IDE_BRIDGE_WRITES else "low",
+        "writes_to": ["ralfia_ops_tasks", "ralfia_agent_messages", "ralfia_ide_task_dispatches"] if _name in _IDE_BRIDGE_WRITES else [],
+        "reads_from": ["ralfia_ops_tasks", "ralfia_agent_messages", "ralfia_ide_task_dispatches", "external_repair_agent_status"],
+        "input_schema": {"dispatch_id": "string|null", "ide": "antigravity|cursor|codex|gemini", "title": "string|null", "body": "string|null", "repo": "string|null", "branch": "string|null", "worktree": "string|null", "correlation_id": "string|null", "priority": "string|null", "require_evidence": "bool|null", "approval_required": "bool|null", "idempotency_key": "string|null", "evidence": "object|null"},
+        "output_schema": {"ok": "bool", "dispatch_id": "string|null", "ops_task_id": "string|null", "delivery_state": "string|null", "execution_state": "string|null", "trace_id": "string|null"},
+        "example_payload": {"ide": "antigravity", "title": "Review isolated branch", "body": "Claim before editing and report commit/tests/evidence.", "repo": "Rafa-Innerchispa/innerops-agentic-platform", "correlation_id": "inneros-ide-task-bridge-20260827", "idempotency_key": "example-idem"},
+    }
+
+TOOL_DEFINITIONS["ide_dispatch_task"].update(
+    {
+        "description": "IDE Task Bridge: crea una ops_task durable y entrega un mensaje al inbox del IDE/agente sin marcar ejecución como iniciada.",
+        "input_schema": {
+            "ide": "antigravity|cursor|codex|gemini",
+            "title": "string",
+            "body": "string",
+            "repo": "string default empty",
+            "branch": "string default empty",
+            "worktree": "string default empty",
+            "correlation_id": "string default generated",
+            "priority": "string default p0",
+            "from_agent": "string default CHATGPT_A",
+            "require_evidence": "bool default true",
+            "approval_required": "bool default false",
+            "idempotency_key": "string default derived",
+        },
+    }
+)
+
+TOOL_DEFINITIONS["ide_complete_task"].update(
+    {
+        "description": "IDE Task Bridge: completa/falla/cancela una tarea; completed requiere evidencia si el dispatch lo exigía.",
+        "input_schema": {
+            "dispatch_id": "string",
+            "ide": "antigravity|cursor|codex|gemini",
+            "result": "completed|failed|cancelled|rejected default completed",
+            "evidence": "object",
         },
     }
 )
