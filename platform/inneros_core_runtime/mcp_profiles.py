@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.1"
+PROFILES_VERSION = "1.4.2"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -219,14 +219,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "ha_list_entities",
             "ha_get_entity",
             "ha_list_devices",
-            "ha_list_entity_registry",
-            "ha_rename_device",
-            "ha_rename_entity_name",
-            "ha_search_entity_references",
-            "ha_batch_rename",
-            "save_productivity_event",
-            "list_productivity_events",
-            "summarize_productivity_events",
             "ha_turn_on_light",
             "ha_turn_off_light",
             "get_server_status",
@@ -435,7 +427,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "owner_dev": {
         "label": "Owner development local seguro",
         "model_minimum": "medium",
-        "max_tools": 160,
+        "max_tools": 176,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -630,7 +622,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_self_repair": {
         "label": "Autoreparación local controlada",
         "model_minimum": "medium",
-        "max_tools": 40,
+        "max_tools": 48,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -757,7 +749,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "cloud_ops": {
         "label": "Cloud deploy ops multi-provider (dry-run safe)",
         "model_minimum": "medium",
-        "max_tools": 96,
+        "max_tools": 112,
         "tools": [
             "get_development_roadmap",
             "cloud_deploy_status",
@@ -869,7 +861,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet": {
         "label": "Flota local PC Doctor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 39,
+        "max_tools": 48,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -937,7 +929,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet_full": {
         "label": "Flota local completa — ChatGPT/Codex",
         "model_minimum": "medium",
-        "max_tools": 124,
+        "max_tools": 144,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -1112,10 +1104,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "route_ai_task",
             "local_model_health",
             "dispatch_local_agent",
-            "local_exec_inspect_repo",
-            "local_exec_inspect_remotes",
-            "local_exec_verified_git_author_status",
-            "local_exec_prepare_repo",
             "create_agent_message",
         ],
     },

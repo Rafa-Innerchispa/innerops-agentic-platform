@@ -212,6 +212,26 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertEqual(reason, "eligible")
         self.assertEqual(repo, "Rafa-Innerchispa/innerspark-workforce-ai")
 
+    def test_inneros_gemini_runtime_with_workforce_workload_stays_on_platform_repo(self) -> None:
+        task = {
+            "task_id": "ops_gemini_runtime",
+            "status": "proposed",
+            "assignee": "chatgpt",
+            "priority": "critical",
+            "correlation_id": "hackathon-gemini-native-runtime-20260827",
+            "title": "P0 Gemini 3.5 + ADK native runtime inside InnerOS",
+            "checklist": [
+                "Add Gemini as a first-class ARIA runtime behind the InnerOS Resource Fabric.",
+                "Keep Workforce commercial work separate but usable as a workload/proof.",
+                "Add tests and evidence in the platform repo.",
+            ],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, scheduler.SAFE_INNEROS_REPO)
+
     def test_workforce_explicit_package_root_resolves_to_workforce_repo(self) -> None:
         task = {
             "task_id": "ops_workforce_nested",
