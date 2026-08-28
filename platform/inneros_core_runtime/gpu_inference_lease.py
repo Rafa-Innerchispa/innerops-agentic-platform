@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from raphiia_openai import dev_swarm_scheduler, racb_locks
+from raphiia_openai import racb_locks
 
 GPU_INFERENCE_RESOURCE_PREFIX = "gpu:inference"
 DEFAULT_GENERATION_SLOTS = 1
@@ -14,8 +14,14 @@ VOICE_PRIORITY_AGENT = "voice_gateway"
 CODING_AGENT = "dev_swarm"
 
 
+def _dev_swarm_scheduler():
+    from raphiia_openai import dev_swarm_scheduler
+
+    return dev_swarm_scheduler
+
+
 def _node_id() -> str:
-    snapshot = dev_swarm_scheduler.capacity_status()
+    snapshot = _dev_swarm_scheduler().capacity_status()
     return str(snapshot.get("node") or (os.uname().nodename if hasattr(os, "uname") else "local"))
 
 
@@ -24,7 +30,7 @@ def _generation_resource_id(node: str, slot: int = 0) -> str:
 
 
 def _capacity_budget(task_type: str) -> dict[str, Any]:
-    capacity = dev_swarm_scheduler.capacity_status()
+    capacity = _dev_swarm_scheduler().capacity_status()
     recommendation = capacity.get("recommendation") or {}
     admittable = int(recommendation.get("admittable_now") or 0)
     coding = int(recommendation.get("coding_inference") or 0)
