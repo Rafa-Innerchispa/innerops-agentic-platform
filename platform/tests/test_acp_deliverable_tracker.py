@@ -73,12 +73,18 @@ class AcpDeliverableTrackerTests(unittest.TestCase):
         self.assertEqual(status["ops_task_id"], "ops_608d9780a8dd")
         self.assertIn("cursor", status["native_acp"])
         self.assertIn("cursor_acp_probe", status)
+        if status.get("status") == "OK":
+            self.assertEqual(status.get("blockers"), [])
 
     def test_cursor_acp_probe_reports_missing_cli(self) -> None:
         probe = ag58.probe_cursor_acp_surface()
-        self.assertEqual(probe["probe"], "cursor_acp_cli")
-        if probe.get("error") == "agent_binary_not_found":
-            self.assertEqual(probe["status"], "PARTIAL")
+        self.assertEqual(probe["probe"], "cursor_agent_acp")
+        self.assertIn(probe.get("status"), {"PASS", "PARTIAL"})
+
+    def test_verified_adapter_smoke_codex(self) -> None:
+        smoke = ag58.verified_adapter_smoke(target="codex")
+        self.assertTrue(smoke.get("ok"))
+        self.assertEqual(smoke.get("acp_class"), ag58.ACP_VERIFIED_ADAPTER)
 
 
 if __name__ == "__main__":

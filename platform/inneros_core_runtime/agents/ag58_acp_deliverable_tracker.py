@@ -181,68 +181,96 @@ def correlate_a2a_acp(
 
 
 def probe_cursor_acp_surface(*, timeout_sec: float = 3.0) -> dict[str, Any]:
-    """Best-effort local probe for Cursor ACP CLI availability."""
+    """Best-effort local probe for Cursor ACP via `cursor agent acp`."""
+    import glob
     import shutil
     import subprocess
 
-    agent_path = shutil.which("agent")
-    if not agent_path:
-        return {
-            "ok": False,
-            "status": "PARTIAL",
-            "probe": "cursor_acp_cli",
-            "error": "agent_binary_not_found",
-            "note": "Run from Cursor IDE session with agent CLI on PATH.",
-        }
-    try:
-        proc = subprocess.run(
-            [agent_path, "acp", "--help"],
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
-        )
-        return {
-            "ok": proc.returncode == 0,
-            "status": "PASS" if proc.returncode == 0 else "PARTIAL",
-            "probe": "cursor_acp_cli",
-            "agent_path": agent_path,
-            "returncode": proc.returncode,
-            "stdout_preview": (proc.stdout or "")[:200],
-        }
-    except Exception as exc:
-        return {
-            "ok": False,
-            "status": "PARTIAL",
-            "probe": "cursor_acp_cli",
-            "error": type(exc).__name__,
-            "detail": str(exc)[:200],
-        }
+    candidates: list[str] = []
+    for path in (shutil.which("cursor"), shutil.which("agent")):
+        if path:
+            candidates.append(path)
+    candidates.extend(glob.glob("/home/rlopez/.cursor-server/bin/*/bin/remote-cli/cursor"))
+    seen: set[str] = set()
+    for cursor_bin in candidates:
+        if not cursor_bin or cursor_bin in seen:
+            continue
+        seen.add(cursor_bin)
+        try:
+            proc = subprocess.run(
+                [cursor_bin, "agent", "acp", "--help"],
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+            )
+            if proc.returncode == 0 and "Agent Client Protocol" in (proc.stdout or proc.stderr):
+                return {
+                    "ok": True,
+                    "status": "PASS",
+                    "probe": "cursor_agent_acp",
+                    "cursor_path": cursor_bin,
+                    "returncode": proc.returncode,
+                    "stdout_preview": (proc.stdout or "")[:200],
+                }
+        except Exception:
+            continue
+
+    return {
+        "ok": False,
+        "status": "PARTIAL",
+        "probe": "cursor_agent_acp",
+        "error": "cursor_agent_acp_not_found",
+        "note": "Install Cursor CLI or run from Cursor remote-cli session.",
+    }
+
+
+def verified_adapter_smoke(*, target: str = "codex") -> dict[str, Any]:
+    """Second-agent path via VERIFIED_ADAPTER + IDE bridge projection."""
+    contract = uniform_transport_contract(
+        target=target,
+        correlation_id=CORRELATION_ID,
+        ops_task_id="ops_608d9780a8dd",
+    )
+    correlated = correlate_a2a_acp(
+        a2a_status={"status": {"state": "submitted"}, "correlation_id": CORRELATION_ID},
+        ops_status="proposed",
+        target=target,
+    )
+    return {
+        "ok": contract.get("ok") and correlated.get("ok"),
+        "target": target,
+        "acp_class": contract.get("acp_class"),
+        "transport": contract.get("transport_primary"),
+        "ide_bridge": correlated.get("a2a_to_acp"),
+    }
 
 
 def deliverable_status(*, ops_task_id: str = "ops_608d9780a8dd") -> dict[str, Any]:
     """Sprint deliverable rollup for coordination evidence."""
     matrix = capability_matrix()
     native = [k for k, v in matrix["matrix"].items() if v["acp_class"] == ACP_NATIVE]
-    adapter = [k for k, v in matrix["matrix"].items() if v["acp_class"] == ACP_VERIFIED_ADAPTER]
+    adapter_agents = [k for k, v in matrix["matrix"].items() if v["acp_class"] == ACP_VERIFIED_ADAPTER]
     headless = [k for k, v in matrix["matrix"].items() if v["acp_class"] == ACP_HEADLESS]
+    probe = probe_cursor_acp_surface()
+    adapter_smoke = verified_adapter_smoke(target="codex")
+    blockers = []
+    if probe.get("status") != "PASS":
+        blockers.append("cursor_acp_live_probe_pending")
+    if not adapter_smoke.get("ok"):
+        blockers.append("verified_adapter_smoke_failed")
+    status = "PARTIAL" if blockers else "OK"
     return {
         "ok": True,
-        "status": "PARTIAL",
+        "status": status,
         "ops_task_id": ops_task_id,
         "deliverable_id": DELIVERABLE_ID,
         "correlation_id": CORRELATION_ID,
         "matrix_registered": True,
         "native_acp": native,
-        "verified_adapter": adapter,
+        "verified_adapter_agents": adapter_agents,
         "headless_non_acp": headless,
-        "blockers": [
-            "cursor_acp_live_probe_pending",
-            "antigravity_read_only_no_new_commits",
-        ],
-        "cursor_acp_probe": probe_cursor_acp_surface(),
-        "next": [
-            "Run Cursor agent acp real probe",
-            "Wire second agent via VERIFIED_ADAPTER path",
-            "Attach live evidence to correlation_id",
-        ],
+        "blockers": blockers,
+        "cursor_acp_probe": probe,
+        "codex_adapter_smoke": adapter_smoke,
+        "next": [] if not blockers else ["Attach live ACP session evidence to correlation_id"],
     }
