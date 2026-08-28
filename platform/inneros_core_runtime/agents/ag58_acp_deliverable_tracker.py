@@ -180,6 +180,45 @@ def correlate_a2a_acp(
     }
 
 
+def probe_cursor_acp_surface(*, timeout_sec: float = 3.0) -> dict[str, Any]:
+    """Best-effort local probe for Cursor ACP CLI availability."""
+    import shutil
+    import subprocess
+
+    agent_path = shutil.which("agent")
+    if not agent_path:
+        return {
+            "ok": False,
+            "status": "PARTIAL",
+            "probe": "cursor_acp_cli",
+            "error": "agent_binary_not_found",
+            "note": "Run from Cursor IDE session with agent CLI on PATH.",
+        }
+    try:
+        proc = subprocess.run(
+            [agent_path, "acp", "--help"],
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+        )
+        return {
+            "ok": proc.returncode == 0,
+            "status": "PASS" if proc.returncode == 0 else "PARTIAL",
+            "probe": "cursor_acp_cli",
+            "agent_path": agent_path,
+            "returncode": proc.returncode,
+            "stdout_preview": (proc.stdout or "")[:200],
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "status": "PARTIAL",
+            "probe": "cursor_acp_cli",
+            "error": type(exc).__name__,
+            "detail": str(exc)[:200],
+        }
+
+
 def deliverable_status(*, ops_task_id: str = "ops_608d9780a8dd") -> dict[str, Any]:
     """Sprint deliverable rollup for coordination evidence."""
     matrix = capability_matrix()
@@ -200,6 +239,7 @@ def deliverable_status(*, ops_task_id: str = "ops_608d9780a8dd") -> dict[str, An
             "cursor_acp_live_probe_pending",
             "antigravity_read_only_no_new_commits",
         ],
+        "cursor_acp_probe": probe_cursor_acp_surface(),
         "next": [
             "Run Cursor agent acp real probe",
             "Wire second agent via VERIFIED_ADAPTER path",
