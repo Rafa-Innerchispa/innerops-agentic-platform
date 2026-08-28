@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 if str(PLATFORM_ROOT) not in sys.path:
@@ -68,13 +69,22 @@ class AcpDeliverableTrackerTests(unittest.TestCase):
         self.assertEqual(contract["error"], "unsupported_target")
 
     def test_deliverable_status_partial(self) -> None:
-        status = ag58.deliverable_status()
+        with mock.patch.object(
+            ag58,
+            "probe_cursor_acp_surface",
+            return_value={"ok": False, "status": "PARTIAL", "probe": "cursor_agent_acp"},
+        ):
+            status = ag58.deliverable_status()
         self.assertEqual(status["status"], "PARTIAL")
         self.assertEqual(status["ops_task_id"], "ops_608d9780a8dd")
         self.assertIn("cursor", status["native_acp"])
         self.assertIn("cursor_acp_probe", status)
-        if status.get("status") == "OK":
-            self.assertEqual(status.get("blockers"), [])
+        self.assertIn("cursor_acp_live_probe_pending", status["blockers"])
+
+    def test_deliverable_status_ok_when_probes_pass(self) -> None:
+        status = ag58.deliverable_status()
+        self.assertEqual(status["status"], "OK")
+        self.assertEqual(status["blockers"], [])
 
     def test_cursor_acp_probe_reports_missing_cli(self) -> None:
         probe = ag58.probe_cursor_acp_surface()
