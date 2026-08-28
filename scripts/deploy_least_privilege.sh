@@ -48,12 +48,14 @@ for role in "${ROLES[@]}"; do
 done
 
 log "=== 4. Creando Plantilla por Defecto en Model Armor ==="
+gcloud config set api_endpoint_overrides/modelarmor "https://modelarmor.${REGION}.rep.googleapis.com/" >/dev/null
 if ! gcloud alpha model-armor templates describe "$TEMPLATE_NAME" --location="$REGION" --project="$PROJECT_ID" &>/dev/null; then
   gcloud alpha model-armor templates create "$TEMPLATE_NAME" \
     --location="$REGION" \
     --project="$PROJECT_ID" \
-    --user-prompt-filter-settings="piAndJailbreakFilterSettings={filterState=ENABLED}" \
-    --model-response-filter-settings="piAndJailbreakFilterSettings={filterState=ENABLED}" \
+    --malicious-uri-filter-settings-enforcement=enabled \
+    --pi-and-jailbreak-filter-settings-enforcement=enabled \
+    --pi-and-jailbreak-filter-settings-confidence-level=medium-and-above \
     --quiet || log "Advertencia: Falló la creación de la plantilla de Model Armor (puede requerir configuración manual)."
 else
   log "Plantilla de Model Armor ya existe: $TEMPLATE_NAME"

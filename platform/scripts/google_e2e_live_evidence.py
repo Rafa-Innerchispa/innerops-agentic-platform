@@ -18,6 +18,7 @@ CORRELATION_ID = os.getenv("INNEROS_E2E_CORRELATION_ID", "cursor-google-e2e-2026
 
 def main() -> int:
     os.environ.setdefault("INNEROS_GEMINI_MODEL", "gemini-2.5-flash")
+    os.environ.setdefault("INNEROS_GEMINI_MODEL_LOCATION", "us-central1")
     os.environ.setdefault("INNEROS_GEMINI_MODEL_LOCATION", "us")
     runtime = gr.InnerOSGeminiRuntime()
     result = runtime.run(

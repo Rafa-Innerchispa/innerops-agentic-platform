@@ -154,7 +154,12 @@ def _sanitize_with_model_armor(project_id: str, text: str, mode: str = "prompt")
             token = credentials.token
 
         action = "sanitizeUserPrompt" if mode == "prompt" else "sanitizeModelResponse"
-        url = f"https://modelarmor.googleapis.com/v1/projects/{project}/locations/{location}/templates/{template}:{action}"
+        # Model Armor writes must use the regional rep endpoint; the global host
+        # returns misleading PERMISSION_DENIED for template operations.
+        url = (
+            f"https://modelarmor.{location}.rep.googleapis.com/v1/projects/{project}"
+            f"/locations/{location}/templates/{template}:{action}"
+        )
 
         if mode == "prompt":
             payload = {"userPromptData": {"text": text}}
