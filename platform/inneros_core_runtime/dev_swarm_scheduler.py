@@ -240,6 +240,33 @@ def _worker_objective(worker: dict[str, Any], task: dict[str, Any] | None) -> st
     return str(plan.get("objective") or worker.get("task_id") or "").strip()
 
 
+def _is_owner_approved_workforce_dev_retry(task: dict[str, Any], text: str) -> bool:
+    """Allow stranded Workforce Dev Swarm P0 lanes without reopening generic loops."""
+    if str(task.get("status") or "").lower() != "blocked":
+        return False
+    if task.get("owner") != "dev_swarm":
+        return False
+    if str(task.get("priority") or "").lower() not in {"p0", "critical"}:
+        return False
+    if "workforce" not in text:
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "dev swarm",
+            "devswarm",
+            "services/femar-mvp-core",
+            "npm ci",
+            "jest",
+            "node_modules",
+            "worktree",
+            "implementation",
+            "implementacion",
+            "implementar",
+        )
+    )
+
+
 CANONICAL_REPO_HINTS = {
     "innerops-agentic-platform": SAFE_INNEROS_REPO,
     "innerspark-workforce-ai": "Rafa-Innerchispa/innerspark-workforce-ai",
@@ -294,7 +321,29 @@ def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
         return "Rafa-Innerchispa/innerspark-workforce-ai"
     if "innerspark-workforce-ai" in text:
         return "Rafa-Innerchispa/innerspark-workforce-ai"
-    workforce_dev = "workforce" in text and any(marker in text for marker in ("dev swarm", "implementation", "implementacion", "implementar", "tests", "jest", "package_root", "package roots", "femar", "node_modules", "npm ci", "worktree", "base_ref"))
+    platform_context = any(marker in text for marker in ("innerops", "inneros", "agentic platform", "resource fabric", "local execution", "gemini agent runtime"))
+    workforce_dev = (
+        "workforce" in text
+        and not platform_context
+        and any(
+            marker in text
+            for marker in (
+                "dev swarm",
+                "implementation",
+                "implementacion",
+                "implementar",
+                "tests",
+                "jest",
+                "package_root",
+                "package roots",
+                "femar",
+                "node_modules",
+                "npm ci",
+                "worktree",
+                "base_ref",
+            )
+        )
+    )
     hostname_only = "workforce.pcdoctor.ai" in text and not any(marker in text for marker in ("innerspark-workforce-ai", "services/femar-mvp-core", "dev swarm", "npm ci", "worktree"))
     if workforce_dev and not hostname_only:
         return "Rafa-Innerchispa/innerspark-workforce-ai"
@@ -360,7 +409,8 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
     )
     # A product task that merely says "use Dev Swarm" must not be rewritten as
     # platform work. Product repos need an explicit repo/project policy path.
-    if any(marker in text for marker in product_only_markers) and not repo:
+    platform_context = any(marker in text for marker in platform_override_markers)
+    if any(marker in text for marker in product_only_markers) and not repo and not platform_context:
         return None
     if any(marker in text for marker in current_markers):
         if any(marker in text for marker in product_only_markers) and not any(marker in text for marker in platform_override_markers):
@@ -681,17 +731,18 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
 
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     status = str(task.get("status") or "").lower()
+    text = _task_search_text(task)
     retryable_existing = (
         status in {"accepted", "in_progress", "blocked"}
         and task.get("owner") == "dev_swarm"
         and task.get("dev_swarm_retry_requested") is True
     )
-    if status not in ELIGIBLE_STATUSES and not retryable_existing:
+    owner_approved_workforce_retry = _is_owner_approved_workforce_dev_retry(task, text)
+    if status not in ELIGIBLE_STATUSES and not retryable_existing and not owner_approved_workforce_retry:
         return False, "status_not_proposed", None
     assignee = str(task.get("assignee") or "").lower()
     if assignee not in ALLOWED_ASSIGNEES:
         return False, f"assignee_not_swarm_eligible:{assignee}", None
-    text = _task_search_text(task)
     if _is_non_dev_ops_task(task, text):
         return False, "non_development_ops_filtered", None
     repo = _infer_repo(task)

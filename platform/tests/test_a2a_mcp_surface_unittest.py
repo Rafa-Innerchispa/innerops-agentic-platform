@@ -49,6 +49,36 @@ class A2AMcpSurfaceTests(unittest.TestCase):
         self.assertEqual(meta["required_scopes"], ["ralfia:agents"])
         self.assertEqual(meta["risk_level"], "medium")
 
+    def test_all_profiles_satisfy_contract(self):
+        result = mcp_profiles.validate_profiles()
+        self.assertTrue(result["ok"], result["errors"])
+
+    def test_small_model_profiles_stay_compact(self):
+        home = mcp_profiles.PROFILES["home"]
+        daily = mcp_profiles.PROFILES["daily_companion"]
+
+        self.assertLessEqual(len(home["tools"]), home["max_tools"])
+        self.assertNotIn("ha_batch_rename", home["tools"])
+        self.assertNotIn("ha_rename_device", home["tools"])
+        self.assertNotIn("ha_rename_entity_name", home["tools"])
+
+        self.assertLessEqual(len(daily["tools"]), daily["max_tools"])
+        self.assertNotIn("local_exec_prepare_repo", daily["tools"])
+        self.assertNotIn("local_exec_inspect_repo", daily["tools"])
+        self.assertNotIn("local_exec_inspect_remotes", daily["tools"])
+
+    def test_operator_profiles_fit_declared_limits(self):
+        for profile_name in {
+            "owner_dev",
+            "local_self_repair",
+            "cloud_ops",
+            "local_fleet",
+            "local_fleet_full",
+        }:
+            with self.subTest(profile=profile_name):
+                profile = mcp_profiles.PROFILES[profile_name]
+                self.assertLessEqual(len(profile["tools"]), profile["max_tools"])
+
 
 if __name__ == "__main__":
     unittest.main()
