@@ -9,6 +9,7 @@ if str(PLATFORM_ROOT) not in sys.path:
 
 from raphiia_openai import mcp_profiles
 from raphiia_openai.mcp_catalog import tool_catalog
+from raphiia_openai import tool_catalog as legacy_tool_catalog
 
 A2A_TOOLS = {
     "a2a_status",
@@ -27,6 +28,21 @@ class A2AMcpSurfaceTests(unittest.TestCase):
 
     def test_catalog_contains_all_a2a_tools(self):
         self.assertTrue(A2A_TOOLS.issubset(set(tool_catalog.ALL_MCP_TOOL_NAMES)))
+
+    def test_ide_bridge_tools_are_in_canonical_and_legacy_catalogs(self):
+        wanted = {
+            "ide_task_bridge_status",
+            "ide_dispatch_task",
+            "ide_task_status",
+            "ide_claim_task",
+            "ide_mark_task_running",
+            "ide_complete_task",
+        }
+        self.assertTrue(wanted.issubset(set(tool_catalog.ALL_MCP_TOOL_NAMES)))
+        self.assertTrue(wanted.issubset(set(legacy_tool_catalog.ALL_MCP_TOOL_NAMES)))
+        for name in wanted:
+            self.assertIn(name, tool_catalog.TOOL_DEFINITIONS)
+            self.assertIn(name, legacy_tool_catalog.TOOL_DEFINITIONS)
 
     def test_a2a_profile_is_complete_and_coordination_can_use_it(self):
         profile = mcp_profiles.PROFILES["a2a"]
