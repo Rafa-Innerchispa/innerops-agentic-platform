@@ -9,8 +9,8 @@ mkdir -p "$dir"
 exec > >(tee -a "$log") 2>&1
 echo "=== rocm_install_canary start $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
 
-if ! rocm-smi --showproductname 2>/dev/null | grep -qiE 'gfx1201|R9700'; then
-  if ! rocminfo 2>/dev/null | grep -q 'gfx1201'; then
+if ! /opt/rocm/bin/rocm-smi --showproductname 2>/dev/null | grep -qiE 'gfx1201|R9700|r9700'; then
+  if ! /opt/rocm/bin/rocminfo 2>/dev/null | grep -q 'gfx1201'; then
     echo "FAIL: gfx1201/R9700 not detected"
     exit 1
   fi
