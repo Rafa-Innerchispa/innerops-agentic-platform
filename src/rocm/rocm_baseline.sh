@@ -1,40 +1,29 @@
 #!/bin/bash
-# Captura baseline del sistema para ROCm 10 canary
+set -euo pipefail
+# Captura baseline del sistema para ROCm 10 canary (producción :8000 intacta)
 
-# Directorio de trabajo
 dir="/home/rlopez/data/rocm10-canary"
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+out="${dir}/baseline_${stamp}"
+mkdir -p "$out" "$dir"
 
-# Crear directorio de trabajo
-mkdir -p "$dir"
+uname -a >"$out/uname.txt"
+(lsb_release -a 2>/dev/null || true) >"$out/lsb_release.txt"
+(modinfo amdgpu 2>/dev/null || true) >"$out/amdgpu_modinfo.txt"
 
-# Información del sistema
-uname -a > "$dir/baseline_uname.txt"
-lsb_release -a > "$dir/baseline_lsb_release.txt"
+if command -v /opt/rocm/bin/rocm-smi >/dev/null 2>&1; then
+  /opt/rocm/bin/rocm-smi --showproductname >"$out/rocm_smi_product.txt" 2>&1 || true
+  /opt/rocm/bin/rocm-smi --showmeminfo vram >"$out/rocm_smi_vram.txt" 2>&1 || true
+fi
+if command -v /opt/rocm/bin/rocminfo >/dev/null 2>&1; then
+  /opt/rocm/bin/rocminfo >"$out/rocminfo.txt" 2>&1 || true
+fi
 
-# Driver amdgpu
-modinfo amdgpu > "$dir/baseline_amdgpu_modinfo.txt"
+python3 --version >"$out/python_version.txt" 2>&1 || true
+(pip list 2>/dev/null | rg -i 'torch|vllm|transformers' || true) >"$out/pip_packages.txt"
+(systemctl list-units --type=service --no-pager 2>/dev/null | rg -i 'vllm|rocm|qwen' || true) >"$out/systemd_services.txt"
+(env | rg -i 'rocm|hip|vllm|cuda' || true) >"$out/env_vars.txt"
+(curl -sS -m 3 http://127.0.0.1:8000/v1/models || true) >"$out/vllm_8000_models.json"
 
-# ROCm info
-rocm-smi --showall > "$dir/baseline_rocm_smi.txt"
-rocminfo > "$dir/baseline_rocminfo.txt"
-
-# Versiones de software
-python --version > "$dir/baseline_python_version.txt"
-torch.__version__ 2>&1 | grep -o "[0-9]\+\.[0-9]\+\.[0-9]\+" > "$dir/baseline_torch_version.txt"
-vLLM --version > "$dir/baseline_vllm_version.txt"
-transformers --version > "$dir/baseline_transformers_version.txt"
-
-# Configuración de systemd
-systemctl list-units --type=service | grep -i rocm > "$dir/baseline_systemd_services.txt"
-
-# Variables de entorno
-env | grep -i rocm > "$dir/baseline_env_vars.txt"
-
-# VRAM y benchmark
-rocm-smi --showmeminfo > "$dir/baseline_vram_info.txt"
-
-# Modelo actual
-ls -la /home/rlopez/data/models/qwen3-coder* > "$dir/baseline_model_refs.txt"
-
-# Benchmark actual
-python -c "import time; start = time.time(); print(f'benchmark_start: {start}')"
+ln -sfn "$out" "${dir}/latest"
+echo "Baseline guardada en $out"
