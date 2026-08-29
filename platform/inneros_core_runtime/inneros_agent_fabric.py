@@ -21,7 +21,7 @@ def fabric_status(*, ops_task_id: str = "") -> dict[str, Any]:
                 "targets": list(ide_task_bridge.SUPPORTED_TARGETS),
             },
             "acp": acp,
-            "a2a_projection": {"ok": True, "module": "google_adk_a2a.project_ide_task_bridge"},
+            "a2a_projection": {"ok": True, "module": "ide_task_bridge.project_execution_state"},
         },
         "integration_note": "Layers complement each other; none replace MCP coordination.",
         "blockers": acp.get("blockers") or [],

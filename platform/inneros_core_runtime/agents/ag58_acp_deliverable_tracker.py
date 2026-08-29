@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from inneros_core_runtime import google_adk_a2a
+from inneros_core_runtime import ide_task_bridge
+
+LIVE_MODE = "NON-LIVE"
 
 AGENT_ID = "AG-58_ACP_DELIVERABLE_TRACKER"
 DELIVERABLE_ID = "inneros-acp-ide-fabric-20260828"
@@ -141,7 +143,7 @@ def correlate_a2a_acp(
     acp_session_id: str = "",
 ) -> dict[str, Any]:
     """Join A2A/RACB state with ACP transport metadata."""
-    bridge = google_adk_a2a.project_ide_task_bridge(
+    bridge = ide_task_bridge.project_execution_state(
         a2a_status=a2a_status,
         ops_status=ops_status,
         target=target,
@@ -176,7 +178,7 @@ def correlate_a2a_acp(
         },
         "ide_task_bridge": bridge,
         "transport_contract": contract,
-        "live_mode": google_adk_a2a.LIVE_MODE,
+        "live_mode": LIVE_MODE,
     }
 
 

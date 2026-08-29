@@ -8,11 +8,13 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Callable
 
-from inneros_core_runtime import google_adk_a2a
 from inneros_core_runtime.tracking_envelope import build_envelope
 
 BRIDGE_VERSION = "ide_task_bridge_v1"
-SUPPORTED_TARGETS = google_adk_a2a.IDE_TARGETS
+SUPPORTED_TARGETS = ("antigravity", "cursor", "codex", "gemini")
+IDE_CLAIMED_STATES = frozenset({"accepted", "dispatched"})
+IDE_RUNNING_STATES = frozenset({"in_progress", "working", "verification"})
+IDE_TERMINAL_STATES = frozenset({"completed", "failed", "canceled", "cancelled", "rejected", "superseded"})
 INBOX_PATHS = {
     "cursor": "cursor/INBOX.md",
     "codex": "codex/INBOX.md",
@@ -46,11 +48,48 @@ def project_execution_state(
     a2a_status: dict[str, Any] | None = None,
     target: str = "cursor",
 ) -> dict[str, Any]:
-    return google_adk_a2a.project_ide_task_bridge(
-        a2a_status=a2a_status,
-        ops_status=ops_status,
-        target=target,
-    )
+    """Map inbox/A2A/RACB state into IDE contract (delivery ≠ execution)."""
+    target_id = normalize_target(target)
+    if target_id not in SUPPORTED_TARGETS:
+        return {"ok": False, "error": "unsupported_ide", "target": target, "supported": list(SUPPORTED_TARGETS)}
+
+    a2a_state = ""
+    if a2a_status:
+        a2a_state = str((a2a_status.get("status") or {}).get("state") or a2a_status.get("state") or "")
+    ops = (ops_status or str((a2a_status or {}).get("ops_status") or "")).strip().lower()
+    combined = {a2a_state.lower(), ops}
+
+    delivered = bool(a2a_status) or bool(ops)
+    claimed = bool(combined & IDE_CLAIMED_STATES)
+    running = bool(combined & IDE_RUNNING_STATES)
+    terminal = bool(combined & IDE_TERMINAL_STATES)
+    completed = "completed" in combined and not (a2a_status or {}).get("integrity_error")
+
+    execution_state = "queued"
+    if completed:
+        execution_state = "completed"
+    elif terminal:
+        execution_state = "failed" if "failed" in combined else "canceled"
+    elif running:
+        execution_state = "running"
+    elif claimed:
+        execution_state = "claimed"
+    elif delivered:
+        execution_state = "delivered_to_inbox"
+
+    return {
+        "ok": True,
+        "target": target_id,
+        "transport": "a2a|ide_inbox",
+        "delivered_to_inbox": delivered,
+        "claimed": claimed or running or terminal,
+        "running": running,
+        "completed": completed,
+        "execution_state": execution_state,
+        "a2a_state": a2a_state,
+        "ops_status": ops,
+        "duplicates_ide_bridge": False,
+    }
 
 
 def dispatch_ide_task(
