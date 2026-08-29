@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-29T22:00:00Z",
+  "correlation_id": "allthingsagentic-evidence-kpi-pack-20260829",
+  "surface": "hackathon_live_evidence_kpi_card",
+  "truth_policy": {
+    "no_simulation_as_pass": true,
+    "no_degraded_as_pass": true,
+    "unverified_legacy_events_are_not_verified_hhr": true,
+    "google_bonus_models_require_live_call": true
+  },
+  "kpi": {
+    "case_id": "broadlink_productivity_baseline_2026_08_29",
+    "measurement_state": "legacy_unclassified_pending_evidence_review",
+    "human_baseline_minutes": 120,
+    "assisted_minutes": 10,
+    "saved_minutes": 110,
+    "human_hours_returned": 1.8333,
+    "reduction_percent": 91.67,
+    "speedup": 12.0,
+    "verified_human_hours_returned": 0.0,
+    "classification_rationale": "The numerical before/after case is preserved for judge inspection, but the persisted historical event remains legacy/unclassified until its evidence references are reviewed and migrated. It must not be counted as verified HHR yet."
+  },
+  "live_verification": [
+    {
+      "claim": "InnerOS exposes a broad MCP/A2A tool surface without catalog loss",
+      "status": "PASS",
+      "evidence_refs": [
+        "mcp_catalog_tools_list:612_tools:2026-08-29",
+        "msg_4d09db1104fda01a"
+      ],
+      "judge_check": "Call MCP tools/list or the catalog/profile probe and confirm the current count is at least 612 and key tools remain present."
+    },
+    {
+      "claim": "A2A agent registry has 55 functional agents and 60 cards total",
+      "status": "PASS",
+      "evidence_refs": [
+        "inneros_agent_fabric_status:55_functional_60_cards",
+        "codex-final-rocm10-guardian-20260829:a8eab403"
+      ],
+      "judge_check": "Run inneros_agent_fabric_status and confirm functional/card counts and no degraded registry state."
+    },
+    {
+      "claim": "Self-heal KPI ledger prevents inflated ROI",
+      "status": "PASS",
+      "evidence_refs": [
+        "ops_6f431dccae8d",
+        "codex-selfheal-kpi-tools-20260829:f07f5216ea1106a83d91ae3591ae222dac9b02e6",
+        "platform/tests/test_productivity_self_heal_metrics.py"
+      ],
+      "judge_check": "Run focused pytest and verify no-baseline repairs produce roi_counted=false/HHR 0 while measured verified baselines can link to productivity events."
+    },
+    {
+      "claim": "KPI case shows 120 to 10 minutes, 110 minutes returned, 91.67 percent reduction, 12x speedup",
+      "status": "PARTIAL",
+      "evidence_refs": [
+        "docs/KPI_ROI_EVIDENCE_2026-08-29.md",
+        "platform/docs/evidence/hackathon_live_evidence_kpi_card_2026-08-29.json"
+      ],
+      "judge_check": "Inspect the KPI card and ledger. Treat the calculation as visible evidence, not verified HHR, until the legacy event is classified with evidence refs."
+    },
+    {
+      "claim": "Local AMD ROCm/vLLM runtime is factual and benchmarked",
+      "status": "PASS",
+      "evidence_refs": [
+        "ops_3ca94bbe8609",
+        "codex-final-rocm10-guardian-20260829:a8eab403"
+      ],
+      "judge_check": "Run local_model_runtime_status and the ROCm profiling evidence script against the active :8000 runtime."
+    },
+    {
+      "claim": "Hyperloom MI325X cloud burst is governed, bounded, evidenced and destroyed after use",
+      "status": "PASS",
+      "evidence_refs": [
+        "ops_0554539ce084",
+        "codex/hyperloom-mi325x-20260829:0e7384b6701098b5e5466b6325cb557d6a391200",
+        "var/evidence/hyperloom-mi325x-20260829/inneros-hyperloom-evidence.tgz"
+      ],
+      "judge_check": "Inspect the evidence archive and DigitalOcean destroy confirmation; no active cloud-burst droplet should remain."
+    },
+    {
+      "claim": "Google mandatory stack is integrated in source",
+      "status": "PARTIAL",
+      "evidence_refs": [
+        "docs/GOOGLE_HACKATHON_COMPLIANCE_2026-08-29.md",
+        "ops_98466717a2b7",
+        "ops_025150ef7943"
+      ],
+      "judge_check": "Do not mark Google final PASS until a strict no-simulation Gemini 3.5+/Model Armor/Firestore/PubSub/Cloud Run correlation is reproduced live."
+    },
+    {
+      "claim": "Public Indie Hackers proof exists",
+      "status": "PARTIAL",
+      "evidence_refs": [
+        "public_indie_hackers_proof:pending_url_or_screenshot"
+      ],
+      "judge_check": "Attach the public URL or screenshot evidence before claiming PASS."
+    }
+  ]
+}
