@@ -206,6 +206,16 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_resource_sync",
     "local_gitlab_prepare_github_mirrors",
     "local_gitlab_credit_status",
+    "ide_task_bridge_status",
+    "ide_dispatch_task",
+    "ide_task_status",
+    "ide_claim_task",
+    "ide_mark_task_running",
+    "ide_complete_task",
+    "a2a_status",
+    "a2a_agent_cards",
+    "a2a_dispatch",
+    "a2a_task_status",
     "dev_swarm_watchdog_record_anomaly",
     "dev_swarm_watchdog_close_anomaly",
     "dev_swarm_watchdog_summary",
@@ -977,7 +987,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "output_schema": {"ok": "bool", "text": "string", "services_text": "string"},
         "example_payload": {},
     },
-    
+
     "ha_ping": {
         "description": "Comprueba Home Assistant local (:8123).",
         "required_scopes": ["ralfia:read"],
@@ -4135,6 +4145,98 @@ TOOL_DEFINITIONS.update(
         },
     }
 )
+
+
+_IDE_BRIDGE_TOOL_DEFINITIONS = {
+    "ide_task_bridge_status": {
+        "description": "Report durable IDE/agent task bridge status without dispatching work.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "ide_dispatch_task": {
+        "description": "Dispatch a bounded task to the IDE/agent bridge using canonical repo metadata.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+    "ide_task_status": {
+        "description": "Read status for a durable IDE/agent bridge task.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "ide_claim_task": {
+        "description": "Claim an IDE/agent bridge task for a named adapter with lock semantics.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+    "ide_mark_task_running": {
+        "description": "Mark a claimed IDE/agent bridge task as running with bounded evidence.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+    "ide_complete_task": {
+        "description": "Complete a claimed IDE/agent bridge task with evidence and terminal state.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+}
+
+for _name, _meta in _IDE_BRIDGE_TOOL_DEFINITIONS.items():
+    _definition = _generic_tool_definition(_name)
+    _definition.update(
+        {
+            "description": _meta["description"],
+            "required_scopes": ["ralfia:agents"] if _meta.get("risk") == "write" else ["ralfia:read"],
+            "risk_level": "medium" if _meta.get("risk") == "write" else "low",
+            "writes_to": ["ralfia_ops_tasks", "inneros_ide_task_bridge"] if _meta.get("risk") == "write" else [],
+            "reads_from": ["ralfia_ops_tasks", "inneros_ide_task_bridge"],
+            "input_schema": {"task_id": "string|null", "correlation_id": "string|null"},
+            "output_schema": {"ok": "bool", "task_id": "string|null", "status": "string|null"},
+            "example_payload": {},
+        }
+    )
+    TOOL_DEFINITIONS[_name] = _definition
+
+
+
+_A2A_TOOL_DEFINITIONS = {
+    "a2a_status": {
+        "description": "Report the Agent-to-Agent bridge status and readiness.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "a2a_agent_cards": {
+        "description": "List available A2A agent cards/capabilities for bounded routing.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "a2a_dispatch": {
+        "description": "Dispatch a bounded A2A task through the governed agent fabric.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+    "a2a_task_status": {
+        "description": "Read status for a dispatched A2A task by correlation or task id.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+}
+
+for _name, _meta in _A2A_TOOL_DEFINITIONS.items():
+    _definition = _generic_tool_definition(_name)
+    _definition.update(
+        {
+            "description": _meta["description"],
+            "required_scopes": ["ralfia:agents"] if _meta.get("risk") == "write" else ["ralfia:read"],
+            "risk_level": "medium" if _meta.get("risk") == "write" else "low",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_a2a_tasks"] if _meta.get("risk") == "write" else [],
+            "reads_from": ["ralfia_ops_tasks", "ralfia_a2a_tasks"],
+            "input_schema": {"task_id": "string|null", "correlation_id": "string|null"},
+            "output_schema": {"ok": "bool", "task_id": "string|null", "status": "string|null"},
+            "example_payload": {},
+        }
+    )
+    TOOL_DEFINITIONS[_name] = _definition
+
 
 
 def describe_tool(name: str) -> dict[str, Any]:

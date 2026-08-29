@@ -8,6 +8,10 @@ MCP_VERSION = "2.68.0"
 
 ALL_MCP_TOOL_NAMES = [
     "ack_coordination_revision",
+    "a2a_status",
+    "a2a_agent_cards",
+    "a2a_dispatch",
+    "a2a_task_status",
     "accounting_summary",
     "ack_agent_message",
     "poll_agent_inbox",
@@ -308,6 +312,13 @@ ALL_MCP_TOOL_NAMES = [
     "get_capability_registry_summary",
     "get_mcp_profile",
     "get_coordination_live",
+    "inneros_agent_fabric_status",
+    "ide_task_bridge_status",
+    "ide_dispatch_task",
+    "ide_task_status",
+    "ide_claim_task",
+    "ide_mark_task_running",
+    "ide_complete_task",
     "get_coordination_summary",
     "get_commercial_mission",
     "get_project_map",
@@ -627,6 +638,16 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "reads_from": ["HUB/ESTADO_VIVO.md", "ralfia_coordination_state", "ralfia_ops_tasks"],
         "input_schema": {},
         "output_schema": {"ok": "bool", "revision": "integer", "mandatory_reads": "array"},
+        "example_payload": {},
+    },
+    "inneros_agent_fabric_status": {
+        "description": "Estado unificado MCP inbox + IDE Task Bridge + ACP matriz + KPI hooks.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["inneros_agent_fabric"],
+        "input_schema": {"ops_task_id": "string"},
+        "output_schema": {"ok": "bool", "fabric_version": "string", "status": "string"},
         "example_payload": {},
     },
     "ack_coordination_revision": {
@@ -977,7 +998,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "output_schema": {"ok": "bool", "text": "string", "services_text": "string"},
         "example_payload": {},
     },
-    
+
     "ha_ping": {
         "description": "Comprueba Home Assistant local (:8123).",
         "required_scopes": ["ralfia:read"],
@@ -4137,12 +4158,69 @@ TOOL_DEFINITIONS.update(
 )
 
 
+_IDE_BRIDGE_TOOL_DEFINITIONS = {
+    "ide_task_bridge_status": {
+        "description": "Report durable IDE/agent task bridge status without dispatching work.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "ide_dispatch_task": {
+        "description": "Dispatch a bounded task to the IDE/agent bridge using canonical repo metadata.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+    "ide_task_status": {
+        "description": "Read status for a durable IDE/agent bridge task.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "ide_claim_task": {
+        "description": "Claim an IDE/agent bridge task for a named adapter with lock semantics.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+    "ide_mark_task_running": {
+        "description": "Mark a claimed IDE/agent bridge task as running with bounded evidence.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+    "ide_complete_task": {
+        "description": "Complete a claimed IDE/agent bridge task with evidence and terminal state.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+}
+
+for _name, _meta in _IDE_BRIDGE_TOOL_DEFINITIONS.items():
+    _definition = _generic_tool_definition(_name)
+    _definition.update(
+        {
+            "description": _meta["description"],
+            "required_scopes": ["ralfia:agents"] if _meta.get("risk") == "write" else ["ralfia:read"],
+            "risk_level": "medium" if _meta.get("risk") == "write" else "low",
+            "writes_to": ["ralfia_ops_tasks", "inneros_ide_task_bridge"] if _meta.get("risk") == "write" else [],
+            "reads_from": ["ralfia_ops_tasks", "inneros_ide_task_bridge"],
+            "input_schema": {"task_id": "string|null", "correlation_id": "string|null"},
+            "output_schema": {"ok": "bool", "task_id": "string|null", "status": "string|null"},
+            "example_payload": {},
+        }
+    )
+    TOOL_DEFINITIONS[_name] = _definition
+
+
+
 def describe_tool(name: str) -> dict[str, Any]:
     key = (name or "").strip()
     meta = TOOL_DEFINITIONS.get(key)
     if meta is None:
         if key in ALL_MCP_TOOL_NAMES:
             meta = _generic_tool_definition(key)
+            if key == "a2a_dispatch":
+                meta["required_scopes"] = ["ralfia:agents"]
+                meta["risk_level"] = "medium"
+                meta["writes_to"] = ["ralfia_ops_tasks", "ralfia_a2a_tasks"]
+            elif key.startswith("a2a_"):
+                meta["reads_from"] = ["ralfia_ops_tasks", "ralfia_a2a_tasks"]
         else:
             return {"ok": False, "error": f"unknown_tool: {key}", "hint": "call list_mcp_capabilities()"}
     return {

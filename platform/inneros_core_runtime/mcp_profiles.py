@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.1"
+PROFILES_VERSION = "1.4.2"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -212,7 +212,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "home": {
         "label": "Casa / voz local segura",
         "model_minimum": "small",
-        "max_tools": 10,
+        "max_tools": 18,
         "tools": [
             "bootstrap_context",
             "route_mcp_tools",
@@ -317,12 +317,41 @@ PROFILES: dict[str, dict[str, Any]] = {
             "contifico_get_party_360",
         ],
     },
+    "ide_task_bridge": {
+        "label": "IDE/agent bridge compacto",
+        "model_minimum": "small",
+        "max_tools": 8,
+        "tools": [
+            "ide_task_bridge_status",
+            "ide_dispatch_task",
+            "ide_task_status",
+            "ide_claim_task",
+            "ide_mark_task_running",
+            "ide_complete_task",
+        ],
+    },
+    "a2a": {
+        "label": "A2A multiagent transport",
+        "model_minimum": "small",
+        "max_tools": 4,
+        "tools": [
+            "a2a_status",
+            "a2a_agent_cards",
+            "a2a_dispatch",
+            "a2a_task_status",
+        ],
+    },
     "coordination": {
         "label": "RACB coordinación multiagente",
         "model_minimum": "small",
-        "max_tools": 20,
+        "max_tools": 25,
         "tools": [
+            "a2a_status",
+            "a2a_agent_cards",
+            "a2a_dispatch",
+            "a2a_task_status",
             "get_coordination_live",
+            "inneros_agent_fabric_status",
             "ack_coordination_revision",
             "list_agent_messages",
             "ack_agent_message",
@@ -405,7 +434,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "owner_dev": {
         "label": "Owner development local seguro",
         "model_minimum": "medium",
-        "max_tools": 160,
+        "max_tools": 169,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -600,7 +629,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_self_repair": {
         "label": "Autoreparación local controlada",
         "model_minimum": "medium",
-        "max_tools": 40,
+        "max_tools": 45,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -727,7 +756,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "cloud_ops": {
         "label": "Cloud deploy ops multi-provider (dry-run safe)",
         "model_minimum": "medium",
-        "max_tools": 96,
+        "max_tools": 105,
         "tools": [
             "get_development_roadmap",
             "cloud_deploy_status",
@@ -839,7 +868,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet": {
         "label": "Flota local PC Doctor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 39,
+        "max_tools": 44,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -907,7 +936,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet_full": {
         "label": "Flota local completa — ChatGPT/Codex",
         "model_minimum": "medium",
-        "max_tools": 124,
+        "max_tools": 133,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -1067,7 +1096,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "daily_companion": {
         "label": "Compañero día a día — brief, memoria, conversación local",
         "model_minimum": "small",
-        "max_tools": 16,
+        "max_tools": 18,
         "tools": [
             "route_agent_request",
             "resolve_agent",

@@ -74,6 +74,60 @@ if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
 
 
+
+# --- MOD-A2A (Agent2Agent transport over durable InnerOS control plane) ---
+
+@mcp.tool
+def a2a_status() -> dict[str, Any]:
+    """A2A: estado del bridge, protocolo, SDK y agentes publicados."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.status()
+
+
+@mcp.tool
+def a2a_agent_cards() -> dict[str, Any]:
+    """A2A: Agent Cards de los roles disponibles en InnerOS."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.agent_cards()
+
+
+@mcp.tool
+def a2a_dispatch(
+    agent_id: str,
+    title: str,
+    body: str,
+    correlation_id: str = "",
+    context_id: str = "",
+    priority: str = "p0",
+    related_project: str = "inneros",
+    dry_run: bool = False,
+    protocol_task_id: str = "",
+) -> dict[str, Any]:
+    """A2A: delega trabajo durable sin saltarse RACB ni ops_tasks."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.dispatch(
+        agent_id=agent_id,
+        title=title,
+        body=body,
+        correlation_id=correlation_id,
+        context_id=context_id,
+        priority=priority,
+        related_project=related_project or None,
+        dry_run=dry_run,
+        protocol_task_id=protocol_task_id,
+    )
+
+
+@mcp.tool
+def a2a_task_status(a2a_task_id: str) -> dict[str, Any]:
+    """A2A: proyecta estado RACB/Mongo y artifacts de una tarea A2A."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.task_status(a2a_task_id)
+
 @mcp.resource("resource://RalfIA_MCP", name=MCP_DISPLAY_NAME, mime_type="application/json")
 async def ralfia_mcp_manifest() -> dict[str, Any]:
     """Manifiesto vivo de herramientas y recursos expuestos por este servidor MCP."""
@@ -992,6 +1046,38 @@ def gcp_cloud_run_status(project_id: str, service: str, region: str = "") -> dic
     from raphiia_openai.agents import ag44_cloud_deployer as ag44
 
     return ag44.gcp_cloud_run_status(project_id, service, region)
+
+
+@mcp.tool
+def gcp_cloud_run_domain_mapping_status(project_id: str, domain: str, region: str = "") -> dict[str, Any]:
+    """AG-44: describe custom-domain mapping Cloud Run y DNS requerido por Google."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.gcp_cloud_run_domain_mapping_status(project_id, domain, region=region)
+
+
+@mcp.tool
+def gcp_cloud_run_domain_mapping_create(
+    project_id: str,
+    service: str,
+    domain: str,
+    region: str = "",
+    dry_run: bool = True,
+    approval_id: str = "",
+    force_override: bool = False,
+) -> dict[str, Any]:
+    """AG-44: crea custom-domain mapping Cloud Run con approval/apply gate."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.gcp_cloud_run_domain_mapping_create(
+        project_id,
+        service,
+        domain,
+        region=region,
+        dry_run=dry_run,
+        approval_id=approval_id,
+        force_override=force_override,
+    )
 
 
 @mcp.tool
@@ -4170,6 +4256,88 @@ def get_coordination_live() -> dict[str, Any]:
 
 
 @mcp.tool
+def inneros_agent_fabric_status(ops_task_id: str = "") -> dict[str, Any]:
+    """Estado unificado MCP+IDE Bridge+ACP+KPI (inneros_agent_fabric_v1)."""
+    from inneros_core_runtime import inneros_agent_fabric
+
+    return inneros_agent_fabric.fabric_status(ops_task_id=ops_task_id)
+
+
+@mcp.tool
+def ide_task_bridge_status() -> dict[str, Any]:
+    """IDE Task Bridge: estado y targets soportados con delivery separado de ejecución."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.bridge_status()
+
+
+@mcp.tool
+def ide_dispatch_task(
+    ide: str,
+    title: str,
+    body: str,
+    repo: str = "",
+    branch: str = "",
+    worktree: str = "",
+    correlation_id: str = "",
+    priority: str = "p0",
+    from_agent: str = "CHATGPT_A",
+    require_evidence: bool = True,
+    approval_required: bool = False,
+    idempotency_key: str = "",
+) -> dict[str, Any]:
+    """IDE Task Bridge: crea ops_task durable y entrega al inbox sin marcar ejecución iniciada."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.dispatch_task(
+        ide=ide,
+        title=title,
+        body=body,
+        repo=repo,
+        branch=branch,
+        worktree=worktree,
+        correlation_id=correlation_id,
+        priority=priority,
+        from_agent=from_agent,
+        require_evidence=require_evidence,
+        approval_required=approval_required,
+        idempotency_key=idempotency_key,
+    )
+
+
+@mcp.tool
+def ide_task_status(dispatch_id: str) -> dict[str, Any]:
+    """IDE Task Bridge: estado durable de una entrega/ejecución."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.task_status(dispatch_id)
+
+
+@mcp.tool
+def ide_claim_task(dispatch_id: str, ide: str) -> dict[str, Any]:
+    """IDE Task Bridge: marca claim explícito por el IDE/agente asignado."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.claim_task(dispatch_id, ide)
+
+
+@mcp.tool
+def ide_mark_task_running(dispatch_id: str, ide: str) -> dict[str, Any]:
+    """IDE Task Bridge: marca ejecución running sin confundirla con entrega al inbox."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.mark_running(dispatch_id, ide)
+
+
+@mcp.tool
+def ide_complete_task(dispatch_id: str, ide: str, result: str = "completed", evidence: dict[str, Any] | None = None) -> dict[str, Any]:
+    """IDE Task Bridge: cierra ejecución terminal con evidencia requerida."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.complete_task(dispatch_id, ide, result=result, evidence=evidence)
+
+
+@mcp.tool
 def ack_coordination_revision(agent: str, revision: int) -> dict[str, Any]:
     """Marca que un agente leyó la revisión actual de coordinación."""
     from raphiia_openai import coordination_live
@@ -6160,3 +6328,53 @@ if __name__ == "__main__":
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
     mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp")
+
+
+# --- InnerOS A2A transport bridge ---
+
+@mcp.tool
+def a2a_status() -> dict[str, Any]:
+    """A2A bridge health, SDK visibility and registered InnerOS agent roles."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.status()
+
+
+@mcp.tool
+def a2a_agent_cards() -> dict[str, Any]:
+    """Return the five canonical Agent Cards exposed by the InnerOS A2A bridge."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.agent_cards()
+
+
+@mcp.tool
+def a2a_dispatch(
+    agent_id: str,
+    title: str,
+    body: str,
+    correlation_id: str = "",
+    priority: str = "p0",
+    related_project: str = "inneros",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Submit durable agent work over A2A while RACB/ops_tasks remain source of truth."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.dispatch(
+        agent_id=agent_id,
+        title=title,
+        body=body,
+        correlation_id=correlation_id,
+        priority=priority,
+        related_project=related_project or None,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
+def a2a_task_status(a2a_task_id: str) -> dict[str, Any]:
+    """Project an InnerOS RACB task into its A2A state and evidence artifacts."""
+    from raphiia_openai import a2a_bridge
+
+    return a2a_bridge.task_status(a2a_task_id)
