@@ -1778,6 +1778,30 @@ def agent_iskcon_capabilities() -> dict[str, Any]:
 
 
 @mcp.tool
+def agent_iskcon_sources() -> dict[str, Any]:
+    """AG-52: fuentes curadas ISKCON usadas para planes y borradores."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_sources()
+
+
+@mcp.tool
+def agent_iskcon_yoga_campaign(message: str = "", days: int = 7, dry_run: bool = True) -> dict[str, Any]:
+    """AG-52: borradores WhatsApp de yoga vaishnava; no envía sin aprobación."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_yoga_campaign(message, days=days, dry_run=dry_run)
+
+
+@mcp.tool
+def agent_iskcon_class_update(message: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """AG-52: borrador seguro para avisos de cambios de clases/eventos."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_class_update(message, dry_run=dry_run)
+
+
+@mcp.tool
 def agent_iskcon_domain(domain: str) -> dict[str, Any]:
     """AG-52: detalle dominio — food_for_life|festivals_events|temple_operations|..."""
     from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52

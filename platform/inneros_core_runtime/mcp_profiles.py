@@ -1138,7 +1138,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "iskcon_ops": {
         "label": "Operaciones ISKCON — ent_iskcon, FFL, festivales, templo",
         "model_minimum": "small",
-        "max_tools": 16,
+        "max_tools": 19,
         "tools": [
             "agent_iskcon_capabilities",
             "agent_iskcon_status",
@@ -1147,6 +1147,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "agent_iskcon_ffl_timeline",
             "agent_iskcon_contacts_summary",
             "agent_iskcon_dispatch",
+            "agent_iskcon_sources",
+            "agent_iskcon_yoga_campaign",
+            "agent_iskcon_class_update",
             "create_ops_task",
             "list_ops_tasks",
             "save_memory",

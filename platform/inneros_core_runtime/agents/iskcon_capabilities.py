@@ -58,18 +58,22 @@ ISKCON_DOMAINS: dict[str, dict[str, Any]] = {
         "status": "panihati_pilot_phase0",
     },
     "workshops_education": {
-        "label": "Talleres y educación",
+        "label": "Talleres, yoga aplicado y educación",
         "actions": [
             "Calendario talleres y facilitadores",
             "Materiales y asistencia",
             "Memoria de contenidos impartidos",
+            "Borradores WhatsApp para yoga aplicado a cultura vaishnava",
+            "Avisos de cambios de clase con aprobación previa",
         ],
         "reuse": {
-            "memory": "ralfia_memory_items (tags: workshop, education)",
+            "memory": "ralfia_memory_items (tags: workshop, education, yoga, vaishnava)",
             "ops": "ralfia_ops_tasks",
-            "web": "create_web_content / export_web_content_for_astro",
+            "web": "iskconguayaquil.org como presencia pública y futuro destino de publicación",
+            "notion": "páginas ISKCON OS / calendario / Panihati como fuentes curadas",
+            "whatsapp": "borradores internos; broadcasts requieren aprobación explícita",
         },
-        "status": "planned",
+        "status": "intent_drafts_ready",
     },
     "temple_operations": {
         "label": "Operaciones del templo",
@@ -112,6 +116,7 @@ def capabilities_summary() -> dict[str, Any]:
         "domains": ISKCON_DOMAINS,
         "entry_agent": "AG-52_ISKCON_OPS",
         "profile_mcp": "iskcon_ops",
-        "vertical_repo": "/home/rlopez/projects/iskcon/ (pendiente — hoy ent_iskcon + panihati pilot)",
+        "vertical_repo": "inneros_core/companies/iskcon/ (canónico; no usar carpetas legacy en /projects para operación viva)",
         "entity_yaml": "inneros_core/companies/iskcon/config/entity.yaml",
+        "send_policy": "WhatsApp/publicación siempre en borrador hasta aprobación humana",
     }

@@ -24,7 +24,7 @@ TASK_ROUTES = {
     "companion": ("AG-50", "run_daily_companion"),
     "health": ("AG-51", "agent_health_summary"),
     "salud": ("AG-51", "agent_health_summary"),
-    "iskcon": ("AG-52", "agent_iskcon_status"),
+    "iskcon": ("AG-52", "agent_iskcon_dispatch"),
     "hackathon": ("AG-53", "agent_hackathon_status"),
     "funding": ("AG-54", "agent_funding_status"),
     "credits": ("AG-54", "agent_funding_scan_emails"),
@@ -122,7 +122,7 @@ def dispatch_local_agent(
             result = ag51.agent_health_summary()
     elif kind == "iskcon":
         from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
-        result = ag52.agent_iskcon_dispatch("ops" if message.strip() else "status", message, dry_run=dry_run)
+        result = ag52.agent_iskcon_dispatch("intent" if message.strip() else "status", message, dry_run=dry_run)
     elif kind == "hackathon":
         from raphiia_openai.agents import ag53_hackathon_agent as ag53
         result = ag53.agent_hackathon_scan_emails(message or "hackathon credits devpost") if message.strip() else ag53.agent_hackathon_status()

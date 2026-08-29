@@ -20,6 +20,8 @@ def _merge(agent_id: str, action: str, result: dict[str, Any]) -> dict[str, Any]
     """Envuelve resultado de módulo ag*.py sin colisión agent_id en **kwargs."""
     payload = dict(result)
     payload.pop("agent_id", None)
+    if "action" in payload:
+        payload["result_action"] = payload.pop("action")
     return _ok(agent_id, action, **payload)
 
 
@@ -355,7 +357,7 @@ def _import_dedicated() -> dict[str, Runner]:
         "AG-48": lambda message="", dry_run=True, **kw: _merge("AG-48", "invoice", ag48.agent_invoice_prepare(message or "cliente", dry_run=dry_run)),
         "AG-50": lambda message="", **kw: _merge("AG-50", "companion", ag50.run_daily_companion(message, include_brief=bool((message or "").strip()))),
         "AG-51": lambda message="", **kw: _merge("AG-51", "health", ag51.agent_health_save(message[:60], message) if message.strip() else ag51.agent_health_summary()),
-        "AG-52": lambda message="", dry_run=True, **kw: _merge("AG-52", "iskcon", ag52.agent_iskcon_status()),
+        "AG-52": lambda message="", dry_run=True, **kw: _merge("AG-52", "iskcon", ag52.agent_iskcon_dispatch("intent" if (message or "").strip() else "status", message, dry_run=dry_run)),
         "AG-53": lambda message="", **kw: _merge("AG-53", "hackathon", ag53.agent_hackathon_status()),
         "AG-54": lambda message="", **kw: _merge("AG-54", "funding", ag54.agent_funding_sync_and_scan() if (message or "").strip().lower() in ("sync", "poll", "scan") else ag54.agent_funding_status()),
         "AG-55": lambda message="", dry_run=True, **kw: _merge("AG-55", "browser", ag55.agent_browser_status() if not (message or "").strip() else ag55.agent_browser_run_task("screenshot", message, dry_run=dry_run)),
