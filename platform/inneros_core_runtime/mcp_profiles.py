@@ -338,6 +338,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             "a2a_dispatch",
             "a2a_task_status",
             "get_coordination_live",
+            "inneros_agent_fabric_status",
             "ack_coordination_revision",
             "list_agent_messages",
             "ack_agent_message",

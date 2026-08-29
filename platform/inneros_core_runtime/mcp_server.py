@@ -4256,6 +4256,14 @@ def get_coordination_live() -> dict[str, Any]:
 
 
 @mcp.tool
+def inneros_agent_fabric_status(ops_task_id: str = "") -> dict[str, Any]:
+    """Estado unificado MCP+IDE Bridge+ACP+KPI (inneros_agent_fabric_v1)."""
+    from inneros_core_runtime import inneros_agent_fabric
+
+    return inneros_agent_fabric.fabric_status(ops_task_id=ops_task_id)
+
+
+@mcp.tool
 def ack_coordination_revision(agent: str, revision: int) -> dict[str, Any]:
     """Marca que un agente leyó la revisión actual de coordinación."""
     from raphiia_openai import coordination_live
