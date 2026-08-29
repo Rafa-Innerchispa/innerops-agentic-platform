@@ -55,6 +55,39 @@ class CoordinationIngestTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         create_task.assert_not_called()
 
+    def test_distinguishes_chatgpt_accounts_without_breaking_mailbox(self) -> None:
+        message_result = {
+            "ok": True,
+            "created": True,
+            "message_id": "msg_source",
+            "correlation_id": "corr-identity",
+        }
+        task_result = {"ok": True, "created": True, "task_id": "ops_identity", "correlation_id": "corr-identity"}
+        collection = MagicMock()
+        db = {"ralfia_agent_messages": collection}
+        payload = {"actor_account": "PCDoctorGI", "actor_host": "chatgpt-enterprise", "actor_lane": "A"}
+        with (
+            patch("raphiia_openai.memory.agent_messages.create_agent_message", return_value=message_result) as create_message,
+            patch("raphiia_openai.coordination_live.create_ops_task", return_value=task_result) as create_task,
+            patch("raphiia_openai.mongo_store.get_db", return_value=db),
+        ):
+            result = coordination_ingest.ingest_agent_message(
+                from_agent="CHATGPT_A",
+                target_agent="codex",
+                title="[P0] Identidad",
+                body="correlation_id: corr-identity\n- probar identidad",
+                priority="critical",
+                payload=payload,
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(create_message.call_args.kwargs["from_agent"], "chatgpt_a")
+        kwargs = create_task.call_args.kwargs
+        self.assertEqual(kwargs["from_agent"], "chatgpt_a_pcdoctorgi_chatgpt-enterprise_a")
+        patch_doc = collection.update_one.call_args.args[1]["$set"]
+        self.assertEqual(patch_doc["from_identity"]["mailbox"], "chatgpt_a")
+        self.assertEqual(patch_doc["from_identity"]["account"], "pcdoctorgi")
+
     def test_in_progress_sets_first_heartbeat(self) -> None:
         transition = racb_protocol.build_transition(
             current_status="accepted",

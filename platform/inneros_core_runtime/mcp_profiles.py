@@ -681,9 +681,10 @@ PROFILES: dict[str, dict[str, Any]] = {
     "server_ops": {
         "label": "Ops local servidor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 14,
+        "max_tools": 15,
         "tools": [
             "get_coordination_live",
+            "identify_agent_session",
             "poll_agent_inbox",
             "create_agent_message",
             "ack_agent_message",
@@ -1346,5 +1347,4 @@ def get_profile(name: str) -> dict[str, Any]:
     if not conf:
         return {"ok": False, "error": "unknown_profile", "available": sorted(PROFILES)}
     return {"ok": True, "profile": name, **conf, "catalog_pin": allp["catalog_pin"], "profiles_version": PROFILES_VERSION}
-
 

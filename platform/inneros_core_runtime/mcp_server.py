@@ -213,6 +213,20 @@ def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = True) -> dict
 
 
 @mcp.tool
+def identify_agent_session(
+    agent: str,
+    account: str = "",
+    host: str = "",
+    lane: str = "",
+    role: str = "",
+) -> dict[str, Any]:
+    """Devuelve identidad estable para coordinar varias cuentas/IDEs en el mismo MCP."""
+    from raphiia_openai.memory import agent_messages as _am
+
+    return _am.identify_agent_session(agent=agent, account=account or None, host=host or None, lane=lane or None, role=role or None)
+
+
+@mcp.tool
 def save_idea(title: str, body: str, tags: list[str] | None = None) -> dict[str, Any]:
     """Guarda una idea titulada y crea un borrador listo para revisión."""
     idea = mongo_store.save_idea(title=title, body=body, tags=tags)

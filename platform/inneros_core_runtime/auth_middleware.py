@@ -263,6 +263,7 @@ TOOL_SCOPES = {
     "codex_continuity_checkpoint": "ralfia:write",
     "list_ops_tasks": "ralfia:read",
     "get_agent_mailboxes": "ralfia:read",
+    "identify_agent_session": "ralfia:agents",
     "ack_agent_message": "ralfia:agents",
     "poll_agent_inbox": "ralfia:agents",
     "update_ops_task_state": "ralfia:agents",

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from raphiia_openai import coordination_live, mongo_store, ralfia_time
+from raphiia_openai import agent_identity, coordination_live, mongo_store, ralfia_time
 from raphiia_openai.settings import COL_AGENT_MESSAGES
 
 
@@ -73,13 +73,15 @@ def ingest_agent_message(
     from raphiia_openai.memory import agent_messages
 
     payload_n = payload or {}
+    from_identity = agent_identity.identity_from_payload(from_agent, payload_n)
+    target_identity = agent_identity.identity_from_payload(target_agent, payload_n)
     fields = _body_fields(body)
     correlation = (correlation_id or fields.get("correlation_id") or "").strip() or None
     project = str(payload_n.get("project") or fields.get("project") or "").strip() or None
     conversation_ref = str(payload_n.get("conversation_ref") or fields.get("conversation_ref") or "").strip() or None
     message = agent_messages.create_agent_message(
-        from_agent=from_agent,
-        target_agent=target_agent,
+        from_agent=from_identity["mailbox"],
+        target_agent=target_identity["mailbox"],
         title=title,
         body=body,
         priority=priority,
@@ -101,12 +103,12 @@ def ingest_agent_message(
     message_id = str(message.get("message_id") or "")
     correlation = str(message.get("correlation_id") or correlation or message_id)
     task = coordination_live.create_ops_task(
-        assignee=target_agent,
+        assignee=target_identity["mailbox"],
         title=re.sub(r"^\s*\[[^]]+\]\s*", "", title).strip() or title.strip(),
         checklist=_list_value(payload_n.get("checklist")) or _checklist_from_body(body),
         evidence_required=_list_value(payload_n.get("evidence_required")),
         priority=priority,
-        from_agent=from_agent,
+        from_agent=from_identity["actor_id"],
         correlation_id=correlation,
         source_message_id=message_id,
         conversation_ref=conversation_ref,
@@ -124,6 +126,8 @@ def ingest_agent_message(
                     "correlation_id": correlation,
                     "related_project": project,
                     "conversation_ref": conversation_ref,
+                    "from_identity": from_identity,
+                    "target_identity": target_identity,
                     "normalized_at": now,
                     "updated_at": now,
                 },
@@ -132,4 +136,3 @@ def ingest_agent_message(
         )
         task["source_message_id"] = message_id
     return {**message, "normalization": task}
-

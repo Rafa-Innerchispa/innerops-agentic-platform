@@ -11,6 +11,8 @@ import secrets
 from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
 
+from inneros_core_runtime import agent_identity
+
 IDE_DISPATCH_COL = "ralfia_ide_task_dispatches"
 SUPPORTED_IDES = frozenset({"antigravity", "cursor", "codex", "gemini"})
 ALIASES = {
@@ -87,6 +89,8 @@ def dispatch_task(
     if not clean_title or not clean_body:
         return {"ok": False, "error": "title_and_body_required"}
     cid = str(correlation_id or "").strip() or f"ide-{target}-{secrets.token_hex(6)}"
+    sender_identity = agent_identity.identity_from_payload(from_agent)
+    target_identity = agent_identity.normalize_actor(target, role="ide")
     idem = str(idempotency_key or "").strip() or hashlib.sha256(f"{target}|{cid}|{clean_title}|{repo}|{branch}".encode()).hexdigest()[:32]
     store = store or MongoStore()
     existing = store.get_by_key(idem)
@@ -98,7 +102,7 @@ def dispatch_task(
         assignee=target, title=clean_title,
         checklist=[clean_body, f"IDE target={target}", "Claim task before editing", "Use isolated worktree/RACB when repo writes are required"],
         evidence_required=["status OK/PARTIAL/FAIL", "commit/tests/evidence refs"] if require_evidence else ["status OK/PARTIAL/FAIL"],
-        priority=priority, from_agent=from_agent, correlation_id=cid, related_project=repo or None,
+        priority=priority, from_agent=sender_identity["actor_id"], correlation_id=cid, related_project=repo or None,
     )
     if not created.get("ok"):
         return {"ok": False, "error": "ops_task_create_failed", "details": created}
@@ -109,6 +113,7 @@ def dispatch_task(
     transport = "external_repair" if provider.get("installed") and provider.get("headless_supported") and provider.get("auth_ready") else "ide_inbox"
     record = {
         "dispatch_id": dispatch_id, "idempotency_key": idem, "ide": target,
+        "from_identity": sender_identity, "target_identity": target_identity,
         "ops_task_id": task_id, "correlation_id": cid, "trace_id": trace_id,
         "title": clean_title, "repo": repo, "branch": branch, "worktree": worktree,
         "transport": transport, "delivery_state": "delivered_to_inbox", "execution_state": "queued",
