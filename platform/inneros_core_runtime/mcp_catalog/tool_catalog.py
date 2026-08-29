@@ -176,6 +176,7 @@ ALL_MCP_TOOL_NAMES = [
     "google_ai_model_allowlist",
     "google_ai_model_lanes_status",
     "google_ai_model_smoke",
+    "google_model_garden_gemma_preflight",
     "tenant_reconciliation_report",
     "digitalocean_status",
     "digitalocean_preflight",
@@ -4313,6 +4314,16 @@ GOOGLE_AI_MODEL_TOOL_DEFINITIONS = {
         "input_schema": {"lane_id": "string", "project_id": "string|null", "location": "string|null", "prompt": "string|null", "allow_live": "boolean|null"},
         "output_schema": {"ok": "bool", "lane_id": "string", "model": "string", "live_mode": "string"},
         "example_payload": {"lane_id": "google-flash-lite-triage", "allow_live": False},
+    },
+    "google_model_garden_gemma_preflight": {
+        "description": "Lista Gemma en Vertex Model Garden con project/billing-project forzados; no despliega endpoints.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["google_vertex_model_garden"],
+        "input_schema": {"project_id": "string|null", "model_filter": "string|null", "limit": "integer|null", "allow_live": "boolean|null"},
+        "output_schema": {"ok": "bool", "models": "array", "deploy_started": "bool", "cost_guard": "string"},
+        "example_payload": {"model_filter": "gemma", "limit": 20, "allow_live": False},
     },
 }
 

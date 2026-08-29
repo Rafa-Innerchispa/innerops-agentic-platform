@@ -21,6 +21,7 @@ DEFAULT_PROJECT_ID = "innerops-agentic-platform"
 DEFAULT_LOCATION = "us-central1"
 SMOKE_MAX_PROMPT_CHARS = 512
 SMOKE_MAX_OUTPUT_TOKENS = 32
+GCLOUD_TIMEOUT_SECONDS = int(os.getenv("INNEROS_GCLOUD_TIMEOUT_SECONDS", "30"))
 
 
 @dataclass(frozen=True)
@@ -141,10 +142,23 @@ def _gcloud_bin() -> str:
 
 
 def _oauth_token() -> str:
-    proc = subprocess.run([_gcloud_bin(), "auth", "print-access-token"], capture_output=True, text=True, timeout=10)
+    proc = subprocess.run([_gcloud_bin(), "auth", "print-access-token"], capture_output=True, text=True, timeout=GCLOUD_TIMEOUT_SECONDS)
     if proc.returncode != 0 or not proc.stdout.strip():
         raise RuntimeError((proc.stderr or proc.stdout or "gcloud auth print-access-token failed")[:240])
     return proc.stdout.strip()
+
+
+def _run_gcloud(args: list[str], *, project_id: str = "", timeout: int | None = None) -> subprocess.CompletedProcess[str]:
+    project = _project_id(project_id)
+    command = [
+        _gcloud_bin(),
+        *args,
+        "--project",
+        project,
+        "--billing-project",
+        project,
+    ]
+    return subprocess.run(command, capture_output=True, text=True, timeout=timeout or GCLOUD_TIMEOUT_SECONDS)
 
 
 def get_lane(lane_id: str) -> GoogleModelLane | None:
@@ -160,7 +174,108 @@ def allowlist() -> dict[str, Any]:
         "allowed_lanes": [lane.as_model_provider() for lane in LANES],
         "smoke_limits": {"max_prompt_chars": SMOKE_MAX_PROMPT_CHARS, "max_output_tokens": SMOKE_MAX_OUTPUT_TOKENS},
         "default_auth_mode": "vertex_oauth_gcloud",
+        "gcloud_timeout_seconds": GCLOUD_TIMEOUT_SECONDS,
         "local_first": True,
+    }
+
+
+def model_garden_gemma_preflight(*, project_id: str = "", model_filter: str = "gemma", limit: int = 20, allow_live: bool = False) -> dict[str, Any]:
+    """List Gemma Model Garden availability without deploying endpoints."""
+
+    if not allow_live:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "command": "gcloud ai model-garden models list --model-filter=<filter> --project=<project> --billing-project=<project>",
+            "note": "set allow_live=true to query Vertex Model Garden; this is read-only and does not deploy resources",
+        }
+    clean_filter = (model_filter or "gemma").strip()[:64]
+    clean_limit = max(1, min(int(limit or 20), 50))
+    project = _project_id(project_id)
+    try:
+        proc = _run_gcloud(
+            [
+                "ai",
+                "model-garden",
+                "models",
+                "list",
+                "--model-filter",
+                clean_filter,
+                "--limit",
+                str(clean_limit),
+                "--format",
+                "json",
+            ],
+            project_id=project,
+            timeout=max(GCLOUD_TIMEOUT_SECONDS, 45),
+        )
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": type(exc).__name__,
+            "message": str(exc)[:480],
+            "project_id": project,
+            "model_filter": clean_filter,
+            "not_pass": True,
+            "ts": _now(),
+        }
+    import json
+
+    models: list[dict[str, Any]] = []
+    if proc.returncode == 0 and proc.stdout.strip():
+        try:
+            raw_models = json.loads(proc.stdout)
+            for item in raw_models if isinstance(raw_models, list) else []:
+                deploy = (item.get("supportedActions") or {}).get("deploy") or {}
+                multi = (item.get("supportedActions") or {}).get("multiDeployVertex") or {}
+                options = []
+                if deploy:
+                    options.append(deploy)
+                options.extend(multi.get("multiDeployVertex") or [])
+                deployable = []
+                for option in options:
+                    machine = ((option.get("dedicatedResources") or {}).get("machineSpec") or {})
+                    deployable.append(
+                        {
+                            "model_display_name": option.get("modelDisplayName"),
+                            "machine_type": machine.get("machineType"),
+                            "accelerator_type": machine.get("acceleratorType"),
+                            "accelerator_count": machine.get("acceleratorCount"),
+                            "predict_route": (option.get("containerSpec") or {}).get("predictRoute"),
+                        }
+                    )
+                models.append(
+                    {
+                        "name": item.get("name"),
+                        "version_id": item.get("versionId"),
+                        "launch_stage": item.get("launchStage"),
+                        "open_source_category": item.get("openSourceCategory"),
+                        "can_deploy": bool(deployable),
+                        "deployment_options": deployable[:6],
+                    }
+                )
+        except Exception as exc:
+            return {
+                "ok": False,
+                "error": "model_garden_parse_failed",
+                "message": str(exc)[:480],
+                "stdout_preview": proc.stdout[:1000],
+                "stderr_preview": proc.stderr[:1000],
+                "project_id": project,
+                "not_pass": True,
+                "ts": _now(),
+            }
+    return {
+        "ok": proc.returncode == 0,
+        "project_id": project,
+        "model_filter": clean_filter,
+        "count": len(models),
+        "models": models,
+        "stderr_preview": proc.stderr[:1000],
+        "read_only": True,
+        "deploy_started": False,
+        "cost_guard": "read-only Model Garden list; endpoint deploy requires separate approval",
+        "ts": _now(),
     }
 
 

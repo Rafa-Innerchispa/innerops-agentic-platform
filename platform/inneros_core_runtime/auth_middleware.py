@@ -121,6 +121,7 @@ TOOL_SCOPES = {
     "google_ai_model_lanes_status": "ralfia:read",
     "google_ai_model_smoke": "ralfia:agents",
     "google_ai_model_allowlist": "ralfia:read",
+    "google_model_garden_gemma_preflight": "ralfia:read",
     "local_gitlab_status": "ralfia:read",
     "local_gitlab_store_pat_server_side": "ralfia:agents",
     "local_gitlab_glab_preflight": "ralfia:read",

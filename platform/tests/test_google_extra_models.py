@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from inneros_core_runtime import google_extra_models, resource_fabric
 
@@ -38,6 +38,7 @@ class GoogleExtraModelsTests(unittest.TestCase):
         self.assertIn("gemini-3.5-flash-lite", data["allowed_models"])
         self.assertIn("gemini-embedding-001", data["allowed_models"])
         self.assertLessEqual(data["smoke_limits"]["max_output_tokens"], 32)
+        self.assertGreaterEqual(data["gcloud_timeout_seconds"], 30)
 
     def test_smoke_defaults_to_dry_run(self) -> None:
         result = google_extra_models.smoke_lane("google-flash-lite-triage")
@@ -83,6 +84,47 @@ class GoogleExtraModelsTests(unittest.TestCase):
         self.assertEqual(models["google-gemini-35-bounded-review"]["preferred_location"], "global")
         self.assertIn("google-gemma-bounded-review", models)
         self.assertFalse(models["google-gemma-bounded-review"]["default_enabled"])
+
+    def test_model_garden_preflight_is_dry_run_by_default(self) -> None:
+        result = google_extra_models.model_garden_gemma_preflight()
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["dry_run"])
+        self.assertIn("does not deploy", result["note"])
+
+    def test_model_garden_preflight_forces_project_and_billing_project(self) -> None:
+        payload = """[
+          {
+            "name": "publishers/google/models/functiongemma",
+            "versionId": "function-gemma-270m",
+            "launchStage": "GA",
+            "openSourceCategory": "GOOGLE_OWNED_OSS_WITH_GOOGLE_CHECKPOINT",
+            "supportedActions": {
+              "deploy": {
+                "modelDisplayName": "function-gemma-270m",
+                "containerSpec": {"predictRoute": "/generate"},
+                "dedicatedResources": {
+                  "machineSpec": {
+                    "machineType": "g2-standard-12",
+                    "acceleratorType": "NVIDIA_L4",
+                    "acceleratorCount": 1
+                  }
+                }
+              }
+            }
+          }
+        ]"""
+        completed = Mock(returncode=0, stdout=payload, stderr="")
+        with patch.object(google_extra_models, "_run_gcloud", return_value=completed) as run_gcloud:
+            result = google_extra_models.model_garden_gemma_preflight(project_id="innerops-agentic-platform", allow_live=True)
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["deploy_started"])
+        self.assertTrue(result["read_only"])
+        self.assertTrue(result["models"][0]["can_deploy"])
+        self.assertEqual(result["models"][0]["deployment_options"][0]["accelerator_type"], "NVIDIA_L4")
+        command = run_gcloud.call_args.args[0]
+        self.assertIn("model-garden", command)
+        self.assertIn("--format", command)
+        self.assertEqual(run_gcloud.call_args.kwargs["project_id"], "innerops-agentic-platform")
 
 
 if __name__ == "__main__":

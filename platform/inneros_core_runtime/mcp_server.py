@@ -1306,6 +1306,14 @@ def google_ai_model_smoke(lane_id: str, project_id: str = "", location: str = ""
 
 
 @mcp.tool
+def google_model_garden_gemma_preflight(project_id: str = "", model_filter: str = "gemma", limit: int = 20, allow_live: bool = False) -> dict[str, Any]:
+    """Google Model Garden: lista Gemma deployable sin desplegar endpoints."""
+    from raphiia_openai import google_extra_models
+
+    return google_extra_models.model_garden_gemma_preflight(project_id=project_id, model_filter=model_filter, limit=limit, allow_live=allow_live)
+
+
+@mcp.tool
 def google_ai_model_allowlist() -> dict[str, Any]:
     """Google AI lanes: modelos permitidos, limites de smoke y politica local-first."""
     from raphiia_openai import google_extra_models
