@@ -72,3 +72,20 @@ Ruta nube: que requiere ChatGPT/API/cloud y por que.
 Ahorro: como se minimiza el consumo.
 ```
 
+
+
+## Google AI Spend Guard
+
+Google AI model use must stay behind Resource Fabric and explicit lanes:
+
+- Local AMD/Intel remains the default for coding, tests, summaries and repeated
+  processing.
+- `google_ai_model_smoke` is dry-run unless `allow_live=true`.
+- Smoke tests are capped at 512 prompt characters and 32 output tokens.
+- Embedding smoke returns dimensions only and does not ask for generative text.
+- Use `google-gemini-35-bounded-review` (`gemini-3.5-flash-lite`, Vertex
+  `global`) as the live Google reviewer lane while Gemma is unavailable.
+- AI Studio/Gemini API keys reported by Google as leaked must not be used; use
+  Vertex OAuth/gcloud or replace the key server-side.
+- Gemma must not be reported as live until a real smoke succeeds for the exact
+  model ID and region.

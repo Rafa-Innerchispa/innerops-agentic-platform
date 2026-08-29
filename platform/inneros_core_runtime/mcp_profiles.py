@@ -154,6 +154,20 @@ PROFILES: dict[str, dict[str, Any]] = {
             "document_vault_export_file",
         ],
     },
+    "google_ai_models": {
+        "label": "Google AI modelos extra gobernados",
+        "model_minimum": "small",
+        "max_tools": 8,
+        "tools": [
+            "get_coordination_live",
+            "resource_fabric_status",
+            "resource_fabric_route",
+            "google_ai_model_allowlist",
+            "google_ai_model_lanes_status",
+            "google_ai_model_smoke",
+            "create_agent_message",
+        ],
+    },
     "accounting": {
         "label": "MOD-ACCOUNTING canónico",
         "model_minimum": "medium",

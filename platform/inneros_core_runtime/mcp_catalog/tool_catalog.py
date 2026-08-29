@@ -173,6 +173,9 @@ ALL_MCP_TOOL_NAMES = [
     "resource_fabric_status",
     "resource_fabric_route",
     "resource_fabric_link_project_capability",
+    "google_ai_model_allowlist",
+    "google_ai_model_lanes_status",
+    "google_ai_model_smoke",
     "tenant_reconciliation_report",
     "digitalocean_status",
     "digitalocean_preflight",
@@ -4278,6 +4281,42 @@ for _name, _meta in _IDE_BRIDGE_TOOL_DEFINITIONS.items():
     )
     TOOL_DEFINITIONS[_name] = _definition
 
+
+
+GOOGLE_AI_MODEL_TOOL_DEFINITIONS = {
+    "google_ai_model_allowlist": {
+        "description": "Lista modelos Google AI permitidos, limites de smoke y politica local-first.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["google_ai_model_lanes"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "allowed_models": "array", "smoke_limits": "object"},
+        "example_payload": {},
+    },
+    "google_ai_model_lanes_status": {
+        "description": "Estado de lanes Google AI extra para triage, embeddings, Gemini y Gemma.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["google_ai_model_lanes", "resource_fabric"],
+        "input_schema": {"project_id": "string|null", "location": "string|null", "live_probe": "boolean|null"},
+        "output_schema": {"ok": "bool", "lanes": "array", "cost_guard": "object"},
+        "example_payload": {"live_probe": False},
+    },
+    "google_ai_model_smoke": {
+        "description": "Ejecuta smoke test Google AI acotado por allowlist y allow_live explicito.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": [],
+        "reads_from": ["google_vertex_ai"],
+        "input_schema": {"lane_id": "string", "project_id": "string|null", "location": "string|null", "prompt": "string|null", "allow_live": "boolean|null"},
+        "output_schema": {"ok": "bool", "lane_id": "string", "model": "string", "live_mode": "string"},
+        "example_payload": {"lane_id": "google-flash-lite-triage", "allow_live": False},
+    },
+}
+
+TOOL_DEFINITIONS.update(GOOGLE_AI_MODEL_TOOL_DEFINITIONS)
 
 
 def describe_tool(name: str) -> dict[str, Any]:

@@ -11,6 +11,7 @@ from typing import Any
 
 from raphiia_openai import funding_registry, mongo_store
 from raphiia_openai import digitalocean_amd_provider
+from raphiia_openai import google_extra_models
 from raphiia_openai import local_discord_plane
 from raphiia_openai import local_gitlab_plane
 
@@ -43,6 +44,7 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
             "local_first": True,
             "status": "active",
         },
+        google_extra_models.resource_provider_document(),
         digitalocean_amd_provider.resource_provider_document(),
         local_gitlab_plane.resource_provider_document(),
         local_discord_plane.resource_provider_document(),
@@ -62,6 +64,7 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
             "priority": 20,
             "cost_policy": "local_first",
         },
+        *google_extra_models.model_provider_documents(),
         digitalocean_amd_provider.model_provider_document(),
         local_gitlab_plane.model_provider_document(),
     ]

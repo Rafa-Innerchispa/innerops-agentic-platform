@@ -1290,6 +1290,30 @@ def resource_fabric_link_project_capability(project_id: str, capability: str, pr
 
 
 @mcp.tool
+def google_ai_model_lanes_status(project_id: str = "", location: str = "", live_probe: bool = False) -> dict[str, Any]:
+    """Google AI lanes: estado/allowlist de modelos extra con smoke opcional y acotado."""
+    from raphiia_openai import google_extra_models
+
+    return google_extra_models.lanes_status(project_id=project_id, location=location, live_probe=live_probe)
+
+
+@mcp.tool
+def google_ai_model_smoke(lane_id: str, project_id: str = "", location: str = "", prompt: str = "Reply exactly: ok", allow_live: bool = False) -> dict[str, Any]:
+    """Google AI lanes: smoke test live con allowlist, OAuth gcloud y limites de gasto."""
+    from raphiia_openai import google_extra_models
+
+    return google_extra_models.smoke_lane(lane_id, project_id=project_id, location=location, prompt=prompt, allow_live=allow_live)
+
+
+@mcp.tool
+def google_ai_model_allowlist() -> dict[str, Any]:
+    """Google AI lanes: modelos permitidos, limites de smoke y politica local-first."""
+    from raphiia_openai import google_extra_models
+
+    return google_extra_models.allowlist()
+
+
+@mcp.tool
 def tenant_reconciliation_report(save: bool = True) -> dict[str, Any]:
     """Workforce/VigilOS: reporte read-only de tenants/clientes antes de cualquier migracion."""
     from raphiia_openai import tenant_reconciliation

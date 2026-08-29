@@ -50,6 +50,33 @@ Home Assistant registry changes use the official WebSocket API with `HOME_ASSIST
 
 `browser_session_action` performs atomic `navigate`, `click`, `type`, `press`, and `wait` operations by `session_id` plus token. Passwords typed by the owner are sent only to the live page and are not persisted by InnerOS.
 
+## Google AI Model Lanes
+
+Google AI is available as governed Resource Fabric lanes, not as a production
+default that bypasses local-first routing.
+
+- `google-gemini-primary`: primary Google reasoning lane, currently
+  `gemini-2.5-flash` on Vertex AI for project `innerops-agentic-platform`.
+- `google-flash-lite-triage`: low-cost classification/triage lane,
+  currently `gemini-2.5-flash-lite`.
+- `google-memory-embedding`: semantic memory/document retrieval embeddings,
+  currently `gemini-embedding-001` with 3072 dimensions.
+- `google-gemini-35-bounded-review`: available bounded reviewer lane,
+  currently `gemini-3.5-flash-lite` on Vertex AI `global`; use this as the
+  Google critic/review path while Gemma access is unavailable.
+- `google-gemma-bounded-review`: Gemma critic/reviewer lane. It is registered
+  but not default-enabled until the project has live model access; Vertex
+  returned 404 for Gemma IDs in `us-central1`/`global` on 2026-08-29.
+
+MCP tools:
+
+- `google_ai_model_allowlist`
+- `google_ai_model_lanes_status`
+- `google_ai_model_smoke`
+
+Live smoke tests require `allow_live=true`, use gcloud OAuth on the server, and
+cap prompts/output to avoid uncontrolled cloud spend.
+
 ## Productivity Ledger
 
 `productivity_metrics` is the canonical collection for human-time savings events. Runtime/worker duration is separate from human time saved. Tools:
