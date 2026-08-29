@@ -82,7 +82,12 @@ class AcpDeliverableTrackerTests(unittest.TestCase):
         self.assertIn("cursor_acp_live_probe_pending", status["blockers"])
 
     def test_deliverable_status_ok_when_probes_pass(self) -> None:
-        status = ag58.deliverable_status()
+        with mock.patch.object(
+            ag58,
+            "probe_cursor_acp_surface",
+            return_value={"ok": True, "status": "PASS", "probe": "cursor_agent_acp"},
+        ):
+            status = ag58.deliverable_status()
         self.assertEqual(status["status"], "OK")
         self.assertEqual(status["blockers"], [])
 
