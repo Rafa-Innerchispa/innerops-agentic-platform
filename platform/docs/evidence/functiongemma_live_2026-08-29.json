@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "correlation_id": "allthingsagentic-gemma-live-20260829",
+  "result": "PASS",
+  "project_id": "innerops-agentic-platform",
+  "project_number": "718088522103",
+  "region": "us-central1",
+  "publisher_model": "publishers/google/models/functiongemma@function-gemma-270m",
+  "model_garden_model": "google/functiongemma@function-gemma-270m",
+  "deployment": {
+    "operation_id": "2882646555741913088",
+    "endpoint_id": "mg-endpoint-e6bc84df-58a9-4862-a283-ae5ce083d1df",
+    "endpoint_display_name": "inneros-functiongemma-270m-ondemand-20260829",
+    "deployed_model_id": "8522829748089389056",
+    "vertex_model_id": "google-functiongemma-function-gemma-270m-1788041334",
+    "machine_type": "g2-standard-12",
+    "accelerator_type": "NVIDIA_L4",
+    "accelerator_count": 1,
+    "min_replica_count": 1,
+    "max_replica_count": 1,
+    "shared_endpoint": true,
+    "spot_attempt": {
+      "operation_id": "4106957151317000192",
+      "result": "FAIL_QUOTA",
+      "message": "CustomModelServingPreemptibleCPUsPerProjectPerRegion quota exceeded"
+    }
+  },
+  "inference": {
+    "command": "gcloud ai endpoints predict mg-endpoint-e6bc84df-58a9-4862-a283-ae5ce083d1df --region=us-central1 --json-request=inneros_functiongemma_request_simple.json --format=json",
+    "request_type": "bounded simple prompt",
+    "response_hash_sha256": "b191145dd78301589809c1e2c477d9d28b2474ff4aa945e5ffb0168e1a2a497e",
+    "response_preview": "The analysis of the correlation between inner",
+    "live_mode": "LIVE",
+    "not_simulated": true
+  },
+  "cleanup": {
+    "undeploy_model": "PASS",
+    "delete_endpoint": "PASS",
+    "delete_vertex_model": "PASS",
+    "post_cleanup_endpoints": 0,
+    "post_cleanup_models": 0
+  },
+  "cost_guard": {
+    "gpu_runtime_window": "single short deploy/inference/cleanup cycle",
+    "no_endpoint_left_running": true,
+    "notes": "Actual billing must be confirmed in GCP billing export; serving resources were removed immediately after inference."
+  }
+}
