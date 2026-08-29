@@ -229,7 +229,9 @@ class DigitalOceanAmdProviderTests(unittest.TestCase):
         self.assertIn("HYPERLOOM_BOOTSTRAP_READY", script)
         self.assertIn("ANTHROPIC_API_KEY=<SET_ON_NODE_OR_USE_GATEWAY>", script)
         self.assertNotIn("rm -rf", script)
-        self.assertNotIn("/dev/kfd", script)
+        self.assertIn("docker run --rm", script)
+        self.assertIn("--device=/dev/kfd", script)
+        self.assertIn("--device=/dev/dri", script)
 
     def test_hyperloom_evidence_check_requires_destroy_confirmation(self):
         evidence = {

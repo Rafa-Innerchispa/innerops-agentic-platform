@@ -51,3 +51,16 @@ References:
 ## PASS policy
 
 Preflight, dry-run payloads, probes and contracts are useful, but they are `PARTIAL`. `PASS` requires a real MI325X run plus destroy confirmation.
+
+
+## 2026-08-29 Live Trial Notes
+
+Actual run evidence from droplet `596208188` showed:
+
+- The DigitalOcean AMD image exposes ROCm tools and MI325X/gfx942 hardware, but bare-metal Python initially lacks `pip`.
+- Ubuntu 24.04 blocks global pip installs through PEP 668; bootstrap must use a venv for host-side utilities.
+- Docker is not preinstalled by default; cloud-init/bootstrap installs `docker.io` before container checks.
+- Bare-metal `hyperloom --check-only` fails until a ROCm framework base is present because `torch`, `vllm`/`sglang` are missing.
+- The container `vllm/vllm-openai-rocm:v0.27.1` provides torch HIP 7.2 and vLLM. Inside that container, `hyperloom --check-only` passes with vLLM present.
+- A bounded `framework-agent candidates` plan ran successfully with no model download and no benchmark.
+- The droplet was destroyed immediately after evidence; API verification returned `404 not_found`.

@@ -36,6 +36,7 @@ HYPERLOOM_SIZE = "gpu-mi325x1-256gb"
 HYPERLOOM_IMAGE = "gpu-amd-base"
 HYPERLOOM_SSH_KEY_NAME = "inneros-amd-5-id-ed25519"
 HYPERLOOM_PACKAGE = "hyperloom-inference-optimizer==1.0.0"
+HYPERLOOM_ROCM_CONTAINER = "vllm/vllm-openai-rocm:v0.27.1"
 HYPERLOOM_DOCS = {
     "install": "https://github.com/AMD-AGI/Hyperloom/blob/main/docs/install/install.md",
     "compatibility": "https://github.com/AMD-AGI/Hyperloom/blob/main/docs/compatibility.rst",
@@ -47,6 +48,7 @@ HYPERLOOM_REQUIREMENTS = {
     "rocm": "7.2.x",
     "python": ">=3.10",
     "package": HYPERLOOM_PACKAGE,
+    "rocm_container": HYPERLOOM_ROCM_CONTAINER,
     "run_mode": "docker-preferred",
     "frameworks": ["SGLang>=0.5.12", "vLLM>=0.21.0", "custom benchmark script"],
 }
@@ -612,9 +614,13 @@ def hyperloom_mi325x_bootstrap_script(workspace: str = "/opt/inneros/hyperloom",
         "python3 --version | tee \"$EVIDENCE_DIR/python.txt\"",
         "command -v rocm-smi >/dev/null 2>&1 && rocm-smi --showproductname --showmeminfo vram --showuse --showpower > \"$EVIDENCE_DIR/rocm-smi-before.txt\" || true",
         "command -v rocminfo >/dev/null 2>&1 && rocminfo > \"$EVIDENCE_DIR/rocminfo.txt\" || true",
-        "python3 -m pip install --upgrade pip wheel setuptools",
-        f"python3 -m pip install {HYPERLOOM_PACKAGE} --target \"$WORKSPACE/packages\"",
-        "PYTHONPATH=\"$WORKSPACE/packages\" python3 - <<'PY' | tee \"$EVIDENCE_DIR/hyperloom-import.txt\"",
+        "apt-get update -y >/tmp/inneros_hyperloom_apt_update.log 2>&1 || true",
+        "apt-get install -y python3-pip python3-venv docker.io >/tmp/inneros_hyperloom_apt_install.log 2>&1 || true",
+        "systemctl enable --now docker >/tmp/inneros_hyperloom_docker.log 2>&1 || true",
+        "python3 -m venv \"$WORKSPACE/venv\"",
+        "\"$WORKSPACE/venv/bin/python\" -m pip install --upgrade pip wheel setuptools",
+        f"\"$WORKSPACE/venv/bin/python\" -m pip install {HYPERLOOM_PACKAGE} pyyaml httpx",
+        "\"$WORKSPACE/venv/bin/python\" - <<'PY' | tee \"$EVIDENCE_DIR/hyperloom-import.txt\"",
         "import importlib.metadata as md",
         "for name in ('hyperloom-inference-optimizer', 'hyperloom'):",
         "    try:",
@@ -622,6 +628,8 @@ def hyperloom_mi325x_bootstrap_script(workspace: str = "/opt/inneros/hyperloom",
         "    except Exception as exc:",
         "        print(f'{name}=unavailable:{exc.__class__.__name__}')",
         "PY",
+        f"docker pull {HYPERLOOM_ROCM_CONTAINER} | tee \"$EVIDENCE_DIR/docker-pull.txt\" || true",
+        f"timeout 300 docker run --rm --device=/dev/kfd --device=/dev/dri --group-add video --ipc=host --entrypoint bash {HYPERLOOM_ROCM_CONTAINER} -lc 'python3 -m pip install --quiet {HYPERLOOM_PACKAGE} pyyaml httpx && export USER_DATA_PATH=/tmp/hyperloom-session && hyperloom --check-only && framework-agent schema | head -40' > \"$EVIDENCE_DIR/container-hyperloom-check.txt\" 2>&1 || true",
         "cat > \"$WORKSPACE/.env.template\" <<'EOF'",
         "ANTHROPIC_API_KEY=<SET_ON_NODE_OR_USE_GATEWAY>",
         "ANTHROPIC_BASE_URL=https://api.anthropic.com",
@@ -643,7 +651,7 @@ def hyperloom_mi325x_bootstrap_script(workspace: str = "/opt/inneros/hyperloom",
         "command -v rocm-smi >/dev/null 2>&1 && rocm-smi --showproductname --showmeminfo vram --showuse --showpower > \"$EVIDENCE_DIR/rocm-smi-after.txt\" || true",
         "echo \"HYPERLOOM_BOOTSTRAP_READY $EVIDENCE_DIR\"",
     ]
-    return {"ok": True, "provider": PROVIDER_ID, "script": "\n".join(lines) + "\n", "contains_secret": False, "workspace": clean_workspace, "workload": clean_workload, "expected_evidence": ["python.txt", "rocm-smi-before.txt", "rocminfo.txt", "hyperloom-import.txt", "workload-contract.json", "rocm-smi-after.txt"]}
+    return {"ok": True, "provider": PROVIDER_ID, "script": "\n".join(lines) + "\n", "contains_secret": False, "workspace": clean_workspace, "workload": clean_workload, "expected_evidence": ["python.txt", "rocm-smi-before.txt", "rocminfo.txt", "hyperloom-import.txt", "docker-pull.txt", "container-hyperloom-check.txt", "workload-contract.json", "rocm-smi-after.txt"]}
 
 
 def hyperloom_mi325x_evidence_check(evidence: dict[str, Any]) -> dict[str, Any]:
@@ -675,7 +683,9 @@ def _cloud_init_stub() -> str:
 package_update: true
 packages:
   - python3
+  - python3-pip
   - python3-venv
+  - docker.io
 write_files:
   - path: /opt/inneros/README.txt
     permissions: '0644'
@@ -683,5 +693,5 @@ write_files:
       InnerOS AMD cloud burst node. Provisioning is intentionally minimal until
       an approved ROCm/vLLM image or reviewed cloud-init is selected.
 runcmd:
-  - [ bash, -lc, "mkdir -p /opt/inneros && echo provisioned > /opt/inneros/status" ]
+  - [ bash, -lc, "mkdir -p /opt/inneros && systemctl enable --now docker || true && echo provisioned > /opt/inneros/status" ]
 """
