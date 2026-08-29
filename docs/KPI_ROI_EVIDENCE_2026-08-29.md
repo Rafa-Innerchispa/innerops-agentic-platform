@@ -118,5 +118,6 @@ For the All Things Agentic Hackathon:
 ## Verification state
 
 - Python `compileall`: PASS for all changed/new Python files.
-- Focused pytest: NOT VERIFIED in the isolated worktree because the system interpreter has no `pytest` module and creation of a project venv is approval-gated.
-- The branch must not be presented as fully tested until the focused tests execute successfully in an approved project runtime.
+- Focused pytest: PASS using the canonical project venv (`PYTHONPATH=. /home/rlopez/inneros/inneros_core/platform/venv/bin/python3 -m pytest -q tests/test_productivity_self_heal_metrics.py`) => 6 passed.
+- Extended focused pytest: PASS (`tests/test_productivity_self_heal_metrics.py inneros_core_runtime/tests/test_external_repair_agent.py`) => 17 passed.
+- `git diff --check`: PASS.
