@@ -199,7 +199,7 @@ def cloud_provider_status(provider: str = "gcp") -> dict[str, Any]:
     provider = _normalize_provider(provider)
     meta = PROVIDERS[provider]
     cli = str(meta.get("cli") or "")
-    cli_path = shutil.which(cli) if cli else None
+    cli_path = _resolve_cli_path(cli) if cli else None
     status: dict[str, Any] = {
         "ok": True,
         "agent_id": AGENT_ID,
@@ -309,7 +309,7 @@ def cloud_deploy_apply(
 
 def gcp_auth_bootstrap() -> dict[str, Any]:
     """Report server-side GCP auth posture without returning credentials."""
-    cli_path = shutil.which("gcloud")
+    cli_path = _resolve_cli_path("gcloud")
     readiness = _gcp_readiness(cli_path)
     return {
         "ok": bool(readiness.get("auth", {}).get("ok")),
@@ -396,7 +396,7 @@ def gcp_auth_begin(
     clean = _valid_gcp_auth_request_id(request_id)
     if not clean:
         return {"ok": False, "agent_id": AGENT_ID, "error": "request_id_invalid"}
-    cli_path = shutil.which("gcloud")
+    cli_path = _resolve_cli_path("gcloud")
     if not cli_path:
         return {"ok": False, "agent_id": AGENT_ID, "error": "gcloud_missing"}
     existing = _GCP_AUTH_PROCS.get(clean)
@@ -564,7 +564,7 @@ def cloud_authorization_status(request_id: str) -> dict[str, Any]:
 
 
 def gcp_list_projects() -> dict[str, Any]:
-    cli_path = shutil.which("gcloud")
+    cli_path = _resolve_cli_path("gcloud")
     if not cli_path:
         return {"ok": False, "agent_id": AGENT_ID, "error": "gcloud_missing"}
     result = _run_readonly([cli_path, "projects", "list", "--format=json"], timeout=40)
@@ -801,7 +801,7 @@ def gcp_billing_export_status(billing_account_id: str, project_id: str = "innero
     account = _normalize_billing_account_id(billing_account_id)
     if not account:
         return {"ok": False, "agent_id": AGENT_ID, "error": "billing_account_id_invalid"}
-    bq_path = shutil.which("bq")
+    bq_path = _resolve_cli_path("bq")
     dataset = f"{project_id}:{dataset_id}"
     dataset_check = _run_readonly([bq_path, "show", "--format=json", dataset], timeout=40) if bq_path else {"ok": False, "error": "bq_missing"}
     tables = _bq_billing_export_tables(project_id, dataset_id)
@@ -841,6 +841,49 @@ def gcp_enable_apis(project_id: str, apis: list[str], dry_run: bool = True, appr
 
 def gcp_cloud_run_status(project_id: str, service: str, region: str = "") -> dict[str, Any]:
     return _gcp_read_json("gcp_cloud_run_status", ["run", "services", "describe", service, "--region", _gcp_region(region), "--project", project_id, "--format=json"])
+
+
+def gcp_cloud_run_domain_mapping_status(project_id: str, domain: str, region: str = "") -> dict[str, Any]:
+    zone = _infer_zone_for_hostname(domain)
+    host = _validate_hostname(domain, zone)
+    return _gcp_read_json(
+        "gcp_cloud_run_domain_mapping_status",
+        ["beta", "run", "domain-mappings", "describe", "--domain", host, "--region", _gcp_region(region), "--project", project_id, "--format=json"],
+    )
+
+
+def gcp_cloud_run_domain_mapping_create(
+    project_id: str,
+    service: str,
+    domain: str,
+    region: str = "",
+    dry_run: bool = True,
+    approval_id: str = "",
+    force_override: bool = False,
+) -> dict[str, Any]:
+    zone = _infer_zone_for_hostname(domain)
+    host = _validate_hostname(domain, zone)
+    validation = _gcp_apply_validation("cloud_run_domain_mapping_create", project_id, approval_id, dry_run=dry_run)
+    if not _safe_name(service):
+        validation = {"ok": False, "error": "service_name_invalid"}
+    command = [
+        "gcloud",
+        "beta",
+        "run",
+        "domain-mappings",
+        "create",
+        "--service",
+        service,
+        "--domain",
+        host,
+        "--region",
+        _gcp_region(region),
+        "--project",
+        project_id,
+    ]
+    if force_override:
+        command.append("--force-override")
+    return _gcp_candidate("gcp_cloud_run_domain_mapping_create", validation, command, mutates=True)
 
 
 def gcp_build_image(
@@ -894,7 +937,7 @@ def gcp_build_image(
     _audit_cloud_ops("gcp_build_image", {"provider": "gcp", "project_id": project_id, "image_uri": image_uri, "validation": validation, "executed": False})
     if not validation.get("ok") or dry_run:
         return result
-    cli_path = shutil.which("gcloud")
+    cli_path = _resolve_cli_path("gcloud")
     if not cli_path:
         result.update({"ok": False, "error": "gcloud_missing"})
         return result
@@ -1467,7 +1510,7 @@ def _gcp_billing_project_args() -> list[str]:
 
 
 def _bq_billing_export_tables(project_id: str, dataset_id: str) -> dict[str, Any]:
-    bq_path = shutil.which("bq")
+    bq_path = _resolve_cli_path("bq")
     if not bq_path:
         return {"ok": False, "dataset_ready": False, "error": "bq_missing"}
     dataset = f"{project_id}:{dataset_id}"
@@ -1485,7 +1528,7 @@ def _bq_billing_export_tables(project_id: str, dataset_id: str) -> dict[str, Any
 
 
 def _bq_billing_cost_summary(export_project: str, dataset_id: str, table_id: str, billing_account_id: str, filter_project_id: str, days: int) -> dict[str, Any]:
-    bq_path = shutil.which("bq")
+    bq_path = _resolve_cli_path("bq")
     if not bq_path:
         return {"ok": False, "agent_id": AGENT_ID, "error": "bq_missing"}
     clean_days = max(1, min(int(days or 30), 366))
@@ -1606,7 +1649,7 @@ def _upsert_gcp_allowlist(payload: dict[str, Any]) -> None:
 
 
 def _approval_validation(action: str, approval_id: str, *, dry_run: bool) -> dict[str, Any]:
-    auth = _gcp_readiness(shutil.which("gcloud")).get("auth", {})
+    auth = _gcp_readiness(_resolve_cli_path("gcloud")).get("auth", {})
     if not auth.get("ok"):
         return {"ok": False, "error": "gcp_auth_required", "auth": auth}
     if dry_run:
@@ -1625,7 +1668,7 @@ def _gcp_apply_validation(action: str, project_id: str, approval_id: str, *, dry
         return {"ok": False, "error": "gcp_project_not_allowlisted", "project_id": project_id}
     if billing_account_id and not _gcp_billing_allowed(billing_account_id):
         return {"ok": False, "error": "gcp_billing_account_not_allowlisted"}
-    auth = _gcp_readiness(shutil.which("gcloud")).get("auth", {})
+    auth = _gcp_readiness(_resolve_cli_path("gcloud")).get("auth", {})
     if not auth.get("ok"):
         return {"ok": False, "error": "gcp_auth_required", "auth": auth}
     if dry_run:
@@ -1662,7 +1705,7 @@ def _gcp_candidate(action: str, validation: dict[str, Any], command: list[str], 
             result["ok"] = False
             result["error"] = "unsafe_command_rejected"
             return result
-        cli_path = shutil.which("gcloud")
+        cli_path = _resolve_cli_path("gcloud")
         if not cli_path:
             result["ok"] = False
             result["error"] = "gcloud_missing"
@@ -1676,7 +1719,7 @@ def _gcp_candidate(action: str, validation: dict[str, Any], command: list[str], 
 
 
 def _gcp_read_json(action: str, args: list[str], *, selector: str = "", timeout: int = 40) -> dict[str, Any]:
-    cli_path = shutil.which("gcloud")
+    cli_path = _resolve_cli_path("gcloud")
     if not cli_path:
         return {"ok": False, "agent_id": AGENT_ID, "provider": "gcp", "action": action, "error": "gcloud_missing"}
     result = _run_readonly([cli_path, *args], timeout=timeout)
@@ -2087,7 +2130,22 @@ def _extract_ingress(text: str) -> list[dict[str, str]]:
     return items
 
 
-def _which(cmd: str) -> bool:
-    from shutil import which
+def _resolve_cli_path(cmd: str) -> str | None:
+    """Resolve provider CLIs for both interactive shells and systemd-style services."""
+    if not cmd:
+        return None
+    direct = shutil.which(cmd)
+    if direct:
+        return direct
+    home = Path(os.path.expanduser("~"))
+    for candidate in (home / ".local" / "bin" / cmd, Path("/usr/local/bin") / cmd, Path("/usr/bin") / cmd):
+        try:
+            if candidate.exists() and os.access(candidate, os.X_OK):
+                return str(candidate)
+        except OSError:
+            continue
+    return None
 
-    return which(cmd) is not None
+
+def _which(cmd: str) -> bool:
+    return _resolve_cli_path(cmd) is not None
