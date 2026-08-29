@@ -82,23 +82,31 @@ fi
 source "$VENV_DIR/bin/activate"
 pip install -U pip wheel
 
-PLANNED_PACKAGES=(
-  "torch"
-  "vllm"
-  "transformers"
+AMD_ROCM10_INDEX="https://stable.repo.amd.com/rocm/whl-next/"
+TORCH_SPECS=(
+  "torch[device-gfx1201]==2.12.0+rocm10.0.0"
+  "torchvision[device-gfx1201]==0.27.0+rocm10.0.0"
+  "torchaudio==2.11.0+rocm10.0.0"
 )
 
 run_pip_dry_run() {
-  echo "DRY-RUN: resolving planned packages (no download/install)..."
-  for pkg in "${PLANNED_PACKAGES[@]}"; do
-    echo "--- pip install --dry-run $pkg ---"
-    pip install --dry-run "$pkg" || echo "WARN: dry-run failed for $pkg (index may be unreachable)"
-  done
+  echo "DRY-RUN: AMD ROCm 10 wheels (no CUDA PyPI)..."
+  pip install --dry-run "${TORCH_SPECS[@]}" --index-url "$AMD_ROCM10_INDEX"
+  pip install --dry-run 'transformers>=4.51'
+  echo "NOTE: vLLM full model served via start_canary_vllm.sh (Docker rocm7.14 on :8001)"
 }
 
 run_pip_install() {
-  echo "INSTALL: applying planned packages (explicit --install-packages)..."
-  pip install "${PLANNED_PACKAGES[@]}"
+  echo "INSTALL: AMD ROCm 10 gfx1201 wheels + transformers..."
+  pip install "${TORCH_SPECS[@]}" --index-url "$AMD_ROCM10_INDEX"
+  pip install 'transformers>=4.51'
+  echo "VERIFY torch hip..."
+  python - <<'PY'
+import torch
+assert torch.version.cuda is None, f"unexpected CUDA torch: {torch.version.cuda}"
+assert torch.cuda.is_available(), "GPU not visible"
+print("PASS:", torch.__version__, torch.cuda.get_device_name(0), "hip", torch.version.hip)
+PY
 }
 
 if [[ "$INSTALL_PACKAGES" == true ]]; then
