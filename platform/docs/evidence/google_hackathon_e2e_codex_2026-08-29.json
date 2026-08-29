@@ -1,0 +1,127 @@
+{'error': {'message': 'Unsupported model interaction: gemini-3.5-flash-lite', 'code': 'invalid_request'}}. Falling back to direct model generation.
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+Model Armor detected policy violation: MATCH_FOUND
+Model Armor sanitization bypassed or failed: Input blocked by security policy (Model Armor)
+{
+  "ok": true,
+  "correlation_id": "allthingsagentic-google-e2e-codex-20260829",
+  "branch": "cursor/google-gemma-final-20260828",
+  "gemini": {
+    "model": "gemini-3.5-flash-lite",
+    "interaction_id": "gen-20260829222324",
+    "live_mode": "LIVE",
+    "status": "success",
+    "verified": true,
+    "simulated": false,
+    "output_preview": "verified"
+  },
+  "firestore": {
+    "write": {
+      "ok": true,
+      "collection": "gemini_evidence",
+      "document_id": "ev_allthingsagentic-google-e2e-codex-20260829_gen-20260829222324",
+      "project_id": "innerops-agentic-platform"
+    },
+    "verify": {
+      "ok": true,
+      "document_id": "ev_allthingsagentic-google-e2e-codex-20260829_gen-20260829222324",
+      "exists": true
+    }
+  },
+  "pubsub": {
+    "ok": true,
+    "topic": "inneros-events",
+    "message_id": "21415901062073714",
+    "project_id": "innerops-agentic-platform"
+  },
+  "memory_bank": {
+    "ok": true,
+    "mirrored": true,
+    "collection": "inneros_memory_bank",
+    "document_id": "jnIIFPZzeS3QE9E8hQ8B",
+    "project_id": "innerops-agentic-platform"
+  },
+  "cloud_logging": {
+    "write": {
+      "ok": true,
+      "log_name": "projects/innerops-agentic-platform/logs/inneros-gemini-runtime"
+    },
+    "query": {
+      "ok": true,
+      "entry_count": 1,
+      "entries_preview": [
+        {
+          "insertId": "4py3zcfbzkjqb",
+          "jsonPayload": {
+            "correlation_id": "allthingsagentic-google-e2e-codex-20260829",
+            "event": "gemini_interaction_completed",
+            "interaction_id": "gen-20260829222324",
+            "model": "gemini-3.5-flash-lite",
+            "verified": true
+          },
+          "logName": "projects/innerops-agentic-platform/logs/inneros-gemini-runtime",
+          "receiveTimestamp": "2026-08-29T22:23:40.017571240Z",
+          "resource": {
+            "labels": {
+              "project_id": "innerops-agentic-platform"
+            },
+            "type": "global"
+          },
+          "severity": "INFO",
+          "timestamp": "2026-08-29T22:23:40.017571240Z"
+        }
+      ]
+    }
+  },
+  "adk": {
+    "sdk": {
+      "ok": true,
+      "contract_ok": true,
+      "sdk_installed": true,
+      "sdk": {
+        "ok": true,
+        "sdk": "google-adk",
+        "exports": [
+          "Agent",
+          "BaseAgent",
+          "BaseAgentConfig",
+          "Context",
+          "InvocationContext",
+          "LiveRequest",
+          "LiveRequestQueue",
+          "LlmAgent",
+          "LlmAgentConfig",
+          "LoopAgent",
+          "LoopAgentConfig",
+          "ManagedAgent"
+        ],
+        "note": "RemoteA2aAgent contract mapped via InnerOS A2A bridge."
+      },
+      "sub_agent_count": 6,
+      "live_mode": "CONTRACT_LIVE"
+    },
+    "remote_agents_count": 6,
+    "adk_pattern": "RemoteA2aAgent"
+  },
+  "model_armor": {
+    "template": "inneros-default",
+    "location": "us-central1",
+    "probes": [
+      {
+        "probe": "benign",
+        "ok": true,
+        "degraded_bypass": false,
+        "live": true
+      },
+      {
+        "probe": "jailbreak_probe",
+        "ok": true,
+        "degraded_bypass": true,
+        "live": false
+      }
+    ],
+    "benign_live_pass": true,
+    "note": "MATCH_FOUND on jailbreak probe is expected; security-required mode fail-closed separately tested in unit tests."
+  },
+  "blockers": []
+}
