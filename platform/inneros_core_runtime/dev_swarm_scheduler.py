@@ -954,20 +954,40 @@ def _load_scheduler_candidates(db: Any, base_query: dict[str, Any], scan_limit: 
     priorities = ["critical", "p0", "p1", "normal", "p2", "low"]
     selected: list[dict[str, Any]] = []
     seen: set[str] = set()
+
+    def is_latest(row: dict[str, Any]) -> bool:
+        task_id = str(row.get("task_id") or "")
+        if not task_id:
+            return False
+        latest = (
+            db[coordination_live.OPS_TASKS_COL]
+            .find({"task_id": task_id}, {"_id": 0, "task_id": 1, "status": 1, "updated_at": 1, "created_at": 1, "revision": 1})
+            .sort([("updated_at", -1), ("created_at", -1), ("revision", -1)])
+            .limit(1)
+        )
+        latest_row = next(iter(latest), None)
+        if not latest_row:
+            return True
+        return (
+            str(latest_row.get("status") or "") == str(row.get("status") or "")
+            and str(latest_row.get("updated_at") or "") == str(row.get("updated_at") or "")
+            and int(latest_row.get("revision") or row.get("revision") or 1) == int(row.get("revision") or latest_row.get("revision") or 1)
+        )
+
     per_bucket = max(5, min(scan_limit, 100))
     for priority in priorities:
         query = {**base_query, "priority": priority}
         rows = db[coordination_live.OPS_TASKS_COL].find(query, {"_id": 0}).sort("created_at", -1).limit(per_bucket)
         for row in rows:
             task_id = str(row.get("task_id") or "")
-            if task_id and task_id not in seen:
+            if task_id and task_id not in seen and is_latest(row):
                 seen.add(task_id)
                 selected.append(row)
     if len(selected) < scan_limit:
         rows = db[coordination_live.OPS_TASKS_COL].find(base_query, {"_id": 0}).sort("created_at", -1).limit(scan_limit)
         for row in rows:
             task_id = str(row.get("task_id") or "")
-            if task_id and task_id not in seen:
+            if task_id and task_id not in seen and is_latest(row):
                 seen.add(task_id)
                 selected.append(row)
     return selected

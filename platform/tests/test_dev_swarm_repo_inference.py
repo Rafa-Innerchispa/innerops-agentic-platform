@@ -32,6 +32,56 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         rows = scheduler._load_scheduler_candidates(db, {"status": "proposed"}, 1)
         self.assertEqual(rows[0]["task_id"], "critical_new")
 
+    def test_candidate_loader_ignores_stale_duplicate_proposed_task(self) -> None:
+        class Cursor(list):
+            def sort(self, spec, *_args):
+                if isinstance(spec, list):
+                    rows = list(self)
+                    for key, direction in reversed(spec):
+                        rows.sort(key=lambda row: row.get(key, ""), reverse=direction < 0)
+                    return Cursor(rows)
+                return Cursor(sorted(self, key=lambda row: row.get(spec, ""), reverse=True))
+
+            def limit(self, n):
+                return Cursor(self[:n])
+
+        class Collection:
+            def __init__(self):
+                self.rows = [
+                    {
+                        "task_id": "ops_watchdog_dupe",
+                        "status": "proposed",
+                        "priority": "p0",
+                        "created_at": "2026-08-27T15:12:05+00:00",
+                        "updated_at": "2026-08-27T15:12:05+00:00",
+                        "revision": 1,
+                    },
+                    {
+                        "task_id": "ops_watchdog_dupe",
+                        "status": "blocked",
+                        "priority": "p0",
+                        "created_at": "2026-08-27T15:03:30+00:00",
+                        "updated_at": "2026-08-29T15:48:55+00:00",
+                        "revision": 8,
+                    },
+                ]
+
+            def find(self, query, _projection):
+                rows = []
+                for row in self.rows:
+                    if "task_id" in query and row["task_id"] != query["task_id"]:
+                        continue
+                    if "status" in query and row["status"] != query["status"]:
+                        continue
+                    if "priority" in query and row["priority"] != query["priority"]:
+                        continue
+                    rows.append(row)
+                return Cursor(rows)
+
+        db = {scheduler.coordination_live.OPS_TASKS_COL: Collection()}
+        rows = scheduler._load_scheduler_candidates(db, {"status": "proposed"}, 10)
+        self.assertEqual(rows, [])
+
     def test_new_inneros_task_without_legacy_correlation_is_eligible(self) -> None:
         task = {
             "task_id": "ops_new_inneros",
