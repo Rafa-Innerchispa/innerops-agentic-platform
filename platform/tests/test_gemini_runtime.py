@@ -166,6 +166,8 @@ class GeminiRuntimeTests(unittest.TestCase):
             allow_external=True,
             context={"project_id": "innerops-agentic-platform", "deadline": "2026-08-31"},
         )
+        mock_save_memory.assert_called_once()
+        self.assertEqual(mock_save_memory.call_args.kwargs["project_id"], "innerops-agentic-platform")
         self.assertTrue(result["ok"])
         self.assertEqual(result["correlation_id"], "hackathon-demo-1")
         self.assertEqual(evidence[0]["interaction_id"], "ix-3")

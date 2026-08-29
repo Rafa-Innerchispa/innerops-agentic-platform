@@ -579,6 +579,7 @@ class InnerOSGeminiRuntime:
                     agent_id="google-gemini-vertex",
                     content=memory_content,
                     correlation_id=correlation_id,
+                    project_id=self.client.config.project_id,
                 )
                 evidence["memory_bank"] = memory_result
             except Exception as exc:

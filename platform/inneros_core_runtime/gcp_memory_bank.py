@@ -8,11 +8,11 @@ from typing import Any
 
 logger = logging.getLogger("inneros.gcp_memory_bank")
 
-def _get_firestore_client() -> Any | None:
+def _get_firestore_client(project_id: str | None = None) -> Any | None:
     try:
         from google.cloud import firestore
         from inneros_core_runtime.gemini_runtime import _get_google_credentials
-        credentials, project = _get_google_credentials()
+        credentials, project = _get_google_credentials(project_id)
         return firestore.Client(project=project, credentials=credentials)
     except Exception as exc:
         logger.warning("Could not initialize Firestore client: %s", exc)
@@ -22,9 +22,10 @@ def save_memory(
     agent_id: str,
     content: dict[str, Any],
     correlation_id: str | None = None,
+    project_id: str | None = None,
 ) -> dict[str, Any]:
     """Mirror agent memory/fact to Firestore collection 'inneros_memory_bank'."""
-    client = _get_firestore_client()
+    client = _get_firestore_client(project_id)
     now = datetime.now(timezone.utc).isoformat()
     doc_data = {
         "agent_id": agent_id,
@@ -49,7 +50,7 @@ def save_memory(
             resolved_id = doc_ref.id
 
         logger.info("Successfully mirrored agent memory to Firestore: %s", resolved_id)
-        return {"ok": True, "mirrored": True, "collection": "inneros_memory_bank", "document_id": resolved_id}
+        return {"ok": True, "mirrored": True, "collection": "inneros_memory_bank", "document_id": resolved_id, "project_id": project_id}
     except Exception as exc:
         logger.error("Error writing memory to Firestore: %s", exc)
         return {"ok": False, "error": str(exc), "data": doc_data}

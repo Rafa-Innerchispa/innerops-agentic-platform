@@ -72,7 +72,8 @@ class GovernedGeminiTests(unittest.TestCase):
                 "correlation_id": "corr-123",
                 "status": "success"
             },
-            correlation_id="corr-123"
+            correlation_id="corr-123",
+            project_id="test-proj",
         )
 
     @patch("urllib.request.urlopen")
