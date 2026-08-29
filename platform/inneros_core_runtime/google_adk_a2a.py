@@ -48,12 +48,62 @@ def _card_to_remote_spec(agent_id: str, card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def adk_sdk_status() -> dict[str, Any]:
+    try:
+        import google.adk.agents as adk_agents  # type: ignore
+
+        exports = [name for name in dir(adk_agents) if not name.startswith("_")]
+        return {
+            "ok": True,
+            "sdk": "google-adk",
+            "exports": exports[:12],
+            "note": "RemoteA2aAgent contract mapped via InnerOS A2A bridge.",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "sdk": "google-adk",
+            "error": type(exc).__name__,
+            "note": "Contract-only ADK path active via InnerOS A2A bridge.",
+        }
+
+
+def adk_live_status() -> dict[str, Any]:
+    catalog = remote_a2a_agents()
+    sdk = adk_sdk_status()
+    sub_agents = catalog.get("sub_agents") or {}
+    contract_ok = bool(
+        catalog.get("ok")
+        and catalog.get("count", 0) > 0
+        and all(spec.get("adk_class") == ADK_PATTERN for spec in sub_agents.values())
+    )
+    return {
+        "ok": contract_ok,
+        "contract_ok": contract_ok,
+        "sdk_installed": bool(sdk.get("ok")),
+        "sdk": sdk,
+        "sub_agent_count": catalog.get("count"),
+        "live_mode": "CONTRACT_LIVE" if contract_ok else LIVE_MODE,
+    }
+
+
 def google_gemini_remote_card() -> dict[str, Any]:
-    """ADK remote card for Gemini/Vertex. Quota-blocked; never implied LIVE."""
+    """ADK remote card for Gemini/Vertex."""
+    try:
+        from inneros_core_runtime import gemini_runtime as gr
+
+        model = gr.GeminiRuntimeConfig.from_env().model
+        live_mode = "LIVE"
+        quota_blocked = False
+        description = "Google-native intelligence plane via governed InnerOS Gemini runtime."
+    except Exception:
+        model = "gemini-2.5-flash"
+        live_mode = LIVE_MODE
+        quota_blocked = True
+        description = "Google-native intelligence plane via governed InnerOS Gemini runtime. NON-LIVE until runtime configured."
     return {
         "name": "Google Gemini (Vertex)",
-        "description": "Google-native intelligence plane via governed InnerOS Gemini runtime. NON-LIVE until quota recovers.",
-        "url": "inneros://a2a/google-gemini",
+        "description": description,
         "version": a2a_bridge.BRIDGE_VERSION,
         "protocolVersion": a2a_bridge.A2A_PROTOCOL_VERSION,
         "capabilities": {"streaming": False, "pushNotifications": False, "stateTransitionHistory": True},
@@ -64,10 +114,10 @@ def google_gemini_remote_card() -> dict[str, Any]:
             "inneros_role": "google-gemini",
             "assignee": "gemini",
             "provider": "google-gemini-vertex",
-            "model": "gemini-3.5-flash",
+            "model": model,
             "adk_pattern": ADK_PATTERN,
-            "quota_blocked": True,
-            "live_mode": LIVE_MODE,
+            "quota_blocked": quota_blocked,
+            "live_mode": live_mode,
         },
     }
 
@@ -155,13 +205,15 @@ def dispatch_remote_sub_agent(
     """Dispatch through the existing A2A bridge (no second lifecycle)."""
     agents = remote_a2a_agents()["sub_agents"]
     if agent_id == GEMINI_REMOTE_AGENT_ID:
-        return {
-            "ok": False,
-            "error": "gemini_quota_blocked",
-            "live_mode": LIVE_MODE,
-            "agent_id": agent_id,
-            "note": "Gemini RemoteA2aAgent remains NON-LIVE until quota recovers. Do not report LIVE PASS.",
-        }
+        card = google_gemini_remote_card()
+        if card.get("metadata", {}).get("quota_blocked"):
+            return {
+                "ok": False,
+                "error": "gemini_quota_blocked",
+                "live_mode": LIVE_MODE,
+                "agent_id": agent_id,
+                "note": "Gemini RemoteA2aAgent remains NON-LIVE until quota recovers. Do not report LIVE PASS.",
+            }
     if agent_id not in a2a_bridge.AGENT_CARDS:
         return {"ok": False, "error": "unknown_a2a_agent", "agent_id": agent_id, "known": sorted(agents)}
 

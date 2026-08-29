@@ -29,8 +29,11 @@ def _optional_runtime_module(name: str) -> Any:
 
     try:
         return importlib.import_module(f"raphiia_openai.{name}")
-    except Exception as exc:
-        details = str(exc)
+    except Exception as first_exc:
+        try:
+            return importlib.import_module(f"inneros_core_runtime.{name}")
+        except Exception as exc:
+            details = f"raphiia_openai: {first_exc}; inneros_core_runtime: {exc}"
 
         class _MissingModule:
             def __getattr__(self, attr: str):
@@ -4282,6 +4285,14 @@ def get_coordination_live() -> dict[str, Any]:
     from raphiia_openai import coordination_live
 
     return coordination_live.get_coordination_live()
+
+
+@mcp.tool
+def inneros_agent_fabric_status(ops_task_id: str = "") -> dict[str, Any]:
+    """Estado unificado MCP+IDE Bridge+ACP+KPI (inneros_agent_fabric_v1)."""
+    from inneros_core_runtime import inneros_agent_fabric
+
+    return inneros_agent_fabric.fabric_status(ops_task_id=ops_task_id)
 
 
 @mcp.tool

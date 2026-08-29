@@ -26,15 +26,19 @@ class GovernedGeminiTests(unittest.TestCase):
         self.client = gr.GeminiInteractionsClient(config=self.config, client=self.fake)
         self.runtime = gr.InnerOSGeminiRuntime(client=self.client)
 
+    @patch("inneros_core_runtime.gemini_runtime._write_cloud_log")
     @patch("inneros_core_runtime.gemini_runtime._sanitize_with_model_armor")
     @patch("inneros_core_runtime.gemini_runtime._save_evidence_to_firestore")
     @patch("inneros_core_runtime.gemini_runtime._publish_event_to_pubsub")
     @patch("inneros_core_runtime.gcp_memory_bank.save_memory")
     def test_governed_runtime_executes_sanitization_evidence_and_memory_sync(
-        self, mock_save_memory, mock_publish, mock_save_evidence, mock_sanitize
+        self, mock_save_memory, mock_publish, mock_save_evidence, mock_sanitize, mock_cloud_log
     ):
         mock_sanitize.side_effect = lambda proj, text, mode: (f"sanitized_{text}", False)
-        mock_save_memory.return_value = {"ok": True}
+        mock_cloud_log.return_value = {"ok": True, "log_name": "inneros-gemini-runtime"}
+        mock_publish.return_value = {"ok": True, "message_id": "msg_test", "topic": "inneros-events"}
+        mock_save_memory.return_value = {"ok": True, "document_id": "mem_test"}
+        mock_save_evidence.return_value = {"ok": True, "document_id": "ev_test"}
         
         result = self.runtime.run(
             prompt="Hello World",

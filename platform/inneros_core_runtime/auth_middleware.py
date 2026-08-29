@@ -247,6 +247,7 @@ TOOL_SCOPES = {
     "bootstrap_context": "ralfia:read",
     "get_operational_runbooks": "ralfia:read",
     "get_coordination_live": "ralfia:read",
+    "inneros_agent_fabric_status": "ralfia:read",
     "ack_coordination_revision": "ralfia:write",
     "create_ops_task": "ralfia:write",
     "complete_ops_task": "ralfia:write",

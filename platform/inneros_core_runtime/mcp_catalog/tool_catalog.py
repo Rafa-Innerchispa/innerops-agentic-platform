@@ -210,6 +210,7 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_resource_sync",
     "local_gitlab_prepare_github_mirrors",
     "local_gitlab_credit_status",
+    "inneros_agent_fabric_status",
     "ide_task_bridge_status",
     "ide_dispatch_task",
     "ide_task_status",
@@ -3493,6 +3494,18 @@ TOOL_DEFINITIONS["local_gitlab_create_draft_merge_request"].update(
         },
     }
 )
+
+
+TOOL_DEFINITIONS["inneros_agent_fabric_status"] = {
+    "description": "Estado unificado MCP inbox + IDE Task Bridge + ACP matriz + KPI hooks.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["inneros_agent_fabric"],
+    "input_schema": {"ops_task_id": "string"},
+    "output_schema": {"ok": "bool", "fabric_version": "string", "status": "string"},
+    "example_payload": {},
+}
 
 
 _IDE_BRIDGE_WRITES = {

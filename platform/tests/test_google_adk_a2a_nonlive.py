@@ -109,9 +109,13 @@ class RemoteA2aAgentContractTests(unittest.TestCase):
             self.assertEqual(spec["adk_class"], "RemoteA2aAgent")
             self.assertTrue(spec["agent_card_url"].endswith("agent-card.json"))
         self.assertIn("google-gemini", catalog["sub_agents"])
-        self.assertTrue(catalog["sub_agents"]["google-gemini"]["metadata"]["quota_blocked"])
+        self.assertFalse(catalog["sub_agents"]["google-gemini"]["metadata"]["quota_blocked"])
 
-    def test_gemini_remote_dispatch_stays_non_live(self) -> None:
+    @patch("inneros_core_runtime.google_adk_a2a.google_gemini_remote_card")
+    def test_gemini_remote_dispatch_stays_non_live_when_quota_blocked(self, mock_card) -> None:
+        mock_card.return_value = {
+            "metadata": {"quota_blocked": True},
+        }
         result = google_adk_a2a.dispatch_remote_sub_agent(
             self.bridge,
             agent_id="google-gemini",

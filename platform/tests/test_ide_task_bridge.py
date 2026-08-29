@@ -138,7 +138,9 @@ class IdeTaskBridgeTests(unittest.TestCase):
         from inneros_core_runtime import mcp_server
 
         self.assertEqual(mcp_server.document_vault.document_vault_status()["error"], "module_unavailable")
-        self.assertEqual(mcp_server.local_model_manager.local_model_runtime_status()["error"], "module_unavailable")
+        runtime = mcp_server.local_model_manager.local_model_runtime_status()
+        self.assertIn("ok", runtime)
+        self.assertEqual(runtime.get("capability"), "local_model_manager")
 
 
 if __name__ == "__main__":

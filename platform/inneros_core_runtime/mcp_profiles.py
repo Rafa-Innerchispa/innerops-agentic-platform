@@ -338,13 +338,14 @@ PROFILES: dict[str, dict[str, Any]] = {
     "coordination": {
         "label": "RACB coordinación multiagente",
         "model_minimum": "small",
-        "max_tools": 24,
+        "max_tools": 25,
         "tools": [
             "a2a_status",
             "a2a_agent_cards",
             "a2a_dispatch",
             "a2a_task_status",
             "get_coordination_live",
+            "inneros_agent_fabric_status",
             "ack_coordination_revision",
             "list_agent_messages",
             "ack_agent_message",
