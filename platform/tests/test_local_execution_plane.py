@@ -58,6 +58,13 @@ def test_denies_shell_metachar_command(tmp_path: Path, monkeypatch) -> None:
     assert result["error"] == "command_not_allowlisted"
 
 
+def test_python_profile_allows_unittest_discover_without_shell() -> None:
+    assert lep._command_allowed(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"], "python-tests") is True
+    assert lep._command_allowed(["python", "-m", "unittest", "discover", "-s", "tests", "-v"], "python-tests") is True
+    assert lep._command_allowed(["python3", "-m", "unittest;rm", "discover", "-s", "tests"], "python-tests") is False
+    assert lep._command_allowed(["bash", "-c", "python3 -m unittest discover -s tests"], "python-tests") is False
+
+
 def test_worktree_write_check_and_commit(tmp_path: Path, monkeypatch) -> None:
     repo, branch = _seed_repo(tmp_path, monkeypatch)
     created = lep.create_worktree(repo, "main", branch, "codex", "task1", "corr-1234", "idem-123456")
@@ -217,6 +224,9 @@ def test_workforce_nested_package_root_allows_npm_ci(monkeypatch, tmp_path: Path
     assert "services/femar-mvp-core" in conf["package_roots"]
     assert lep._node_package_command_allowed(["npm", "--prefix", "services/femar-mvp-core", "ci"], conf) is True
     assert lep._node_package_command_allowed(["npm", "ci", "--prefix", "services/femar-mvp-core"], conf) is True
+    assert lep._node_package_command_allowed(["npm", "--prefix", "services/femar-mvp-core", "test"], conf) is True
+    assert lep._node_package_command_allowed(["npm", "--prefix", "services/femar-mvp-core", "test", "--", "--runInBand"], conf) is True
+    assert lep._node_package_command_allowed(["npm", "--prefix", "services/femar-mvp-core", "run", "lint"], conf) is True
 
 
 def test_local_exec_push_branch_gitlab_auth_is_ephemeral_and_redacted(monkeypatch, tmp_path: Path) -> None:
@@ -356,3 +366,50 @@ def test_amend_commit_author_requires_verified_email(monkeypatch, tmp_path: Path
     assert ok["ok"] is True
     assert ok["email_verified"] is True
     assert "VERIFIED_EMAIL" in ok["would_execute"][-1]
+
+
+def test_innerops_platform_prefix_skipped_without_package_json(monkeypatch, tmp_path: Path) -> None:
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    (worktree / "platform").mkdir()
+    conf = {
+        "profile": "python-tests",
+        "package_roots": [".", "platform"],
+        "source_path": str(worktree),
+    }
+    monkeypatch.setattr(lep, "_repo_config", lambda repo: conf)
+
+    roots = scheduler._product_roots_for_repo("Rafa-Innerchispa/innerops-agentic-platform", worktree)
+    assert roots == []
+    commands = scheduler._test_commands_for_policy(
+        "Rafa-Innerchispa/innerops-agentic-platform",
+        worktree,
+        ["platform/inneros_core_runtime/foo.py"],
+    )
+    assert not any(cmd[:3] == ["npm", "--prefix", "platform"] for cmd in commands)
+    assert lep._node_package_command_allowed(
+        ["npm", "--prefix", "platform", "test", "--", "--runInBand"],
+        conf,
+        base=worktree,
+    ) is False
+
+
+def test_innerops_platform_prefix_allowed_when_package_json_exists(tmp_path: Path) -> None:
+    worktree = tmp_path / "wt"
+    platform = worktree / "platform"
+    platform.mkdir(parents=True)
+    (platform / "package.json").write_text('{"scripts":{"test":"node test.js"}}', encoding="utf-8")
+    conf = {
+        "profile": "python-tests",
+        "package_roots": ["platform"],
+        "source_path": str(worktree),
+    }
+
+    assert lep._node_package_command_allowed(
+        ["npm", "--prefix", "platform", "test", "--", "--runInBand"],
+        conf,
+        base=worktree,
+    ) is True
+    assert lep._node_package_command_allowed(["npm", "--prefix", "platform", "ci"], conf, base=worktree) is True

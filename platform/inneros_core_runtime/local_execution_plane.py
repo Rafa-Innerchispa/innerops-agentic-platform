@@ -132,6 +132,8 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("python", "-m", "pytest"),
         ("python3", "-m", "pytest"),
         ("pytest",),
+        ("python", "-m", "unittest"),
+        ("python3", "-m", "unittest"),
         ("python", "-m", "compileall"),
         ("python3", "-m", "compileall"),
         ("git", "status", "--short", "--branch"),
@@ -186,6 +188,7 @@ DEFAULT_REPO_PROFILES = {
             "lib",
             "public",
             "scripts",
+            "services",
             "src",
             "tests",
             "README.md",
@@ -199,9 +202,9 @@ DEFAULT_REPO_PROFILES = {
         ],
     },
     "Rafa-Innerchispa/innerops-agentic-platform": {
-        "profile": "node-tests",
+        "profile": "python-tests",
         "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
-        "package_roots": ["."],
+        "package_roots": [],
         "allowed_paths": [
             "app",
             "components",
@@ -607,37 +610,71 @@ def _clean_package_root(root: str) -> str:
     return rel
 
 
-def _node_package_command_allowed(command: list[str], conf: dict[str, Any]) -> bool:
+def _package_roots_with_manifest(base: Path, roots: list[str]) -> set[str]:
+    """Return configured package roots that have a package.json under *base*."""
+    valid: set[str] = set()
+    for root in roots:
+        try:
+            rel = _clean_package_root(root)
+        except PermissionError:
+            continue
+        pkg_dir = base if rel == "." else base / rel
+        if (pkg_dir / "package.json").is_file():
+            valid.add(rel)
+    return valid
+
+
+def _node_package_command_allowed(command: list[str], conf: dict[str, Any], *, base: Path | None = None) -> bool:
     if not command or command[0] != "npm":
         return False
     if any(re.search(r"[;&|`$<>]", part) for part in command):
         return False
     try:
-        package_roots = {_clean_package_root(root) for root in (conf.get("package_roots") or [])}
+        configured = [_clean_package_root(root) for root in (conf.get("package_roots") or [])]
     except PermissionError:
         return False
+    if base is not None:
+        package_roots = _package_roots_with_manifest(base, list(conf.get("package_roots") or []))
+    else:
+        package_roots = set(configured)
     if not package_roots:
         return False
-    safe_actions = {"ci", "install"}
+    safe_actions = {"ci", "install", "test"}
+    safe_run_scripts = {"test", "lint", "build"}
     package_root = "."
-    action = ""
-    if len(command) == 2 and command[1] in safe_actions:
-        action = command[1]
-    elif len(command) == 4 and command[1] == "--prefix" and command[3] in safe_actions:
+    idx = 1
+
+    if len(command) > idx + 1 and command[idx] == "--prefix":
         try:
-            package_root = _clean_package_root(command[2])
+            package_root = _clean_package_root(command[idx + 1])
         except PermissionError:
             return False
-        action = command[3]
-    elif len(command) == 4 and command[1] in safe_actions and command[2] == "--prefix":
-        action = command[1]
+        idx += 2
+    elif len(command) > idx + 2 and command[idx] in safe_actions and command[idx + 1] == "--prefix":
+        action = command[idx]
         try:
-            package_root = _clean_package_root(command[3])
+            package_root = _clean_package_root(command[idx + 2])
         except PermissionError:
             return False
-    else:
+        return action in safe_actions and package_root in package_roots
+
+    if idx >= len(command):
         return False
-    return bool(action and package_root in package_roots)
+
+    token = command[idx]
+    if token in safe_actions:
+        if token == "test" and idx + 1 < len(command):
+            if command[idx + 1] != "--":
+                return False
+            for arg in command[idx + 2 :]:
+                if not re.fullmatch(r"[-A-Za-z0-9]+", arg):
+                    return False
+        return package_root in package_roots
+
+    if token == "run" and idx + 1 < len(command) and command[idx + 1] in safe_run_scripts:
+        return package_root in package_roots
+
+    return False
 
 def _worktree_path(repo: str, work_branch: str, conf: dict[str, Any]) -> Path:
     branch_slug = re.sub(r"[^A-Za-z0-9_.-]+", "__", work_branch)
@@ -978,11 +1015,12 @@ def run_command_allowlisted(
         _validate_branch(work_branch, require_work_branch=True)
         conf = _repo_config(repo)
         profile = str(conf.get("profile") or "python-tests")
-        if not (_command_allowed(command, profile) or (profile == "node-tests" and _node_package_command_allowed(command, conf))):
-            return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command, "command_run_id": command_run_id}
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
             return {"ok": False, "error": "worktree_missing", "worktree": str(worktree), "command_run_id": command_run_id}
+        npm_allowed = _node_package_command_allowed(command, conf, base=worktree)
+        if not (_command_allowed(command, profile) or npm_allowed):
+            return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command, "command_run_id": command_run_id}
         _record_command_run(
             command_run_id,
             {
