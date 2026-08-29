@@ -23,9 +23,11 @@ logger = logging.getLogger("inneros.gemini_runtime")
 PROVIDER_ID = "google-gemini-vertex"
 MODEL_ID = "gemini-3.5-flash"
 DEFAULT_PROJECT_ID = "innerops-agentic-platform"
-# Gemini 3.5 Flash PayGo is served through global/us/eu endpoints. Agent Runtime
-# can remain in us-central1 while model calls use the US multi-region endpoint.
-DEFAULT_MODEL_LOCATION = "us"
+# Gemini Enterprise Agent Platform examples for Gemini 3.5 Flash use the
+# global model endpoint. Agent Runtime can remain in us-central1 while model
+# inference is sent to the global endpoint. Keeping these locations separate
+# avoids the 404 observed when the model was probed through the older `us` path.
+DEFAULT_MODEL_LOCATION = "global"
 DEFAULT_AGENT_LOCATION = "us-central1"
 
 

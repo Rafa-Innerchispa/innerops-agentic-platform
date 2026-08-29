@@ -37,7 +37,7 @@ class GeminiRuntimeTests(unittest.TestCase):
         self.config = gr.GeminiRuntimeConfig(
             project_id="innerops-agentic-platform",
             model="gemini-3.5-flash",
-            model_location="us",
+            model_location="global",
             agent_location="us-central1",
             store_interactions=True,
         )
@@ -49,7 +49,7 @@ class GeminiRuntimeTests(unittest.TestCase):
             cfg = gr.GeminiRuntimeConfig.from_env()
         self.assertEqual(cfg.project_id, "innerops-agentic-platform")
         self.assertEqual(cfg.model, "gemini-3.5-flash")
-        self.assertEqual(cfg.model_location, "us")
+        self.assertEqual(cfg.model_location, "global")
         self.assertEqual(cfg.agent_location, "us-central1")
 
     def test_tool_spec_uses_interactions_function_schema(self):
