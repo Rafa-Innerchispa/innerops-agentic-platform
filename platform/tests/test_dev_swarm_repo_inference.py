@@ -307,6 +307,15 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
                     "tags": ["email"],
                     "title": "Process invoice email",
                 },
+                {
+                    "task_id": "ops_needs_repo",
+                    "status": "proposed",
+                    "assignee": "codex",
+                    "priority": "p0",
+                    "created_at": "2026-08-26T18:00:00+00:00",
+                    "coordination_bucket": "needs_repo_metadata",
+                    "title": "Old task without safe repo metadata",
+                },
             ]
 
             def find(self, query, _projection):
@@ -335,7 +344,10 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertEqual(result["available"], 4)
         self.assertEqual(result["selected"][0]["task_id"], "ops_workforce_nested")
         self.assertEqual(result["selected"][0]["repo"], "Rafa-Innerchispa/innerspark-workforce-ai")
-        self.assertEqual(result["filtered"][0]["reason"], "non_development_ops_filtered")
+        reasons = {row["task_id"]: row["reason"] for row in result["filtered"]}
+        self.assertEqual(reasons["ops_email"], "non_development_ops_filtered")
+        self.assertEqual(reasons["ops_needs_repo"], "needs_repo_metadata")
+        self.assertFalse(result["skipped"])
 
 
 if __name__ == "__main__":

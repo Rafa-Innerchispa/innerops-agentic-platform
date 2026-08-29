@@ -897,6 +897,10 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     skipped: list[dict[str, Any]] = []
     filtered: list[dict[str, Any]] = []
     for task in tasks:
+        bucket = str(task.get("coordination_bucket") or task.get("cleanup_bucket") or "").strip()
+        if bucket in {"email_ops_backlog", "needs_repo_metadata", "closed_watchdog_noise", "cancelled_stale_duplicate_shadow"}:
+            filtered.append({"task_id": task.get("task_id"), "reason": bucket})
+            continue
         text = _task_search_text(task)
         if _is_non_dev_ops_task(task, text):
             reason = "non_development_ops_filtered"
