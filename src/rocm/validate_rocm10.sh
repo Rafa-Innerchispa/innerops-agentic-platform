@@ -52,6 +52,26 @@ if [[ "$gfx_ok" == false ]]; then
   exit 1
 fi
 
+ROCM10_INSTALL="${ROCM10_INSTALL:-$CANARY_DIR/rocm-10-install/rocm/core-10.0}"
+if [[ -x "$ROCM10_INSTALL/bin/rocminfo" ]]; then
+  export ROCM_PATH="$ROCM10_INSTALL"
+  export PATH="$ROCM10_INSTALL/bin:$PATH"
+  export LD_LIBRARY_PATH="$ROCM10_INSTALL/lib:$ROCM10_INSTALL/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  canary_roc="$( "$ROCM10_INSTALL/bin/rocminfo" 2>/dev/null | head -5 || true)"
+  if grep -qi 'HSA System Attributes' <<<"$canary_roc"; then
+    echo "PASS: canary ROCm 10 rocminfo at $ROCM10_INSTALL"
+  else
+    echo "WARN: canary rocminfo did not report HSA attributes"
+  fi
+  if [[ -x "$ROCM10_INSTALL/bin/rocm-smi" ]]; then
+    if "$ROCM10_INSTALL/bin/rocm-smi" --showproductname 2>/dev/null | grep -qiE 'R9700|gfx1201'; then
+      echo "PASS: canary rocm-smi sees R9700/gfx1201"
+    fi
+  fi
+else
+  echo "INFO: canary ROCm 10 install not bound yet ($ROCM10_INSTALL); run manual_install_rocm10.sh"
+fi
+
 if ss -ltnp 2>/dev/null | grep -q ':8000'; then
   echo "INFO: :8000 listener present (production) — validation did not start or stop it"
 fi
