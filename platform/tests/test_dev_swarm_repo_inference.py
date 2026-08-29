@@ -198,6 +198,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "owner": "dev_swarm",
             "assignee": "ralfia",
             "priority": "p0",
+            "dev_swarm_retry_requested": True,
             "correlation_id": "workforce-full-parity-gemini-analytics-20260824",
             "title": "P0 Workforce parity + Gemini HR/Payroll analytics + 2-year synthetic dataset",
             "checklist": [

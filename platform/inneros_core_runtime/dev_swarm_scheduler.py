@@ -31,6 +31,7 @@ STALE_PROGRESS_SECONDS = 1800
 MAX_STALE_RECLAIMS = 2
 CAPACITY_STATE_KEY = "dev_swarm_capacity_governor"
 ELIGIBLE_STATUSES = ("proposed",)
+OPS_TERMINAL_STATUSES = frozenset({"blocked", "completed", "cancelled", "failed"})
 PRIORITY_ORDER = {"critical": 0, "p0": 1, "p1": 2, "normal": 3, "p2": 4, "low": 5}
 SAFE_INNEROS_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
 ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini"}
@@ -509,6 +510,10 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         else:
             ok, invalid_reason, expected_repo = _eligible_reason(task)
             worker_repo = _worker_repo(worker)
+            ops_status = str(task.get("status") or "").lower()
+            if ops_status in OPS_TERMINAL_STATUSES and not _ops_auto_retry_allowed(task):
+                invalid_reason = f"ops_status_{ops_status}_no_auto_retry"
+                ok = False
             if ok:
                 continue
             if invalid_reason == "repo_not_inferred" and worker_repo:
@@ -599,9 +604,22 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     }
 
 
+def _ops_auto_retry_allowed(task: dict[str, Any]) -> bool:
+    """Only explicit retry flag may relaunch blocked/in_progress ops owned by dev_swarm."""
+    if not task.get("dev_swarm_retry_requested"):
+        return False
+    owner = str(task.get("owner") or "").lower()
+    return owner == "dev_swarm"
+
+
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     status = str(task.get("status") or "").lower()
-    if status not in ELIGIBLE_STATUSES and not (status in {"accepted", "in_progress", "blocked"} and task.get("owner") == "dev_swarm"):
+    retry_allowed = status == "blocked" and _ops_auto_retry_allowed(task)
+    if status in OPS_TERMINAL_STATUSES and not retry_allowed:
+        return False, f"ops_status_{status}_no_auto_retry", None
+    if status not in ELIGIBLE_STATUSES and not retry_allowed and not (
+        status in {"accepted", "in_progress"} and str(task.get("owner") or "").lower() == "dev_swarm"
+    ):
         return False, "status_not_proposed", None
     assignee = str(task.get("assignee") or "").lower()
     if assignee not in ALLOWED_ASSIGNEES:
@@ -858,6 +876,15 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         .limit(max(1, min(limit, 25)))
         if row.get("task_id")
     ]
+    # Only retry when ops explicitly requests it; blocked workers alone must not relaunch.
+    if retry_ids:
+        retry_ids = [
+            tid
+            for tid in retry_ids
+            if (doc := db[coordination_live.OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "dev_swarm_retry_requested": 1, "status": 1}))
+            and doc.get("dev_swarm_retry_requested")
+            and str(doc.get("status") or "").lower() in {"accepted", "in_progress", "blocked"}
+        ]
     if retry_ids:
         seen = {task.get("task_id") for task in tasks}
         retry_tasks = db[coordination_live.OPS_TASKS_COL].find(
@@ -1170,12 +1197,17 @@ def _product_roots_for_repo(repo: str, worktree: Path) -> list[str]:
         conf = local_execution_plane._repo_config(repo)
     except Exception:
         conf = {}
-    roots = []
-    for root in conf.get("package_roots") or []:
-        rel = str(root).strip("/").replace("\\", "/")
-        if rel in {".", "/"}:
+    configured = list(conf.get("package_roots") or [])
+    if not configured:
+        return []
+    valid = local_execution_plane._package_roots_with_manifest(worktree, configured)
+    roots: list[str] = []
+    for root in configured:
+        try:
+            rel = local_execution_plane._clean_package_root(root)
+        except PermissionError:
             continue
-        if rel and (worktree / rel).exists():
+        if rel in valid and rel not in roots:
             roots.append(rel)
     return roots
 
@@ -1929,6 +1961,12 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             failures = "\n".join(str(check)[:4000] for check in failed)
             if any(((check.get("result") or {}).get("error") == "command_not_allowlisted") for check in failed):
                 _set_worker_phase(task_id, "failed", test_status="failed", blocker="command_not_allowlisted_non_retryable")
+                coordination_live.update_ops_task_state(
+                    task_id,
+                    "blocked",
+                    actor="dev_swarm",
+                    evidence={"blocker": "command_not_allowlisted_non_retryable", "source": EXECUTOR_VERSION},
+                )
                 break
             _set_worker_phase(task_id, "retry", test_status="failed", blocker="tests_failed_retrying")
             continue
@@ -2020,6 +2058,13 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         },
     }})
     coordination_live.heartbeat_ops_task(task_id, "dev_swarm", next_action="Escalate after retry budget", blocker=failures[:1000] or f"{EXECUTOR_VERSION}_failed", files_touched=sorted(set(files_touched)))
+    if str((_task_doc(task_id) or {}).get("status") or "").lower() == "in_progress":
+        coordination_live.update_ops_task_state(
+            task_id,
+            "blocked",
+            actor="dev_swarm",
+            evidence={"blocker": (failures[:1000] or f"{EXECUTOR_VERSION}_failed"), "source": EXECUTOR_VERSION},
+        )
     return {"ok": False, "task_id": task_id, "repo": repo, "branch": branch, "outcome": "FAIL", "attempts": len(attempts), "implementation_writes": sorted(set(files_touched)), "implementation_writes_product": _implementation_write_classes(repo, worktree, files_touched)["product"], "files_touched": sorted(set(files_touched)), "error": failures[:2000], "commands_ok": False, "local_model_ok": local_model_ok, "model_route": last_model_route}
 
 
@@ -2217,6 +2262,32 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
     task = _task_doc(task_id)
     if not task:
         return {"ok": False, "task_id": task_id, "error": "task_not_found"}
+    ops_status = str(task.get("status") or "").lower()
+    if ops_status in OPS_TERMINAL_STATUSES and not _ops_auto_retry_allowed(task):
+        blocker = str(task.get("blocker") or task.get("dev_swarm_last_skip_reason") or ops_status)
+        db = _db()
+        db[WORKERS_COL].update_one(
+            {"task_id": task_id, "status": {"$in": ["starting", "running", "verification"]}},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "blocker": f"ops_{ops_status}:{blocker[:200]}",
+                    "slot_reclaimed_at": _now(),
+                    "executor.status": "blocked",
+                    "executor.phase": "ops_not_runnable",
+                    "executor.blocker": blocker[:200],
+                    "executor.updated_at": _now(),
+                    "updated_at": _now(),
+                }
+            },
+        )
+        return {
+            "ok": False,
+            "task_id": task_id,
+            "outcome": "SKIPPED",
+            "error": f"ops_status_{ops_status}_no_auto_retry",
+            "blocker": blocker,
+        }
     objective = f"{task.get('title') or task_id}\n\n" + "\n".join(str(x) for x in task.get("checklist") or [])
     correlation_id = str(task.get("correlation_id") or f"fanout-{task_id}")
     branch = f"local-agent/{task_id}-{secrets.token_hex(3)}"

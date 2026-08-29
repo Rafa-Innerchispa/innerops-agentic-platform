@@ -54,9 +54,13 @@ class CapacityGovernorVNextTests(unittest.TestCase):
         )
 
     def test_scheduler_no_longer_uses_safe_id_query_gate(self):
-        source = Path("inneros_core_runtime/dev_swarm_scheduler.py").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "dev_swarm_scheduler.py").read_text(encoding="utf-8")
         self.assertNotIn('"task_id": {"$in": list(CURRENT_SAFE_TASK_IDS)}', source)
         self.assertIn('"admission_policy": "repo_policy_priority_capacity"', source)
+
+    def test_scheduler_start_does_not_persist_below_capacity_floor(self):
+        result = dev_swarm_scheduler.scheduler_start(max_concurrent=1, dry_run=True)
+        self.assertEqual(result["would_set"]["max_concurrent"], dev_swarm_scheduler.DEFAULT_MAX_CONCURRENT)
 
     def test_policy_based_dual_node_admission_fixture(self):
         original = dev_swarm_scheduler.local_execution_plane.repo_policy_status
