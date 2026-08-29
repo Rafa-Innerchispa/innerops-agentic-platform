@@ -127,7 +127,7 @@ class InnerOSA2AExecutor(AgentExecutor):
     """Delegate one official A2A task into one durable InnerOS ops task."""
 
     def __init__(self, agent_id: str, bridge: a2a_bridge.A2ABridge | None = None) -> None:
-        if agent_id not in a2a_bridge.AGENT_CARDS:
+        if agent_id not in a2a_bridge._all_cards():
             raise ValueError(f"unknown_a2a_agent:{agent_id}")
         self.agent_id = agent_id
         self.bridge = bridge or a2a_bridge.get_bridge()
@@ -205,8 +205,9 @@ def _public_base() -> str:
     return (os.getenv("A2A_PUBLIC_URL") or RAPHI_IA_PUBLIC_URL or "http://127.0.0.1:8099").rstrip("/")
 
 
-def build_agent_card(agent_id: str) -> AgentCard:
-    raw = a2a_bridge.AGENT_CARDS[agent_id]
+def build_agent_card(agent_id: str, *, cards: dict[str, dict[str, Any]] | None = None) -> AgentCard:
+    registry = cards if cards is not None else a2a_bridge._all_cards()
+    raw = registry[agent_id]
     skill = raw["skills"][0]
     return AgentCard(
         name=str(raw["name"]),
@@ -252,9 +253,10 @@ async def _status_endpoint(_request: Request) -> JSONResponse:
 def build_a2a_app() -> Starlette:
     """Build the multi-agent A2A ASGI app mounted by :8099 at ``/a2a``."""
     routes: list[Any] = [Route("/status", _status_endpoint, methods=["GET"])]
-    for agent_id in a2a_bridge.AGENT_CARDS:
+    cards = a2a_bridge._all_cards()
+    for agent_id in cards:
         path = f"/{agent_id}"
-        card = build_agent_card(agent_id)
+        card = build_agent_card(agent_id, cards=cards)
         handler = DefaultRequestHandler(
             agent_executor=InnerOSA2AExecutor(agent_id),
             task_store=RACBProjectedTaskStore(),
