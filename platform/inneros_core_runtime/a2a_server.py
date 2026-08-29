@@ -39,7 +39,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from raphiia_openai import a2a_bridge
+from raphiia_openai import a2a_bridge, a2a_oidc
 from raphiia_openai.a2a_task_store import MongoProtocolTaskStore
 from raphiia_openai.settings import RAPHI_IA_PUBLIC_URL
 
@@ -59,7 +59,11 @@ _A2A_TO_PROTO_STATE = {
 
 
 class A2AAuthMiddleware(BaseHTTPMiddleware):
-    """Protect task RPC while leaving status and Agent Cards discoverable."""
+    """Protect task RPC while leaving status and Agent Cards discoverable.
+
+    Auth order: OIDC service JWT (NON-LIVE HS256 harness / LIVE JWKS pending),
+    then shared bearer token, then loopback-only when nothing is configured.
+    """
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         path = request.url.path
@@ -67,24 +71,39 @@ class A2AAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         expected = (os.getenv(A2A_AUTH_ENV) or "").strip()
+        oidc_audience = (os.getenv("A2A_OIDC_AUDIENCE") or "").strip()
         client_host = request.client.host if request.client else ""
-        if not expected:
-            if client_host not in {"127.0.0.1", "::1", "localhost"}:
-                return JSONResponse(
-                    {
-                        "ok": False,
-                        "error": "a2a_auth_not_configured",
-                        "required_env": A2A_AUTH_ENV,
-                    },
-                    status_code=503,
-                )
-            return await call_next(request)
-
         authorization = request.headers.get("authorization", "")
         prefix = "Bearer" + " "
         supplied = authorization[len(prefix) :].strip() if authorization.startswith(prefix) else ""
-        if not supplied or not hmac.compare_digest(supplied, expected):
+        request.state.traceparent = request.headers.get("traceparent", "")
+        request.state.correlation_id = request.headers.get("x-correlation-id", "")
+
+        if oidc_audience and supplied:
+            try:
+                claims = a2a_oidc.verify_service_token(supplied, audience=oidc_audience)
+                request.state.a2a_auth = {"mode": "oidc", "claims": claims, "live_mode": claims.get("live_mode")}
+                return await call_next(request)
+            except a2a_oidc.A2AOIDCError as exc:
+                if not expected:
+                    return JSONResponse({"ok": False, "error": exc.code, "detail": str(exc)}, status_code=401)
+
+        if expected:
+            if supplied and hmac.compare_digest(supplied, expected):
+                request.state.a2a_auth = {"mode": "bearer", "live_mode": "NON-LIVE"}
+                return await call_next(request)
             return JSONResponse({"ok": False, "error": "a2a_unauthorized"}, status_code=401)
+
+        if client_host not in {"127.0.0.1", "::1", "localhost"}:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "a2a_auth_not_configured",
+                    "required_env": [A2A_AUTH_ENV, "A2A_OIDC_AUDIENCE"],
+                },
+                status_code=503,
+            )
+        request.state.a2a_auth = {"mode": "loopback", "live_mode": "NON-LIVE"}
         return await call_next(request)
 
 
@@ -239,12 +258,15 @@ def build_agent_card(agent_id: str, *, cards: dict[str, dict[str, Any]] | None =
 
 async def _status_endpoint(_request: Request) -> JSONResponse:
     status = a2a_bridge.status()
+    oidc = a2a_oidc.auth_status()
     status.update(
         {
             "wire_protocol": "A2A 1.0 JSON-RPC",
             "sdk_min_version": A2A_SDK_MIN_VERSION,
             "base_path": "/a2a",
-            "rpc_auth": "bearer" if os.getenv(A2A_AUTH_ENV) else "loopback-only-until-auth-configured",
+            "rpc_auth": oidc.get("modes") or ["loopback"],
+            "oidc": oidc,
+            "traceparent_header": "traceparent",
         }
     )
     return JSONResponse(status)

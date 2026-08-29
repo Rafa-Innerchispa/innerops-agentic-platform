@@ -121,7 +121,7 @@ class A2ABridge:
     ops: OpsAdapter
     store: A2AStore
 
-    def dispatch(self, *, agent_id: str, title: str, body: str, correlation_id: str = "", context_id: str = "", priority: str = "p0", related_project: str | None = "inneros", dry_run: bool = False, protocol_task_id: str = "") -> dict[str, Any]:
+    def dispatch(self, *, agent_id: str, title: str, body: str, correlation_id: str = "", context_id: str = "", priority: str = "p0", related_project: str | None = "inneros", dry_run: bool = False, protocol_task_id: str = "", envelope: dict[str, Any] | None = None, traceparent: str = "") -> dict[str, Any]:
         cards = _all_cards()
         agent_key = normalize_agent_key(agent_id)
         card = cards.get(agent_key)
@@ -137,11 +137,21 @@ class A2ABridge:
         metadata = card.get("metadata") or {}
         assignee = str(metadata.get("assignee") or "ralfia")
         canonical_agent_id = str(metadata.get("agent_id") or agent_key)
+        tracking = dict(envelope or {})
+        if traceparent and not tracking.get("traceparent"):
+            tracking["traceparent"] = traceparent
+        if tracking:
+            tracking.setdefault("correlation_id", ops_correlation_id)
+            tracking.setdefault("a2a_task_id", a2a_task_id)
+            tracking.setdefault("context_id", context_id)
+            tracking.setdefault("agent", canonical_agent_id)
         planned = {
             "ok": True, "dry_run": True, "a2a_task_id": a2a_task_id,
             "contextId": context_id, "agent_id": canonical_agent_id,
             "assignee": assignee, "state": "submitted", "transport": "a2a",
         }
+        if tracking:
+            planned["envelope"] = tracking
         if dry_run:
             return planned
 
@@ -163,6 +173,8 @@ class A2ABridge:
             "ops_task_id": ops_task_id, "state": "submitted", "transport": "a2a",
             "created_at": _now(), "updated_at": _now(), "artifacts": [],
             "bridge_version": BRIDGE_VERSION,
+            "envelope": tracking or None,
+            "traceparent": (tracking or {}).get("traceparent") or traceparent or "",
         }
         self.store.put(record)
         return {**planned, "dry_run": False, "ops_task_id": ops_task_id, "created": bool(created.get("created", True))}
