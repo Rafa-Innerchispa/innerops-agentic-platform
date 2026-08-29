@@ -8,6 +8,7 @@ from typing import Any
 from raphiia_openai import mongo_store
 
 COLLECTION = "productivity_metrics"
+VALID_MEASUREMENT_CLASSES = frozenset({"measured", "estimated", "inferred", "manual"})
 
 
 def _now() -> str:
@@ -27,6 +28,10 @@ def calculate_event(payload: dict[str, Any]) -> dict[str, Any]:
     saved = max(0.0, human - assisted)
     reduction = round((saved / human) * 100, 2) if human else 0.0
     speedup = round(human / assisted, 2) if assisted else 0.0
+    measurement_class = str(payload.get("measurement_class") or "manual").strip().lower()
+    if measurement_class not in VALID_MEASUREMENT_CLASSES:
+        measurement_class = "manual"
+    verified = bool(payload.get("verified", measurement_class == "measured"))
     return {
         "task_key": str(payload.get("task_key") or "").strip(),
         "started_at": payload.get("started_at"),
@@ -34,8 +39,11 @@ def calculate_event(payload: dict[str, Any]) -> dict[str, Any]:
         "human_baseline_minutes": human,
         "assisted_minutes": assisted,
         "saved_minutes": saved,
+        "human_hours_returned": round(saved / 60.0, 4),
         "reduction_percent": reduction,
         "speedup": speedup,
+        "measurement_class": measurement_class,
+        "verified": verified,
         "confidence": str(payload.get("confidence") or "medium").strip().lower(),
         "evidence_refs": list(payload.get("evidence_refs") or []),
         "notes": str(payload.get("notes") or "").strip(),
@@ -76,12 +84,25 @@ def summarize_productivity_events(limit: int = 500) -> dict[str, Any]:
     saved = sum(_float(row.get("saved_minutes")) for row in rows)
     reduction = round((saved / human) * 100, 2) if human else 0.0
     speedup = round(human / assisted, 2) if assisted else 0.0
+    verified_saved = sum(
+        _float(row.get("saved_minutes"))
+        for row in rows
+        if bool(row.get("verified"))
+        and str(row.get("measurement_class") or "").strip().lower() == "measured"
+    )
+    by_measurement_class: dict[str, int] = {}
+    for row in rows:
+        key = str(row.get("measurement_class") or "legacy").strip().lower()
+        by_measurement_class[key] = by_measurement_class.get(key, 0) + 1
     return {
         "ok": True,
         "count": len(rows),
         "human_baseline_minutes": human,
         "assisted_minutes": assisted,
         "saved_minutes": saved,
+        "human_hours_returned": round(saved / 60.0, 4),
+        "verified_human_hours_returned": round(verified_saved / 60.0, 4),
         "reduction_percent": reduction,
         "speedup": speedup,
+        "by_measurement_class": by_measurement_class,
     }

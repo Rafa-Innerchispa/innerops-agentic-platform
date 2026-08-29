@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from time import monotonic
 from typing import Any
+from uuid import uuid4
 
 from raphiia_openai.agent_auto_log import record_agent_run
 
 AGENT_ID = "AG-42_SERVICE_GUARDIAN"
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def run_service_guardian(*, notify: bool = False) -> dict[str, Any]:
@@ -84,12 +91,72 @@ def _try_recover_mongo(*, auto_repair: bool) -> dict[str, Any] | None:
     return out
 
 
+def _record_cycle_metrics(
+    *,
+    cycle_id: str,
+    cycle_started_at: str,
+    cycle_completed_at: str,
+    cycle_duration_seconds: float,
+    repairs: list[dict[str, Any]],
+    post: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Best-effort self-heal telemetry; it must never break recovery itself."""
+    if not repairs:
+        return []
+    try:
+        from raphiia_openai import self_heal_metrics
+    except Exception as exc:
+        return [{"ok": False, "error": f"self_heal_metrics_import_failed:{exc}"}]
+
+    post_ok = bool((post or {}).get("ok"))
+    recorded: list[dict[str, Any]] = []
+    for repair in repairs:
+        result = repair.get("result") if isinstance(repair.get("result"), dict) else {}
+        skipped = bool(repair.get("skipped"))
+        action_ok = bool(result.get("ok")) if result else False
+        service_id = str(repair.get("service_id") or "unknown")
+        action = str(result.get("action") or ("skipped" if skipped else "restart"))
+        try:
+            item = self_heal_metrics.record_self_heal_incident(
+                {
+                    "incident_id": f"{cycle_id}:{service_id}:{len(recorded) + 1}",
+                    "cycle_id": cycle_id,
+                    "service_id": service_id,
+                    "node": repair.get("node") or "",
+                    "detected_at": cycle_started_at,
+                    "repair_started_at": cycle_started_at,
+                    "recovered_at": cycle_completed_at if action_ok and post_ok else None,
+                    "repair_duration_seconds": cycle_duration_seconds,
+                    "repair_action": action,
+                    "repair_action_ok": action_ok,
+                    "verified_recovered": action_ok and post_ok,
+                    "verification_method": "AG-42 post-repair service guardian",
+                    "automatic": True,
+                    "human_intervention_required": False,
+                    "human_intervention_minutes": 0,
+                    "details": {"repair": repair, "post_guardian_ok": post_ok},
+                }
+            )
+        except Exception as exc:
+            item = {"ok": False, "error": str(exc)[:300], "service_id": service_id}
+        recorded.append(item)
+    return recorded
+
+
 def run_self_heal_cycle(*, auto_repair: bool = False, max_repairs: int = 3) -> dict[str, Any]:
     """
     Ciclo auto-reparación local: detecta caídos → restart allowlisted vía AG-41.
     Incluye recuperación ngrok (AG-31) antes de restarts. Sin créditos cloud.
+
+    Cuando auto_repair=True cada reparación real deja un incidente auditable.
+    El ledger NO atribuye Human Hours Returned hasta que exista un baseline
+    manual verificable para ese servicio.
     """
     from raphiia_openai.agents import ag41_peer_ops_executor as ag41
+
+    cycle_id = f"healcycle_{uuid4().hex[:12]}"
+    cycle_started_at = _now()
+    cycle_clock = monotonic()
 
     mongo_recover = _try_recover_mongo(auto_repair=auto_repair)
     guard = run_service_guardian(notify=False)
@@ -118,7 +185,7 @@ def run_self_heal_cycle(*, auto_repair: bool = False, max_repairs: int = 3) -> d
         node_label = str(item.get("node") or item.get("node_label") or "primary")
         node = "amd" if node_label in (".5", "amd", "192.168.1.5") else "primary"
         if sid not in _HEALABLE:
-            repairs.append({"service_id": sid, "skipped": True, "reason": "not_healable"})
+            repairs.append({"service_id": sid, "node": node, "skipped": True, "reason": "not_healable"})
             continue
         result = ag41.peer_ops_action(sid, node=node, action="restart", dry_run=not auto_repair)
         repairs.append({"service_id": sid, "node": node, "result": result})
@@ -128,6 +195,21 @@ def run_self_heal_cycle(*, auto_repair: bool = False, max_repairs: int = 3) -> d
 
     post = run_service_guardian(notify=False) if auto_repair and repairs else None
     healed = post.get("ok") if post else guard.get("ok")
+    cycle_completed_at = _now()
+    cycle_duration_seconds = max(0.0, monotonic() - cycle_clock)
+    metric_records = (
+        _record_cycle_metrics(
+            cycle_id=cycle_id,
+            cycle_started_at=cycle_started_at,
+            cycle_completed_at=cycle_completed_at,
+            cycle_duration_seconds=cycle_duration_seconds,
+            repairs=repairs,
+            post=post,
+        )
+        if auto_repair and repairs
+        else []
+    )
+
     record_agent_run(
         AGENT_ID,
         action="run_self_heal_cycle",
@@ -137,11 +219,16 @@ def run_self_heal_cycle(*, auto_repair: bool = False, max_repairs: int = 3) -> d
     return {
         "ok": bool(healed),
         "agent_id": AGENT_ID,
+        "cycle_id": cycle_id,
+        "cycle_started_at": cycle_started_at,
+        "cycle_completed_at": cycle_completed_at,
+        "cycle_duration_seconds": round(cycle_duration_seconds, 3),
         "auto_repair": auto_repair,
         "mongo_recover": mongo_recover,
         "ngrok_recover": ngrok_recover,
         "before": guard,
         "repairs": repairs,
         "after": post,
+        "self_heal_metric_records": metric_records,
         "local_only": True,
     }
