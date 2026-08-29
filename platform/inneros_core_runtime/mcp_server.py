@@ -1450,6 +1450,38 @@ def digitalocean_cleanup_failed_sessions(max_age_seconds: int = 3600, dry_run: b
 
 
 @mcp.tool
+def digitalocean_hyperloom_mi325x_preflight(spend_limit_usd: float = 8.0, idle_minutes: int = 30) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: preflight read-only para Hyperloom en MI325X tor1."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.hyperloom_mi325x_preflight(spend_limit_usd=spend_limit_usd, idle_minutes=idle_minutes)
+
+
+@mcp.tool
+def digitalocean_hyperloom_mi325x_session_plan(approval_id: str = "", dry_run: bool = True, spend_limit_usd: float = 8.0, idle_minutes: int = 30) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: plan/ejecucion gated del droplet Hyperloom MI325X."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.hyperloom_mi325x_session_plan(approval_id=approval_id, dry_run=dry_run, spend_limit_usd=spend_limit_usd, idle_minutes=idle_minutes)
+
+
+@mcp.tool
+def digitalocean_hyperloom_mi325x_bootstrap_script(workspace: str = "/opt/inneros/hyperloom", workload: str = "inneros-workforce-bounded-smoke") -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: script sin secretos para bootstrap Hyperloom MI325X."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.hyperloom_mi325x_bootstrap_script(workspace=workspace, workload=workload)
+
+
+@mcp.tool
+def digitalocean_hyperloom_mi325x_evidence_check(evidence: dict[str, Any]) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: valida evidencia minima antes de declarar PASS."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.hyperloom_mi325x_evidence_check(evidence=evidence)
+
+
+@mcp.tool
 def brightdata_status() -> dict[str, Any]:
     """Bright Data: estado seguro, balance y MCP remoto sin exponer token."""
     from raphiia_openai import brightdata_provider as bd

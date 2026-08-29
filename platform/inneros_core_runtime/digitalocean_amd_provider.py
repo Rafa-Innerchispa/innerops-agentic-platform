@@ -31,6 +31,26 @@ DEFAULT_IDLE_MINUTES = 30
 API_BASE = "https://api.digitalocean.com/v2"
 ACTIVE_SESSION_STATUSES = {"creating", "active", "bootstrapping", "running", "idle"}
 
+HYPERLOOM_REGION = "tor1"
+HYPERLOOM_SIZE = "gpu-mi325x1-256gb"
+HYPERLOOM_IMAGE = "gpu-amd-base"
+HYPERLOOM_SSH_KEY_NAME = "inneros-amd-5-id-ed25519"
+HYPERLOOM_PACKAGE = "hyperloom-inference-optimizer==1.0.0"
+HYPERLOOM_DOCS = {
+    "install": "https://github.com/AMD-AGI/Hyperloom/blob/main/docs/install/install.md",
+    "compatibility": "https://github.com/AMD-AGI/Hyperloom/blob/main/docs/compatibility.rst",
+}
+HYPERLOOM_REQUIREMENTS = {
+    "gpu": ["MI300X", "MI325X", "MI355X"],
+    "target_gpu": "MI325X",
+    "os": ["Ubuntu 22.04", "Ubuntu 24.04"],
+    "rocm": "7.2.x",
+    "python": ">=3.10",
+    "package": HYPERLOOM_PACKAGE,
+    "run_mode": "docker-preferred",
+    "frameworks": ["SGLang>=0.5.12", "vLLM>=0.21.0", "custom benchmark script"],
+}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -198,7 +218,7 @@ def preflight() -> dict[str, Any]:
         "id": PROVIDER_ID,
         "auth_mode": "owner_vault",
         "secret_category": VAULT_CATEGORY,
-        "capabilities": ["status", "preflight", "list_regions", "list_sizes", "list_images", "list_ssh_keys", "list_droplets", "create_gpu_droplet", "destroy_droplet", "cost_session_status"],
+        "capabilities": ["status", "preflight", "list_regions", "list_sizes", "list_images", "list_ssh_keys", "list_droplets", "create_gpu_droplet", "destroy_droplet", "cost_session_status", "hyperloom_mi325x_preflight", "hyperloom_mi325x_session_plan", "hyperloom_mi325x_bootstrap_script", "hyperloom_mi325x_evidence_check"],
         "risk_level": "high_write",
         "allowed_resources": ["droplets", "ssh_keys", "firewalls", "images", "sizes", "regions"],
         "rate_limits": {"reads_per_minute": 60, "writes_per_hour": 4, "default_spend_limit_usd": DEFAULT_SPEND_LIMIT_USD},
@@ -223,7 +243,7 @@ def resource_provider_document() -> dict[str, Any]:
         "provider_id": PROVIDER_ID,
         "label": "DigitalOcean AMD Cloud Burst",
         "kind": "ephemeral_cloud_gpu",
-        "capabilities": ["coding", "heavy_reasoning", "gpu_inference", "cloud_burst", "ephemeral_runtime"],
+        "capabilities": ["coding", "heavy_reasoning", "gpu_inference", "cloud_burst", "hyperloom_mi325x", "ephemeral_runtime"],
         "model_provider": MODEL_PROVIDER_ID,
         "local_first": False,
         "status": "active" if current.get("token_present") and current.get("account_reachable") else "configured_needs_token",
@@ -239,7 +259,7 @@ def model_provider_document() -> dict[str, Any]:
     return {
         "model_provider": MODEL_PROVIDER_ID,
         "provider_id": PROVIDER_ID,
-        "task_classes": ["coding", "heavy_reasoning", "gpu_inference"],
+        "task_classes": ["coding", "heavy_reasoning", "gpu_inference", "hyperloom_mi325x"],
         "priority": 50,
         "cost_policy": "explicit_burst_only",
         "lifecycle": "create->health->bootstrap->task->evidence->idle_destroy",
@@ -485,6 +505,155 @@ def cleanup_failed_sessions(max_age_seconds: int = 3600, dry_run: bool = True) -
         return {"ok": True, "dry_run": True, "matched": len(rows), "sessions": rows}
     result = col.update_many(query, {"$set": {"status": "create_failed", "cleanup_reason": "missing_droplet_id_after_create_window", "updated_at": _now()}})
     return {"ok": True, "dry_run": False, "matched": len(rows), "modified": int(getattr(result, "modified_count", 0))}
+
+
+def _find_by_slug_or_id(rows: list[dict[str, Any]], value: str) -> dict[str, Any] | None:
+    needle = str(value or "").strip()
+    for row in rows:
+        if str(row.get("slug") or "") == needle or str(row.get("id") or "") == needle:
+            return row
+    return None
+
+
+def _find_ssh_key(keys: list[dict[str, Any]], value: str) -> dict[str, Any] | None:
+    needle = str(value or "").strip()
+    for key in keys:
+        if str(key.get("id") or "") == needle or str(key.get("name") or "") == needle or str(key.get("fingerprint") or "") == needle:
+            return key
+    return None
+
+
+def hyperloom_mi325x_preflight(*, region: str = HYPERLOOM_REGION, size: str = HYPERLOOM_SIZE, image: str = HYPERLOOM_IMAGE, ssh_key: str = HYPERLOOM_SSH_KEY_NAME, spend_limit_usd: float = 8.0, idle_minutes: int = DEFAULT_IDLE_MINUTES) -> dict[str, Any]:
+    requested_region = (region or HYPERLOOM_REGION).strip()
+    requested_size = (size or HYPERLOOM_SIZE).strip()
+    requested_image = (image or HYPERLOOM_IMAGE).strip()
+    requested_key = (ssh_key or HYPERLOOM_SSH_KEY_NAME).strip()
+    status_doc = status()
+    sizes_doc = list_sizes(gpu_only=True)
+    images_doc = list_images()
+    keys_doc = list_ssh_keys()
+    sizes = sizes_doc.get("sizes") or [] if sizes_doc.get("ok") else []
+    images = images_doc.get("images") or [] if images_doc.get("ok") else []
+    keys = keys_doc.get("ssh_keys") or [] if keys_doc.get("ok") else []
+    size_doc = _find_by_slug_or_id(sizes, requested_size)
+    image_doc = _find_by_slug_or_id(images, requested_image)
+    key_doc = _find_ssh_key(keys, requested_key)
+    hourly = _as_float((size_doc or {}).get("price_hourly"))
+    max_hours = round(float(spend_limit_usd) / hourly, 3) if hourly else None
+    regions = [str(r) for r in ((size_doc or {}).get("regions") or [])]
+    checks = {
+        "token_present": bool(status_doc.get("token_present")),
+        "account_reachable": bool(status_doc.get("account_reachable")),
+        "size_available": bool(size_doc and (size_doc.get("available") is not False)),
+        "size_region_match": bool(size_doc and (not regions or requested_region in regions)),
+        "image_available": bool(image_doc),
+        "ssh_key_available": bool(key_doc),
+        "spend_limit_within_policy": 0 < float(spend_limit_usd or 0) <= DEFAULT_SPEND_LIMIT_USD,
+        "idle_window_within_policy": 0 < int(idle_minutes or 0) <= 240,
+        "local_r9700_untouched": True,
+    }
+    ok = all(checks.values())
+    return {
+        "ok": ok,
+        "provider": PROVIDER_ID,
+        "workload": "hyperloom-mi325x-cloud-burst",
+        "checks": checks,
+        "requirements": HYPERLOOM_REQUIREMENTS,
+        "docs": HYPERLOOM_DOCS,
+        "selected": {
+            "region": requested_region,
+            "size": requested_size,
+            "image": requested_image,
+            "ssh_key": {k: (key_doc or {}).get(k) for k in ("id", "name", "fingerprint", "public_key_present")},
+            "hourly_rate_usd": hourly,
+            "spend_limit_usd": float(spend_limit_usd),
+            "estimated_max_session_hours": max_hours,
+            "idle_minutes": int(idle_minutes),
+        },
+        "ready_for_apply": ok,
+        "create_args": {
+            "name": "inneros-hyperloom-mi325x",
+            "region": requested_region,
+            "size": requested_size,
+            "image": requested_image,
+            "ssh_key_ids": [str((key_doc or {}).get("id"))] if key_doc and (key_doc or {}).get("id") else [],
+            "project_id": "inneros-hyperloom-mi325x",
+            "task_id": "ops_0554539ce084",
+            "spend_limit_usd": float(spend_limit_usd),
+            "idle_minutes": int(idle_minutes),
+            "dry_run": False,
+        },
+        "apply_gate": "requires cloud_approval_issue + cloud_apply_window_set and an approval_id before create_gpu_droplet(dry_run=False)",
+    }
+
+
+def hyperloom_mi325x_session_plan(approval_id: str = "", dry_run: bool = True, spend_limit_usd: float = 8.0, idle_minutes: int = DEFAULT_IDLE_MINUTES) -> dict[str, Any]:
+    pf = hyperloom_mi325x_preflight(spend_limit_usd=spend_limit_usd, idle_minutes=idle_minutes)
+    args = dict(pf.get("create_args") or {})
+    args["approval_id"] = approval_id
+    args["dry_run"] = dry_run
+    if not pf.get("ok"):
+        return {"ok": False, "provider": PROVIDER_ID, "preflight": pf, "executed": False}
+    candidate = create_gpu_droplet(**args)
+    return {"ok": bool(candidate.get("ok")), "provider": PROVIDER_ID, "preflight": pf, "candidate": candidate, "executed": bool(candidate.get("executed"))}
+
+
+def hyperloom_mi325x_bootstrap_script(workspace: str = "/opt/inneros/hyperloom", workload: str = "inneros-workforce-bounded-smoke") -> dict[str, Any]:
+    clean_workspace = re.sub(r"[^A-Za-z0-9_./-]", "", workspace or "/opt/inneros/hyperloom") or "/opt/inneros/hyperloom"
+    clean_workload = re.sub(r"[^A-Za-z0-9_.-]", "", workload or "inneros-workforce-bounded-smoke") or "inneros-workforce-bounded-smoke"
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        "export DEBIAN_FRONTEND=noninteractive",
+        f"WORKSPACE=\"{clean_workspace}\"",
+        f"EVIDENCE_DIR=\"$WORKSPACE/evidence/{clean_workload}\"",
+        "mkdir -p \"$WORKSPACE/packages\" \"$WORKSPACE/session\" \"$EVIDENCE_DIR\"",
+        "cd \"$WORKSPACE/packages\"",
+        "python3 --version | tee \"$EVIDENCE_DIR/python.txt\"",
+        "command -v rocm-smi >/dev/null 2>&1 && rocm-smi --showproductname --showmeminfo vram --showuse --showpower > \"$EVIDENCE_DIR/rocm-smi-before.txt\" || true",
+        "command -v rocminfo >/dev/null 2>&1 && rocminfo > \"$EVIDENCE_DIR/rocminfo.txt\" || true",
+        "python3 -m pip install --upgrade pip wheel setuptools",
+        f"python3 -m pip install {HYPERLOOM_PACKAGE} --target \"$WORKSPACE/packages\"",
+        "PYTHONPATH=\"$WORKSPACE/packages\" python3 - <<'PY' | tee \"$EVIDENCE_DIR/hyperloom-import.txt\"",
+        "import importlib.metadata as md",
+        "for name in ('hyperloom-inference-optimizer', 'hyperloom'):",
+        "    try:",
+        "        print(f'{name}={md.version(name)}')",
+        "    except Exception as exc:",
+        "        print(f'{name}=unavailable:{exc.__class__.__name__}')",
+        "PY",
+        "cat > \"$WORKSPACE/.env.template\" <<'EOF'",
+        "ANTHROPIC_API_KEY=<SET_ON_NODE_OR_USE_GATEWAY>",
+        "ANTHROPIC_BASE_URL=https://api.anthropic.com",
+        "CLAUDE_MODEL=claude-opus-5",
+        f"USER_DATA_PATH={clean_workspace}/session",
+        "HYPERLOOM_RUN_MODE=docker",
+        "HYPERLOOM_DOCKER_TARGET_HOST=$(hostname)",
+        "HYPERLOOM_SPECIALIST_INHERIT_SECRET_ENV=0",
+        "EOF",
+        "cat > \"$EVIDENCE_DIR/workload-contract.json\" <<'EOF'",
+        "{",
+        "  \"task_id\": \"ops_0554539ce084\",",
+        "  \"correlation_id\": \"inneros-hyperloom-mi325x-codex-20260829\",",
+        f"  \"workload\": \"{clean_workload}\",",
+        "  \"policy\": \"bounded smoke only; no production default switch; destroy droplet after evidence\",",
+        "  \"required_after_run\": [\"wall_time\", \"gpu_metrics_before_after\", \"hyperloom_version\", \"command_line\", \"result\", \"destroy_confirmation\"]",
+        "}",
+        "EOF",
+        "command -v rocm-smi >/dev/null 2>&1 && rocm-smi --showproductname --showmeminfo vram --showuse --showpower > \"$EVIDENCE_DIR/rocm-smi-after.txt\" || true",
+        "echo \"HYPERLOOM_BOOTSTRAP_READY $EVIDENCE_DIR\"",
+    ]
+    return {"ok": True, "provider": PROVIDER_ID, "script": "\n".join(lines) + "\n", "contains_secret": False, "workspace": clean_workspace, "workload": clean_workload, "expected_evidence": ["python.txt", "rocm-smi-before.txt", "rocminfo.txt", "hyperloom-import.txt", "workload-contract.json", "rocm-smi-after.txt"]}
+
+
+def hyperloom_mi325x_evidence_check(evidence: dict[str, Any]) -> dict[str, Any]:
+    required = ["droplet_id", "region", "size", "image", "ssh_connected", "hyperloom_version", "runtime_versions", "command_line", "wall_time_seconds", "gpu_metrics", "workload_result", "destroy_confirmation"]
+    missing = [key for key in required if not evidence.get(key)]
+    size_ok = str(evidence.get("size") or "") == HYPERLOOM_SIZE
+    region_ok = str(evidence.get("region") or "") == HYPERLOOM_REGION
+    destroyed = str(evidence.get("destroy_confirmation") or "").lower() in {"destroyed", "deleted", "confirmed"} or bool(evidence.get("destroyed_at"))
+    ok = not missing and size_ok and region_ok and destroyed
+    return {"ok": ok, "provider": PROVIDER_ID, "missing": missing, "checks": {"size_is_mi325x_1x": size_ok, "region_is_tor1": region_ok, "destroy_confirmed": destroyed}, "pass_policy": "PASS requires real MI325X node evidence plus destroy confirmation; dry-run/preflight is PARTIAL only."}
 
 
 def _session_doc(**kwargs: Any) -> dict[str, Any]:

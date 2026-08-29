@@ -164,6 +164,94 @@ class DigitalOceanAmdProviderTests(unittest.TestCase):
         self.assertEqual(result["error"], "ssh_public_key_invalid_or_missing")
 
 
+    def test_hyperloom_preflight_selects_mi325x_tor1_gpu_base_and_ssh_key(self):
+        with patch.object(do, "status", return_value={"token_present": True, "account_reachable": True}), \
+            patch.object(do, "list_sizes", return_value={
+                "ok": True,
+                "sizes": [{
+                    "slug": "gpu-mi325x1-256gb",
+                    "available": True,
+                    "regions": ["tor1"],
+                    "price_hourly": 3.8,
+                    "gpu_info": {"model": "amd_mi325x", "vram": {"amount": 256, "unit": "gib"}},
+                }],
+            }), \
+            patch.object(do, "list_images", return_value={"ok": True, "images": [{"slug": "gpu-amd-base", "name": "AMD AI/ML Ready Image"}]}), \
+            patch.object(do, "list_ssh_keys", return_value={"ok": True, "ssh_keys": [{"id": 58806485, "name": "inneros-amd-5-id-ed25519", "fingerprint": "aa:bb", "public_key_present": True}]}):
+            result = do.hyperloom_mi325x_preflight(spend_limit_usd=7.6)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["ready_for_apply"])
+        self.assertEqual(result["selected"]["region"], "tor1")
+        self.assertEqual(result["selected"]["size"], "gpu-mi325x1-256gb")
+        self.assertEqual(result["selected"]["image"], "gpu-amd-base")
+        self.assertEqual(result["create_args"]["ssh_key_ids"], ["58806485"])
+        self.assertEqual(result["selected"]["estimated_max_session_hours"], 2.0)
+
+    def test_hyperloom_preflight_rejects_wrong_region_and_missing_key(self):
+        with patch.object(do, "status", return_value={"token_present": True, "account_reachable": True}), \
+            patch.object(do, "list_sizes", return_value={"ok": True, "sizes": [{"slug": "gpu-mi325x1-256gb", "available": True, "regions": ["tor1"], "price_hourly": 3.8}]}), \
+            patch.object(do, "list_images", return_value={"ok": True, "images": [{"slug": "gpu-amd-base"}]}), \
+            patch.object(do, "list_ssh_keys", return_value={"ok": True, "ssh_keys": []}):
+            result = do.hyperloom_mi325x_preflight(region="nyc2")
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["checks"]["size_region_match"])
+        self.assertFalse(result["checks"]["ssh_key_available"])
+
+    def test_hyperloom_session_plan_stays_dry_run_by_default(self):
+        fake_preflight = {
+            "ok": True,
+            "create_args": {
+                "name": "inneros-hyperloom-mi325x",
+                "region": "tor1",
+                "size": "gpu-mi325x1-256gb",
+                "image": "gpu-amd-base",
+                "ssh_key_ids": ["58806485"],
+                "project_id": "inneros-hyperloom-mi325x",
+                "task_id": "ops_0554539ce084",
+                "spend_limit_usd": 8.0,
+                "idle_minutes": 30,
+                "dry_run": False,
+            },
+        }
+        with patch.object(do, "hyperloom_mi325x_preflight", return_value=fake_preflight), \
+            patch.object(do, "create_gpu_droplet", return_value={"ok": True, "dry_run": True, "executed": False}) as create:
+            result = do.hyperloom_mi325x_session_plan()
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["executed"])
+        self.assertTrue(create.call_args.kwargs["dry_run"])
+
+    def test_hyperloom_bootstrap_script_has_no_secret_and_leaves_local_gpu_untouched(self):
+        result = do.hyperloom_mi325x_bootstrap_script(workspace="/opt/inneros/hyperloom;rm -rf /", workload="demo smoke")
+        self.assertTrue(result["ok"])
+        script = result["script"]
+        self.assertFalse(result["contains_secret"])
+        self.assertIn("pip install hyperloom-inference-optimizer==1.0.0", script)
+        self.assertIn("HYPERLOOM_BOOTSTRAP_READY", script)
+        self.assertIn("ANTHROPIC_API_KEY=<SET_ON_NODE_OR_USE_GATEWAY>", script)
+        self.assertNotIn("rm -rf", script)
+        self.assertNotIn("/dev/kfd", script)
+
+    def test_hyperloom_evidence_check_requires_destroy_confirmation(self):
+        evidence = {
+            "droplet_id": "123456",
+            "region": "tor1",
+            "size": "gpu-mi325x1-256gb",
+            "image": "gpu-amd-base",
+            "ssh_connected": True,
+            "hyperloom_version": "1.0.0",
+            "runtime_versions": {"rocm": "7.2"},
+            "command_line": "hyperloom smoke",
+            "wall_time_seconds": 42,
+            "gpu_metrics": {"vram_gb": 256},
+            "workload_result": {"ok": True},
+        }
+        result = do.hyperloom_mi325x_evidence_check(evidence)
+        self.assertFalse(result["ok"])
+        self.assertIn("destroy_confirmation", result["missing"])
+        evidence["destroy_confirmation"] = "destroyed"
+        result = do.hyperloom_mi325x_evidence_check(evidence)
+        self.assertTrue(result["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()
