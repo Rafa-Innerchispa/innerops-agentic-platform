@@ -33,11 +33,11 @@ def save_memory(
         "created_at": now,
         "updated_at": now,
     }
-    
+
     if not client:
         logger.warning("Firestore client unavailable. Memory not mirrored to GCP: %s", doc_data)
         return {"ok": False, "error": "firestore_unavailable", "data": doc_data}
-        
+
     try:
         col_ref = client.collection("inneros_memory_bank")
         doc_id = content.get("memory_id") or content.get("id")

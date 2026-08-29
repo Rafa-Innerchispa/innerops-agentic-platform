@@ -39,29 +39,29 @@ class GovernedGeminiTests(unittest.TestCase):
         mock_publish.return_value = {"ok": True, "message_id": "msg_test", "topic": "inneros-events"}
         mock_save_memory.return_value = {"ok": True, "document_id": "mem_test"}
         mock_save_evidence.return_value = {"ok": True, "document_id": "ev_test"}
-        
+
         result = self.runtime.run(
             prompt="Hello World",
             correlation_id="corr-123",
             tools=[],
             allow_external=True
         )
-        
+
         self.assertTrue(result["ok"])
         # Check sanitization was called on input
         mock_sanitize.assert_any_call("test-proj", "Hello World", mode="prompt")
         # Check sanitization was called on output
         mock_sanitize.assert_any_call("test-proj", "ok", mode="response")
-        
+
         # Check Firestore evidence was saved
         mock_save_evidence.assert_called_once()
         evidence = mock_save_evidence.call_args[0][1]
         self.assertEqual(evidence["correlation_id"], "corr-123")
         self.assertEqual(evidence["interaction_id"], "ix-1")
-        
+
         # Check Pub/Sub event was published
         mock_publish.assert_called_once()
-        
+
         # Check Memory Bank was synchronized
         mock_save_memory.assert_called_once_with(
             agent_id="google-gemini-vertex",
@@ -79,12 +79,12 @@ class GovernedGeminiTests(unittest.TestCase):
     @patch("google.auth.default")
     def test_model_armor_sanitization_detects_blocks(self, mock_auth, mock_urlopen):
         mock_auth.return_value = (MagicMock(), "test-proj")
-        
+
         # Mock Model Armor response indicating MATCH_FOUND (Blocked)
         mock_response = MagicMock()
         mock_response.read.return_value = b'{"sanitizationResult": {"filterMatchState": "MATCH_FOUND", "userPromptData": {"text": "blocked_input"}}}'
         mock_urlopen.return_value.__enter__.return_value = mock_response
-        
+
         # Calling sanitization should return the sanitized version or raise error
         res = gr._sanitize_with_model_armor("test-proj", "jailbreak_text", mode="prompt")
         self.assertEqual(res, ("blocked_input", False))
@@ -95,7 +95,7 @@ class GovernedGeminiTests(unittest.TestCase):
     def test_model_armor_security_required_fails_closed(self, mock_auth, mock_urlopen):
         mock_auth.return_value = (MagicMock(), "test-proj")
         mock_urlopen.side_effect = Exception("Network Down")
-        
+
         with self.assertRaises(ValueError):
             gr._sanitize_with_model_armor("test-proj", "jailbreak_text", mode="prompt")
 

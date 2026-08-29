@@ -51,22 +51,22 @@ def main():
     # Initialize Governed Gemini Runtime
     client = gr.GeminiInteractionsClient(config=gr.GeminiRuntimeConfig(project_id=PROJECT_ID))
     runtime = gr.InnerOSGeminiRuntime(client=client)
-    
+
     supervisor_prompt = (
         "We need to write a Python utility function named `calculate_savings(credits, used)` "
         "that calculates the difference between total credits and used credits, returning the result as a float. "
         "Formulate a precise instruction prompt for a developer assistant."
     )
-    
+
     # Run governed Gemini reasoning turn (automatically validated through Model Armor REST API)
     result = runtime.run(
         prompt=supervisor_prompt,
         correlation_id=CORRELATION_ID,
         allow_external=True
     )
-    
+
     logger.info("Gemini Supervisor output: %s", result.get("output_text"))
-    
+
     logger.info("=== STEP 2: Delegating Code Generation to Local Qwen Coder ===")
     coding_instruction = (
         "Write a Python function named `calculate_savings(credits, used)` "
@@ -74,9 +74,9 @@ def main():
     )
     generated_code = run_local_qwen_coder(coding_instruction)
     logger.info("Qwen Coder generated code:\n%s", generated_code)
-    
+
     logger.info("=== STEP 3: Executing and Verifying Generated Code Locally ===")
-    
+
     # Audit AST to ensure code safety (sandbox validation)
     import ast
     def verify_code_safety(code: str) -> bool:
@@ -103,7 +103,7 @@ def main():
     try:
         if not verify_code_safety(generated_code):
             raise ValueError("AST safety audit rejected the generated code (sandboxed verification failed)")
-            
+
         exec(generated_code, namespace)
         calculate_savings = namespace["calculate_savings"]
         # Run test assertions
@@ -115,7 +115,7 @@ def main():
     except Exception as exc:
         logger.error("Verification failed: %s", exc)
         test_passed = False
-        
+
     logger.info("=== STEP 4: Reporting Results and Registering Evidence ===")
     # Supervisor Gemini evaluates the verification result
     supervisor_report = (
@@ -123,25 +123,25 @@ def main():
         f"Verification execution test was run. Result: {'PASSED' if test_passed else 'FAILED'}.\n"
         "Confirm task status and log audit evidence."
     )
-    
+
     report_result = runtime.run(
         prompt=supervisor_report,
         correlation_id=CORRELATION_ID,
         allow_external=True
     )
-    
+
     # Check Firestore evidence collection
     credentials, project = _get_google_credentials(PROJECT_ID)
     db = firestore.Client(project=project, credentials=credentials)
-    
+
     # Retrieve evidence from Firestore to prove traceability
     ev_docs = list(db.collection("gemini_evidence").where("correlation_id", "==", CORRELATION_ID).stream())
     logger.info("Verified Firestore Gemini Evidence Docs count: %s", len(ev_docs))
-    
+
     # Check Memory Bank mirrored facts
     mem_docs = list(db.collection("inneros_memory_bank").where("correlation_id", "==", CORRELATION_ID).stream())
     logger.info("Verified Firestore Memory Bank Mirrored Docs count: %s", len(mem_docs))
-    
+
     logger.info("=== LOCAL-FIRST CODING DELEGATION DEMO COMPLETE ===")
 
 if __name__ == "__main__":

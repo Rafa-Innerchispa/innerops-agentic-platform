@@ -81,7 +81,7 @@ def _get_google_credentials(project_id: str | None = None) -> tuple[Any, str]:
     import google.auth
     from google.oauth2.credentials import Credentials
     import subprocess
-    
+
     # 1. Try to fetch token from active gcloud config account (very robust locally)
     try:
         proc = subprocess.run(["gcloud", "auth", "print-access-token"], capture_output=True, text=True, timeout=5)
@@ -92,7 +92,7 @@ def _get_google_credentials(project_id: str | None = None) -> tuple[Any, str]:
             return Credentials(token, quota_project_id=proj or project_id), proj or project_id
     except Exception:
         pass
-        
+
     # 2. Fallback to standard Application Default Credentials (ADC)
     try:
         credentials, project = google.auth.default()
@@ -153,10 +153,10 @@ def _write_cloud_log(project_id: str, payload: dict[str, Any]) -> dict[str, Any]
 def _sanitize_with_model_armor(project_id: str, text: str, mode: str = "prompt") -> tuple[str, bool]:
     template = os.getenv("INNEROS_MODEL_ARMOR_TEMPLATE", "inneros-default")
     location = os.getenv("INNEROS_MODEL_ARMOR_LOCATION", "us-central1")
-    
+
     # Check security-required mode
     security_required = os.getenv("INNEROS_GEMINI_SECURITY_REQUIRED", "").lower() in {"1", "true", "yes"}
-    
+
     if os.getenv("INNEROS_MODEL_ARMOR_DISABLE", "").lower() in {"1", "true", "yes"}:
         if security_required:
             raise ValueError("Model Armor is disabled but security-required policy is active.")
@@ -166,7 +166,7 @@ def _sanitize_with_model_armor(project_id: str, text: str, mode: str = "prompt")
         credentials, project = _get_google_credentials(project_id)
         if not credentials:
             raise ValueError("No Google credentials available for Model Armor")
-            
+
         # Get active token
         if hasattr(credentials, "token") and credentials.token:
             token = credentials.token
@@ -390,10 +390,10 @@ class GeminiInteractionsClient:
 
         if output_text:
             output_text, output_degraded = _sanitize_with_model_armor(self.config.project_id, output_text, mode="response")
-            
+
         if prompt_degraded or output_degraded:
             status = "degraded"
-            
+
         return {
             "ok": True,
             "status": status,
@@ -421,7 +421,7 @@ class GeminiInteractionsClient:
         if not previous_interaction_id or not call_id or not tool_name:
             raise GeminiRuntimeError("tool_result_context_required", "interaction id, call id and tool name are required")
         tool_specs = validate_tool_specs(tools)
-        
+
         output_degraded = False
         try:
             interaction = self._get_client().interactions.create(
@@ -470,10 +470,10 @@ class GeminiInteractionsClient:
 
         if output_text:
             output_text, output_degraded = _sanitize_with_model_armor(self.config.project_id, output_text, mode="response")
-            
+
         if output_degraded:
             status = "degraded"
-            
+
         return {
             "ok": True,
             "status": status,
@@ -539,7 +539,7 @@ class InnerOSGeminiRuntime:
             "live_mode": result.get("live_mode") or ("NON-LIVE" if result.get("simulated") else "LIVE"),
             "non_live": bool(result.get("simulated") or result.get("non_live")),
         }
-        
+
         # Save evidence to Firestore in cloud mode
         firestore_ref = _save_evidence_to_firestore(self.client.config.project_id, evidence)
         evidence["firestore"] = firestore_ref
@@ -563,7 +563,7 @@ class InnerOSGeminiRuntime:
                 "verified": evidence.get("verified"),
             },
         )
-        
+
         # Mirror memory to Memory Bank
         if result.get("ok"):
             try:
