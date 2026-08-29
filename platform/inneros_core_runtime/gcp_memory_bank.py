@@ -40,15 +40,16 @@ def save_memory(
         
     try:
         col_ref = client.collection("inneros_memory_bank")
-        # If content has a memory_id, use it as document ID to avoid duplicates
         doc_id = content.get("memory_id") or content.get("id")
         if doc_id:
             col_ref.document(str(doc_id)).set(doc_data)
+            resolved_id = str(doc_id)
         else:
-            col_ref.add(doc_data)
-            
-        logger.info("Successfully mirrored agent memory to Firestore: %s", doc_id or "auto-generated")
-        return {"ok": True, "mirrored": True}
+            _write_time, doc_ref = col_ref.add(doc_data)
+            resolved_id = doc_ref.id
+
+        logger.info("Successfully mirrored agent memory to Firestore: %s", resolved_id)
+        return {"ok": True, "mirrored": True, "collection": "inneros_memory_bank", "document_id": resolved_id}
     except Exception as exc:
         logger.error("Error writing memory to Firestore: %s", exc)
         return {"ok": False, "error": str(exc), "data": doc_data}
