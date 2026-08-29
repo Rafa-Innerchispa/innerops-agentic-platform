@@ -140,6 +140,73 @@ class IdeTaskBridgeTests(unittest.TestCase):
         self.assertEqual(mcp_server.document_vault.document_vault_status()["error"], "module_unavailable")
         self.assertEqual(mcp_server.local_model_manager.local_model_runtime_status()["error"], "module_unavailable")
 
+    def test_acp_normalize_targets(self):
+        self.assertEqual(bridge.normalize_target("CURSOR"), "cursor")
+        self.assertEqual(bridge.normalize_target("chatgpt"), "gemini")
+
+    def test_acp_delivery_not_execution(self):
+        store = {}
+        result = bridge.dispatch_ide_task(
+            title="Probe",
+            body="Hello",
+            target="codex",
+            correlation_id="corr-delivery-test",
+            dry_run=True,
+            store=store,
+        )
+        self.assertTrue(result["ok"])
+        proj = result["execution_projection"]
+        self.assertTrue(proj["delivered_to_inbox"])
+        self.assertFalse(proj["running"])
+        self.assertFalse(proj["completed"])
+        self.assertEqual(proj["execution_state"], "delivered_to_inbox")
+
+    def test_acp_idempotent_dispatch(self):
+        store = {}
+        first = bridge.dispatch_ide_task(
+            title="Same",
+            body="Body",
+            target="cursor",
+            correlation_id="corr-idem",
+            dry_run=True,
+            store=store,
+        )
+        second = bridge.dispatch_ide_task(
+            title="Same",
+            body="Body",
+            target="cursor",
+            correlation_id="corr-idem",
+            dry_run=True,
+            store=store,
+        )
+        self.assertFalse(first.get("duplicate"))
+        self.assertTrue(second.get("duplicate"))
+        self.assertEqual(first["idempotency_key"], second["idempotency_key"])
+        self.assertEqual(len(store), 1)
+
+    def test_acp_ops_progress_distinct_from_delivery(self):
+        store = {}
+        dispatched = bridge.dispatch_ide_task(
+            title="Run",
+            body="Do",
+            target="antigravity",
+            correlation_id="corr-progress",
+            dry_run=True,
+            store=store,
+        )
+        key = dispatched["idempotency_key"]
+        queued = dispatched["execution_projection"]["execution_state"]
+        self.assertEqual(queued, "delivered_to_inbox")
+
+        progressed = bridge.mark_ops_progress(
+            store=store,
+            idempotency_key=key,
+            ops_status="in_progress",
+            a2a_state="working",
+        )
+        self.assertTrue(progressed["ok"])
+        self.assertEqual(progressed["execution_projection"]["execution_state"], "running")
+
 
 if __name__ == "__main__":
     unittest.main()
