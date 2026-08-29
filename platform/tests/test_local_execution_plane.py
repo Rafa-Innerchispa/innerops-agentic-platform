@@ -389,6 +389,7 @@ def test_innerops_platform_prefix_skipped_without_package_json(monkeypatch, tmp_
         ["platform/inneros_core_runtime/foo.py"],
     )
     assert not any(cmd[:3] == ["npm", "--prefix", "platform"] for cmd in commands)
+    assert lep._node_package_command_allowed(["npm", "test"], conf, base=worktree) is False
     assert lep._node_package_command_allowed(
         ["npm", "--prefix", "platform", "test", "--", "--runInBand"],
         conf,
@@ -413,3 +414,18 @@ def test_innerops_platform_prefix_allowed_when_package_json_exists(tmp_path: Pat
         base=worktree,
     ) is True
     assert lep._node_package_command_allowed(["npm", "--prefix", "platform", "ci"], conf, base=worktree) is True
+
+
+def test_innerops_root_package_json_allows_scaffold_npm_test(tmp_path: Path) -> None:
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    (worktree / "package.json").write_text('{"scripts":{"test":"node --test"}}', encoding="utf-8")
+    conf = {
+        "profile": "python-tests",
+        "package_roots": ["."],
+        "source_path": str(worktree),
+    }
+
+    assert lep._node_package_command_allowed(["npm", "test"], conf, base=worktree) is True
+    assert lep._node_package_command_allowed(["npm", "run", "test"], conf, base=worktree) is True
+    assert lep._node_package_command_allowed(["npm", "run", "evil"], conf, base=worktree) is False

@@ -204,7 +204,7 @@ DEFAULT_REPO_PROFILES = {
     "Rafa-Innerchispa/innerops-agentic-platform": {
         "profile": "python-tests",
         "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
-        "package_roots": [],
+        "package_roots": ["."],
         "allowed_paths": [
             "app",
             "components",
