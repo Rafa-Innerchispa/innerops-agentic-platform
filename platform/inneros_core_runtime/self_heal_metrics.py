@@ -52,11 +52,14 @@ def save_service_baseline(payload: dict[str, Any]) -> dict[str, Any]:
     if measurement_class not in productivity_metrics.VALID_MEASUREMENT_CLASSES:
         return {"ok": False, "error": "invalid_measurement_class"}
     evidence_refs = list(payload.get("evidence_refs") or [])
+    verified = _bool(payload.get("verified", measurement_class == "measured"))
+    if measurement_class == "measured" and verified and not evidence_refs:
+        return {"ok": False, "error": "verified_measured_baseline_requires_evidence_refs"}
     row = {
         "service_id": service_id,
         "manual_baseline_minutes": minutes,
         "measurement_class": measurement_class,
-        "verified": _bool(payload.get("verified", measurement_class == "measured")),
+        "verified": verified,
         "evidence_refs": evidence_refs,
         "notes": str(payload.get("notes") or "").strip(),
         "updated_at": _now(),
@@ -67,6 +70,10 @@ def save_service_baseline(payload: dict[str, Any]) -> dict[str, Any]:
         upsert=True,
     )
     return {"ok": True, "baseline": row}
+
+
+def save_self_heal_baseline(payload: dict[str, Any]) -> dict[str, Any]:
+    return save_service_baseline(payload)
 
 
 def record_self_heal_incident(payload: dict[str, Any]) -> dict[str, Any]:
@@ -145,6 +152,34 @@ def record_self_heal_incident(payload: dict[str, Any]) -> dict[str, Any]:
         "productivity_result": productivity_result,
         "roi_counted": bool(verified_recovered and manual_baseline_minutes > 0),
     }
+
+
+def list_self_heal_incidents(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    query: dict[str, Any] = {}
+    service = str(service_id or "").strip().lower()
+    if service:
+        query["service_id"] = service
+    rows = list(
+        mongo_store.get_db()[INCIDENT_COLLECTION]
+        .find(query, {"_id": 0})
+        .sort("created_at", -1)
+        .limit(max(1, min(int(limit or 50), 500)))
+    )
+    return {"ok": True, "count": len(rows), "incidents": rows}
+
+
+def list_self_heal_baselines(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    query: dict[str, Any] = {}
+    service = str(service_id or "").strip().lower()
+    if service:
+        query["service_id"] = service
+    rows = list(
+        mongo_store.get_db()[BASELINE_COLLECTION]
+        .find(query, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(max(1, min(int(limit or 50), 500)))
+    )
+    return {"ok": True, "count": len(rows), "baselines": rows}
 
 
 def summarize_self_heal_incidents(limit: int = 500) -> dict[str, Any]:

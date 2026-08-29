@@ -7,7 +7,17 @@ PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 if str(PLATFORM_ROOT) not in sys.path:
     sys.path.insert(0, str(PLATFORM_ROOT))
 
-from raphiia_openai import productivity_metrics, self_heal_metrics
+from raphiia_openai import auth_middleware, mcp_profiles, productivity_metrics, self_heal_metrics
+from raphiia_openai.mcp_catalog import tool_catalog
+
+
+class _Cursor(list):
+    def sort(self, key, direction):
+        reverse = direction < 0
+        return _Cursor(sorted(self, key=lambda row: row.get(key) or "", reverse=reverse))
+
+    def limit(self, n):
+        return _Cursor(self[:n])
 
 
 class _Collection:
@@ -19,6 +29,10 @@ class _Collection:
             if all(row.get(k) == v for k, v in query.items()):
                 return dict(row)
         return None
+
+    def find(self, query=None, projection=None):
+        query = query or {}
+        return _Cursor(dict(row) for row in self.rows if all(row.get(k) == v for k, v in query.items()))
 
     def update_one(self, query, update, upsert=False):
         existing = self.find_one(query)
@@ -77,6 +91,61 @@ class ProductivitySelfHealMetricsTests(unittest.TestCase):
         self.assertEqual(result["incident"]["human_hours_returned"], 0.0)
         self.assertIsNone(result["incident"]["manual_baseline_minutes"])
         save_productivity.assert_not_called()
+
+    def test_verified_measured_baseline_requires_evidence_refs(self):
+        db = _DB()
+        with patch.object(self_heal_metrics.mongo_store, "get_db", return_value=db):
+            result = self_heal_metrics.save_self_heal_baseline(
+                {
+                    "service_id": "portal",
+                    "manual_baseline_minutes": 15,
+                    "measurement_class": "measured",
+                    "verified": True,
+                }
+            )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "verified_measured_baseline_requires_evidence_refs")
+        self.assertEqual(db[self_heal_metrics.BASELINE_COLLECTION].rows, [])
+
+    def test_lists_self_heal_incidents_and_baselines_by_service(self):
+        db = _DB()
+        db[self_heal_metrics.BASELINE_COLLECTION].update_one(
+            {"service_id": "portal"},
+            {"$set": {"service_id": "portal", "manual_baseline_minutes": 15, "updated_at": "2026-08-29T01:00:00Z"}},
+            upsert=True,
+        )
+        db[self_heal_metrics.INCIDENT_COLLECTION].update_one(
+            {"incident_id": "one"},
+            {"$set": {"incident_id": "one", "service_id": "portal", "created_at": "2026-08-29T01:00:00Z"}},
+            upsert=True,
+        )
+        db[self_heal_metrics.INCIDENT_COLLECTION].update_one(
+            {"incident_id": "two"},
+            {"$set": {"incident_id": "two", "service_id": "other", "created_at": "2026-08-29T02:00:00Z"}},
+            upsert=True,
+        )
+        with patch.object(self_heal_metrics.mongo_store, "get_db", return_value=db):
+            incidents = self_heal_metrics.list_self_heal_incidents(limit=10, service_id="portal")
+            baselines = self_heal_metrics.list_self_heal_baselines(limit=10, service_id="portal")
+        self.assertEqual(incidents["count"], 1)
+        self.assertEqual(incidents["incidents"][0]["incident_id"], "one")
+        self.assertEqual(baselines["count"], 1)
+        self.assertEqual(baselines["baselines"][0]["service_id"], "portal")
+
+    def test_mcp_catalog_exposes_self_heal_kpi_tools_without_profile_errors(self):
+        expected = {
+            "summarize_self_heal_incidents",
+            "list_self_heal_incidents",
+            "list_self_heal_baselines",
+            "save_self_heal_baseline",
+        }
+        self.assertTrue(expected.issubset(set(tool_catalog.ALL_MCP_TOOL_NAMES)))
+        server_ops = set(mcp_profiles.PROFILES["server_ops"]["tools"])
+        self.assertTrue(expected.issubset(server_ops))
+        validation = mcp_profiles.validate_profiles()
+        self.assertTrue(validation["ok"], validation)
+        self.assertEqual(auth_middleware.TOOL_SCOPES["save_self_heal_baseline"], "ralfia:write")
+        self.assertEqual(auth_middleware.TOOL_SCOPES["list_self_heal_incidents"], "ralfia:read")
 
     def test_verified_measured_baseline_links_self_heal_to_productivity(self):
         db = _DB()

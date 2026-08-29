@@ -212,7 +212,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "home": {
         "label": "Casa / voz local segura",
         "model_minimum": "small",
-        "max_tools": 10,
+        "max_tools": 18,
         "tools": [
             "bootstrap_context",
             "route_mcp_tools",
@@ -420,7 +420,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "owner_dev": {
         "label": "Owner development local seguro",
         "model_minimum": "medium",
-        "max_tools": 160,
+        "max_tools": 169,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -615,7 +615,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_self_repair": {
         "label": "Autoreparación local controlada",
         "model_minimum": "medium",
-        "max_tools": 40,
+        "max_tools": 45,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -667,7 +667,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "server_ops": {
         "label": "Ops local servidor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 14,
+        "max_tools": 18,
         "tools": [
             "get_coordination_live",
             "poll_agent_inbox",
@@ -683,6 +683,10 @@ PROFILES: dict[str, dict[str, Any]] = {
             "manage_coordination_lock",
             "local_model_health",
             "route_ai_task",
+            "summarize_self_heal_incidents",
+            "list_self_heal_incidents",
+            "list_self_heal_baselines",
+            "save_self_heal_baseline",
         ],
     },
     "peer_ops": {
@@ -742,7 +746,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "cloud_ops": {
         "label": "Cloud deploy ops multi-provider (dry-run safe)",
         "model_minimum": "medium",
-        "max_tools": 96,
+        "max_tools": 105,
         "tools": [
             "get_development_roadmap",
             "cloud_deploy_status",
@@ -854,7 +858,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet": {
         "label": "Flota local PC Doctor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 39,
+        "max_tools": 44,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -922,7 +926,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet_full": {
         "label": "Flota local completa — ChatGPT/Codex",
         "model_minimum": "medium",
-        "max_tools": 124,
+        "max_tools": 133,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -1082,7 +1086,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "daily_companion": {
         "label": "Compañero día a día — brief, memoria, conversación local",
         "model_minimum": "small",
-        "max_tools": 16,
+        "max_tools": 18,
         "tools": [
             "route_agent_request",
             "resolve_agent",

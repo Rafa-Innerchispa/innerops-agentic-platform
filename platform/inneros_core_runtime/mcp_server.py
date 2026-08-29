@@ -3115,6 +3115,38 @@ def summarize_productivity_events(limit: int = 500) -> dict[str, Any]:
 
 
 @mcp.tool
+def summarize_self_heal_incidents(limit: int = 500) -> dict[str, Any]:
+    """Resume incidentes de auto-reparación sin escribir baselines ni eventos."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.summarize_self_heal_incidents(limit=limit)
+
+
+@mcp.tool
+def list_self_heal_incidents(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    """Lista incidentes de auto-reparación, opcionalmente filtrados por servicio."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.list_self_heal_incidents(limit=limit, service_id=service_id)
+
+
+@mcp.tool
+def list_self_heal_baselines(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    """Lista baselines manuales usados para KPI/ROI de self-healing."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.list_self_heal_baselines(limit=limit, service_id=service_id)
+
+
+@mcp.tool
+def save_self_heal_baseline(payload: dict[str, Any]) -> dict[str, Any]:
+    """Guarda baseline auditado; measured+verified exige evidence_refs."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.save_self_heal_baseline(payload)
+
+
+@mcp.tool
 def analyze_email_intelligence_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Email Intelligence sin efectos: clasifica documento, entidad, ruta y gate humano."""
     from raphiia_openai.notifications import email_router
