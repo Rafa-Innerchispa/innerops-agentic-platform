@@ -45,9 +45,6 @@ ALL_MCP_TOOL_NAMES = [
     "agent_iskcon_contacts_summary",
     "agent_iskcon_dispatch",
     "agent_iskcon_domain",
-    "agent_iskcon_sources",
-    "agent_iskcon_yoga_campaign",
-    "agent_iskcon_class_update",
     "agent_iskcon_ffl_log",
     "agent_iskcon_ffl_timeline",
     "agent_iskcon_status",
@@ -315,14 +312,6 @@ ALL_MCP_TOOL_NAMES = [
     "get_capability_registry_summary",
     "get_mcp_profile",
     "get_coordination_live",
-    "inneros_agent_fabric_status",
-    "ide_task_bridge_status",
-    "ide_dispatch_task",
-    "ide_task_status",
-    "identify_agent_session",
-    "ide_claim_task",
-    "ide_mark_task_running",
-    "ide_complete_task",
     "get_coordination_summary",
     "get_commercial_mission",
     "get_project_map",
@@ -350,9 +339,13 @@ ALL_MCP_TOOL_NAMES = [
     "ha_turn_off_light",
     "ha_turn_on_light",
     "list_productivity_events",
+    "list_self_heal_baselines",
+    "list_self_heal_incidents",
     "run_home_ops_cycle",
     "save_productivity_event",
+    "save_self_heal_baseline",
     "summarize_productivity_events",
+    "summarize_self_heal_incidents",
     "get_whatsapp_commands_help",
     "get_whatsapp_status",
     "health_check",
@@ -642,16 +635,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "reads_from": ["HUB/ESTADO_VIVO.md", "ralfia_coordination_state", "ralfia_ops_tasks"],
         "input_schema": {},
         "output_schema": {"ok": "bool", "revision": "integer", "mandatory_reads": "array"},
-        "example_payload": {},
-    },
-    "inneros_agent_fabric_status": {
-        "description": "Estado unificado MCP inbox + IDE Task Bridge + ACP matriz + KPI hooks.",
-        "required_scopes": ["ralfia:read"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": ["inneros_agent_fabric"],
-        "input_schema": {"ops_task_id": "string"},
-        "output_schema": {"ok": "bool", "fabric_version": "string", "status": "string"},
         "example_payload": {},
     },
     "ack_coordination_revision": {
@@ -1002,7 +985,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "output_schema": {"ok": "bool", "text": "string", "services_text": "string"},
         "example_payload": {},
     },
-
+    
     "ha_ping": {
         "description": "Comprueba Home Assistant local (:8123).",
         "required_scopes": ["ralfia:read"],
@@ -1142,6 +1125,47 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "input_schema": {"limit": "integer"},
         "output_schema": {"ok": "bool", "saved_minutes": "number", "speedup": "number"},
         "example_payload": {"limit": 500},
+    },
+
+    "summarize_self_heal_incidents": {
+        "description": "Resume incidentes de auto-reparación y ROI auditado sin escribir datos.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["self_heal_incidents"],
+        "input_schema": {"limit": "integer"},
+        "output_schema": {"ok": "bool", "incident_count": "integer", "human_hours_returned": "number"},
+        "example_payload": {"limit": 500},
+    },
+    "list_self_heal_incidents": {
+        "description": "Lista incidentes de auto-reparación, opcionalmente filtrados por service_id.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["self_heal_incidents"],
+        "input_schema": {"limit": "integer", "service_id": "string|null"},
+        "output_schema": {"ok": "bool", "incidents": "array"},
+        "example_payload": {"limit": 50, "service_id": "ralfia-mcp"},
+    },
+    "list_self_heal_baselines": {
+        "description": "Lista baselines manuales usados para KPI/ROI de self-healing.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["self_heal_baselines"],
+        "input_schema": {"limit": "integer", "service_id": "string|null"},
+        "output_schema": {"ok": "bool", "baselines": "array"},
+        "example_payload": {"limit": 50},
+    },
+    "save_self_heal_baseline": {
+        "description": "Guarda baseline manual auditado para self-healing; measured+verified exige evidence_refs.",
+        "required_scopes": ["ralfia:write"],
+        "risk_level": "medium",
+        "writes_to": ["self_heal_baselines"],
+        "reads_from": ["self_heal_baselines"],
+        "input_schema": {"payload": "object"},
+        "output_schema": {"ok": "bool", "baseline": "object"},
+        "example_payload": {"payload": {"service_id": "ralfia-mcp", "manual_baseline_minutes": 15, "measurement_class": "measured", "verified": True, "evidence_refs": ["runbook:manual-recovery"]}},
     },
 
     "get_infrastructure_status": {
@@ -1811,28 +1835,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "input_schema": {"agent": "string", "limit": "integer|null", "auto_ack": "boolean|null"},
         "output_schema": {"ok": "bool", "messages": "array", "acknowledged": "array", "ack_count": "integer"},
         "example_payload": {"agent": "codex", "limit": 20, "auto_ack": True},
-    },
-    "identify_agent_session": {
-        "description": "Normaliza una cuenta/instancia de agente a mailbox, actor_id, host y lane para coordinación multi-IDE/multi-cuenta.",
-        "required_scopes": ["ralfia:read", "ralfia:agents"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": [],
-        "input_schema": {
-            "agent": "string",
-            "account": "string|null",
-            "host": "string|null",
-            "lane": "string|null",
-            "role": "string|null",
-        },
-        "output_schema": {"ok": "bool", "identity": "object", "allowed_mailboxes": "array"},
-        "example_payload": {
-            "agent": "CHATGPT_A",
-            "account": "pcdoctorgye@gmail.com",
-            "host": "chatgpt-enterprise",
-            "lane": "workforce",
-            "role": "developer",
-        },
     },
     "list_agent_messages": {
         "description": "Lista mensajes canal único. role=inbox|sent|all.",
@@ -4182,57 +4184,6 @@ TOOL_DEFINITIONS.update(
         },
     }
 )
-
-
-_IDE_BRIDGE_TOOL_DEFINITIONS = {
-    "ide_task_bridge_status": {
-        "description": "Report durable IDE/agent task bridge status without dispatching work.",
-        "category": "agent_fabric",
-        "risk": "read",
-    },
-    "ide_dispatch_task": {
-        "description": "Dispatch a bounded task to the IDE/agent bridge using canonical repo metadata.",
-        "category": "agent_fabric",
-        "risk": "write",
-    },
-    "ide_task_status": {
-        "description": "Read status for a durable IDE/agent bridge task.",
-        "category": "agent_fabric",
-        "risk": "read",
-    },
-    "ide_claim_task": {
-        "description": "Claim an IDE/agent bridge task for a named adapter with lock semantics.",
-        "category": "agent_fabric",
-        "risk": "write",
-    },
-    "ide_mark_task_running": {
-        "description": "Mark a claimed IDE/agent bridge task as running with bounded evidence.",
-        "category": "agent_fabric",
-        "risk": "write",
-    },
-    "ide_complete_task": {
-        "description": "Complete a claimed IDE/agent bridge task with evidence and terminal state.",
-        "category": "agent_fabric",
-        "risk": "write",
-    },
-}
-
-for _name, _meta in _IDE_BRIDGE_TOOL_DEFINITIONS.items():
-    _definition = _generic_tool_definition(_name)
-    _definition.update(
-        {
-            "description": _meta["description"],
-            "required_scopes": ["ralfia:agents"] if _meta.get("risk") == "write" else ["ralfia:read"],
-            "risk_level": "medium" if _meta.get("risk") == "write" else "low",
-            "writes_to": ["ralfia_ops_tasks", "inneros_ide_task_bridge"] if _meta.get("risk") == "write" else [],
-            "reads_from": ["ralfia_ops_tasks", "inneros_ide_task_bridge"],
-            "input_schema": {"task_id": "string|null", "correlation_id": "string|null"},
-            "output_schema": {"ok": "bool", "task_id": "string|null", "status": "string|null"},
-            "example_payload": {},
-        }
-    )
-    TOOL_DEFINITIONS[_name] = _definition
-
 
 
 def describe_tool(name: str) -> dict[str, Any]:

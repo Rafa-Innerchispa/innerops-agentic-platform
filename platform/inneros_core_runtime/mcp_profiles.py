@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.2"
+PROFILES_VERSION = "1.4.1"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -317,19 +317,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "contifico_get_party_360",
         ],
     },
-    "ide_task_bridge": {
-        "label": "IDE/agent bridge compacto",
-        "model_minimum": "small",
-        "max_tools": 8,
-        "tools": [
-            "ide_task_bridge_status",
-            "ide_dispatch_task",
-            "ide_task_status",
-            "ide_claim_task",
-            "ide_mark_task_running",
-            "ide_complete_task",
-        ],
-    },
     "a2a": {
         "label": "A2A multiagent transport",
         "model_minimum": "small",
@@ -344,14 +331,13 @@ PROFILES: dict[str, dict[str, Any]] = {
     "coordination": {
         "label": "RACB coordinación multiagente",
         "model_minimum": "small",
-        "max_tools": 25,
+        "max_tools": 24,
         "tools": [
             "a2a_status",
             "a2a_agent_cards",
             "a2a_dispatch",
             "a2a_task_status",
             "get_coordination_live",
-            "inneros_agent_fabric_status",
             "ack_coordination_revision",
             "list_agent_messages",
             "ack_agent_message",
@@ -681,10 +667,9 @@ PROFILES: dict[str, dict[str, Any]] = {
     "server_ops": {
         "label": "Ops local servidor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 15,
+        "max_tools": 18,
         "tools": [
             "get_coordination_live",
-            "identify_agent_session",
             "poll_agent_inbox",
             "create_agent_message",
             "ack_agent_message",
@@ -698,6 +683,10 @@ PROFILES: dict[str, dict[str, Any]] = {
             "manage_coordination_lock",
             "local_model_health",
             "route_ai_task",
+            "summarize_self_heal_incidents",
+            "list_self_heal_incidents",
+            "list_self_heal_baselines",
+            "save_self_heal_baseline",
         ],
     },
     "peer_ops": {
@@ -1139,7 +1128,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "iskcon_ops": {
         "label": "Operaciones ISKCON — ent_iskcon, FFL, festivales, templo",
         "model_minimum": "small",
-        "max_tools": 19,
+        "max_tools": 16,
         "tools": [
             "agent_iskcon_capabilities",
             "agent_iskcon_status",
@@ -1148,9 +1137,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "agent_iskcon_ffl_timeline",
             "agent_iskcon_contacts_summary",
             "agent_iskcon_dispatch",
-            "agent_iskcon_sources",
-            "agent_iskcon_yoga_campaign",
-            "agent_iskcon_class_update",
             "create_ops_task",
             "list_ops_tasks",
             "save_memory",
@@ -1347,4 +1333,5 @@ def get_profile(name: str) -> dict[str, Any]:
     if not conf:
         return {"ok": False, "error": "unknown_profile", "available": sorted(PROFILES)}
     return {"ok": True, "profile": name, **conf, "catalog_pin": allp["catalog_pin"], "profiles_version": PROFILES_VERSION}
+
 

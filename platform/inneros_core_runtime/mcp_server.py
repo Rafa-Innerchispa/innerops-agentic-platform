@@ -213,20 +213,6 @@ def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = True) -> dict
 
 
 @mcp.tool
-def identify_agent_session(
-    agent: str,
-    account: str = "",
-    host: str = "",
-    lane: str = "",
-    role: str = "",
-) -> dict[str, Any]:
-    """Devuelve identidad estable para coordinar varias cuentas/IDEs en el mismo MCP."""
-    from raphiia_openai.memory import agent_messages as _am
-
-    return _am.identify_agent_session(agent=agent, account=account or None, host=host or None, lane=lane or None, role=role or None)
-
-
-@mcp.tool
 def save_idea(title: str, body: str, tags: list[str] | None = None) -> dict[str, Any]:
     """Guarda una idea titulada y crea un borrador listo para revisión."""
     idea = mongo_store.save_idea(title=title, body=body, tags=tags)
@@ -1792,30 +1778,6 @@ def agent_iskcon_capabilities() -> dict[str, Any]:
 
 
 @mcp.tool
-def agent_iskcon_sources() -> dict[str, Any]:
-    """AG-52: fuentes curadas ISKCON usadas para planes y borradores."""
-    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
-
-    return ag52.agent_iskcon_sources()
-
-
-@mcp.tool
-def agent_iskcon_yoga_campaign(message: str = "", days: int = 7, dry_run: bool = True) -> dict[str, Any]:
-    """AG-52: borradores WhatsApp de yoga vaishnava; no envía sin aprobación."""
-    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
-
-    return ag52.agent_iskcon_yoga_campaign(message, days=days, dry_run=dry_run)
-
-
-@mcp.tool
-def agent_iskcon_class_update(message: str = "", dry_run: bool = True) -> dict[str, Any]:
-    """AG-52: borrador seguro para avisos de cambios de clases/eventos."""
-    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
-
-    return ag52.agent_iskcon_class_update(message, dry_run=dry_run)
-
-
-@mcp.tool
 def agent_iskcon_domain(domain: str) -> dict[str, Any]:
     """AG-52: detalle dominio — food_for_life|festivals_events|temple_operations|..."""
     from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
@@ -3153,6 +3115,38 @@ def summarize_productivity_events(limit: int = 500) -> dict[str, Any]:
 
 
 @mcp.tool
+def summarize_self_heal_incidents(limit: int = 500) -> dict[str, Any]:
+    """Resume incidentes de auto-reparación sin escribir baselines ni eventos."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.summarize_self_heal_incidents(limit=limit)
+
+
+@mcp.tool
+def list_self_heal_incidents(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    """Lista incidentes de auto-reparación, opcionalmente filtrados por servicio."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.list_self_heal_incidents(limit=limit, service_id=service_id)
+
+
+@mcp.tool
+def list_self_heal_baselines(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    """Lista baselines manuales usados para KPI/ROI de self-healing."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.list_self_heal_baselines(limit=limit, service_id=service_id)
+
+
+@mcp.tool
+def save_self_heal_baseline(payload: dict[str, Any]) -> dict[str, Any]:
+    """Guarda baseline auditado; measured+verified exige evidence_refs."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.save_self_heal_baseline(payload)
+
+
+@mcp.tool
 def analyze_email_intelligence_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Email Intelligence sin efectos: clasifica documento, entidad, ruta y gate humano."""
     from raphiia_openai.notifications import email_router
@@ -4291,88 +4285,6 @@ def get_coordination_live() -> dict[str, Any]:
     from raphiia_openai import coordination_live
 
     return coordination_live.get_coordination_live()
-
-
-@mcp.tool
-def inneros_agent_fabric_status(ops_task_id: str = "") -> dict[str, Any]:
-    """Estado unificado MCP+IDE Bridge+ACP+KPI (inneros_agent_fabric_v1)."""
-    from inneros_core_runtime import inneros_agent_fabric
-
-    return inneros_agent_fabric.fabric_status(ops_task_id=ops_task_id)
-
-
-@mcp.tool
-def ide_task_bridge_status() -> dict[str, Any]:
-    """IDE Task Bridge: estado y targets soportados con delivery separado de ejecución."""
-    from inneros_core_runtime import ide_task_bridge
-
-    return ide_task_bridge.bridge_status()
-
-
-@mcp.tool
-def ide_dispatch_task(
-    ide: str,
-    title: str,
-    body: str,
-    repo: str = "",
-    branch: str = "",
-    worktree: str = "",
-    correlation_id: str = "",
-    priority: str = "p0",
-    from_agent: str = "CHATGPT_A",
-    require_evidence: bool = True,
-    approval_required: bool = False,
-    idempotency_key: str = "",
-) -> dict[str, Any]:
-    """IDE Task Bridge: crea ops_task durable y entrega al inbox sin marcar ejecución iniciada."""
-    from inneros_core_runtime import ide_task_bridge
-
-    return ide_task_bridge.dispatch_task(
-        ide=ide,
-        title=title,
-        body=body,
-        repo=repo,
-        branch=branch,
-        worktree=worktree,
-        correlation_id=correlation_id,
-        priority=priority,
-        from_agent=from_agent,
-        require_evidence=require_evidence,
-        approval_required=approval_required,
-        idempotency_key=idempotency_key,
-    )
-
-
-@mcp.tool
-def ide_task_status(dispatch_id: str) -> dict[str, Any]:
-    """IDE Task Bridge: estado durable de una entrega/ejecución."""
-    from inneros_core_runtime import ide_task_bridge
-
-    return ide_task_bridge.task_status(dispatch_id)
-
-
-@mcp.tool
-def ide_claim_task(dispatch_id: str, ide: str) -> dict[str, Any]:
-    """IDE Task Bridge: marca claim explícito por el IDE/agente asignado."""
-    from inneros_core_runtime import ide_task_bridge
-
-    return ide_task_bridge.claim_task(dispatch_id, ide)
-
-
-@mcp.tool
-def ide_mark_task_running(dispatch_id: str, ide: str) -> dict[str, Any]:
-    """IDE Task Bridge: marca ejecución running sin confundirla con entrega al inbox."""
-    from inneros_core_runtime import ide_task_bridge
-
-    return ide_task_bridge.mark_running(dispatch_id, ide)
-
-
-@mcp.tool
-def ide_complete_task(dispatch_id: str, ide: str, result: str = "completed", evidence: dict[str, Any] | None = None) -> dict[str, Any]:
-    """IDE Task Bridge: cierra ejecución terminal con evidencia requerida."""
-    from inneros_core_runtime import ide_task_bridge
-
-    return ide_task_bridge.complete_task(dispatch_id, ide, result=result, evidence=evidence)
 
 
 @mcp.tool
