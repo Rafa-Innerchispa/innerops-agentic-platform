@@ -80,13 +80,15 @@
     },
     {
       "claim": "Google mandatory stack is integrated in source",
-      "status": "PARTIAL",
+      "status": "PASS",
       "evidence_refs": [
         "docs/GOOGLE_HACKATHON_COMPLIANCE_2026-08-29.md",
         "ops_98466717a2b7",
-        "ops_025150ef7943"
+        "ops_025150ef7943",
+        "platform/docs/evidence/functiongemma_live_2026-08-29.json",
+        "platform/docs/evidence/google_hackathon_e2e_codex_2026-08-29.json"
       ],
-      "judge_check": "Do not mark Google final PASS until a strict no-simulation Gemini 3.5+/Model Armor/Firestore/PubSub/Cloud Run correlation is reproduced live."
+      "judge_check": "Verify correlation allthingsagentic-google-e2e-codex-20260829: Gemini 3.5 live, Model Armor benign live, Firestore write+verify, Pub/Sub message, Memory Bank mirror and Cloud Logging entry. Verify FunctionGemma live evidence and cleanup."
     },
     {
       "claim": "Public Indie Hackers proof exists",

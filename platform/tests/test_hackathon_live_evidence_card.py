@@ -34,7 +34,9 @@ class HackathonLiveEvidenceCardTests(unittest.TestCase):
             self.assertTrue(claim["evidence_refs"], claim["claim"])
             self.assertTrue(claim["judge_check"], claim["claim"])
         google = next(claim for claim in claims if "Google mandatory" in claim["claim"])
-        self.assertEqual(google["status"], "PARTIAL")
+        self.assertEqual(google["status"], "PASS")
+        public = next(claim for claim in claims if "Public Indie Hackers" in claim["claim"])
+        self.assertEqual(public["status"], "PARTIAL")
 
     def test_readme_points_to_contract_and_live_checks(self):
         text = README_PATH.read_text(encoding="utf-8")

@@ -12,7 +12,7 @@ This file is the judge-facing evidence index for the All Things Agentic demo. It
 | KPI case: 120 min baseline, 10 min assisted, 110 min saved, 91.67 percent reduction, 12x speedup, 1.8333 HHR | PARTIAL | Inspect the KPI card and ledger calculation. | `platform/docs/evidence/hackathon_live_evidence_kpi_card_2026-08-29.json` |
 | AMD local ROCm/vLLM runtime is factual | PASS | Run `local_model_runtime_status` and ROCm profiling evidence script against active `:8000`. | `ops_3ca94bbe8609`, commit `a8eab403` |
 | Hyperloom MI325X burst was provisioned, tested, archived and destroyed | PASS | Inspect evidence archive and verify no active cloud-burst droplet remains. | `ops_0554539ce084`, commit `0e7384b6701098b5e5466b6325cb557d6a391200` |
-| Google mandatory stack source path exists | PARTIAL | Confirm docs/source and rerun strict Google live proof before final claim. | `docs/GOOGLE_HACKATHON_COMPLIANCE_2026-08-29.md`, `ops_025150ef7943` |
+| Google mandatory stack and FunctionGemma live proof | PASS | Verify `allthingsagentic-google-e2e-codex-20260829` and FunctionGemma cleanup evidence. | `ops_025150ef7943`, `platform/docs/evidence/functiongemma_live_2026-08-29.json`, `platform/docs/evidence/google_hackathon_e2e_codex_2026-08-29.json` |
 | Public Indie Hackers proof | PARTIAL | Attach public URL or screenshot before PASS. | pending evidence ref |
 
 ## KPI Truth Boundary
@@ -34,4 +34,4 @@ The compact contract consumed by demo surfaces lives at:
 
 `platform/docs/evidence/hackathon_live_evidence_kpi_card_2026-08-29.json`
 
-Demo views must display `PASS` and `PARTIAL` exactly as provided. They must not convert partial Google, public-proof, or unclassified KPI evidence into PASS.
+Demo views must display `PASS` and `PARTIAL` exactly as provided. They must not convert public-proof or unclassified KPI evidence into PASS.
