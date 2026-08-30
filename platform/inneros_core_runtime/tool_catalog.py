@@ -166,6 +166,7 @@ ALL_MCP_TOOL_NAMES = [
     "resource_fabric_status",
     "resource_fabric_route",
     "resource_fabric_link_project_capability",
+    "inneros_dual_deployment_status",
     "tenant_reconciliation_report",
     "digitalocean_status",
     "digitalocean_preflight",
@@ -4304,6 +4305,26 @@ for _name, _meta in _A2A_TOOL_DEFINITIONS.items():
         }
     )
     TOOL_DEFINITIONS[_name] = _definition
+
+
+TOOL_DEFINITIONS["inneros_dual_deployment_status"] = {
+    "description": "InnerOS dual deployment: estado read-only cloud/local, contrato offline/degraded, Resource Fabric y superficies públicas.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["systemd --user", "local HTTP health", "GCP Cloud Run read-only", "Resource Fabric"],
+    "input_schema": {"probe_http": "bool|null", "include_cloud": "bool|null"},
+    "output_schema": {
+        "ok": "bool",
+        "overall": "up|degraded|down",
+        "topology": "object",
+        "local_services": "array",
+        "cloud_surfaces": "array",
+        "offline_mode": "object",
+        "sync_contract": "object",
+    },
+    "example_payload": {"probe_http": True, "include_cloud": True},
+}
 
 
 

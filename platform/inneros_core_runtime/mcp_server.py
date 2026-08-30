@@ -1290,6 +1290,14 @@ def resource_fabric_link_project_capability(project_id: str, capability: str, pr
 
 
 @mcp.tool
+def inneros_dual_deployment_status(probe_http: bool = True, include_cloud: bool = True) -> dict[str, Any]:
+    """InnerOS dual deployment: estado cloud/local, offline mode y sync contract."""
+    from raphiia_openai import dual_deployment
+
+    return dual_deployment.dual_deployment_status(probe_http=probe_http, include_cloud=include_cloud)
+
+
+@mcp.tool
 def tenant_reconciliation_report(save: bool = True) -> dict[str, Any]:
     """Workforce/VigilOS: reporte read-only de tenants/clientes antes de cualquier migracion."""
     from raphiia_openai import tenant_reconciliation
