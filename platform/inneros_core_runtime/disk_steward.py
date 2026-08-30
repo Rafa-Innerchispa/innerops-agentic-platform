@@ -7,6 +7,7 @@ import os
 import secrets
 import shutil
 import subprocess
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -41,7 +42,9 @@ BACKUP_SCAN_DIRS = [
 
 ARCHIVE_ROOT = Path(os.getenv("DISK_ARCHIVE_ROOT", "/home/rlopez/data/archive/disk_steward"))
 
-# Orígenes que NUNCA se mueven sin revisión manual explícita
+# Origenes que NUNCA se mueven sin revision manual explicita.
+# Algunos subdirectorios generados bajo InnerOS se permiten por allowlist exacta
+# en _is_generated_archive_candidate().
 PROTECTED_PREFIXES = (
     "/home/rlopez/inneros",
     "/home/rlopez/projects/inneros",
@@ -49,6 +52,21 @@ PROTECTED_PREFIXES = (
     "/home/rlopez/data/docker",
     "/var/lib/docker",
 )
+
+GENERATED_ARCHIVE_ROOTS = tuple(
+    Path(p)
+    for p in os.getenv(
+        "DISK_GENERATED_ARCHIVE_ROOTS",
+        "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees,"
+        "/home/rlopez/inneros/inneros_core/platform/worktrees,"
+        "/home/rlopez/inneros/inneros_core/tmp,"
+        "/home/rlopez/.cache,"
+        "/home/rlopez/.npm",
+    ).split(",")
+    if p.strip()
+)
+GENERATED_ARCHIVE_MIN_GB = float(os.getenv("DISK_GENERATED_ARCHIVE_MIN_GB", "1.0"))
+GENERATED_ARCHIVE_MIN_AGE_HOURS = float(os.getenv("DISK_GENERATED_ARCHIVE_MIN_AGE_HOURS", "2"))
 
 
 def _now() -> str:
@@ -85,6 +103,79 @@ def _dir_size_bytes(path: Path, *, max_depth: int = 2) -> int:
     except OSError:
         pass
     return total
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _is_generated_archive_candidate(path: Path) -> bool:
+    if path.is_symlink():
+        return False
+    return any(_is_relative_to(path, root) for root in GENERATED_ARCHIVE_ROOTS)
+
+
+def _path_age_hours(path: Path) -> float:
+    try:
+        return max(0.0, (time.time() - path.stat().st_mtime) / 3600)
+    except OSError:
+        return 0.0
+
+
+def _path_size_bytes(path: Path) -> int:
+    try:
+        proc = subprocess.run(["du", "-sb", str(path)], capture_output=True, text=True, timeout=20, check=False)
+        if proc.returncode == 0 and proc.stdout.strip():
+            return int(proc.stdout.split()[0])
+    except Exception:
+        pass
+    return _dir_size_bytes(path, max_depth=6)
+
+
+def _generated_dir_candidates() -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    scan_roots = [root for root in GENERATED_ARCHIVE_ROOTS if root.exists()]
+    for root in scan_roots:
+        if not root.is_dir() or root.is_symlink():
+            continue
+        children = list(root.iterdir()) if root.name in {"worktrees", "tmp", ".cache", ".npm"} else [root]
+        for src in children:
+            if src.is_symlink() or not src.exists():
+                continue
+            if not _is_generated_archive_candidate(src):
+                continue
+            age_hours = _path_age_hours(src)
+            if age_hours < GENERATED_ARCHIVE_MIN_AGE_HOURS and not _is_relative_to(src, Path("/home/rlopez/inneros/inneros_core/var/local_execution/worktrees")):
+                continue
+            size_b = _path_size_bytes(src)
+            size_gb = round(size_b / 1024**3, 2)
+            if size_gb < GENERATED_ARCHIVE_MIN_GB:
+                continue
+            key = str(src.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                rel = src.resolve().relative_to(Path.home())
+            except ValueError:
+                rel = Path(src.name)
+            dest = ARCHIVE_ROOT / "generated" / rel
+            candidates.append(
+                {
+                    "op": "archive_dir",
+                    "src": str(src),
+                    "dest": str(dest),
+                    "size_gb": size_gb,
+                    "age_hours": round(age_hours, 1),
+                    "reason": "generated/cache/worktree artifact on pressured root filesystem -> archive on data disk",
+                }
+            )
+    return sorted(candidates, key=lambda item: item.get("size_gb", 0), reverse=True)[:20]
 
 
 def scan_mounts() -> list[dict[str, Any]]:
@@ -169,7 +260,8 @@ def _safe_move_candidates() -> list[dict[str, Any]]:
                     "reason": f"backup antiguo ({age_days}d) → archivo en data",
                 }
             )
-    return candidates[:10]
+    candidates.extend(_generated_dir_candidates())
+    return sorted(candidates, key=lambda item: item.get("size_gb", 0), reverse=True)[:20]
 
 
 def build_status(*, include_candidates: bool = True) -> dict[str, Any]:
@@ -314,11 +406,15 @@ def confirm_move(sender: str, proposal_id: str) -> dict[str, Any]:
     for act in doc.get("actions") or []:
         src = Path(str(act.get("src", "")))
         dest = Path(str(act.get("dest", "")))
-        if not src.is_file():
+        if not src.exists():
             executed.append({"src": str(src), "ok": False, "error": "missing"})
             continue
-        if any(str(src).startswith(p) for p in PROTECTED_PREFIXES):
+        protected = any(str(src).startswith(p) for p in PROTECTED_PREFIXES)
+        if protected and not _is_generated_archive_candidate(src):
             executed.append({"src": str(src), "ok": False, "error": "protected"})
+            continue
+        if src.is_dir() and not _is_generated_archive_candidate(src):
+            executed.append({"src": str(src), "ok": False, "error": "dir_not_allowlisted"})
             continue
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)

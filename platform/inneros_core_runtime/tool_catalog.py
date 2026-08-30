@@ -62,11 +62,18 @@ ALL_MCP_TOOL_NAMES = [
     "get_development_roadmap",
     "get_mcp_fleet_status",
     "get_unified_stack_status",
+    "inneros_agent_fabric_status",
     "invoke_agent",
     "judge_resource_telemetry",
     "judge_safe_trigger",
     "judge_console_content_get",
     "judge_model_routing_policy",
+    "judge_multimodel_e2e",
+    "judge_multimodel_route_status",
+    "google_ai_model_allowlist",
+    "google_model_garden_gemma_preflight",
+    "google_ai_model_smoke",
+    "google_ai_model_lanes_status",
     "judge_mi325x_deploy",
     "inneros_ingest_drop_status",
     "inneros_ingest_drop_run",
@@ -4335,6 +4342,74 @@ for _name, _meta in _A2A_TOOL_DEFINITIONS.items():
         }
     )
     TOOL_DEFINITIONS[_name] = _definition
+
+
+_JUDGE_MULTIMODEL_TOOL_DEFINITIONS = {
+    "judge_multimodel_route_status": {
+        "description": "Reporta rutas reales del selector Judge multi-model: AMD vLLM, Intel Ollama, Gemini, Gemma y MI325X approval-gated.",
+        "risk": "read",
+        "input_schema": {"project_id": "string|null", "live_probe": "bool|null", "allow_live_google": "bool|null"},
+        "output_schema": {"ok": "bool", "routes": "object", "overall_status": "LIVE|PARTIAL|NOT_READY"},
+    },
+    "judge_multimodel_e2e": {
+        "description": "Ejecuta E2E gobernado Judge/ARIA -> Google/local route -> A2A -> Firestore -> Pub/Sub con evidencia persistida.",
+        "risk": "write",
+        "input_schema": {"correlation_id": "string|null", "project_id": "string|null", "allow_live_google": "bool|null", "allow_writes": "bool|null", "dispatch_a2a": "bool|null"},
+        "output_schema": {"ok": "bool", "overall_status": "LIVE|PARTIAL|NOT_READY", "evidence_path": "string", "routes": "object", "steps": "object"},
+    },
+    "google_ai_model_allowlist": {
+        "description": "Lista modelos Google permitidos por carril, con límites de uso y modo LIVE/PARTIAL/NOT_READY.",
+        "risk": "read",
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "lanes": "array"},
+    },
+    "google_ai_model_lanes_status": {
+        "description": "Resume el estado de carriles Google AI configurados para Gemini/Gemma sin ejecutar cambios destructivos.",
+        "risk": "read",
+        "input_schema": {"project_id": "string|null", "live_probe": "bool|null"},
+        "output_schema": {"ok": "bool", "lanes": "array", "overall_status": "string"},
+    },
+    "google_ai_model_smoke": {
+        "description": "Prueba un carril Google AI allowlisted con credenciales del servidor y devuelve evidencia de modelo/latencia/error.",
+        "risk": "write",
+        "input_schema": {"lane_id": "string", "project_id": "string|null", "allow_live": "bool|null", "prompt": "string|null"},
+        "output_schema": {"ok": "bool", "status": "LIVE|PARTIAL|NOT_READY", "lane_id": "string", "evidence": "object"},
+    },
+    "google_model_garden_gemma_preflight": {
+        "description": "Preflight de disponibilidad Gemma/Model Garden antes de reportar FunctionGemma como listo.",
+        "risk": "read",
+        "input_schema": {"project_id": "string|null", "location": "string|null", "model": "string|null"},
+        "output_schema": {"ok": "bool", "status": "LIVE|PARTIAL|NOT_READY", "model": "string", "message": "string|null"},
+    },
+}
+
+for _name, _meta in _JUDGE_MULTIMODEL_TOOL_DEFINITIONS.items():
+    _definition = _generic_tool_definition(_name)
+    _definition.update(
+        {
+            "description": _meta["description"],
+            "required_scopes": ["ralfia:agents"] if _meta.get("risk") == "write" else ["ralfia:read"],
+            "risk_level": "medium" if _meta.get("risk") == "write" else "low",
+            "writes_to": ["judge_multimodel_evidence", "ralfia_a2a_tasks", "firestore", "pubsub"] if _meta.get("risk") == "write" else [],
+            "reads_from": ["local_model_runtime", "google_vertex", "a2a_fabric", "firestore", "pubsub"],
+            "input_schema": _meta["input_schema"],
+            "output_schema": _meta["output_schema"],
+            "example_payload": {},
+        }
+    )
+    TOOL_DEFINITIONS[_name] = _definition
+
+
+TOOL_DEFINITIONS["inneros_agent_fabric_status"] = {
+    "description": "Estado read-only del Agent Fabric: agentes, ops_task opcional, A2A/IDE bridge y readiness sin despachar trabajo.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["ralfia_agent_fabric", "ralfia_ops_tasks", "ralfia_a2a_tasks"],
+    "input_schema": {"ops_task_id": "string|null"},
+    "output_schema": {"ok": "bool", "status": "object|null", "ops_task": "object|null"},
+    "example_payload": {"ops_task_id": "ops_123"},
+}
 
 
 TOOL_DEFINITIONS["inneros_dual_deployment_status"] = {

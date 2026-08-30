@@ -13,6 +13,10 @@ from raphiia_openai import funding_registry, mongo_store
 from raphiia_openai import digitalocean_amd_provider
 from raphiia_openai import local_discord_plane
 from raphiia_openai import local_gitlab_plane
+try:
+    from raphiia_openai import google_extra_models
+except Exception:  # optional provider
+    google_extra_models = None
 
 COL_PROVIDERS = "inneros_resource_providers"
 COL_MODEL_REGISTRY = "inneros_model_registry"
@@ -47,6 +51,8 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
         local_gitlab_plane.resource_provider_document(),
         local_discord_plane.resource_provider_document(),
     ]
+    if google_extra_models is not None:
+        providers.append(google_extra_models.resource_provider_document())
     models = [
         {
             "model_provider": "local-amd",
@@ -65,6 +71,8 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
         digitalocean_amd_provider.model_provider_document(),
         local_gitlab_plane.model_provider_document(),
     ]
+    if google_extra_models is not None:
+        models.extend(google_extra_models.model_provider_documents())
     if dry_run:
         return {"ok": True, "dry_run": True, "providers": providers, "models": models, "funding": funding_registry.get_funding_registry_summary(limit=5)}
     db = mongo_store.get_db()

@@ -1195,6 +1195,23 @@ PROFILES: dict[str, dict[str, Any]] = {
             "run_service_guardian",
         ],
     },
+    "judge_multimodel": {
+        "label": "Judge multi-model routing — Google, local AMD/Intel y evidencia E2E",
+        "model_minimum": "small",
+        "max_tools": 10,
+        "tools": [
+            "judge_multimodel_route_status",
+            "judge_multimodel_e2e",
+            "google_ai_model_allowlist",
+            "google_ai_model_lanes_status",
+            "google_ai_model_smoke",
+            "google_model_garden_gemma_preflight",
+            "a2a_status",
+            "a2a_agent_cards",
+            "get_mcp_fleet_status",
+            "resource_fabric_status",
+        ],
+    },
     "hackathon_funding": {
         "label": "Hackathons + créditos/grants — correo + registry",
         "model_minimum": "medium",
