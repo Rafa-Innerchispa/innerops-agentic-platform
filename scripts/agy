@@ -1,0 +1,92 @@
+#!/home/rlopez/inneros/inneros_core/platform/venv/bin/python
+"""Google Antigravity CLI (`agy`) — Unified TUI/CLI interface for InnerOS / ARIA A2A Fleet."""
+
+import argparse
+import os
+import sys
+from datetime import datetime, timezone
+
+# Ensure platform modules are on PYTHONPATH
+sys.path.insert(0, '/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform/platform')
+sys.path.insert(0, '/home/rlopez/inneros/inneros_core/platform')
+
+def main():
+    parser = argparse.ArgumentParser(description="Google Antigravity CLI (agy) — Command Line Interface")
+    parser.add_argument("prompt", nargs="*", help="Direct prompt or instruction to submit to the fleet")
+    parser.add_argument("--status", action="store_true", help="Print A2A fleet status and active agent cards")
+    parser.add_argument("--inbox", action="store_true", help="Poll inbox for open agent messages")
+    parser.add_argument("--dispatch", nargs=3, metavar=("AGENT", "TITLE", "BODY"), help="Dispatch durable A2A task")
+    parser.add_argument("--version", action="version", version="Google Antigravity CLI (agy) v2.5.0-aria")
+    
+    args = parser.parse_args()
+
+    from pymongo import MongoClient
+    client = MongoClient("mongodb://192.168.1.4:27017/", serverSelectionTimeoutMS=800)
+    db = client["pcdoctor_swarm"]
+    now = datetime.now(timezone.utc).isoformat()
+
+    if args.status:
+        print("=== ANTIGRAVITY A2A FLEET STATUS ===")
+        cards = list(db["ralfia_agent_cards"].find({"status": "active"}))
+        tasks_count = db["ralfia_ops_tasks"].count_documents({"status": {"$in": ["in_progress", "proposed", "accepted"]}})
+        print(f"Protocol Version: 1.0.0-a2a")
+        print(f"Active Registered Agents: {len(cards)}")
+        print(f"Active Ops Tasks in Fleet: {tasks_count}")
+        print(f"Primary Node: 192.168.1.4 | AMD Compute Node: 192.168.1.5")
+        print("\nRegistered Agent Cards:")
+        for c in cards:
+            print(f"  - [{c.get('agent_id')}] {c.get('name')} (Role: {c.get('role', 'worker')})")
+        return
+
+    if args.inbox:
+        print("=== ANTIGRAVITY INBOX MESSAGES ===")
+        msgs = list(db["ralfia_agent_messages"].find({"target_agent": "antigravity", "status": "open"}).sort("created_at", -1).limit(10))
+        print(f"Open Messages ({len(msgs)}):")
+        for m in msgs:
+            print(f"  - ID: {m.get('message_id')} | From: {m.get('from_agent')} | Title: {m.get('title')}")
+        return
+
+    if args.dispatch:
+        target_agent, title, body = args.dispatch
+        task_id = f"ops_cli_{int(datetime.now().timestamp())}"
+        doc = {
+            "task_id": task_id,
+            "correlation_id": "agy-cli-dispatch",
+            "assignee": target_agent,
+            "from_agent": "USER_CLI",
+            "title": title,
+            "checklist": [body],
+            "evidence_required": ["execution_log"],
+            "priority": "p0",
+            "status": "proposed",
+            "created_at": now,
+            "updated_at": now
+        }
+        db["ralfia_ops_tasks"].insert_one(doc)
+        print(f"TASK DISPATCHED TO [{target_agent}]: Task ID -> {task_id}")
+        return
+
+    if args.prompt:
+        prompt_text = " ".join(args.prompt)
+        msg_id = f"msg_cli_{int(datetime.now().timestamp())}"
+        doc = {
+            "message_id": msg_id,
+            "from_agent": "USER_CLI",
+            "target_agent": "antigravity",
+            "title": f"CLI Prompt: {prompt_text[:40]}",
+            "body": prompt_text,
+            "priority": "p0",
+            "correlation_id": "agy-cli-user-prompt",
+            "message_type": "command",
+            "status": "open",
+            "created_at": now,
+            "updated_at": now
+        }
+        db["ralfia_agent_messages"].insert_one(doc)
+        print(f"PROMPT SUBMITTED TO FLEET: Message ID -> {msg_id}")
+        return
+
+    parser.print_help()
+
+if __name__ == "__main__":
+    main()
