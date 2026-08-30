@@ -26,11 +26,13 @@ def test_route_status_marks_live_and_not_ready_without_hardcoded_pass():
     assert routes["local_amd_vllm"]["status"] == "LIVE"
     assert routes["local_intel_ollama"]["status"] == "LIVE"
     assert routes["gemini_35_plus"]["status"] == "LIVE"
-    assert routes["function_gemma"]["status"] == "LIVE"
-    assert routes["function_gemma"]["provider"] == "local-amd"
+    assert routes["function_gemma"]["status"] == "NOT_READY"
+    assert routes["function_gemma"]["provider"] == "google"
+    assert routes["local_function_intent"]["status"] == "LIVE"
+    assert routes["local_function_intent"]["provider"] == "local-amd"
     assert routes["google_gemma_vertex"]["status"] == "NOT_READY"
     assert routes["mi325x_cloud_burst"]["detail"]["approval_required"] is True
-    assert routes["auto"]["detail"]["selected_route"] == "function_gemma"
+    assert routes["auto"]["detail"]["selected_route"] == "local_function_intent"
 
 
 def test_e2e_writes_are_gated_and_dispatch_optional(tmp_path, monkeypatch):
@@ -45,7 +47,7 @@ def test_e2e_writes_are_gated_and_dispatch_optional(tmp_path, monkeypatch):
     assert result["evidence_path"].endswith(".json")
 
 
-def test_function_gemma_uses_local_amd_when_vertex_is_404():
+def test_missing_vertex_gemma_uses_distinct_local_function_intent_route():
     posts = []
 
     def smoke(lane_id, **kwargs):
@@ -61,6 +63,10 @@ def test_function_gemma_uses_local_amd_when_vertex_is_404():
     assert posts
     routes = result["routes"]
     assert routes["google_gemma_vertex"]["status"] == "NOT_READY"
-    assert routes["function_gemma"]["status"] == "LIVE"
-    assert routes["function_gemma"]["runtime"] == "local_vllm_function_intent"
-    assert routes["function_gemma"]["detail"]["replaces_blocking_vertex_dependency"] is True
+    assert routes["function_gemma"]["status"] == "NOT_READY"
+    assert routes["function_gemma"]["provider"] == "google"
+    assert routes["function_gemma"]["model"] == "gemma-3-27b-it"
+    assert routes["local_function_intent"]["status"] == "LIVE"
+    assert routes["local_function_intent"]["runtime"] == "local_vllm_function_intent"
+    assert routes["local_function_intent"]["detail"]["local_first_replacement_for_missing_vertex_endpoint"] is True
+    assert routes["auto"]["detail"]["selected_route"] == "local_function_intent"

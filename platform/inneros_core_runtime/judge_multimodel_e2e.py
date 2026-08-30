@@ -83,7 +83,7 @@ def _http_post_json(url: str, body: dict[str, Any], timeout: float = 20.0) -> di
         return {"ok": False, "error": type(exc).__name__, "message": str(exc)[:400], "latency_ms": round((time.perf_counter() - started) * 1000)}
 
 
-def _function_gemma_local_probe(*, model: str, endpoint: str = "") -> dict[str, Any]:
+def _local_function_intent_probe(*, model: str, endpoint: str = "") -> dict[str, Any]:
     """Probe bounded function-intent routing on the local AMD vLLM lane."""
 
     url = (endpoint or os.getenv("INNEROS_AMD_VLLM_URL", "http://127.0.0.1:8000")).rstrip("/")
@@ -182,21 +182,22 @@ def route_status(*, project_id: str = "", live_probe: bool = False, allow_live_g
         routes["google_gemma_vertex"] = _route("PARTIAL", provider="google", model="gemma/functiongemma", runtime="vertex-or-model-garden", detail={"reason": "Google Gemma Vertex probe requires live_probe and allow_live_google; local function route remains available"})
 
     local_function = (
-        _function_gemma_local_probe(model=amd_models[0] if amd_models else "")
+        _local_function_intent_probe(model=amd_models[0] if amd_models else "")
         if live_probe and routes.get("local_amd_vllm", {}).get("status") == "LIVE"
         else {"ok": routes.get("local_amd_vllm", {}).get("status") == "LIVE", "reason": "live_probe=false; readiness inferred from local AMD vLLM models endpoint", "model": amd_models[0] if amd_models else ""}
     )
-    routes["function_gemma"] = _route(
+    routes["local_function_intent"] = _route(
         "LIVE" if local_function.get("ok") else "NOT_READY",
         provider="local-amd",
-        model=str(local_function.get("model") or (amd_models[0] if amd_models else "functiongemma-local")),
+        model=str(local_function.get("model") or (amd_models[0] if amd_models else "local-function-intent")),
         runtime="local_vllm_function_intent",
-        detail={**local_function, "replaces_blocking_vertex_dependency": True, "google_vertex_route": routes.get("google_gemma_vertex")},
+        detail={**local_function, "local_first_replacement_for_missing_vertex_endpoint": True},
     )
+    routes["function_gemma"] = routes["google_gemma_vertex"]
 
     routes["mi325x_cloud_burst"] = _route("PARTIAL", provider="digitalocean", model="mi325x", runtime="cloud-burst", detail={"approval_required": True, "dry_run_only_default": True})
 
-    auto_order = ["function_gemma", "local_amd_vllm", "gemini_35_plus", "gemini_35_bounded_review", "local_intel_ollama", "mi325x_cloud_burst"]
+    auto_order = ["local_function_intent", "local_amd_vllm", "gemini_35_plus", "gemini_35_bounded_review", "local_intel_ollama", "function_gemma", "mi325x_cloud_burst"]
     selected = next((name for name in auto_order if routes.get(name, {}).get("status") == "LIVE"), "none")
     routes["auto"] = _route("LIVE" if selected != "none" else "NOT_READY", provider=routes.get(selected, {}).get("provider", "none"), model=routes.get(selected, {}).get("model", ""), runtime=routes.get(selected, {}).get("runtime", ""), detail={"selected_route": selected, "order": auto_order})
 
