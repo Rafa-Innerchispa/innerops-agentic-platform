@@ -944,6 +944,13 @@ def get_ai_usage_report(limit: int = 200) -> dict[str, Any]:
     }
 
 
+def model_routing_policy(task_class: str = "", project_id: str = "") -> dict[str, Any]:
+    """Return the auditable Judge/ARIA routing policy without running models."""
+    from raphiia_openai import judge_console_content
+
+    return judge_console_content.model_routing_policy(task_class=task_class, project_id=project_id)
+
+
 def _fallback_daily_brief(payload: dict[str, Any]) -> str:
     local = payload.get("local_model_health", {})
     report = payload.get("usage_report", {})

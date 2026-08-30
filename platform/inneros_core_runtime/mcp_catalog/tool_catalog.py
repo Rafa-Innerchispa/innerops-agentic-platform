@@ -48,6 +48,9 @@ ALL_MCP_TOOL_NAMES = [
     "agent_iskcon_sources",
     "agent_iskcon_yoga_campaign",
     "agent_iskcon_class_update",
+    "agent_iskcon_module_manifest",
+    "agent_iskcon_action",
+    "agent_iskcon_artifact_download",
     "agent_iskcon_ffl_log",
     "agent_iskcon_ffl_timeline",
     "agent_iskcon_status",
@@ -64,8 +67,28 @@ ALL_MCP_TOOL_NAMES = [
     "get_mcp_fleet_status",
     "get_unified_stack_status",
     "invoke_agent",
+    "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+    "judge_mi325x_deploy",
+    "inneros_ingest_drop_status",
+    "inneros_ingest_drop_run",
+    "judge_trace_current",
+    "judge_trace_detail",
+    "judge_trace_history",
+    "judge_trace_kpis",
+    "judge_trace_record",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_workflow_start",
     "list_dev_backlog",
     "list_local_agents",
+    "module_action",
+    "module_artifact_download",
+    "module_manifest",
     "list_peer_ops_services",
     "list_ralphia_agents",
     "list_recent_agent_activity",
@@ -173,6 +196,10 @@ ALL_MCP_TOOL_NAMES = [
     "resource_fabric_status",
     "resource_fabric_route",
     "resource_fabric_link_project_capability",
+    "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "inneros_dual_deployment_drill",
     "tenant_reconciliation_report",
     "digitalocean_status",
     "digitalocean_preflight",
@@ -190,6 +217,7 @@ ALL_MCP_TOOL_NAMES = [
     "digitalocean_destroy_droplet",
     "digitalocean_cost_session_status",
     "digitalocean_cleanup_failed_sessions",
+    "digitalocean_mi325x_deploy_plan",
     "brightdata_status",
     "brightdata_balance",
     "brightdata_store_api_token_server_side",
@@ -4277,6 +4305,108 @@ for _name, _meta in _IDE_BRIDGE_TOOL_DEFINITIONS.items():
         }
     )
     TOOL_DEFINITIONS[_name] = _definition
+
+
+TOOL_DEFINITIONS["module_manifest"] = {
+    "description": "Contrato canónico de módulo InnerOS: tenant, menús, acciones ARIA, estado LIVE/PARTIAL/NOT_READY y rutas públicas sin IP LAN.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["module_contract"],
+    "input_schema": {"tenant_id": "string|null", "module_id": "string|null"},
+    "output_schema": {"ok": "bool", "manifest": "object|null", "manifests": "array|null"},
+    "example_payload": {"tenant_id": "ent_iskcon", "module_id": "iskcon_ops"},
+}
+
+TOOL_DEFINITIONS["module_action"] = {
+    "description": "Ejecuta acción ARIA de módulo con tenant isolation, approvals, artifact outputs, auditoría y bloqueo NOT_READY sin éxito falso.",
+    "required_scopes": ["ralfia:write"],
+    "risk_level": "medium",
+    "writes_to": ["inneros_module_actions", "inneros_module_artifacts"],
+    "reads_from": ["module_contract", "docvault read-only", "memory read-only", "notion refs read-only"],
+    "input_schema": {
+        "tenant_id": "string",
+        "module_id": "string",
+        "intent": "string|null",
+        "inputs": "object|null",
+        "actor": "string|null",
+        "dry_run": "bool|null",
+    },
+    "output_schema": {"ok": "bool", "contract": "module_action_v1", "artifact": "object|null", "approval": "object|null"},
+    "example_payload": {"tenant_id": "ent_iskcon", "module_id": "iskcon_ops", "intent": "emergency_plan", "inputs": {"scenario": "domingo con alta asistencia"}, "dry_run": True},
+}
+
+TOOL_DEFINITIONS["module_artifact_download"] = {
+    "description": "Resuelve descarga de artifact solo para el tenant propietario; devuelve 403 si otro tenant intenta leerlo.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["inneros_module_artifacts"],
+    "input_schema": {"tenant_id": "string", "artifact_id": "string"},
+    "output_schema": {"ok": "bool", "path": "string|null", "status_code": "integer|null"},
+    "example_payload": {"tenant_id": "ent_iskcon", "artifact_id": "abc123"},
+}
+
+for _alias in ("agent_iskcon_module_manifest", "agent_iskcon_action", "agent_iskcon_artifact_download"):
+    if _alias not in TOOL_DEFINITIONS:
+        TOOL_DEFINITIONS[_alias] = {
+            "description": {
+                "agent_iskcon_module_manifest": "AG-52 devuelve el manifiesto canónico ISKCON para ARIA y modelos locales pequeños.",
+                "agent_iskcon_action": "AG-52 ejecuta una acción ISKCON a través del contrato común ModuleAction.",
+                "agent_iskcon_artifact_download": "AG-52 resuelve artifacts ISKCON con tenant isolation.",
+            }[_alias],
+            "required_scopes": ["ralfia:write" if _alias == "agent_iskcon_action" else "ralfia:read"],
+            "risk_level": "medium" if _alias == "agent_iskcon_action" else "low",
+            "writes_to": ["inneros_module_actions", "inneros_module_artifacts"] if _alias == "agent_iskcon_action" else [],
+            "reads_from": ["module_contract", "inneros_module_artifacts"],
+            "input_schema": {"intent": "string|null", "message": "string|null", "inputs": "object|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "artifact": "object|null", "status": "string|null"},
+            "example_payload": {},
+        }
+
+for _name in (
+    "judge_workflow_start",
+    "judge_mi325x_deploy",
+    "digitalocean_mi325x_deploy_plan",
+    "inneros_ingest_drop_run",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_trace_record",
+    "judge_safe_trigger",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": "Judge Console backend write: workflow state, bounded safe trigger, or real trace event with validation.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["inneros_judge_workflows", "inneros_judge_trace_events", "inneros_judge_trace_runs"],
+        "reads_from": ["module_contract", "resource_fabric", "dual_deployment", "inneros_judge_workflows"],
+        "input_schema": {"correlation_id": "string|null", "message": "string|null", "fields": "object|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "workflow_id": "string|null", "event": "object|null", "artifact_id": "string|null"},
+        "example_payload": {},
+    }
+
+for _name in (
+    "judge_workflow_get",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+    "inneros_ingest_drop_status",
+    "judge_workflow_list",
+    "judge_trace_current",
+    "judge_trace_history",
+    "judge_trace_detail",
+    "judge_trace_kpis",
+    "judge_resource_telemetry",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": "Judge Console read-only telemetry/workflow surface for Live Trace, KPI cards and Resource Fabric status.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["inneros_judge_workflows", "inneros_judge_trace_events", "inneros_judge_trace_runs", "resource_fabric", "dual_deployment"],
+        "input_schema": {"correlation_id": "string|null", "run_id": "string|null", "limit": "integer|null"},
+        "output_schema": {"ok": "bool", "events": "array|null", "workflows": "array|null", "kpis": "object|null"},
+        "example_payload": {},
+    }
 
 
 

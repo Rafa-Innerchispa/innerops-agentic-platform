@@ -48,12 +48,21 @@ def _registry_file() -> Path:
 def trusted_roots(node: str = "primary") -> list[str]:
     # Paths are intentionally identical across .4/.5 so the ecosystem can fail over.
     core = _core_root()
-    return [
+    roots = [
         str(core / "workspaces"),
         "/home/rlopez/projects",
         str(core / "var" / "local_execution" / "repos"),
         str(core / "var" / "local_execution" / "worktrees"),
     ]
+    raw = os.getenv("RALFIA_FS_ROOTS_JSON", "").strip()
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                roots.extend(str(item) for item in parsed if isinstance(item, str) and item.strip())
+        except json.JSONDecodeError:
+            pass
+    return list(dict.fromkeys(roots))
 
 
 def _load() -> dict[str, Any]:
