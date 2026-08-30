@@ -24,7 +24,7 @@ ISKCON_DOMAINS: dict[str, dict[str, Any]] = {
             "ops": "ralfia_ops_tasks → tareas logística",
             "documents": "document_engine theme ent_iskcon → reportes",
         },
-        "status": "v1_memory_ops",
+        "status": "LIVE",
     },
     "donations_fundraising": {
         "label": "Donaciones y fondos",
@@ -40,7 +40,7 @@ ISKCON_DOMAINS: dict[str, dict[str, Any]] = {
             "accounting": "create_receivable_draft, record_payment (si billing_enabled)",
             "email": "search_email_archive → oportunidades grant",
         },
-        "status": "partial_funding_hub",
+        "status": "PARTIAL",
     },
     "festivals_events": {
         "label": "Festivales y eventos (Panihati, Ratha Yatra, etc.)",
@@ -55,7 +55,7 @@ ISKCON_DOMAINS: dict[str, dict[str, Any]] = {
             "whatsapp": "Evolution webhook → iskcon-panihati-2026 :2027",
             "mcp": "send_whatsapp_draft, extract_fields_from_media, generate_quote_pdf (adaptable)",
         },
-        "status": "panihati_pilot_phase0",
+        "status": "PARTIAL",
     },
     "workshops_education": {
         "label": "Talleres, yoga aplicado y educación",
@@ -73,7 +73,7 @@ ISKCON_DOMAINS: dict[str, dict[str, Any]] = {
             "notion": "páginas ISKCON OS / calendario / Panihati como fuentes curadas",
             "whatsapp": "borradores internos; broadcasts requieren aprobación explícita",
         },
-        "status": "intent_drafts_ready",
+        "status": "LIVE",
     },
     "temple_operations": {
         "label": "Operaciones del templo",
@@ -89,7 +89,7 @@ ISKCON_DOMAINS: dict[str, dict[str, Any]] = {
             "contacts": "ops_contacts con tags resident, visitor, contractor",
             "documents": "document_engine ent_iskcon",
         },
-        "status": "planned",
+        "status": "NOT_READY",
     },
     "community_contacts": {
         "label": "Contactos comunitarios",
@@ -104,7 +104,7 @@ ISKCON_DOMAINS: dict[str, dict[str, Any]] = {
             "link": "link_contact_entities",
             "whatsapp": "save_whatsapp_group, list_whatsapp_groups",
         },
-        "status": "tools_ready_ag52_wiring",
+        "status": "LIVE",
     },
 }
 

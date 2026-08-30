@@ -1886,6 +1886,75 @@ def agent_iskcon_contacts_summary(limit: int = 10) -> dict[str, Any]:
 
 
 @mcp.tool
+def module_manifest(tenant_id: str = "", module_id: str = "") -> dict[str, Any]:
+    """InnerOS module manifest with menus, ARIA actions and LIVE/PARTIAL/NOT_READY status."""
+    from raphiia_openai import module_contract
+
+    if tenant_id and module_id:
+        return module_contract.get_module_manifest(tenant_id, module_id)
+    return module_contract.list_module_manifests(tenant_id or None)
+
+
+@mcp.tool
+def module_action(
+    tenant_id: str,
+    module_id: str,
+    intent: str = "auto",
+    inputs: dict[str, Any] | None = None,
+    actor: str = "aria",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Execute a tenant-scoped ARIA module action with approvals, artifact and audit evidence."""
+    from raphiia_openai import module_contract
+
+    return module_contract.route_module_action(
+        tenant_id=tenant_id,
+        module_id=module_id,
+        intent=intent,
+        inputs=inputs or {},
+        actor=actor,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
+def module_artifact_download(tenant_id: str, artifact_id: str) -> dict[str, Any]:
+    """Resolve an artifact only when the requesting tenant owns it; cross-tenant returns 403."""
+    from raphiia_openai import module_contract
+
+    return module_contract.download_module_artifact(tenant_id=tenant_id, artifact_id=artifact_id)
+
+
+@mcp.tool
+def agent_iskcon_module_manifest() -> dict[str, Any]:
+    """AG-52: canonical ISKCON module manifest for ARIA and small-model profiles."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_module_manifest()
+
+
+@mcp.tool
+def agent_iskcon_action(
+    intent: str = "auto",
+    message: str = "",
+    inputs: dict[str, Any] | None = None,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """AG-52: execute ISKCON ARIA action through the common module contract."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_action(intent, message, inputs or {}, dry_run=dry_run)
+
+
+@mcp.tool
+def agent_iskcon_artifact_download(artifact_id: str, tenant_id: str = "ent_iskcon") -> dict[str, Any]:
+    """AG-52: tenant-scoped artifact download lookup."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_artifact_download(artifact_id, tenant_id=tenant_id)
+
+
+@mcp.tool
 def agent_hackathon_status() -> dict[str, Any]:
     """AG-53: estado hackathons + programas funding relacionados."""
     from raphiia_openai.agents import ag53_hackathon_agent as ag53

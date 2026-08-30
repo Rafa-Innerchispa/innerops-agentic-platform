@@ -1143,11 +1143,14 @@ PROFILES: dict[str, dict[str, Any]] = {
     "iskcon_ops": {
         "label": "Operaciones ISKCON — ent_iskcon, FFL, festivales, templo",
         "model_minimum": "small",
-        "max_tools": 19,
+        "max_tools": 25,
         "tools": [
             "agent_iskcon_capabilities",
             "agent_iskcon_status",
             "agent_iskcon_domain",
+            "agent_iskcon_module_manifest",
+            "agent_iskcon_action",
+            "agent_iskcon_artifact_download",
             "agent_iskcon_ffl_log",
             "agent_iskcon_ffl_timeline",
             "agent_iskcon_contacts_summary",
@@ -1155,6 +1158,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "agent_iskcon_sources",
             "agent_iskcon_yoga_campaign",
             "agent_iskcon_class_update",
+            "module_manifest",
+            "module_action",
+            "module_artifact_download",
             "create_ops_task",
             "list_ops_tasks",
             "save_memory",
@@ -1351,4 +1357,3 @@ def get_profile(name: str) -> dict[str, Any]:
     if not conf:
         return {"ok": False, "error": "unknown_profile", "available": sorted(PROFILES)}
     return {"ok": True, "profile": name, **conf, "catalog_pin": allp["catalog_pin"], "profiles_version": PROFILES_VERSION}
-

@@ -1007,6 +1007,7 @@ def render_pdf_document(spec: dict[str, Any], output_path: str | os.PathLike[str
         x_right = pdf.l_margin + col_w
         pdf.set_xy(x_right, y)
         pdf.multi_cell(col_w, 7, f"{right[0]}\n{right[1]}", border=1, fill=True)
+        pdf.set_x(pdf.l_margin)
         pdf.ln(1)
 
     client = spec.get("client") or {}
@@ -1037,32 +1038,41 @@ def render_pdf_document(spec: dict[str, Any], output_path: str | os.PathLike[str
 
     for idx, section in enumerate(spec.get("sections") or [], start=1):
         title_section = _pdf_safe(section.get("title") or f"Sección {idx}")
+        pdf.set_x(pdf.l_margin)
         pdf.ln(1)
         _doc_text(pdf, title_section, size=11, bold=True, color=(37, 99, 235))
         if section.get("body_md") or section.get("body"):
+            pdf.set_x(pdf.l_margin)
             _doc_markdown(pdf, _norm(section.get("body_md") or section.get("body") or ""))
         bullets = section.get("bullets") or []
         if bullets:
             for bullet in bullets:
+                pdf.set_x(pdf.l_margin)
                 pdf.multi_cell(0, 5, _pdf_safe(f"- {_norm(bullet)}"))
         if section.get("table"):
+            pdf.set_x(pdf.l_margin)
             _pdf_table(pdf, section["table"], currency=_norm(spec.get("currency") or "USD"))
         if section.get("note"):
+            pdf.set_x(pdf.l_margin)
             pdf.set_text_color(100, 116, 139)
             pdf.set_font("Helvetica", "I", 8.5)
             pdf.multi_cell(0, 5, _norm(section.get("note")))
+            pdf.set_x(pdf.l_margin)
             pdf.set_text_color(15, 23, 42)
             pdf.set_font("Helvetica", "", 9.5)
 
     if spec.get("table"):
+        pdf.set_x(pdf.l_margin)
         pdf.ln(1)
         _doc_text(pdf, _pdf_safe(spec.get("table_title") or "Detalle comercial"), size=11, bold=True, color=(37, 99, 235))
         _pdf_table(pdf, spec["table"], currency=_norm(spec.get("currency") or "USD"))
 
     if spec.get("totals"):
+        pdf.set_x(pdf.l_margin)
         _pdf_totals(pdf, spec["totals"], currency=_norm(spec.get("currency") or "USD"))
 
     if spec.get("appendices"):
+        pdf.set_x(pdf.l_margin)
         _pdf_appendices(pdf, spec["appendices"])
 
     out = Path(output_path)

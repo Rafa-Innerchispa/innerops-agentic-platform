@@ -6,6 +6,7 @@ from typing import Any
 
 from raphiia_openai.agent_auto_log import record_agent_run
 from raphiia_openai.agents.iskcon_capabilities import ENTITY_ID, ISKCON_DOMAINS, PROJECT, capabilities_summary
+from raphiia_openai import module_contract
 
 AGENT_ID = "AG-52_ISKCON_OPS"
 AGENT_VERSION = "2.1.0"
@@ -67,7 +68,42 @@ PANIHATI_COLLECTIONS = (
 
 
 def agent_iskcon_capabilities() -> dict[str, Any]:
-    return {"ok": True, "agent_id": AGENT_ID, **capabilities_summary()}
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        **capabilities_summary(),
+        "module_manifest": module_contract.get_module_manifest(ENTITY_ID, "iskcon_ops").get("manifest"),
+    }
+
+
+def agent_iskcon_module_manifest() -> dict[str, Any]:
+    """Canonical module manifest consumed by ARIA, profiles and small local models."""
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        **module_contract.get_module_manifest(ENTITY_ID, "iskcon_ops"),
+    }
+
+
+def agent_iskcon_action(
+    intent: str = "auto",
+    message: str = "",
+    inputs: dict[str, Any] | None = None,
+    *,
+    dry_run: bool = True,
+    actor: str = AGENT_ID,
+) -> dict[str, Any]:
+    payload = dict(inputs or {})
+    if message.strip() and "message" not in payload:
+        payload["message"] = message.strip()
+    return module_contract.route_module_action(
+        tenant_id=ENTITY_ID,
+        module_id="iskcon_ops",
+        intent=intent,
+        inputs=payload,
+        actor=actor,
+        dry_run=dry_run,
+    )
 
 
 def _count_entity_contacts() -> dict[str, int]:
@@ -288,6 +324,9 @@ def _classify_intent(action: str, message: str) -> str:
         return "class_update"
     if _message_has(message, "whatsapp", "canal", "yoga", "vaishnava", "vaishnava", "mensajes diarios", "dos mensajes", "2 mensajes"):
         return "yoga_whatsapp"
+    contract_intent = module_contract.classify_module_intent(message, raw_action)
+    if contract_intent not in ("status", "documents"):
+        return contract_intent
     if _message_has(message, "food for life", "ffl", "raciones", "prasadam", "prasadam"):
         return "ffl"
     if _message_has(message, "panihati", "festival", "ratha yatra", "evento"):
@@ -337,6 +376,12 @@ def agent_iskcon_yoga_campaign(message: str = "", *, days: int = 7, dry_run: boo
             "Confirm class calendar source of truth before announcements are sent.",
             "Use dry_run=false only for saving approved drafts to an internal queue; no direct broadcast is performed by this helper.",
         ],
+        "module_action": agent_iskcon_action(
+            "whatsapp_draft",
+            message,
+            inputs={"message": message, "days": days, "channel": WHATSAPP_YOGA_CHANNEL},
+            dry_run=True,
+        ),
     }
 
 
@@ -370,6 +415,11 @@ def _class_update_payload(message: str, *, dry_run: bool) -> dict[str, Any]:
 def agent_iskcon_class_update(message: str = "", *, dry_run: bool = True) -> dict[str, Any]:
     return _class_update_payload(message, dry_run=dry_run)
 
+
+def agent_iskcon_artifact_download(artifact_id: str, tenant_id: str = ENTITY_ID) -> dict[str, Any]:
+    return module_contract.download_module_artifact(tenant_id=tenant_id, artifact_id=artifact_id)
+
+
 def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = True) -> dict[str, Any]:
     action = _classify_intent(action, message)
     if action == "status":
@@ -378,6 +428,17 @@ def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = Tru
         return agent_iskcon_capabilities()
     if action in ("sources", "source", "notion", "website"):
         return agent_iskcon_sources()
+    if action in (
+        "emergency_plan",
+        "letter",
+        "dossier",
+        "sponsor_pipeline",
+        "festival_budget",
+        "food_for_life_report",
+        "whatsapp_draft",
+        "documents",
+    ):
+        return agent_iskcon_action(action, message, dry_run=dry_run)
     if action in ("yoga", "yoga_whatsapp", "whatsapp_yoga", "campaign", "campana", "campaña"):
         return agent_iskcon_yoga_campaign(message, dry_run=dry_run)
     if action in ("class_update", "classes", "clases", "novedad", "schedule_update"):
@@ -441,7 +502,9 @@ def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = Tru
         "allowed_actions": [
             "status", "capabilities", "sources", "domain", "ffl", "festival", "temple",
             "contacts", "funding", "education", "yoga_whatsapp", "class_update",
-            "ffl_log", "memory", "ops", "intent", "auto",
+            "emergency_plan", "letter", "dossier", "sponsor_pipeline", "festival_budget",
+            "food_for_life_report", "whatsapp_draft", "documents", "ffl_log", "memory", "ops", "intent", "auto",
         ],
         "entity_id": ENTITY_ID,
+        "module_manifest": "iskcon_ops",
     }

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
+from inneros_core_runtime import module_contract
 from inneros_core_runtime.agents import ag49_local_dispatcher as dispatcher
 from inneros_core_runtime.agents import ag52_iskcon_ops_agent as ag52
 from inneros_core_runtime.agents import pool_agent_runners
@@ -11,6 +13,69 @@ from inneros_core_runtime.mcp_catalog import tool_catalog
 
 
 class AG52IskconOpsTests(unittest.TestCase):
+    def test_module_manifest_is_tenant_scoped_and_has_no_lan_urls(self) -> None:
+        result = ag52.agent_iskcon_module_manifest()
+        self.assertTrue(result["ok"])
+        manifest = result["manifest"]
+        self.assertEqual(manifest["tenant_id"], "ent_iskcon")
+        self.assertEqual(manifest["module_id"], "iskcon_ops")
+        self.assertIn("https://iskcon.creatorcore.ai", manifest["entrypoints"]["public"])
+        self.assertNotIn("192.168.", repr(manifest))
+        statuses = {spec["status"] for spec in manifest["aria"]["capabilities"].values()}
+        self.assertTrue({"LIVE", "PARTIAL", "NOT_READY"}.issuperset(statuses))
+
+    def test_emergency_plan_intent_returns_real_artifact_contract(self) -> None:
+        result = ag52.agent_iskcon_dispatch(
+            "intent",
+            "Hazme un plan de emergencia para el templo el domingo",
+            dry_run=True,
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["contract"], "module_action_v1")
+        self.assertEqual(result["tenant_id"], "ent_iskcon")
+        self.assertEqual(result["module_id"], "iskcon_ops")
+        self.assertEqual(result["intent"], "emergency_plan")
+        self.assertEqual(result["artifact"]["kind"], "pdf")
+        self.assertEqual(result["artifact"]["download_policy"], "tenant_scoped")
+        self.assertFalse(result["approval"]["required"])
+
+    def test_module_action_blocks_cross_tenant(self) -> None:
+        result = module_contract.route_module_action(
+            tenant_id="ent_pcdoctor",
+            module_id="iskcon_ops",
+            intent="emergency_plan",
+            inputs={"scenario": "test"},
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status_code"], 403)
+
+    def test_not_ready_action_does_not_fake_success(self) -> None:
+        result = module_contract.route_module_action(
+            tenant_id="ent_iskcon",
+            module_id="iskcon_ops",
+            intent="temple_checklist",
+            inputs={"area": "altar"},
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "action_not_ready")
+        self.assertEqual(result["status"], "NOT_READY")
+
+    def test_artifact_download_cross_tenant_forbidden(self) -> None:
+        class Artifacts:
+            def find_one(self, *_args, **_kwargs):
+                return {"artifact_id": "a1", "tenant_id": "ent_iskcon", "kind": "draft"}
+
+        class Db(dict):
+            def __getitem__(self, key):
+                return Artifacts()
+
+        with mock.patch.object(module_contract, "_db", return_value=Db()):
+            result = module_contract.download_module_artifact("ent_pcdoctor", "a1")
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "cross_tenant_forbidden")
+        self.assertEqual(result["status_code"], 403)
+
     def test_yoga_whatsapp_intent_generates_draft_contract(self) -> None:
         result = ag52.agent_iskcon_dispatch(
             "intent",
@@ -56,10 +121,26 @@ class AG52IskconOpsTests(unittest.TestCase):
 
     def test_mcp_profile_exposes_specific_iskcon_tools(self) -> None:
         profile = mcp_profiles.PROFILES["iskcon_ops"]
+        self.assertIn("module_manifest", profile["tools"])
+        self.assertIn("module_action", profile["tools"])
+        self.assertIn("module_artifact_download", profile["tools"])
+        self.assertIn("agent_iskcon_module_manifest", profile["tools"])
+        self.assertIn("agent_iskcon_action", profile["tools"])
+        self.assertIn("agent_iskcon_artifact_download", profile["tools"])
         self.assertIn("agent_iskcon_sources", profile["tools"])
         self.assertIn("agent_iskcon_yoga_campaign", profile["tools"])
         self.assertIn("agent_iskcon_class_update", profile["tools"])
-        for name in ("agent_iskcon_sources", "agent_iskcon_yoga_campaign", "agent_iskcon_class_update"):
+        for name in (
+            "module_manifest",
+            "module_action",
+            "module_artifact_download",
+            "agent_iskcon_module_manifest",
+            "agent_iskcon_action",
+            "agent_iskcon_artifact_download",
+            "agent_iskcon_sources",
+            "agent_iskcon_yoga_campaign",
+            "agent_iskcon_class_update",
+        ):
             self.assertIn(name, tool_catalog.ALL_MCP_TOOL_NAMES)
 
 

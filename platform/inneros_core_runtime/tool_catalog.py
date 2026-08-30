@@ -41,6 +41,12 @@ ALL_MCP_TOOL_NAMES = [
     "agent_iskcon_contacts_summary",
     "agent_iskcon_dispatch",
     "agent_iskcon_domain",
+    "agent_iskcon_sources",
+    "agent_iskcon_yoga_campaign",
+    "agent_iskcon_class_update",
+    "agent_iskcon_module_manifest",
+    "agent_iskcon_action",
+    "agent_iskcon_artifact_download",
     "agent_iskcon_ffl_log",
     "agent_iskcon_ffl_timeline",
     "agent_iskcon_status",
@@ -59,6 +65,9 @@ ALL_MCP_TOOL_NAMES = [
     "invoke_agent",
     "list_dev_backlog",
     "list_local_agents",
+    "module_action",
+    "module_artifact_download",
+    "module_manifest",
     "list_peer_ops_services",
     "list_ralphia_agents",
     "list_recent_agent_activity",
@@ -4375,6 +4384,64 @@ TOOL_DEFINITIONS["inneros_dual_deployment_drill"] = {
     "output_schema": {"ok": "bool", "result": "PASS|PARTIAL", "operations": "array", "reconcile": "object"},
     "example_payload": {"dry_run": True},
 }
+
+TOOL_DEFINITIONS["module_manifest"] = {
+    "description": "Contrato canónico de módulo InnerOS: tenant, menús, acciones ARIA, estado LIVE/PARTIAL/NOT_READY y rutas públicas sin IP LAN.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["module_contract"],
+    "input_schema": {"tenant_id": "string|null", "module_id": "string|null"},
+    "output_schema": {"ok": "bool", "manifest": "object|null", "manifests": "array|null"},
+    "example_payload": {"tenant_id": "ent_iskcon", "module_id": "iskcon_ops"},
+}
+
+TOOL_DEFINITIONS["module_action"] = {
+    "description": "Ejecuta acción ARIA de módulo con tenant isolation, approvals, artifact outputs, auditoría y bloqueo NOT_READY sin éxito falso.",
+    "required_scopes": ["ralfia:write"],
+    "risk_level": "medium",
+    "writes_to": ["inneros_module_actions", "inneros_module_artifacts"],
+    "reads_from": ["module_contract", "docvault read-only", "memory read-only", "notion refs read-only"],
+    "input_schema": {
+        "tenant_id": "string",
+        "module_id": "string",
+        "intent": "string|null",
+        "inputs": "object|null",
+        "actor": "string|null",
+        "dry_run": "bool|null",
+    },
+    "output_schema": {"ok": "bool", "contract": "module_action_v1", "artifact": "object|null", "approval": "object|null"},
+    "example_payload": {"tenant_id": "ent_iskcon", "module_id": "iskcon_ops", "intent": "emergency_plan", "inputs": {"scenario": "domingo con alta asistencia"}, "dry_run": True},
+}
+
+TOOL_DEFINITIONS["module_artifact_download"] = {
+    "description": "Resuelve descarga de artifact solo para el tenant propietario; devuelve 403 si otro tenant intenta leerlo.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["inneros_module_artifacts"],
+    "input_schema": {"tenant_id": "string", "artifact_id": "string"},
+    "output_schema": {"ok": "bool", "path": "string|null", "status_code": "integer|null"},
+    "example_payload": {"tenant_id": "ent_iskcon", "artifact_id": "abc123"},
+}
+
+for _alias in ("agent_iskcon_module_manifest", "agent_iskcon_action", "agent_iskcon_artifact_download"):
+    if _alias not in TOOL_DEFINITIONS:
+        base = {
+            "agent_iskcon_module_manifest": "AG-52 devuelve el manifiesto canónico ISKCON para ARIA y modelos locales pequeños.",
+            "agent_iskcon_action": "AG-52 ejecuta una acción ISKCON a través del contrato común ModuleAction.",
+            "agent_iskcon_artifact_download": "AG-52 resuelve artifacts ISKCON con tenant isolation.",
+        }[_alias]
+        TOOL_DEFINITIONS[_alias] = {
+            "description": base,
+            "required_scopes": ["ralfia:write" if _alias == "agent_iskcon_action" else "ralfia:read"],
+            "risk_level": "medium" if _alias == "agent_iskcon_action" else "low",
+            "writes_to": ["inneros_module_actions", "inneros_module_artifacts"] if _alias == "agent_iskcon_action" else [],
+            "reads_from": ["module_contract", "inneros_module_artifacts"],
+            "input_schema": {"intent": "string|null", "message": "string|null", "inputs": "object|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "artifact": "object|null", "status": "string|null"},
+            "example_payload": {},
+        }
 
 
 
