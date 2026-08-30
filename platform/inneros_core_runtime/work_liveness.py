@@ -8,6 +8,15 @@ from raphiia_openai import coordination_live, dev_swarm_watchdog, mongo_store
 
 STATE_KEY = "dev_swarm_work_liveness"
 STALL_THRESHOLD = 2
+BENIGN_NO_WORK_REASONS = {
+    "non_development_ops_filtered",
+    "repo_not_inferred",
+    "needs_repo_metadata",
+    "email_ops_backlog",
+    "closed_watchdog_noise",
+    "cancelled_stale_duplicate_shadow",
+}
+
 
 
 def evaluate_tick(*, available: int, selected: list[dict[str, Any]], skipped: list[dict[str, Any]], filtered: list[dict[str, Any]], dry_run: bool = False, db: Any | None = None) -> dict[str, Any]:
@@ -15,7 +24,12 @@ def evaluate_tick(*, available: int, selected: list[dict[str, Any]], skipped: li
     proposed_count = database[coordination_live.OPS_TASKS_COL].count_documents({"status": "proposed"})
     reason_counts = Counter(str(item.get("reason") or "unknown") for item in [*skipped, *filtered])
     selected_count = len(selected)
-    stalled = bool(available > 0 and proposed_count > 0 and selected_count == 0)
+    actionable_skipped = [
+        item for item in skipped
+        if str(item.get("reason") or "unknown") not in BENIGN_NO_WORK_REASONS
+    ]
+    actionable_candidate_count = selected_count + len(actionable_skipped)
+    stalled = bool(available > 0 and actionable_candidate_count > 0 and selected_count == 0)
 
     current = mongo_store.get_coordination_state(STATE_KEY)
     state = dict(current.get("state") or {}) if current.get("ok") else {}
@@ -28,6 +42,7 @@ def evaluate_tick(*, available: int, selected: list[dict[str, Any]], skipped: li
         "proposed_count": int(proposed_count),
         "selected_count": selected_count,
         "skip_reasons": dict(reason_counts.most_common(12)),
+        "actionable_candidate_count": actionable_candidate_count,
     }
     if dry_run:
         return {"ok": True, "dry_run": True, **patch, "remediation_required": streak >= STALL_THRESHOLD}
@@ -47,6 +62,7 @@ def evaluate_tick(*, available: int, selected: list[dict[str, Any]], skipped: li
                 "available": available,
                 "proposed_count": proposed_count,
                 "selected_count": selected_count,
+                "actionable_candidate_count": actionable_candidate_count,
                 "skip_reasons": dict(reason_counts.most_common(12)),
                 "remediation": "AG-25 must reconcile routing/policy and re-dispatch locally before external escalation",
             },

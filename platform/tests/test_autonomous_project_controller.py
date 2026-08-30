@@ -79,14 +79,35 @@ class AutonomousControllerTests(unittest.TestCase):
             result = work_liveness.evaluate_tick(
                 available=4,
                 selected=[],
-                skipped=[{"reason": "repo_not_inferred"}],
+                skipped=[{"reason": "repo_policy_denied:write_scope"}],
                 filtered=[],
                 dry_run=False,
             )
         self.assertTrue(result["remediation_required"])
         self.assertEqual(result["stall_streak"], 2)
-        self.assertEqual(result["skip_reasons"]["repo_not_inferred"], 1)
+        self.assertEqual(result["actionable_candidate_count"], 1)
+        self.assertEqual(result["skip_reasons"]["repo_policy_denied:write_scope"], 1)
         anomaly.assert_called_once()
+
+    def test_liveness_does_not_escalate_non_dev_or_missing_metadata_backlog(self):
+        db = {work_liveness.coordination_live.OPS_TASKS_COL: _CountCollection(4610)}
+        state = {"ok": True, "state": {"stall_streak": 1}}
+        with mock.patch.object(work_liveness.mongo_store, "get_db", return_value=db), \
+             mock.patch.object(work_liveness.mongo_store, "get_coordination_state", return_value=state), \
+             mock.patch.object(work_liveness.mongo_store, "upsert_coordination_state", return_value={"ok": True}), \
+             mock.patch.object(work_liveness.dev_swarm_watchdog, "record_anomaly") as anomaly:
+            result = work_liveness.evaluate_tick(
+                available=4,
+                selected=[],
+                skipped=[{"reason": "repo_not_inferred"}],
+                filtered=[{"reason": "non_development_ops_filtered"}],
+                dry_run=False,
+            )
+        self.assertFalse(result["stalled"])
+        self.assertFalse(result["remediation_required"])
+        self.assertEqual(result["stall_streak"], 0)
+        self.assertEqual(result["actionable_candidate_count"], 0)
+        anomaly.assert_not_called()
 
     def test_controller_runs_all_four_control_stages(self):
         swarm = {"ok": True, "available": 3, "selected": [{"task_id": "ops_1"}], "skipped": [], "filtered": [], "active_worker_count": 1}
