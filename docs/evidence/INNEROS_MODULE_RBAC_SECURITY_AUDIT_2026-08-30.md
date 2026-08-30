@@ -56,7 +56,7 @@ Fix branch prepared in Workforce repo:
 
 Findings:
 
-- `platform/.env` is not tracked, but mode is `664`; recommended hardening is `chmod 600 /home/rlopez/inneros/inneros_core/platform/.env` during maintenance window.
+- `platform/.env` is not tracked and was hardened from mode `664` to `600` on AMD during this task; content was not changed.
 - Workforce package has `.gitignore` env coverage and no tracked `.env` entries.
 - OAuth callback does not auto-approve arbitrary Google users. Existing users with `REJECTED`/`PENDING` are blocked; new auto-approval uses `INNEROS_OAUTH_AUTO_APPROVE_EMAILS` allowlist, defaulting only to Rafael admin email.
 - Live auth status currently reports `https://localhost:3010/api/auth/google/callback` for public host checks; fixed in isolated branch but not deployed/restarted.
@@ -80,6 +80,5 @@ Canonical live/source checks:
 
 1. Integrate or cherry-pick Workforce commit `61a2ff74d3e06a6697cdd6365ad3ccd306e69028`, then perform controlled restart/deploy of `femar-mvp-core.service` / target Cloud Run only when ChatGPTA is ready. Current live public auth status still shows localhost because production was not restarted/deployed by this task.
 2. Fix canonical metadata drift: `config/products/workforce-ai.yaml` and `config/REPO_REGISTRY.yaml` still reference `/home/rlopez/projects/innerspark-workforce-ai`; canonical runtime is `/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai`.
-3. Harden `platform/.env` file mode from `664` to `600`.
-4. Decide `mailDelivery` policy: queue-only, smtp-only, or dual-with-idempotency to avoid duplicate admin emails.
-5. Run module-specific authenticated 403 tests for Visitors, FounderOS, Credentials, FieldSpark, and ISKCON before exposing non-read-only surfaces.
+3. Decide `mailDelivery` policy: queue-only, smtp-only, or dual-with-idempotency to avoid duplicate admin emails.
+4. Run module-specific authenticated 403 tests for Visitors, FounderOS, Credentials, FieldSpark, and ISKCON before exposing non-read-only surfaces.
