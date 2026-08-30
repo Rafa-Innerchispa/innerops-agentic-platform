@@ -213,6 +213,24 @@ def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = True) -> dict
 
 
 @mcp.tool
+def run_antigravity_cli(args: str = "--status") -> dict[str, Any]:
+    """Ejecuta la CLI de Antigravity (agy) en el servidor de forma remota y devuelve el resultado."""
+    import subprocess
+    cmd = ["/home/rlopez/.local/bin/agy"] + (args.split() if args else ["--status"])
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return {
+            "ok": res.returncode == 0,
+            "stdout": res.stdout,
+            "stderr": res.stderr,
+            "exit_code": res.returncode,
+            "cli_path": "/home/rlopez/.local/bin/agy",
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "cli_path": "/home/rlopez/.local/bin/agy"}
+
+
+@mcp.tool
 def save_idea(title: str, body: str, tags: list[str] | None = None) -> dict[str, Any]:
     """Guarda una idea titulada y crea un borrador listo para revisión."""
     idea = mongo_store.save_idea(title=title, body=body, tags=tags)
