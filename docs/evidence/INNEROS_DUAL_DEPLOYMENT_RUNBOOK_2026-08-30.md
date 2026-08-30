@@ -60,7 +60,12 @@ Default routing is local-first:
 - Managed cloud services: GCP/Gemini/Cloud Run only when the task requires that capability.
 - Cloud burst: explicit only, with cost and cleanup evidence.
 
-The MCP tool `inneros_dual_deployment_status` reports the live topology and provider health for agents.
+MCP tools for agents:
+
+- `inneros_dual_deployment_status` reports live topology and provider health.
+- `inneros_dual_queue_operation` records a syncable operation with an idempotency key.
+- `inneros_dual_reconcile_operations` marks queued operations reconciled in audit-only mode.
+- `inneros_dual_deployment_drill` exercises cloud/local/degraded/reconcile without production deploys or shell access.
 
 ## Offline / Degraded Mode
 
@@ -84,6 +89,7 @@ Not allowed:
 State sync must be idempotent and auditable:
 
 - Every queued operation needs an idempotency key.
+- Current queue collection: `inneros_dual_deployment_ops`.
 - Every reconciled operation needs source, target, timestamp, actor, and outcome.
 - Conflicts must be recorded before resolution.
 - Destructive or customer-data conflict resolution needs owner-approved policy.
@@ -100,6 +106,7 @@ PYTHONPATH=platform /home/rlopez/inneros/inneros_core/platform/venv/bin/python3 
 from inneros_core_runtime import dual_deployment
 import json
 print(json.dumps(dual_deployment.dual_deployment_status(probe_http=True, include_cloud=True), indent=2)[:8000])
+print(json.dumps(dual_deployment.dual_deployment_drill(dry_run=False), indent=2)[:8000])
 PY
 ```
 
@@ -111,15 +118,18 @@ PYTHONPATH=. ./venv/bin/python3 - <<'PY'
 from inneros_core_runtime import mcp_server
 import json
 print(json.dumps(mcp_server.inneros_dual_deployment_status(probe_http=True, include_cloud=True), indent=2)[:8000])
+print(json.dumps(mcp_server.inneros_dual_deployment_drill(dry_run=True), indent=2)[:8000])
 PY
 ```
 
 ## Current Completion Boundary
 
-This run creates the formal health/contract surface and runbook. It does not:
+This run creates the formal health/contract surface, queue, drill, tests and runbook. It does not:
 
 - deploy production;
 - create or spend cloud resources;
 - modify Cursor's UI/Auth lane;
 - duplicate databases;
 - promise local availability for data that has no declared mirror.
+
+The product UI can now wire real button/API events into `inneros_dual_queue_operation`.

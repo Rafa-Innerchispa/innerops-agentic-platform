@@ -1298,6 +1298,30 @@ def inneros_dual_deployment_status(probe_http: bool = True, include_cloud: bool 
 
 
 @mcp.tool
+def inneros_dual_queue_operation(source: str, target: str, action: str, idempotency_key: str, payload: dict[str, Any] | None = None, actor: str = "agent", dry_run: bool = True) -> dict[str, Any]:
+    """InnerOS dual deployment: encola operación cloud/local idempotente sin shell arbitrario."""
+    from raphiia_openai import dual_deployment
+
+    return dual_deployment.queue_dual_operation(source=source, target=target, action=action, payload=payload, idempotency_key=idempotency_key, actor=actor, dry_run=dry_run)
+
+
+@mcp.tool
+def inneros_dual_reconcile_operations(limit: int = 20, dry_run: bool = True) -> dict[str, Any]:
+    """InnerOS dual deployment: reconcilia cola audit-only con idempotencia."""
+    from raphiia_openai import dual_deployment
+
+    return dual_deployment.reconcile_dual_operations(limit=limit, dry_run=dry_run)
+
+
+@mcp.tool
+def inneros_dual_deployment_drill(dry_run: bool = False) -> dict[str, Any]:
+    """InnerOS dual deployment: prueba segura cloud/local/degraded/reconcile."""
+    from raphiia_openai import dual_deployment
+
+    return dual_deployment.dual_deployment_drill(dry_run=dry_run)
+
+
+@mcp.tool
 def tenant_reconciliation_report(save: bool = True) -> dict[str, Any]:
     """Workforce/VigilOS: reporte read-only de tenants/clientes antes de cualquier migracion."""
     from raphiia_openai import tenant_reconciliation

@@ -20,6 +20,7 @@ AMD_NODE = "192.168.1.5"
 INTEL_NODE = "192.168.1.4"
 GCP_PROJECT = "innerops-agentic-platform"
 GCP_REGION = "us-central1"
+COL_DUAL_OPS = "inneros_dual_deployment_ops"
 
 LOCAL_RUNTIME_SERVICES = [
     {
@@ -245,6 +246,133 @@ def _resource_fabric_snapshot() -> dict[str, Any]:
         return {"ok": False, "error": type(exc).__name__}
 
 
+def _db():
+    from inneros_core_runtime import mongo_store
+
+    return mongo_store.get_db()
+
+
+def queue_dual_operation(
+    *,
+    source: str,
+    target: str,
+    action: str,
+    payload: dict[str, Any] | None = None,
+    idempotency_key: str = "",
+    actor: str = "system",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Queue a syncable cloud/local operation with an idempotency key."""
+    source_n = (source or "").strip()
+    target_n = (target or "").strip()
+    action_n = (action or "").strip()
+    key = (idempotency_key or "").strip()
+    if source_n not in {"cloud_ui", "local_ui", "mcp", "agent"}:
+        return {"ok": False, "error": "source_not_allowed"}
+    if target_n not in {"local_amd", "local_intel", "cloud"}:
+        return {"ok": False, "error": "target_not_allowed"}
+    if not action_n:
+        return {"ok": False, "error": "action_required"}
+    if not key:
+        return {"ok": False, "error": "idempotency_key_required"}
+    document = {
+        "idempotency_key": key,
+        "source": source_n,
+        "target": target_n,
+        "action": action_n,
+        "payload": payload or {},
+        "actor": (actor or "system").strip(),
+        "status": "queued",
+        "created_at": _now(),
+        "updated_at": _now(),
+        "contract": "inneros_dual_deployment_v1",
+    }
+    if dry_run:
+        return {"ok": True, "dry_run": True, "operation": document}
+    collection = _db()[COL_DUAL_OPS]
+    existing = collection.find_one({"idempotency_key": key}, {"_id": 0})
+    if existing:
+        return {"ok": True, "idempotent": True, "operation": existing}
+    collection.insert_one(document)
+    return {"ok": True, "idempotent": False, "operation": document}
+
+
+def reconcile_dual_operations(limit: int = 20, dry_run: bool = True) -> dict[str, Any]:
+    """Mark queued dual operations as reconciled without executing destructive work."""
+    capped = max(1, min(int(limit or 20), 100))
+    collection = _db()[COL_DUAL_OPS]
+    pending = list(collection.find({"status": "queued"}, {"_id": 0}).sort("created_at", 1).limit(capped))
+    reconciled = []
+    for item in pending:
+        result = {
+            "idempotency_key": item["idempotency_key"],
+            "source": item["source"],
+            "target": item["target"],
+            "action": item["action"],
+            "status": "reconciled",
+            "reconciled_at": _now(),
+            "mode": "audit_only_no_destructive_side_effects",
+        }
+        reconciled.append(result)
+        if not dry_run:
+            collection.update_one(
+                {"idempotency_key": item["idempotency_key"]},
+                {"$set": {**result, "updated_at": result["reconciled_at"]}},
+            )
+    return {"ok": True, "dry_run": dry_run, "count": len(reconciled), "reconciled": reconciled}
+
+
+def dual_deployment_drill(dry_run: bool = False) -> dict[str, Any]:
+    """Exercise cloud/local/degraded/reconcile flow through the safe queue contract."""
+    cloud_status = dual_deployment_status(probe_http=True, include_cloud=True)
+    local_status = dual_deployment_status(probe_http=True, include_cloud=False)
+    cloud_to_local = queue_dual_operation(
+        source="cloud_ui",
+        target="local_amd",
+        action="dual_health_probe",
+        payload={"requested_tool": "inneros_dual_deployment_status", "expected_node": AMD_NODE},
+        idempotency_key="inneros-dual-drill-cloud-ui-local-amd-20260830",
+        actor="codex",
+        dry_run=dry_run,
+    )
+    local_to_local = queue_dual_operation(
+        source="local_ui",
+        target="local_amd",
+        action="dual_health_probe",
+        payload={"requested_tool": "inneros_dual_deployment_status", "expected_node": AMD_NODE},
+        idempotency_key="inneros-dual-drill-local-ui-local-amd-20260830",
+        actor="codex",
+        dry_run=dry_run,
+    )
+    reconcile = reconcile_dual_operations(limit=10, dry_run=dry_run)
+    pass_checks = [
+        cloud_status.get("overall") in {"up", "degraded"},
+        local_status.get("overall") in {"up", "degraded"},
+        cloud_to_local.get("ok") is True,
+        local_to_local.get("ok") is True,
+        reconcile.get("ok") is True,
+        any("Firestore/GCP" in rule and "replicated" in rule for rule in OFFLINE_MODE["not_allowed"]),
+    ]
+    return {
+        "ok": all(pass_checks),
+        "result": "PASS" if all(pass_checks) else "PARTIAL",
+        "dry_run": dry_run,
+        "cloud_status": {"overall": cloud_status.get("overall")},
+        "local_degraded_simulation": {
+            "overall": local_status.get("overall"),
+            "cloud_probe": "skipped_by_design",
+            "meaning": "simulates cloud unreachable while validating local runtime stays usable",
+        },
+        "operations": [cloud_to_local, local_to_local],
+        "reconcile": reconcile,
+        "remaining_product_integration": [
+            "wire real cloud UI event to queue_dual_operation",
+            "wire real local UI event to queue_dual_operation",
+            "add customer-data mirror ownership before syncing real records",
+        ],
+    }
+
+
 def dual_deployment_status(probe_http: bool = True, include_cloud: bool = True) -> dict[str, Any]:
     local_services = []
     for service in LOCAL_RUNTIME_SERVICES:
@@ -287,9 +415,9 @@ def dual_deployment_status(probe_http: bool = True, include_cloud: bool = True) 
         "cloud_run": cloud_run,
         "resource_fabric": resource_fabric,
         "sync_contract": {
-            "queue": "idempotent operation queue required before online reconciliation",
+            "queue": COL_DUAL_OPS,
             "conflicts": "audit first; destructive resolution requires owner-approved policy",
-            "current_status": "contract_ready; data-specific mirrors must declare ownership before PASS",
+            "current_status": "contract_ready_with_idempotent_audit_queue; data-specific mirrors must declare ownership before syncing real records",
         },
         "pass_criteria": [
             "cloud surface responds or is unauthorized_alive",

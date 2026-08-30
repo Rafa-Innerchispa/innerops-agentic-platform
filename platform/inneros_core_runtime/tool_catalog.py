@@ -167,6 +167,9 @@ ALL_MCP_TOOL_NAMES = [
     "resource_fabric_route",
     "resource_fabric_link_project_capability",
     "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "inneros_dual_deployment_drill",
     "tenant_reconciliation_report",
     "digitalocean_status",
     "digitalocean_preflight",
@@ -4324,6 +4327,53 @@ TOOL_DEFINITIONS["inneros_dual_deployment_status"] = {
         "sync_contract": "object",
     },
     "example_payload": {"probe_http": True, "include_cloud": True},
+}
+
+TOOL_DEFINITIONS["inneros_dual_queue_operation"] = {
+    "description": "InnerOS dual deployment: encola una operación cloud/local idempotente para reconciliación auditada.",
+    "required_scopes": ["ralfia:agents"],
+    "risk_level": "medium",
+    "writes_to": ["inneros_dual_deployment_ops"],
+    "reads_from": ["inneros_dual_deployment_ops"],
+    "input_schema": {
+        "source": "cloud_ui|local_ui|mcp|agent",
+        "target": "local_amd|local_intel|cloud",
+        "action": "string",
+        "idempotency_key": "string",
+        "payload": "object|null",
+        "actor": "string|null",
+        "dry_run": "bool|null",
+    },
+    "output_schema": {"ok": "bool", "idempotent": "bool|null", "operation": "object"},
+    "example_payload": {
+        "source": "cloud_ui",
+        "target": "local_amd",
+        "action": "dual_health_probe",
+        "idempotency_key": "project-action-unique-key",
+        "dry_run": True,
+    },
+}
+
+TOOL_DEFINITIONS["inneros_dual_reconcile_operations"] = {
+    "description": "InnerOS dual deployment: reconcilia operaciones pendientes en modo audit-only, sin resolver conflictos destructivos.",
+    "required_scopes": ["ralfia:agents"],
+    "risk_level": "medium",
+    "writes_to": ["inneros_dual_deployment_ops"],
+    "reads_from": ["inneros_dual_deployment_ops"],
+    "input_schema": {"limit": "integer|null", "dry_run": "bool|null"},
+    "output_schema": {"ok": "bool", "count": "integer", "reconciled": "array"},
+    "example_payload": {"limit": 20, "dry_run": True},
+}
+
+TOOL_DEFINITIONS["inneros_dual_deployment_drill"] = {
+    "description": "InnerOS dual deployment: ejecuta prueba segura cloud/local/degraded/reconcile sobre la cola idempotente.",
+    "required_scopes": ["ralfia:agents"],
+    "risk_level": "medium",
+    "writes_to": ["inneros_dual_deployment_ops"],
+    "reads_from": ["systemd --user", "local HTTP health", "GCP Cloud Run read-only", "Resource Fabric", "inneros_dual_deployment_ops"],
+    "input_schema": {"dry_run": "bool|null"},
+    "output_schema": {"ok": "bool", "result": "PASS|PARTIAL", "operations": "array", "reconcile": "object"},
+    "example_payload": {"dry_run": True},
 }
 
 
