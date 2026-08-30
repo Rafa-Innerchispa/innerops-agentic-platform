@@ -12,6 +12,7 @@ import os
 import subprocess
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,67 @@ def _http_json(url: str, timeout: float = 5.0) -> dict[str, Any]:
             return {"ok": True, "status_code": getattr(resp, "status", 200), "latency_ms": round((time.perf_counter() - started) * 1000), "data": data}
     except Exception as exc:
         return {"ok": False, "error": type(exc).__name__, "message": str(exc)[:400], "latency_ms": round((time.perf_counter() - started) * 1000)}
+
+
+def _http_post_json(url: str, body: dict[str, Any], timeout: float = 20.0) -> dict[str, Any]:
+    started = time.perf_counter()
+    try:
+        payload = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read(200000).decode("utf-8", errors="replace")
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                data = {"raw": raw[:500]}
+            return {"ok": True, "status_code": getattr(resp, "status", 200), "latency_ms": round((time.perf_counter() - started) * 1000), "data": data}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read(2000).decode("utf-8", errors="replace")
+        return {"ok": False, "status_code": exc.code, "error": "HTTPError", "message": raw[:400], "latency_ms": round((time.perf_counter() - started) * 1000)}
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__, "message": str(exc)[:400], "latency_ms": round((time.perf_counter() - started) * 1000)}
+
+
+def _function_gemma_local_probe(*, model: str, endpoint: str = "") -> dict[str, Any]:
+    """Probe bounded function-intent routing on the local AMD vLLM lane."""
+
+    url = (endpoint or os.getenv("INNEROS_AMD_VLLM_URL", "http://127.0.0.1:8000")).rstrip("/")
+    selected_model = (model or os.getenv("INNEROS_FUNCTION_GEMMA_LOCAL_MODEL", "")).strip()
+    if not selected_model:
+        return {"ok": False, "error": "local_vllm_model_required", "endpoint": url}
+    result = _http_post_json(
+        f"{url}/v1/chat/completions",
+        {
+            "model": selected_model,
+            "messages": [
+                {"role": "system", "content": "You are a bounded function-intent classifier. Return compact JSON only."},
+                {"role": "user", "content": "Classify this request for a tool router. Return only JSON with keys intent and route. Request: create a short PDF evidence summary for the judge. Allowed route values: call_tool, answer."},
+            ],
+            "stream": False,
+            "temperature": 0,
+            "max_tokens": 96,
+        },
+        timeout=float(os.getenv("INNEROS_FUNCTION_GEMMA_TIMEOUT", "45")),
+    )
+    if not result.get("ok"):
+        return {"ok": False, "provider": "local-amd", "runtime": "local_vllm", "endpoint": url, "model": selected_model, "raw": result}
+    choices = ((result.get("data") or {}).get("choices") or [])
+    text = (((choices[0] or {}).get("message") or {}).get("content") if choices else "") or ""
+    return {
+        "ok": bool(text.strip()),
+        "provider": "local-amd",
+        "runtime": "local_vllm",
+        "endpoint": url,
+        "model": selected_model,
+        "text_preview": text.strip()[:240],
+        "latency_ms": result.get("latency_ms"),
+        "cost_policy": "local_first_zero_cloud_spend",
+    }
 
 
 def _gcloud(args: list[str], *, project_id: str = "", timeout: int = 45) -> dict[str, Any]:
@@ -112,16 +174,29 @@ def route_status(*, project_id: str = "", live_probe: bool = False, allow_live_g
         routes["gemini_35_plus"] = _route("LIVE" if gemini.get("ok") and gemini.get("live_mode") == "LIVE" else "NOT_READY", provider="google", model=str(gemini.get("model") or "gemini-3.5-flash"), runtime="vertex-genai", detail=gemini)
         gemini35 = google_extra_models.smoke_lane("google-gemini-35-bounded-review", project_id=project, prompt="Reply exactly: ok", allow_live=True)
         routes["gemini_35_bounded_review"] = _route("LIVE" if gemini35.get("ok") and gemini35.get("live_mode") == "LIVE" else "NOT_READY", provider="google", model=str(gemini35.get("model") or "gemini-3.5-flash-lite"), runtime="vertex-genai", detail=gemini35)
-        gemma = google_extra_models.smoke_lane("google-gemma-bounded-review", project_id=project, prompt="Classify intent: call_tool or answer", allow_live=True)
-        routes["function_gemma"] = _route("LIVE" if gemma.get("ok") and gemma.get("live_mode") == "LIVE" else "NOT_READY", provider="google", model=str(gemma.get("model") or "gemma/functiongemma"), runtime="vertex-or-model-garden", detail=gemma)
+        google_gemma = google_extra_models.smoke_lane("google-gemma-bounded-review", project_id=project, prompt="Classify intent: call_tool or answer", allow_live=True)
+        routes["google_gemma_vertex"] = _route("LIVE" if google_gemma.get("ok") and google_gemma.get("live_mode") == "LIVE" else "NOT_READY", provider="google", model=str(google_gemma.get("model") or "gemma/functiongemma"), runtime="vertex-or-model-garden", detail=google_gemma)
     else:
         routes["gemini_35_plus"] = _route("PARTIAL", provider="google", model="gemini-3.5-flash", runtime="vertex-genai", detail={"reason": "live_probe and allow_live_google required"})
         routes["gemini_35_bounded_review"] = _route("PARTIAL", provider="google", model="gemini-3.5-flash-lite", runtime="vertex-genai", detail={"reason": "live_probe and allow_live_google required"})
-        routes["function_gemma"] = _route("NOT_READY", provider="google", model="functiongemma/gemma", runtime="vertex-or-local", detail={"reason": "Gemma live access must be probed; no default PASS"})
+        routes["google_gemma_vertex"] = _route("PARTIAL", provider="google", model="gemma/functiongemma", runtime="vertex-or-model-garden", detail={"reason": "Google Gemma Vertex probe requires live_probe and allow_live_google; local function route remains available"})
+
+    local_function = (
+        _function_gemma_local_probe(model=amd_models[0] if amd_models else "")
+        if live_probe and routes.get("local_amd_vllm", {}).get("status") == "LIVE"
+        else {"ok": routes.get("local_amd_vllm", {}).get("status") == "LIVE", "reason": "live_probe=false; readiness inferred from local AMD vLLM models endpoint", "model": amd_models[0] if amd_models else ""}
+    )
+    routes["function_gemma"] = _route(
+        "LIVE" if local_function.get("ok") else "NOT_READY",
+        provider="local-amd",
+        model=str(local_function.get("model") or (amd_models[0] if amd_models else "functiongemma-local")),
+        runtime="local_vllm_function_intent",
+        detail={**local_function, "replaces_blocking_vertex_dependency": True, "google_vertex_route": routes.get("google_gemma_vertex")},
+    )
 
     routes["mi325x_cloud_burst"] = _route("PARTIAL", provider="digitalocean", model="mi325x", runtime="cloud-burst", detail={"approval_required": True, "dry_run_only_default": True})
 
-    auto_order = ["local_amd_vllm", "gemini_35_plus", "gemini_35_bounded_review", "local_intel_ollama", "function_gemma", "mi325x_cloud_burst"]
+    auto_order = ["function_gemma", "local_amd_vllm", "gemini_35_plus", "gemini_35_bounded_review", "local_intel_ollama", "mi325x_cloud_burst"]
     selected = next((name for name in auto_order if routes.get(name, {}).get("status") == "LIVE"), "none")
     routes["auto"] = _route("LIVE" if selected != "none" else "NOT_READY", provider=routes.get(selected, {}).get("provider", "none"), model=routes.get(selected, {}).get("model", ""), runtime=routes.get(selected, {}).get("runtime", ""), detail={"selected_route": selected, "order": auto_order})
 

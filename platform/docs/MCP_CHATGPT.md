@@ -151,3 +151,11 @@ Si el conector falla al validar o no aparecen tools, preguntar:
 
 - **NO** poner `OPENAI_API_KEY` / `sk-` en `.env` del servidor.
 - ChatGPT hace el razonamiento; el servidor solo persiste/consulta Mongo v?a MCP.
+
+## ChatGPT A2A/RACB Operating Contract
+
+ChatGPT connectors and local agents should use the live MCP coordination tools before free-form instructions: `get_coordination_live`, `poll_agent_inbox`, `ack_agent_message`, `create_ops_task`, `update_ops_task_state`, `manage_coordination_lock`, `a2a_dispatch`, and `a2a_task_status`.
+
+For development or repair work, ChatGPT should request capability through these tools and let Local Execution Plane/Dev Swarm perform repo writes in isolated branches. The agent must not rely on prior chat context as the source of truth.
+
+For cost control, route routine classification, test assistance, code review probes and repetitive internal work to AMD/Intel local agents before cloud providers.

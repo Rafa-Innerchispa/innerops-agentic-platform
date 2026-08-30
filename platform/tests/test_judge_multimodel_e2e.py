@@ -15,7 +15,10 @@ def test_route_status_marks_live_and_not_ready_without_hardcoded_pass():
             return {"ok": False, "model": "gemma", "live_mode": "UNAVAILABLE", "error": "not_found"}
         return {"ok": True, "model": "gemini-3.5-flash", "live_mode": "LIVE", "text_preview": "ok"}
 
-    with patch.object(jm, "_http_json", side_effect=fake_http), patch.object(jm.google_extra_models, "smoke_lane", side_effect=smoke):
+    def post(url, body, timeout=20.0):
+        return {"ok": True, "latency_ms": 18, "data": {"choices": [{"message": {"content": "{\"intent\":\"tool\",\"route\":\"call_tool\"}"}}]}}
+
+    with patch.object(jm, "_http_json", side_effect=fake_http), patch.object(jm, "_http_post_json", side_effect=post), patch.object(jm.google_extra_models, "smoke_lane", side_effect=smoke):
         result = jm.route_status(project_id="innerops-agentic-platform", live_probe=True, allow_live_google=True)
 
     assert result["overall_status"] == "LIVE"
@@ -23,9 +26,11 @@ def test_route_status_marks_live_and_not_ready_without_hardcoded_pass():
     assert routes["local_amd_vllm"]["status"] == "LIVE"
     assert routes["local_intel_ollama"]["status"] == "LIVE"
     assert routes["gemini_35_plus"]["status"] == "LIVE"
-    assert routes["function_gemma"]["status"] == "NOT_READY"
+    assert routes["function_gemma"]["status"] == "LIVE"
+    assert routes["function_gemma"]["provider"] == "local-amd"
+    assert routes["google_gemma_vertex"]["status"] == "NOT_READY"
     assert routes["mi325x_cloud_burst"]["detail"]["approval_required"] is True
-    assert routes["auto"]["detail"]["selected_route"] == "local_amd_vllm"
+    assert routes["auto"]["detail"]["selected_route"] == "function_gemma"
 
 
 def test_e2e_writes_are_gated_and_dispatch_optional(tmp_path, monkeypatch):
@@ -38,3 +43,24 @@ def test_e2e_writes_are_gated_and_dispatch_optional(tmp_path, monkeypatch):
     assert result["steps"]["a2a_dispatch"]["status"] == "PARTIAL"
     assert result["cost_guard"]["mi325x_created"] is False
     assert result["evidence_path"].endswith(".json")
+
+
+def test_function_gemma_uses_local_amd_when_vertex_is_404():
+    posts = []
+
+    def smoke(lane_id, **kwargs):
+        return {"ok": False, "model": "gemma-3-27b-it", "live_mode": "UNAVAILABLE", "error": "404 endpoint not found"}
+
+    def post(url, body, timeout=20.0):
+        posts.append((url, body))
+        return {"ok": True, "latency_ms": 18, "data": {"choices": [{"message": {"content": "{\"intent\":\"pdf_evidence\",\"route\":\"call_tool\"}"}}]}}
+
+    with patch.object(jm, "_http_json", side_effect=fake_http), patch.object(jm, "_http_post_json", side_effect=post), patch.object(jm.google_extra_models, "smoke_lane", side_effect=smoke):
+        result = jm.route_status(project_id="innerops-agentic-platform", live_probe=True, allow_live_google=True)
+
+    assert posts
+    routes = result["routes"]
+    assert routes["google_gemma_vertex"]["status"] == "NOT_READY"
+    assert routes["function_gemma"]["status"] == "LIVE"
+    assert routes["function_gemma"]["runtime"] == "local_vllm_function_intent"
+    assert routes["function_gemma"]["detail"]["replaces_blocking_vertex_dependency"] is True

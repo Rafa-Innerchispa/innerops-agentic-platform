@@ -22,6 +22,12 @@ At the start of each session:
 
 Mongo/live coordination is the source of truth. Markdown inbox mirrors may lag.
 
+## Persistent A2A/RACB And Local-First Rules
+
+Agents must not depend on chat memory for current work. Start every repair by reading `get_coordination_live()` and the live Mongo inbox, ACK messages with `ack_agent_message`, transition accepted work with `update_ops_task_state`, acquire locks/worktrees before edits, and report evidence through `create_agent_message` or the A2A bridge using the same `correlation_id`. Direct runtime calls are acceptable only as diagnostics or when the A2A/RACB bridge itself is the failing component; record that exception in evidence.
+
+Prefer local AMD/Intel models and governed local agents for tests, classification, code support, repetitive probes and internal automation. Use cloud models or paid providers only when local capability is insufficient or the owner explicitly approved spend.
+
 ## Safety Boundaries
 
 - Preserve other agents' dirty work. Never use `git reset --hard` or broad checkout cleanup unless Rafael explicitly asks for it.

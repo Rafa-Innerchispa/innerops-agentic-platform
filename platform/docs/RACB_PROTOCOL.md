@@ -76,6 +76,12 @@ risk ceiling. The legacy global endpoint remains available during migration.
 Profiles must pass validation: known tools only, no duplicates, and no profile
 may exceed its declared maximum.
 
+## Persistent A2A Integration And Local-First Rule
+
+A2A is the durable routing facade over RACB, not a second source of truth. Existing tasks keep their RACB `task_id`; new delegations use `a2a_dispatch`, which creates or links an ops task and stores projection state. Agents must preserve `correlation_id`, ACK the live inbox, move task state with RACB revisions, and publish completion or blockers back to MCP.
+
+Default execution is local-first: AMD vLLM, Intel Ollama and governed local agents are preferred for bounded reasoning, tests, probes and development support. Cloud routes stay approval-gated when they create cost or infrastructure.
+
 ## Migration
 
 `migrate_racb_records` defaults to `dry_run=true`. The dry run reports exact
