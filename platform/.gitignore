@@ -1,6 +1,8 @@
 .env
 .cursor/mcp.json
 .codex/config.toml
+platform/data/whatsapp_webhook_secret
+var/peer_wifi_credentials/*.json
 venv/
 .venv/
 __pycache__/

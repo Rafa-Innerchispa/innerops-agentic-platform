@@ -1,0 +1,27 @@
+# Local IDE / agent config (may contain MCP API keys)
+.cursor/
+.codex/config.toml
+
+# Environment and runtime secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+platform/.env
+platform/data/whatsapp_webhook_secret
+var/peer_wifi_credentials/*.json
+
+# Pre-change snapshots — keep locally, never commit
+backups/**
+!backups/
+!backups/README.md
+!backups/*.example
+
+# Python / Node artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+node_modules/
+venv/
+.venv/
