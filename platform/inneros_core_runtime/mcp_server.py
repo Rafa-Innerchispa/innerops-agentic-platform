@@ -1955,6 +1955,114 @@ def agent_iskcon_artifact_download(artifact_id: str, tenant_id: str = "ent_iskco
 
 
 @mcp.tool
+def judge_workflow_start(
+    message: str,
+    intent: str = "auto",
+    fields: dict[str, Any] | None = None,
+    correlation_id: str = "",
+    actor: str = "judge",
+) -> dict[str, Any]:
+    """Judge Console: start conversational workflow, ask only missing fields, persist state."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.start_workflow(message, intent=intent, fields=fields or {}, correlation_id=correlation_id, actor=actor)
+
+
+@mcp.tool
+def judge_workflow_continue(
+    workflow_id: str,
+    fields: dict[str, Any] | None = None,
+    message: str = "",
+    execute: bool = False,
+    actor: str = "judge",
+) -> dict[str, Any]:
+    """Judge Console: continue workflow; execution is blocked until required fields are complete."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.continue_workflow(workflow_id, fields=fields or {}, message=message, execute=execute, actor=actor)
+
+
+@mcp.tool
+def judge_workflow_execute(workflow_id: str, actor: str = "judge") -> dict[str, Any]:
+    """Judge Console: execute a complete allowlisted workflow and emit Live Trace evidence."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.execute_workflow(workflow_id, actor=actor)
+
+
+@mcp.tool
+def judge_workflow_get(workflow_id: str) -> dict[str, Any]:
+    """Judge Console: read persisted workflow state."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.get_workflow(workflow_id)
+
+
+@mcp.tool
+def judge_workflow_list(correlation_id: str = "", limit: int = 50) -> dict[str, Any]:
+    """Judge Console: list persisted workflow states."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.list_workflows(correlation_id=correlation_id, limit=limit)
+
+
+@mcp.tool
+def judge_trace_record(event: dict[str, Any]) -> dict[str, Any]:
+    """Judge Console Live Trace: record one real trace event with validation/redaction."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.record_trace_event(event)
+
+
+@mcp.tool
+def judge_trace_current(limit: int = 20) -> dict[str, Any]:
+    """Judge Console Live Trace: latest events for polling/SSE consumers."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.current_trace(limit=limit)
+
+
+@mcp.tool
+def judge_trace_history(correlation_id: str = "", run_id: str = "", limit: int = 50) -> dict[str, Any]:
+    """Judge Console Live Trace: query run/correlation history."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.list_trace_events(correlation_id=correlation_id, run_id=run_id, limit=limit)
+
+
+@mcp.tool
+def judge_trace_detail(run_id: str) -> dict[str, Any]:
+    """Judge Console Live Trace: detailed run with events."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.trace_detail(run_id)
+
+
+@mcp.tool
+def judge_trace_kpis(correlation_id: str = "", limit: int = 500) -> dict[str, Any]:
+    """Judge Console: KPIs derived only from persisted real trace events."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.kpis(correlation_id=correlation_id, limit=limit)
+
+
+@mcp.tool
+def judge_resource_telemetry() -> dict[str, Any]:
+    """Judge Console: read Resource Fabric, dual deployment and Guardian telemetry."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.resource_telemetry()
+
+
+@mcp.tool
+def judge_safe_trigger(action: str, prompt: str = "", correlation_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Judge Console: bounded trigger API; paid cloud actions remain approval-gated."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.safe_judge_trigger(action, prompt=prompt, correlation_id=correlation_id, dry_run=dry_run)
+
+
+@mcp.tool
 def agent_hackathon_status() -> dict[str, Any]:
     """AG-53: estado hackathons + programas funding relacionados."""
     from raphiia_openai.agents import ag53_hackathon_agent as ag53

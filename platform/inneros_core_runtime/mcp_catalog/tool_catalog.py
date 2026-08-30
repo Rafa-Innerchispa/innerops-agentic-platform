@@ -67,6 +67,18 @@ ALL_MCP_TOOL_NAMES = [
     "get_mcp_fleet_status",
     "get_unified_stack_status",
     "invoke_agent",
+    "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_trace_current",
+    "judge_trace_detail",
+    "judge_trace_history",
+    "judge_trace_kpis",
+    "judge_trace_record",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_workflow_start",
     "list_dev_backlog",
     "list_local_agents",
     "module_action",
@@ -179,6 +191,10 @@ ALL_MCP_TOOL_NAMES = [
     "resource_fabric_status",
     "resource_fabric_route",
     "resource_fabric_link_project_capability",
+    "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "inneros_dual_deployment_drill",
     "tenant_reconciliation_report",
     "digitalocean_status",
     "digitalocean_preflight",
@@ -4341,6 +4357,44 @@ for _alias in ("agent_iskcon_module_manifest", "agent_iskcon_action", "agent_isk
             "output_schema": {"ok": "bool", "artifact": "object|null", "status": "string|null"},
             "example_payload": {},
         }
+
+for _name in (
+    "judge_workflow_start",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_trace_record",
+    "judge_safe_trigger",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": "Judge Console backend write: workflow state, bounded safe trigger, or real trace event with validation.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["inneros_judge_workflows", "inneros_judge_trace_events", "inneros_judge_trace_runs"],
+        "reads_from": ["module_contract", "resource_fabric", "dual_deployment", "inneros_judge_workflows"],
+        "input_schema": {"correlation_id": "string|null", "message": "string|null", "fields": "object|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "workflow_id": "string|null", "event": "object|null", "artifact_id": "string|null"},
+        "example_payload": {},
+    }
+
+for _name in (
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_trace_current",
+    "judge_trace_history",
+    "judge_trace_detail",
+    "judge_trace_kpis",
+    "judge_resource_telemetry",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": "Judge Console read-only telemetry/workflow surface for Live Trace, KPI cards and Resource Fabric status.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["inneros_judge_workflows", "inneros_judge_trace_events", "inneros_judge_trace_runs", "resource_fabric", "dual_deployment"],
+        "input_schema": {"correlation_id": "string|null", "run_id": "string|null", "limit": "integer|null"},
+        "output_schema": {"ok": "bool", "events": "array|null", "workflows": "array|null", "kpis": "object|null"},
+        "example_payload": {},
+    }
 
 
 
