@@ -1,6 +1,6 @@
 product_id: workforce-ai
 name: "InnerSpark Workforce AI"
-repo: /home/rlopez/projects/innerspark-workforce-ai
+repo: /home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai
 kind: product
 sellable: true
 entity_id: ent_innerchispa
