@@ -3738,6 +3738,54 @@ def get_disk_steward_status(include_candidates: bool = True) -> dict[str, Any]:
 
 
 @mcp.tool
+def disk_steward_inventory(include_candidates: bool = True) -> dict[str, Any]:
+    """AG-37: inventario seguro de discos/backups, candidatos, policy y guardrails."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_inventory(include_candidates=include_candidates)
+
+
+@mcp.tool
+def disk_steward_plan_migration(source_path: str = "", destination_root: str = "", reason: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """AG-37: crea un plan de migración allowlisted source->destination sin mover datos."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_plan_migration(source_path=source_path, destination_root=destination_root, reason=reason, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_execute_migration(plan_id: str, dry_run: bool = True) -> dict[str, Any]:
+    """AG-37: ejecuta copia de un plan ya creado; dry_run=True por defecto."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_execute_migration(plan_id, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_verify_migration(plan_id: str) -> dict[str, Any]:
+    """AG-37: verifica tamaño/checksums de una migración antes de permitir limpieza."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_verify_migration(plan_id)
+
+
+@mcp.tool
+def disk_steward_cleanup_verified(plan_id: str, verified: bool = False) -> dict[str, Any]:
+    """AG-37: limpia origen solo si el plan está verificado y verified=True."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_cleanup_verified(plan_id, verified=verified)
+
+
+@mcp.tool
+def disk_steward_update_backup_policy(preferred_backup_root: str = "", write: bool = False) -> dict[str, Any]:
+    """AG-37: lee o actualiza policy de destino de backups hacia disco no primario allowlisted."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_backup_policy(preferred_backup_root=preferred_backup_root or None, write=write)
+
+
+@mcp.tool
 def sync_hackathon_portfolio_to_web_content(
     source_path: str | None = None,
     default_status: str = "review",

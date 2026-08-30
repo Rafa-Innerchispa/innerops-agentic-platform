@@ -60,8 +60,16 @@ ALL_MCP_TOOL_NAMES = [
     "get_agent_catalog",
     "get_dev_backlog_summary",
     "get_development_roadmap",
+    "get_disk_steward_status",
+    "disk_steward_inventory",
+    "disk_steward_plan_migration",
+    "disk_steward_execute_migration",
+    "disk_steward_verify_migration",
+    "disk_steward_cleanup_verified",
+    "disk_steward_update_backup_policy",
     "get_mcp_fleet_status",
     "get_unified_stack_status",
+    "inneros_agent_fabric_status",
     "invoke_agent",
     "judge_resource_telemetry",
     "judge_safe_trigger",
@@ -4024,6 +4032,43 @@ def _generic_tool_definition(name: str) -> dict[str, Any]:
         "example_payload": {},
     }
 
+_DISK_STEWARD_TOOL_DEFINITIONS = {
+    "get_disk_steward_status": {"description": "AG-37: estado multi-disco, backups y candidatos de movimiento sin ejecutar cambios.", "risk": "read", "input_schema": {"include_candidates": "bool|null"}, "output_schema": {"ok": "bool", "overall": "string|null", "status": "object|null"}},
+    "disk_steward_inventory": {"description": "AG-37: inventario seguro de discos/backups, policy y guardrails para ChatGPT/agentes.", "risk": "read", "input_schema": {"include_candidates": "bool|null"}, "output_schema": {"ok": "bool", "status": "object", "policy": "object", "safety": "object"}},
+    "disk_steward_plan_migration": {"description": "AG-37: crea plan persistido source->destination en rutas allowlisted sin mover datos.", "risk": "write", "input_schema": {"source_path": "string|null", "destination_root": "string|null", "reason": "string|null", "dry_run": "bool|null"}, "output_schema": {"ok": "bool", "plan": "object|null", "executed": "bool"}},
+    "disk_steward_execute_migration": {"description": "AG-37: ejecuta copia de un plan allowlisted; dry_run=True por defecto; no elimina origen.", "risk": "write", "input_schema": {"plan_id": "string", "dry_run": "bool|null"}, "output_schema": {"ok": "bool", "plan_id": "string", "dry_run": "bool", "verify_after_copy": "object|null"}},
+    "disk_steward_verify_migration": {"description": "AG-37: verifica tamaño y checksums de muestra antes de habilitar limpieza.", "risk": "read", "input_schema": {"plan_id": "string"}, "output_schema": {"ok": "bool", "plan_id": "string", "verification": "object|null"}},
+    "disk_steward_cleanup_verified": {"description": "AG-37: elimina origen solo para plan verificado y parámetro verified=true.", "risk": "destructive", "input_schema": {"plan_id": "string", "verified": "bool"}, "output_schema": {"ok": "bool", "plan_id": "string|null", "status": "string|null"}},
+    "disk_steward_update_backup_policy": {"description": "AG-37: lee o actualiza policy persistente de backups hacia destino allowlisted no primario.", "risk": "write", "input_schema": {"preferred_backup_root": "string|null", "write": "bool|null"}, "output_schema": {"ok": "bool", "policy": "object|null", "written": "bool"}},
+}
+
+for _name, _meta in _DISK_STEWARD_TOOL_DEFINITIONS.items():
+    _definition = _generic_tool_definition(_name)
+    risk = _meta.get("risk")
+    _definition.update(
+        {
+            "description": _meta["description"],
+            "required_scopes": ["ralfia:admin"] if risk == "destructive" else (["ralfia:agents"] if risk == "write" else ["ralfia:read"]),
+            "risk_level": "high" if risk == "destructive" else ("medium" if risk == "write" else "low"),
+            "writes_to": ["ralfia_disk_steward_migrations", "disk_steward_backup_policy"] if risk in {"write", "destructive"} else [],
+            "reads_from": ["df", "findmnt", "backup roots", "ralfia_disk_steward_migrations"],
+            "input_schema": _meta["input_schema"],
+            "output_schema": _meta["output_schema"],
+            "example_payload": {},
+        }
+    )
+    TOOL_DEFINITIONS[_name] = _definition
+
+TOOL_DEFINITIONS["inneros_agent_fabric_status"] = {
+    "description": "Estado read-only del Agent Fabric: agentes, ops_task opcional, A2A/IDE bridge y readiness sin despachar trabajo.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["ralfia_agent_fabric", "ralfia_ops_tasks", "ralfia_a2a_tasks"],
+    "input_schema": {"ops_task_id": "string|null"},
+    "output_schema": {"ok": "bool", "status": "object|null", "ops_task": "object|null"},
+    "example_payload": {"ops_task_id": "ops_123"},
+}
 
 TOOL_DEFINITIONS.update(
     {
