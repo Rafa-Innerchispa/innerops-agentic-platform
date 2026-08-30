@@ -1,61 +1,51 @@
-# RaphiIA-OpenAI — instrucciones Cursor
+# InnerOS Agentic Platform - Agent Instructions
 
-**Proyecto:** puente **MCP** ChatGPT ↔ MongoDB RalfyIA (contenido + conversaciones)  
-**Servidor:** `192.168.1.4` (`ralphi-ia-ver-10`) — **workspace remoto obligatorio**  
-**Ruta:** `/home/rlopez/projects/raphiia-openai`  
-**Puertos:** status `:8101` · MCP `:8102` — **NO tocar** `:8100` Swarm, `:8098` Chutes, `:8097` UiPath, `:8099` Funding Hub
+## Canonical Workspace
 
-## Conexión (LEER PRIMERO)
-
-> **Coordinación (Cursor + Codex):** [`/home/rlopez/data/ai_coordination/00_LEER_PRIMERO.md`](/home/rlopez/data/ai_coordination/00_LEER_PRIMERO.md)
-
-> **NO trabajar desde Windows local.** Abrir Cursor vía **Remote SSH** → `rlopez@192.168.1.4` → carpeta del repo.
-
-1. [`docs/CONEXION.md`](docs/CONEXION.md) ← **conexión servidor + arranque**
-2. [`docs/CURSOR_SSH.md`](docs/CURSOR_SSH.md) ← **configurar Cursor Remote SSH**
-3. [`docs/ARRANQUE_RAPIDO.md`](docs/ARRANQUE_RAPIDO.md) ← copy/paste arranque
-4. [`docs/HANDOFF.md`](docs/HANDOFF.md) — arquitectura y decisiones
-5. [`docs/MCP_CHATGPT.md`](docs/MCP_CHATGPT.md) — ChatGPT Connectors
-6. [`docs/INTEGRATION.md`](docs/INTEGRATION.md) — Mongo DBxx
-7. [`docs/BACKUPS.md`](docs/BACKUPS.md)
-
-## Reglas duras (agentes)
-
-- **Coordinación:** leer y actualizar `/home/rlopez/data/ai_coordination/` cada sesión; registrar en Mongo vía `scripts/log_coordination.py`.
-- **Workspace = servidor** `/home/rlopez/projects/raphiia-openai` vía SSH remoto. **No** levantar SSH desde Windows en cada comando.
-- **Integración ChatGPT = MCP Connectors** (tipo Notion). No Custom GPT como camino principal.
-- **NO usar `OPENAI_API_KEY`** en el servidor — evita coste API; el LLM es ChatGPT del usuario.
-- **MongoDB** `pcdoctor_swarm` compartida — no crear DB nueva.
-- Colecciones bridge: `raphiia_openai_*` — no borrar `chat_messages` de Swarm.
-- Tools MCP: **`search`** y **`fetch`** obligatorios (ChatGPT Connectors).
-- `.env` nunca a git. Español en docs.
-
-## Arranque (terminal del servidor)
+Use the InnerOS core tree:
 
 ```bash
-cd /home/rlopez/projects/raphiia-openai
-source venv/bin/activate
-cp -n .env.example .env   # MCP_API_KEY + Mongo
-./run.sh          # :8101 status
-./run_mcp.sh      # :8102 /mcp
-./scripts/setup_ngrok.sh   # otra terminal → ChatGPT HTTPS
+cd /home/rlopez/inneros/inneros_core
 ```
 
-## Código clave
+The old `/home/rlopez/projects/raphiia-openai` path is historical. Do not add new ecosystem services, agents, or runtime code there.
 
-| Archivo | Rol |
-|---------|-----|
-| `raphiia_openai/mcp_server.py` | FastMCP tools → Mongo |
-| `raphiia_openai/mongo_store.py` | Persistencia |
-| `raphiia_openai/auth_middleware.py` | Auth `X-API-Key` |
-| `raphiia_openai/app.py` | Health `:8101` |
-| `raphiia_openai/routes.py` | Legacy REST — deprecar |
+## Coordination First
 
-## Prompt chat nuevo
+At the start of each session:
 
-```
-Workspace: /home/rlopez/projects/raphiia-openai (SSH 192.168.1.4)
-Lee docs/CONEXION.md, docs/HANDOFF.md, docs/MCP_CHATGPT.md.
-Trabaja SOLO en el servidor — no SSH desde Windows.
-Implementa/mantén MCP :8102 + Mongo pcdoctor_swarm. Sin OPENAI sk-.
+1. Read `get_coordination_live()`.
+2. Read your agent inbox.
+3. Accept or transfer the relevant ops task before making changes.
+4. Use locks/worktrees for development tasks.
+5. Report commit SHA, tests, services touched, and blockers back through MCP.
+
+Mongo/live coordination is the source of truth. Markdown inbox mirrors may lag.
+
+## Safety Boundaries
+
+- Preserve other agents' dirty work. Never use `git reset --hard` or broad checkout cleanup unless Rafael explicitly asks for it.
+- Do not use broad `rsync --delete` from a dirty platform tree.
+- Do not deploy production without review/approval.
+- Do not touch Workforce product code, `femar`, `workforce.pcdoctor.ai`, Judge UI, ISKCON UI, OAuth/RBAC visual work, or Cursor-owned tasks unless the accepted task explicitly assigns that surface.
+- Keep command execution inside Local Execution Plane allowlists, approved repos, package roots, and typed argv.
+- Keep cloud spend gated by explicit owner approval and teardown evidence.
+
+## Current Verified Platform Baseline
+
+- Runtime commit: `e590ea24f160ab66e60599c238a3ebf842817027`.
+- A2A bridge: online, 58 agent cards, durable dispatch through InnerOS coordination.
+- Fleet: AMD `.5` and Intel `.4` are one logical MCP ecosystem when fingerprints are consistent.
+- Judge Console backend: content contract available; UI work is owned separately.
+- Drop-folder ingest: `/home/rlopez/data/inneros_ingest`.
+- MI325X/DigitalOcean burst: preflight/dry-run and approval gates only by default.
+- ROCm10: active vLLM canary service exists; host-level ROCm observed as 7.2.1 during 2026-08-30 consolidation, so do not claim system-wide ROCm10 without a fresh probe.
+- Lemonade: `lemonade-lemond.service` observed active.
+
+## Validation
+
+Use the canonical virtualenv when a clean worktree has no local `platform/venv`:
+
+```bash
+PYTHONPATH=platform /home/rlopez/inneros/inneros_core/platform/venv/bin/python3 -m pytest -q platform/tests
 ```
