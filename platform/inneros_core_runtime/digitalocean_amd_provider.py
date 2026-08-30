@@ -487,6 +487,57 @@ def cleanup_failed_sessions(max_age_seconds: int = 3600, dry_run: bool = True) -
     return {"ok": True, "dry_run": False, "matched": len(rows), "modified": int(getattr(result, "modified_count", 0))}
 
 
+def mi325x_deploy_plan(
+    *,
+    project_id: str = "judge-console",
+    task_id: str = "",
+    model_ref: str = "",
+    region: str = "",
+    image: str = "ubuntu-24-04-x64",
+    approval_id: str = "",
+    owner_confirmed: bool = False,
+    dry_run: bool = True,
+    spend_limit_usd: float = 20.0,
+    idle_minutes: int = 30,
+) -> dict[str, Any]:
+    """Plan or execute an approval-gated MI325X cloud burst."""
+    sizes = list_sizes(gpu_only=True)
+    candidates = []
+    if sizes.get("ok"):
+        for size in sizes.get("sizes") or []:
+            blob = json.dumps(size, sort_keys=True).lower()
+            if "mi325" in blob or "mi300" in blob or "gpu" in str(size.get("slug") or "").lower():
+                candidates.append(size)
+    selected_size = next((size for size in candidates if "mi325" in json.dumps(size, sort_keys=True).lower()), None) or (candidates[0] if candidates else None)
+    selected_region = region or (str((selected_size or {}).get("regions", [""])[0]) if (selected_size or {}).get("regions") else "")
+    selected_slug = str((selected_size or {}).get("slug") or "")
+    hourly = _as_float((selected_size or {}).get("price_hourly"))
+    estimate = {
+        "size": selected_slug or None,
+        "region": selected_region or None,
+        "image": image,
+        "hourly_rate_usd": hourly,
+        "spend_limit_usd": spend_limit_usd,
+        "idle_minutes": idle_minutes,
+        "max_estimated_session_hours": round(float(spend_limit_usd) / hourly, 2) if hourly else None,
+    }
+    plan = {
+        "ok": True,
+        "provider": PROVIDER_ID,
+        "capability": "deploy_mi325x_model",
+        "project_id": project_id,
+        "task_id": task_id,
+        "model_ref": model_ref or "owner-selected-vllm-workload",
+        "preflight": preflight(),
+        "estimate": estimate,
+        "requires": ["owner_confirmed=true", "approval_id", "cloud apply window", "dry_run=false", "teardown evidence"],
+        "executed": False,
+    }
+    if dry_run or not owner_confirmed:
+        return {**plan, "dry_run": True, "approval_required": True}
+    return create_gpu_droplet(name=f"inneros-mi325x-{project_id}"[:80], region=selected_region, size=selected_slug, image=image, project_id=project_id, task_id=task_id, approval_id=approval_id, dry_run=False, spend_limit_usd=spend_limit_usd, idle_minutes=idle_minutes)
+
+
 def _session_doc(**kwargs: Any) -> dict[str, Any]:
     session_id = f"cloudburst_{int(time.time())}_{os.getpid()}"
     now = _now()

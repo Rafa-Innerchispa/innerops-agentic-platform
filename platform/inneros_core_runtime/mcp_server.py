@@ -1482,6 +1482,14 @@ def digitalocean_cleanup_failed_sessions(max_age_seconds: int = 3600, dry_run: b
 
 
 @mcp.tool
+def digitalocean_mi325x_deploy_plan(project_id: str = "judge-console", task_id: str = "", model_ref: str = "", region: str = "", image: str = "ubuntu-24-04-x64", approval_id: str = "", owner_confirmed: bool = False, dry_run: bool = True, spend_limit_usd: float = 20.0, idle_minutes: int = 30) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: owner-gated MI325X/vLLM deploy plan or explicit execution."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.mi325x_deploy_plan(project_id=project_id, task_id=task_id, model_ref=model_ref, region=region, image=image, approval_id=approval_id, owner_confirmed=owner_confirmed, dry_run=dry_run, spend_limit_usd=spend_limit_usd, idle_minutes=idle_minutes)
+
+
+@mcp.tool
 def brightdata_status() -> dict[str, Any]:
     """Bright Data: estado seguro, balance y MCP remoto sin exponer token."""
     from raphiia_openai import brightdata_provider as bd
@@ -2060,6 +2068,30 @@ def judge_safe_trigger(action: str, prompt: str = "", correlation_id: str = "", 
     from raphiia_openai import judge_telemetry
 
     return judge_telemetry.safe_judge_trigger(action, prompt=prompt, correlation_id=correlation_id, dry_run=dry_run)
+
+
+@mcp.tool
+def judge_console_content_get(section_id: str = "", refresh: bool = True) -> dict[str, Any]:
+    """Judge Console: persistent narrative/evidence content with source and freshness metadata."""
+    from raphiia_openai import judge_console_content
+
+    return judge_console_content.get_content(section_id=section_id, refresh=refresh)
+
+
+@mcp.tool
+def judge_model_routing_policy(task_class: str = "", project_id: str = "") -> dict[str, Any]:
+    """Judge/ARIA: auditable model routing policy including selected_model/reason/cost boundary."""
+    return local_model_router.model_routing_policy(task_class=task_class, project_id=project_id)
+
+
+@mcp.tool
+def judge_mi325x_deploy(action: str = "preflight", params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Judge Console: safe owner-only MI325X action backend; defaults to preflight/dry-run."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    payload = dict(params or {})
+    payload.setdefault("dry_run", True)
+    return do.mi325x_deploy_plan(**payload)
 
 
 @mcp.tool
@@ -5286,6 +5318,22 @@ def get_ai_usage_report(limit: int = 200) -> dict[str, Any]:
 
 
 @mcp.tool
+def inneros_ingest_drop_status(limit: int = 20) -> dict[str, Any]:
+    """InnerOS ingest: status of canonical drop folder and downstream Qdrant health."""
+    from raphiia_openai import ingest_drop_folder
+
+    return ingest_drop_folder.status(limit=limit)
+
+
+@mcp.tool
+def inneros_ingest_drop_run(dry_run: bool = True, limit: int = 20) -> dict[str, Any]:
+    """InnerOS ingest: idempotently ingest files from drop folder into Document Vault."""
+    from raphiia_openai import ingest_drop_folder
+
+    return ingest_drop_folder.run(dry_run=dry_run, limit=limit)
+
+
+@mcp.tool
 def generate_daily_brief(limit: int = 20, model: str | None = None) -> dict[str, Any]:
     """Brief diario local-first con fallback seguro."""
     return local_model_router.generate_daily_brief(limit=limit, model=model)
@@ -6607,53 +6655,3 @@ if __name__ == "__main__":
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
     mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp")
-
-
-# --- InnerOS A2A transport bridge ---
-
-@mcp.tool
-def a2a_status() -> dict[str, Any]:
-    """A2A bridge health, SDK visibility and registered InnerOS agent roles."""
-    from raphiia_openai import a2a_bridge
-
-    return a2a_bridge.status()
-
-
-@mcp.tool
-def a2a_agent_cards() -> dict[str, Any]:
-    """Return the five canonical Agent Cards exposed by the InnerOS A2A bridge."""
-    from raphiia_openai import a2a_bridge
-
-    return a2a_bridge.agent_cards()
-
-
-@mcp.tool
-def a2a_dispatch(
-    agent_id: str,
-    title: str,
-    body: str,
-    correlation_id: str = "",
-    priority: str = "p0",
-    related_project: str = "inneros",
-    dry_run: bool = False,
-) -> dict[str, Any]:
-    """Submit durable agent work over A2A while RACB/ops_tasks remain source of truth."""
-    from raphiia_openai import a2a_bridge
-
-    return a2a_bridge.dispatch(
-        agent_id=agent_id,
-        title=title,
-        body=body,
-        correlation_id=correlation_id,
-        priority=priority,
-        related_project=related_project or None,
-        dry_run=dry_run,
-    )
-
-
-@mcp.tool
-def a2a_task_status(a2a_task_id: str) -> dict[str, Any]:
-    """Project an InnerOS RACB task into its A2A state and evidence artifacts."""
-    from raphiia_openai import a2a_bridge
-
-    return a2a_bridge.task_status(a2a_task_id)

@@ -69,6 +69,11 @@ ALL_MCP_TOOL_NAMES = [
     "invoke_agent",
     "judge_resource_telemetry",
     "judge_safe_trigger",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+    "judge_mi325x_deploy",
+    "inneros_ingest_drop_status",
+    "inneros_ingest_drop_run",
     "judge_trace_current",
     "judge_trace_detail",
     "judge_trace_history",
@@ -212,6 +217,7 @@ ALL_MCP_TOOL_NAMES = [
     "digitalocean_destroy_droplet",
     "digitalocean_cost_session_status",
     "digitalocean_cleanup_failed_sessions",
+    "digitalocean_mi325x_deploy_plan",
     "brightdata_status",
     "brightdata_balance",
     "brightdata_store_api_token_server_side",
@@ -4360,6 +4366,9 @@ for _alias in ("agent_iskcon_module_manifest", "agent_iskcon_action", "agent_isk
 
 for _name in (
     "judge_workflow_start",
+    "judge_mi325x_deploy",
+    "digitalocean_mi325x_deploy_plan",
+    "inneros_ingest_drop_run",
     "judge_workflow_continue",
     "judge_workflow_execute",
     "judge_trace_record",
@@ -4378,6 +4387,9 @@ for _name in (
 
 for _name in (
     "judge_workflow_get",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+    "inneros_ingest_drop_status",
     "judge_workflow_list",
     "judge_trace_current",
     "judge_trace_history",
