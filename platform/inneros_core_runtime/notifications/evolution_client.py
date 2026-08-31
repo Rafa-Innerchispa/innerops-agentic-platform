@@ -52,14 +52,16 @@ def resolve_inbound_node(payload: dict[str, Any] | None = None, *, instance: str
 
 def local_node() -> str:
     """Nodo local: amd (.5) o primary (.4)."""
+    host = socket.gethostname().lower()
+    if "amd" in host or "ralfiia-amd" in host or "ralphiiaamd" in host:
+        return "amd"
+    if "ver-10" in host or "intel" in host or "ralphi-ia" in host:
+        return "primary"
     explicit = os.getenv("RALFIA_NODE", "").strip().lower()
     if explicit in ("amd", "backup", "5", ".5"):
         return "amd"
     if explicit in ("primary", "intel", "4", ".4"):
         return "primary"
-    host = socket.gethostname().lower()
-    if "amd" in host or "ralphiiaamd" in host:
-        return "amd"
     return "primary"
 
 

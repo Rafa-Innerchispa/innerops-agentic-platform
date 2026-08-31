@@ -6,8 +6,9 @@ ralfia_disk_steward:
   entity_id: ent_ralfia
   description: >
     Inventario multi-disco, backups, tareas diferidas (AG-36), alerta crítica
-    cuando queda ≤20% libre en discos principales. Propone mover archivos seguros
-    al disco de datos; NUNCA formatea; movimiento solo tras aprobación WhatsApp.
+    cuando queda ≤20% libre en cualquier disco monitoreado. Propone mover archivos
+    seguros al disco mecánico/de datos detectado; NUNCA formatea; movimiento solo
+    tras aprobación WhatsApp.
   entrypoint: inneros/inneros_core/scripts/ag37_disk_steward.sh
   timer: ralfia-disk-steward.timer
   thresholds:
@@ -17,6 +18,11 @@ ralfia_disk_steward:
     - /
     - /home/rlopez/data
     - /home/rlopez/projects
+  archive_policy:
+    amd: /home/rlopez/data/backups
+    intel: /mnt/datos_agentes/backups
+    never_same_filesystem_as_source: true
+    alert_channel: Evolution API WhatsApp with failover
   integrates:
     - AG-35
     - AG-36

@@ -6,17 +6,32 @@
 
 | Nivel | Condición |
 |-------|-----------|
-| **CRÍTICO** | ≤ **20% libre** en `/`, `/home/rlopez/data` o `/home/rlopez/projects` |
-| **AVISO** | ≤ 30% libre |
+| **CRÍTICO** | ≤ **20% libre** en cualquier disco monitoreado |
+| **AVISO** | ≤ 30% libre en cualquier disco monitoreado |
+
+## Política de ubicación
+
+Los respaldos y archivos grandes no deben vivir en el filesystem raíz si existe
+un disco de datos separado.
+
+| Servidor | Destino persistente esperado |
+|----------|------------------------------|
+| Intel `.4` | `/mnt/datos_agentes/backups` |
+| AMD `.5` | `/home/rlopez/data/backups` |
+
+El instalador detecta el primer disco de datos que no esté en el mismo filesystem
+que `/` y lo fija en el timer como `DISK_ARCHIVE_BASE`,
+`DISK_ARCHIVE_ROOT` y `DISK_MIGRATION_ROOT`.
 
 ## Qué hace
 
 1. Escanea **todos** los montajes (`df`) — incluye discos adicionales (`/mnt/...`).
 2. Inventaria carpetas de **backups** conocidas (tamaño GB).
 3. Lee estado **AG-36** (tareas diferidas PST/GDrive).
-4. Si crítico/aviso → WhatsApp alerta inmediata.
+4. Si crítico/aviso → WhatsApp alerta inmediata por Evolution API con failover.
 5. Si hay candidatos seguros (snapshots/DR antiguos) → propuesta con botones **Sí, mover** / **No mover**.
-6. **Nunca** formatea discos. **Nunca** mueve Mongo, Docker, InnerOS platform sin propuesta explícita.
+6. Registra cada alerta en Mongo aunque WhatsApp falle, para que MCP/ChatGPT la vean.
+7. **Nunca** formatea discos. **Nunca** mueve Mongo, Docker, InnerOS platform sin propuesta explícita.
 
 ## Aprobación Rafael
 
