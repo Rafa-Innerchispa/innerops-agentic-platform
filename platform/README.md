@@ -1,53 +1,82 @@
-# RaphiIA-OpenAI
+# InnerOS Platform Runtime
 
-Puente **MCP (Model Context Protocol)** entre **ChatGPT Connectors** y **MongoDB RalfyIA** (`pcdoctor_swarm`).
+This directory contains the core InnerOS runtime and MCP/tool surface used by the frozen All Things Agentic Hackathon submission.
 
-**Servidor:** Ralphi IA `192.168.1.4` · **Ruta:** `/home/rlopez/projects/raphiia-openai`
+## Runtime surfaces
 
-Chateas en **ChatGPT normal** → tools guardan/consultan ideas, conversaciones y pipeline editorial. **Sin OpenAI API (`sk-`) en el servidor.**
+- Core API: `http://127.0.0.1:8101`
+- MCP / tool surface: `http://127.0.0.1:8102`
+- Canonical runtime package: `inneros_core_runtime`
 
----
+## Key components
 
-## Empezar aquí
+- `inneros_core_runtime/gemini_runtime.py` — Gemini 3.5+ runtime integration
+- `inneros_core_runtime/google_adk_a2a.py` — Google ADK / A2A integration
+- `inneros_core_runtime/google_extra_models.py` — additional Google model routes including FunctionGemma support
+- `inneros_core_runtime/resource_fabric.py` — local/cloud capability routing
+- `inneros_core_runtime/a2a_*` — agent discovery, A2A bridge and durable task handling
+- `inneros_core_runtime/dev_swarm_scheduler.py` — bounded development-agent scheduler
+- `inneros_core_runtime/work_liveness.py` — liveness and stalled-work detection
+- `inneros_core_runtime/integration_guardian.py` — verification / acceptance gate
+- `inneros_core_runtime/racb_locks.py` — ownership and coordination locks
 
-| Paso | Doc |
-|------|-----|
-| 1. Conectar Cursor al servidor | [`docs/CONEXION.md`](docs/CONEXION.md) |
-| 2. Configurar Remote SSH | [`docs/CURSOR_SSH.md`](docs/CURSOR_SSH.md) |
-| 3. Arrancar servicios | [`docs/ARRANQUE_RAPIDO.md`](docs/ARRANQUE_RAPIDO.md) |
-| 4. Conectar ChatGPT | [`docs/MCP_CHATGPT.md`](docs/MCP_CHATGPT.md) |
-| 5. Arquitectura | [`docs/HANDOFF.md`](docs/HANDOFF.md) |
+## Google hackathon path
 
----
+The final submission uses and demonstrates:
 
-## Puertos
+- Gemini 3.5+
+- Google ADK
+- Google GenAI SDK
+- Vertex AI
+- FunctionGemma / Gemma
+- Cloud Run
+- Firestore
+- Pub/Sub
 
-| Puerto | Servicio |
-|--------|----------|
-| **8101** | FastAPI `/status`, `/api/v1/health` |
-| **8102** | MCP Streamable HTTP `/mcp` |
+Judge-facing proof is available through the live Judge Console documented in the repository root `JUDGES_START_HERE.md`.
 
-Verdad canónica servidor: `/home/rlopez/data/ai_coordination/PORTS_CANONICAL.md`
+## Local-first path
 
----
+InnerOS routes eligible workloads to sovereign local infrastructure first, including AMD ROCm + vLLM inference. Cloud resources are used when they provide required capability or Google-native execution proof.
 
-## Quick start (en el servidor, no en Windows)
+## Setup
+
+From this directory:
 
 ```bash
-cd /home/rlopez/projects/raphiia-openai
-cp -n .env.example .env && nano .env
+python3 -m venv venv
 source venv/bin/activate
-./run.sh && ./run_mcp.sh
+pip install -r requirements.txt
+cp .env.example .env
+./run.sh
+```
+
+Optional MCP surface:
+
+```bash
+./run_mcp.sh
+```
+
+Verify:
+
+```bash
 curl http://127.0.0.1:8101/status
 ```
 
----
+Run the regression suite from the repository root:
 
-## Ecosistema
+```bash
+python3 -m unittest discover -s platform/tests -p 'test_*.py'
+```
 
-| Proyecto | Puerto |
-|----------|--------|
-| **raphiia-openai** (este) | 8101, 8102 |
-| innerspark-swarm-os | 8100 |
-| chutes-deposit-agent | 8098 |
-| uipath-copilot | 8097 |
+Provider credentials are required only for the integrations being exercised. Secrets are intentionally not committed.
+
+## Frozen hackathon version
+
+Use repository branch:
+
+```text
+hackathon-freeze-20260831
+```
+
+Normal development can continue elsewhere without changing the source evaluated by judges.
