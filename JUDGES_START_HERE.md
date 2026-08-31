@@ -1,10 +1,27 @@
 # Judges: Start Here
 
-**Project:** InnerOS - ARIA Enterprise Agent Fleet  
-**Track:** All Things Agentic Hackathon 2026 - Fortified Enterprise Fleet  
+**Project:** InnerOS — The Self-Healing Agentic Operating System  
+**Track:** All Things Agentic Hackathon 2026 — Fortified Enterprise Fleet  
 **Canonical source repository:** this repository  
 **Live Judge Console:** https://inneros.creatorcore.ai/app/judge  
 **Devpost:** https://devpost.com/software/innerops-aria-enterprise-agent-fleet
+
+## Demo access
+
+Open:
+
+https://inneros.creatorcore.ai/app/login?judge=1
+
+Use either demo username:
+
+- `HACKATHON-JUDGE`
+- `DEVPOST-JUDGE`
+
+Password:
+
+- `demo123`
+
+After login, open the Judge Console and run the tests individually.
 
 ## One-repository rule
 
@@ -35,17 +52,18 @@ The demo is designed to prove seven things individually:
 
 ## Repository map
 
-- `platform/inneros_core_runtime/` - canonical InnerOS runtime and tool/control plane.
-- `platform/inneros_core_runtime/a2a_*` - A2A registry, bridge, controller and durable task handling.
-- `platform/inneros_core_runtime/gemini_runtime.py` - Gemini runtime integration.
-- `platform/inneros_core_runtime/google_adk_a2a.py` - Google ADK/A2A integration path.
-- `platform/inneros_core_runtime/resource_fabric.py` - capability/cost-aware local-first routing.
-- `platform/inneros_core_runtime/external_repair_agent.py` - bounded external coding-agent escalation.
-- `platform/inneros_core_runtime/dev_swarm_scheduler.py` - local multi-agent development scheduler.
-- `platform/inneros_core_runtime/work_liveness.py` - work-liveness guard.
-- `platform/inneros_core_runtime/integration_guardian.py` - verification/acceptance gate.
-- `platform/inneros_core_runtime/racb_locks.py` - repository/action coordination locks.
-- `docs/` - architecture, security, story, Google/hackathon evidence and operating notes.
+- `platform/inneros_core_runtime/` — canonical InnerOS runtime and tool/control plane.
+- `platform/inneros_core_runtime/a2a_*` — A2A registry, bridge, controller and durable task handling.
+- `platform/inneros_core_runtime/gemini_runtime.py` — Gemini runtime integration.
+- `platform/inneros_core_runtime/google_adk_a2a.py` — Google ADK/A2A integration path.
+- `platform/inneros_core_runtime/resource_fabric.py` — capability/cost-aware local-first routing.
+- `platform/inneros_core_runtime/external_repair_agent.py` — bounded external coding-agent escalation.
+- `platform/inneros_core_runtime/dev_swarm_scheduler.py` — local multi-agent development scheduler.
+- `platform/inneros_core_runtime/work_liveness.py` — work-liveness guard.
+- `platform/inneros_core_runtime/integration_guardian.py` — verification/acceptance gate.
+- `platform/inneros_core_runtime/racb_locks.py` — repository/action coordination locks.
+- `docs/ALL_THINGS_AGENTIC.md` — hackathon requirements and evidence mapping.
+- `docs/` — architecture, security, story, Google/hackathon evidence and operating notes.
 
 ## Fast local reproduction
 
@@ -87,27 +105,29 @@ Provider credentials are optional unless the corresponding provider path is bein
 
 ## Live demo path
 
-1. Open https://inneros.creatorcore.ai/app/judge.
-2. Run one Judge action at a time.
-3. Observe the fresh correlation ID and execution state.
-4. Send a request through ARIA and inspect provider/model/runtime provenance.
-5. Watch the Global Live Trace for dispatch, acknowledgement, running state and terminal evidence.
-6. Use the Google/Gemini path for cloud proof and the local routes for sovereign-compute proof.
-7. Treat any explicit `ERROR`, `TIMEOUT`, `DEGRADED` or historical/not-running label as a truthful system state, not a hidden success.
+1. Log in with the Judge credentials above.
+2. Open https://inneros.creatorcore.ai/app/judge.
+3. Run one Judge action at a time.
+4. Observe the fresh correlation ID and execution state.
+5. Send a natural-language request through ARIA and inspect provider/model/runtime provenance.
+6. Watch the Global Live Trace for dispatch, acknowledgement, running state and terminal evidence.
+7. Use the Google/Gemini path for cloud proof and the local routes for sovereign-compute proof.
+8. Treat any explicit `ERROR`, `TIMEOUT`, `DEGRADED`, `PARTIAL`, or historical/not-running label as a truthful system state, not a hidden success.
 
 ## Google technology
 
 The hackathon path uses or demonstrates:
 
 - Gemini 3.5+
-- Google Agent Development Kit / Google GenAI SDK
+- Google Agent Development Kit (ADK)
+- Google GenAI SDK (`google-genai`)
 - Google Cloud Run
 - Firestore
-- Pub/Sub where appropriate
+- Pub/Sub
 - Google Cloud IAM / bounded agent identity patterns
-- Google agentic-defense controls where integrated
+- Model Armor / agentic-defense controls where integrated
 
-See the main `README.md` and `docs/` for architecture and evidence details.
+See [`docs/ALL_THINGS_AGENTIC.md`](docs/ALL_THINGS_AGENTIC.md) and the main `README.md` for architecture and evidence details.
 
 ## Pre-existing work disclosure
 
