@@ -415,15 +415,22 @@ Individual hackathon-focused tests can also be run directly as they are added.
 
 ## Cloud deployment evidence
 
-The hackathon build has a Cloud Run deployment in Google Cloud project `innerops-agentic-platform`, region `us-central1`, with persistent state configured for Firestore on the cloud path.
+The hackathon build includes Google Cloud Run (project `innerops-agentic-platform`, region `us-central1`) **and** a canonical **on-prem demo** on AMD `.5` behind Cloudflare.
 
-The final submission/demo will show:
+| Surface | Canonical URL |
+|---------|----------------|
+| **Judge Console (reviewers)** | https://inneros.creatorcore.ai/app/judge |
+| InnerOS login | https://inneros.creatorcore.ai/app/login |
+| Legacy Cloud Run | https://inneros.pcdoctor.ai/ (deprecated for Judge PASS) |
 
-- Cloud Run service/revision evidence;
-- a live `.run.app` endpoint or console evidence;
-- Firestore/state updates;
-- Gemini/Google agent execution evidence;
-- the autonomous workflow and verification trail.
+Judges: start at [`docs/JUDGES_START_HERE.md`](docs/JUDGES_START_HERE.md).
+
+The submission shows:
+
+- Cloud Run / Firestore evidence where the cloud path is exercised;
+- **Live Judge demo** at `inneros.creatorcore.ai` with persisted trace + A2A;
+- Gemini/Google agent execution evidence when quota allows;
+- the autonomous workflow and verification trail ([`docs/ALL_THINGS_AGENTIC.md`](docs/ALL_THINGS_AGENTIC.md)).
 
 ---
 
@@ -441,10 +448,11 @@ The strongest candidate is the Executive Intelligence workflow built from real i
 
 ## Documentation
 
+- **[`docs/JUDGES_START_HERE.md`](docs/JUDGES_START_HERE.md)** — hackathon reviewers: login, 7 tests, truth states
+- [`docs/ALL_THINGS_AGENTIC.md`](docs/ALL_THINGS_AGENTIC.md) - submission scope, requirements and evidence checklist
 - [`docs/THE_STORY.md`](docs/THE_STORY.md) - the lived story behind InnerOS
 - [`docs/AGENTIC_DEFENSE.md`](docs/AGENTIC_DEFENSE.md) - security/governance mapping
 - [`docs/AMD_ROCM_STRATEGY.md`](docs/AMD_ROCM_STRATEGY.md) - AMD Skills and ROCm adoption strategy
-- [`docs/ALL_THINGS_AGENTIC.md`](docs/ALL_THINGS_AGENTIC.md) - submission scope, requirements and evidence checklist
 - `platform/README.md` - legacy/core MCP runtime notes retained for historical/technical context
 
 ---

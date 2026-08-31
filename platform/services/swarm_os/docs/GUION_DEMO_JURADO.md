@@ -1,5 +1,9 @@
 # Guión demo jurado — Band of Agents (2–3 min)
 
+> **Nota All Things Agentic 2026:** Este guión es del hackathon **Band of Agents (BOA26)**.  
+> Para el **Judge Console InnerOS** use [`../../../../docs/JUDGES_START_HERE.md`](../../../../docs/JUDGES_START_HERE.md)  
+> → https://inneros.creatorcore.ai/app/judge
+
 **URL pública:** https://sworn-profusely-alongside.ngrok-free.dev  
 **Idioma UI:** Español (selector arriba a la derecha si aplica)
 
