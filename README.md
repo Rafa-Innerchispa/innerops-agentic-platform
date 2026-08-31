@@ -1,200 +1,72 @@
-# InnerOS - ARIA Enterprise Agent Fleet
+# InnerOS — The Self-Healing Agentic Operating System
 
-> **An AI operating system for a real small technology company.**
->
-> InnerOS watches signals, remembers context, delegates work, executes through bounded tools, verifies outcomes, recovers stalled work, and brings the human back only when the human is actually needed.
+> A local-first, self-healing enterprise agent fleet that routes work across Gemini, Google Cloud, sovereign local models, A2A agents, and bounded operational tools with durable state and auditable evidence.
 
-**All Things Agentic Hackathon 2026 - Fortified Enterprise Fleet**
+**All Things Agentic Hackathon 2026 — Fortified Enterprise Fleet**
 
-## Judges
+## Final hackathon snapshot
+
+This repository contains the canonical InnerOS / ARIA hackathon source.
+
+For judging, use the frozen branch:
+
+```text
+hackathon-freeze-20260831
+```
+
+The submission is intentionally frozen so normal product development can continue later without changing the version evaluated by judges.
 
 **Start here:** [`JUDGES_START_HERE.md`](JUDGES_START_HERE.md)  
+**Hackathon evidence map:** [`docs/ALL_THINGS_AGENTIC.md`](docs/ALL_THINGS_AGENTIC.md)  
 **Live Judge Console:** https://inneros.creatorcore.ai/app/judge  
+**Judge login:** https://inneros.creatorcore.ai/app/login?judge=1  
 **Devpost:** https://devpost.com/software/innerops-aria-enterprise-agent-fleet
 
-This public repository is the **single canonical hackathon source of truth**. Existing products such as Workforce are real integration targets and operational proof, but judges do not need a second repository to evaluate InnerOS.
+Judge credentials:
+
+- Username: `HACKATHON-JUDGE` or `DEVPOST-JUDGE`
+- Password: `demo123`
 
 ---
 
-## Why this exists
+## Why InnerOS exists
 
-InnerOS did not start as a hackathon prompt.
+InnerOS grew from a practical problem: one person becoming the coordination bottleneck of a real technology company while simultaneously handling customers, field operations, software development, infrastructure, cloud services, billing, vendors, deadlines, email, funding opportunities, hackathons, and new products.
 
-It grew from a practical problem: one person becoming the bottleneck of a small technology company while simultaneously handling customers, field operations, software development, infrastructure, cloud services, billing, funding opportunities, hackathons, email, vendors, and new products.
+Building isolated AI assistants helped, but created another problem: someone still had to watch the assistants, remember context, detect stalled work, decide what mattered, and verify whether anything actually finished.
 
-Building isolated AI assistants helped, but it also created a new problem: **someone still had to watch the assistants, remember the deadlines, notice the important email, check whether development stalled, recover broken services, and decide what should happen next.**
+InnerOS is the operating layer built to remove that coordination burden.
 
-InnerOS is an attempt to remove that coordination burden.
-
-The core operating loop is:
+The core loop is:
 
 ```text
 signal -> relevance -> memory -> decision -> delegation
        -> execution -> verification -> recovery -> evidence -> learning
 ```
 
-The scarce resource we are optimizing for is not tokens. It is **human attention**.
+The scarce resource we optimize for is not tokens. It is **human attention**.
 
 ---
 
 ## What InnerOS does
 
-InnerOS receives signals from real operational systems instead of waiting for a perfect user prompt.
+InnerOS coordinates real operational work across persistent state, specialized agents, local AI, Google Cloud, and deterministic tools.
 
-Signals can come from:
+A signal can come from a user, another agent, infrastructure, repositories, email, business systems, deadlines, cloud events, or devices.
 
-- email and opportunity feeds;
-- GitHub/GitLab repositories;
-- infrastructure and service health;
-- cloud providers and billing/credit events;
-- hackathon and funding deadlines;
-- business systems;
-- workforce and physical-access events;
-- messaging channels;
-- other agents.
+ARIA then:
 
-ARIA, the agent fleet, then coordinates the next safe action:
+1. interprets the signal in current operational context;
+2. retrieves persistent state and knowledge;
+3. discovers an approved agent or capability;
+4. applies identity, policy, locking, and approval boundaries;
+5. chooses the appropriate local or cloud execution resource;
+6. executes through bounded tools;
+7. verifies the result;
+8. persists evidence and state;
+9. recovers stalled work or escalates only when human authority is required.
 
-1. classify the signal in the context of current projects and priorities;
-2. retrieve persistent operational context;
-3. select the appropriate specialist capability;
-4. acquire ownership/locks where required;
-5. execute through scoped deterministic tools;
-6. route sensitive actions through approval policy;
-7. verify the outcome;
-8. persist evidence and state;
-9. recover or escalate stalled work;
-10. suppress duplicate noise once the loop is closed.
-
-This is deliberately different from a chat loop. **Many agent demos begin with a prompt. InnerOS begins with the world.**
-
----
-
-## Architecture at a glance
-
-```mermaid
-flowchart TB
-    WORLD[Real-world signals\nEmail | Git | Cloud | Devices | Business | Deadlines]
-    INTEL[Executive Intelligence\nRelevance | Deadline | Value | Risk | Dedupe]
-    MEM[Persistent Memory & Operational State]
-    ARIA[ARIA Orchestrator / Agent Registry]
-    POLICY[Identity | Policy | Approval | Guardrails]
-    EXEC[Bounded Tool Execution]
-    VERIFY[Verification | Evidence | Observability]
-
-    subgraph LOCAL[Local Sovereign Compute]
-      NV[NVIDIA Node\nRTX 3060 12GB\nOllama + operational services]
-      AMD[AMD Node\nRadeon AI PRO R9700\nROCm + vLLM]
-    end
-
-    subgraph GOOGLE[Google Cloud Plane]
-      GEMINI[Gemini 3.5+]
-      ADK[Google Agent Framework\nADK / GenAI SDK]
-      CR[Cloud Run]
-      FS[Firestore]
-      PS[Pub/Sub where appropriate]
-      MA[Model Armor / Agentic Defense]
-    end
-
-    CHATGPT[ChatGPT\nHuman-facing engineering & operations interface]
-    MCP[InnerOS MCP / Tool Layer]
-
-    WORLD --> INTEL --> MEM --> ARIA
-    MEM <--> ARIA
-    ARIA --> POLICY --> EXEC --> VERIFY --> MEM
-
-    ARIA <--> NV
-    ARIA <--> AMD
-    ARIA <--> GEMINI
-    GEMINI <--> ADK
-    ADK --> CR
-    CR <--> FS
-    CR <--> PS
-    POLICY <--> MA
-
-    CHATGPT <--> MCP <--> ARIA
-```
-
----
-
-## Two-node local AI infrastructure
-
-InnerOS is not running on one workstation and it is not cloud-only. The local plane currently spans two heterogeneous servers.
-
-### NVIDIA node - `ralphi-ia-ver-10`
-
-Live hardware discovery confirms:
-
-- Ubuntu 24.04 LTS;
-- 31 GiB system RAM;
-- **NVIDIA GeForce RTX 3060 with 12,288 MiB VRAM**;
-- Ollama local model runtime;
-- MongoDB, Qdrant, n8n, Home Assistant and supporting data/integration services;
-- MCP, authentication, browser automation, messaging and operational services.
-
-This node remains important because much of the ecosystem began here and many long-running services still live on it.
-
-### AMD node - `ralfiia-amd`
-
-Live hardware/runtime discovery confirms:
-
-- AMD-based Linux server;
-- **AMD Radeon AI PRO R9700 (RDNA4 / gfx1201)**;
-- approximately 32 GiB class VRAM;
-- ROCm runtime;
-- vLLM OpenAI-compatible serving;
-- larger local coding/inference workloads.
-
-At the time of this README update, the local vLLM plane was serving a Qwen3 Coder 30B-class quantized model.
-
-The two nodes are treated as a resource fabric. Work is routed according to capability, privacy, cost, available hardware and risk.
-
-> **Cloud when it adds value. Local when it does not.**
-
----
-
-## ChatGPT + Gemini: model-agnostic by design
-
-A meaningful part of InnerOS has been built and operated through **ChatGPT as the human-facing command, engineering and reasoning interface**, connected to the system through the InnerOS MCP/tool layer.
-
-That is intentionally documented rather than hidden simply because this hackathon is hosted by Google.
-
-For the All Things Agentic Hackathon, the Google-native path uses **Gemini 3.5+**, Google agent tooling, and Google Cloud infrastructure. Gemini is an important reasoning/runtime participant, but InnerOS is not designed around vendor lock-in.
-
-The architecture separates:
-
-- model reasoning;
-- persistent memory and state;
-- identity and access;
-- deterministic business rules;
-- scoped tools;
-- execution ownership;
-- verification;
-- human approval.
-
-This allows local models, Gemini, ChatGPT-assisted operations and other authorized providers to participate behind the same operational controls.
-
----
-
-## ARIA is a fleet, not a set of personas
-
-ARIA coordinates specialized operational capabilities with distinct scopes. Current capabilities include areas such as:
-
-- executive signal and opportunity intelligence;
-- hackathon and funding monitoring;
-- local model/runtime routing;
-- software-development execution;
-- repository ownership, locks and isolated Git worktrees;
-- testing, evidence and pull-request workflows;
-- infrastructure/service monitoring and recovery;
-- Google Cloud and Cloudflare operations;
-- persistent memory and coordination;
-- Discord/messaging surfaces;
-- browser automation;
-- workforce, payroll, access and credential domains;
-- reporting and administrative operations.
-
-The system deliberately avoids treating every problem as an LLM problem. Deterministic operations stay deterministic; models are used for classification, planning, synthesis and context-aware decisions.
+InnerOS is therefore not a chatbot collection. It is an agent operating layer.
 
 ---
 
@@ -202,184 +74,245 @@ The system deliberately avoids treating every problem as an LLM problem. Determi
 
 ### Discovery & lifecycle
 
-InnerOS maintains an agent/capability catalog instead of hard-coding the whole system into one giant prompt. Capabilities can be discovered and routed by task class.
+- canonical agent / capability registry;
+- A2A Agent Cards;
+- durable task lifecycle state;
+- capability-based routing instead of one giant prompt.
 
-### Long-running execution
+### Core execution & state
 
-Operational tasks use persistent state, ownership, revisions, heartbeats, retries and recovery. A timestamp alone does not count as progress; stalled work can be distinguished from actual forward motion.
+- durable `ops_task` state;
+- correlation IDs;
+- ownership and revision checks;
+- heartbeats;
+- bounded retries and recovery;
+- persistent operational context;
+- isolated Git worktrees for engineering tasks.
 
-### Persistent memory
-
-Project decisions, operational context and evidence survive beyond individual chat sessions.
-
-### Identity & governance
-
-Execution is constrained by scoped tool surfaces, repository authorization, approval boundaries, tenant context and secret-handling rules.
-
-### Observability
-
-Actions produce task state, logs and evidence so an operator can reconstruct what happened instead of trusting an opaque success message.
-
----
-
-## Agentic Defense
-
-Real autonomy requires real security boundaries.
-
-InnerOS already uses several defense-in-depth patterns:
-
-- allowlisted commands instead of arbitrary shell execution;
-- repository policies and isolated worktrees;
-- RACB-style ownership/locking to prevent concurrent collisions;
-- approval gates for high-impact mutations;
-- secrets stored server-side instead of returned to agents;
-- tenant isolation and server-derived identity where applicable;
-- deterministic financial/payroll rules outside probabilistic model output;
-- audit/evidence capture;
-- stalled-worker detection and bounded recovery.
-
-For the Google-hosted path, the hackathon work is also mapping and integrating Google's agentic-defense capabilities, including:
-
-- **Model Armor** for prompt injection, jailbreak, tool-output and sensitive-data screening where applicable;
-- least-privilege IAM / agent identity;
-- policy-aware gateways and bounded egress/tool access;
-- Security Command Center / observability evidence where practical within the hackathon scope.
-
-See [`docs/AGENTIC_DEFENSE.md`](docs/AGENTIC_DEFENSE.md).
-
----
-
-## AMD / ROCm strategy
-
-The AMD node is a first-class part of the architecture.
-
-AMD's newly released **AMD Skills** concept is especially relevant because it brings AMD-validated operational knowledge into agent coding tools using a reusable skills format. InnerOS is evaluating this as a safer alternative to letting every agent improvise ROCm operations.
-
-We are deliberately **not** performing a risky production ROCm major-version upgrade immediately before the hackathon deadline. The priority is reusable skills, diagnostics, evidence and bounded experiments that do not destabilize the working R9700 runtime.
-
-See [`docs/AMD_ROCM_STRATEGY.md`](docs/AMD_ROCM_STRATEGY.md).
-
----
-
-## Workforce is proof, not the whole product
-
-InnerOS grew out of real operational software.
-
-One product built and operated in this environment is **Workforce**, a multi-tenant workforce platform covering attendance, schedules, mobile check-ins, biometrics, incidents, reporting and deterministic pre-payroll.
-
-The relationship is:
+Lifecycle truth is explicit:
 
 ```text
-InnerOS helps operate the company
-        -> the company builds Workforce
-        -> Workforce automates customer operations
+proposed -> accepted -> in_progress -> verification
+         -> completed | blocked | partial
 ```
 
-Workforce remains a commercial P0 for a real customer, but the hackathon project is the broader InnerOS/ARIA operating layer.
+Inbox delivery is never treated as task completion.
+
+### Security & governance
+
+- scoped and allowlisted tools;
+- server-side secret handling;
+- tenant and identity boundaries;
+- repository locks;
+- approval gates for high-impact operations;
+- bounded execution budgets;
+- explicit truth states preventing degraded or simulated work from becoming a verified PASS.
+
+### Telemetry
+
+- Global Live Trace;
+- correlation IDs;
+- provider / model / runtime / node provenance;
+- latency and status;
+- task / message / agent IDs;
+- evidence references;
+- `PASS / PARTIAL / FAIL / DEGRADED` truth states.
 
 ---
 
-## Google technology used / targeted in the hackathon path
+## Local-first Resource Fabric
 
-- Gemini 3.5 or newer;
-- Google Agent Development Kit (ADK) and/or Google GenAI SDK;
-- Google Cloud Run;
-- Cloud Firestore;
-- Pub/Sub where asynchronous event distribution is useful;
-- Google Cloud IAM/agent identity patterns;
-- Model Armor and agentic-defense controls where integrated;
-- Google Cloud logs/console evidence for production-readiness proof.
+Agents request capabilities rather than hard-coding a machine or vendor.
 
-The project has **$150 in Google Cloud hackathon credits** reserved for bounded deployment, validation, security/observability and demo workloads.
+The sovereign AI plane includes:
 
----
+- AMD Radeon AI PRO R9700-class GPU;
+- ROCm;
+- vLLM;
+- Qwen3-Coder-class local inference;
+- secondary local runtimes for lighter workloads;
+- deterministic tools when no LLM is required.
 
-## Pre-existing work disclosure
+The routing principle is simple:
 
-This repository and project are explicit about prior work.
+> **Local when it is sufficient. Cloud when it adds real value.**
 
-Before the All Things Agentic submission period, the ecosystem already included workforce functionality, local AI infrastructure, MCP integrations, server services and earlier experiments with agents.
-
-The hackathon contribution is the **new unified InnerOS/ARIA enterprise operating layer** built during the submission period, including work such as:
-
-- expanded multi-agent orchestration;
-- durable execution state;
-- ownership and locking;
-- local/cloud routing;
-- recovery and anti-freeze behavior;
-- enterprise governance boundaries;
-- cross-domain coordination;
-- Google Cloud deployment path;
-- executive signal-to-action intelligence;
-- observability/evidence improvements;
-- the new coherent product architecture and demo path.
-
-Pre-existing components are foundations, not falsely claimed as new hackathon work.
+This lets the same bounded agent semantics run across local infrastructure, Gemini / Google Cloud, or other approved resources without rewriting the workflow.
 
 ---
 
-## Reproducible local setup
+## Google technology used
 
-This repository contains a large operational system. The minimal local runtime can be started independently of the full production environment.
+Google Cloud is a real execution plane in InnerOS, not a decorative integration.
+
+The final hackathon path uses and demonstrates:
+
+- **Gemini 3.5+**;
+- **Google Agent Development Kit (ADK)**;
+- **Google GenAI SDK (`google-genai`)**;
+- **Vertex AI**;
+- **FunctionGemma / Gemma integration**;
+- **Cloud Run**;
+- **Firestore**;
+- **Pub/Sub**;
+- Google Cloud identity / policy patterns;
+- Model Armor / agentic-defense controls where integrated.
+
+Verified hackathon evidence includes Gemini invocation, Cloud Run deployment, Firestore persistence, Pub/Sub events, Google agent-framework integration, and Vertex / FunctionGemma routing.
+
+---
+
+## FunctionGemma final state
+
+FunctionGemma was deployed and proven through Vertex AI / Model Garden during the hackathon.
+
+An earlier deployment was intentionally removed after proof was captured to avoid idle GPU cost. For the final submission window, the FunctionGemma route was reconnected for live Judge Test 3 verification.
+
+The final production hotfix:
+
+- removed reliance on a stale dedicated Vertex DNS value;
+- uses fresh endpoint discovery for the live probe;
+- prevents a truthful `PARTIAL` result from being incorrectly converted into HTTP 502;
+- preserves the rule that a real Vertex failure must never become a fake PASS.
+
+The final Judge integration hotfix is preserved at:
+
+```text
+Rafa-Innerchispa/innerspark-workforce-ai
+commit 6808383d9f098839e5754a8405e010dd9bd28601
+```
+
+This repository remains the canonical hackathon runtime. The integration commit above is deployment evidence for the live Judge UI hosted inside the existing operational application shell.
+
+---
+
+## Judge Console
+
+The Judge Console is the evidence surface for the submission.
+
+It presents ARIA and the Global Live Trace together and provides seven independently runnable proofs:
+
+1. system health and fresh correlation ID;
+2. A2A agent discovery and connectivity;
+3. FunctionGemma / Vertex AI live probe;
+4. Gemini generation with a real downloadable PDF artifact;
+5. ARIA arbitrary natural-language challenge;
+6. local-first AMD model inference;
+7. bounded multi-agent dispatch with durable trace evidence.
+
+The Judge experience is designed around one rule:
+
+> A visible PASS must correspond to real execution evidence.
+
+Historical, unavailable, degraded, partial, failed, or dry-run states are labeled truthfully.
+
+---
+
+## Architecture at a glance
+
+```mermaid
+flowchart TB
+    WORLD[Real-world signals]
+    ARIA[ARIA / InnerOS Orchestrator]
+    MEM[Persistent Memory & State]
+    POLICY[Identity | Policy | Approval]
+    FABRIC[Resource Fabric]
+    A2A[A2A Agent Fleet]
+    TOOLS[Bounded Tools]
+    VERIFY[Verification & Evidence]
+
+    subgraph LOCAL[Local Sovereign Compute]
+      AMD[AMD R9700 | ROCm | vLLM]
+      LIGHT[Secondary local runtimes]
+    end
+
+    subgraph GOOGLE[Google Cloud]
+      GEMINI[Gemini 3.5+]
+      ADK[ADK / GenAI SDK]
+      VERTEX[Vertex AI / FunctionGemma]
+      CR[Cloud Run]
+      FS[Firestore]
+      PS[Pub/Sub]
+    end
+
+    WORLD --> ARIA
+    ARIA <--> MEM
+    ARIA --> POLICY --> FABRIC
+    FABRIC --> A2A
+    FABRIC --> TOOLS
+    FABRIC --> LOCAL
+    FABRIC --> GOOGLE
+    A2A --> VERIFY
+    TOOLS --> VERIFY
+    LOCAL --> VERIFY
+    GOOGLE --> VERIFY
+    VERIFY --> MEM
+```
+
+---
+
+## Reproducible setup
 
 ### Requirements
 
 - Linux recommended;
 - Python 3.12+;
 - Git;
-- MongoDB for the full persistent operational path;
+- MongoDB for the full persistent path;
 - environment variables from `platform/.env.example`;
-- optional provider credentials only for the integrations you intend to test.
+- provider credentials only for the integrations being exercised.
 
-### 1. Clone
+### Clone the exact hackathon snapshot
 
 ```bash
 git clone https://github.com/Rafa-Innerchispa/innerops-agentic-platform.git
-cd innerops-agentic-platform/platform
+cd innerops-agentic-platform
+git checkout hackathon-freeze-20260831
 ```
 
-### 2. Create environment
+### Create the environment
 
 ```bash
+cd platform
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Fill only the environment variables required for the integration being exercised. Do not commit secrets.
+Do not commit secrets.
 
-### 3. Start the core API
+### Start the core API
 
 ```bash
 ./run.sh
 ```
 
-Default local API port:
+Default local API:
 
 ```text
-8101
+http://127.0.0.1:8101
 ```
 
-### 4. Start MCP/tool surface when required
+### Start the MCP / tool surface when required
 
 ```bash
 ./run_mcp.sh
 ```
 
-Default MCP port:
+Default MCP endpoint:
 
 ```text
-8102
+http://127.0.0.1:8102
 ```
 
-### 5. Verify
+### Verify
 
 ```bash
 curl http://127.0.0.1:8101/status
 ```
 
-### 6. Run the bounded regression suite
+### Run the bounded regression suite
 
 From the repository root with the virtual environment active:
 
@@ -387,47 +320,40 @@ From the repository root with the virtual environment active:
 python3 -m unittest discover -s platform/tests -p 'test_*.py'
 ```
 
-Individual hackathon-focused tests can also be run directly as they are added.
-
 ---
 
-## Cloud deployment evidence
+## Pre-existing work disclosure
 
-The hackathon build has a Cloud Run deployment in Google Cloud project `innerops-agentic-platform`, region `us-central1`, with persistent state configured for Firestore on the cloud path.
+The broader ecosystem already contained real products, local AI infrastructure, MCP integrations, server services, and earlier agent experiments before this hackathon.
 
-The final submission/demo will show:
+The hackathon contribution is the new unified InnerOS / ARIA enterprise fleet layer and the substantial work completed during the submission period, including:
 
-- Cloud Run service/revision evidence;
-- a live `.run.app` endpoint or console evidence;
-- Firestore/state updates;
-- Gemini/Google agent execution evidence;
-- the autonomous workflow and verification trail.
+- durable fleet coordination;
+- expanded A2A interoperability;
+- Google-native Gemini / ADK / GenAI paths;
+- Resource Fabric local/cloud routing;
+- Judge Console and Global Live Trace;
+- bounded engineering-agent execution;
+- verification and recovery loops;
+- persistent evidence;
+- security and governance hardening;
+- clearer truth semantics across execution planes.
 
----
-
-## Demo thesis
-
-The demo should not tour hundreds of tools.
-
-It should prove one thing beyond argument:
-
-> **InnerOS notices something the human is not watching, understands why it matters, delegates the work, takes the safe actions it is allowed to take, verifies the result, and asks the human only for the decision that genuinely requires them.**
-
-The strongest candidate is the Executive Intelligence workflow built from real incoming email/opportunity/credit signals.
+Pre-existing components are foundations, not falsely claimed as new hackathon work.
 
 ---
 
 ## Documentation
 
-- [`JUDGES_START_HERE.md`](JUDGES_START_HERE.md) - single entrypoint for evaluation
-- [`docs/THE_STORY.md`](docs/THE_STORY.md) - the lived story behind InnerOS
-- [`docs/AGENTIC_DEFENSE.md`](docs/AGENTIC_DEFENSE.md) - security/governance mapping
-- [`docs/AMD_ROCM_STRATEGY.md`](docs/AMD_ROCM_STRATEGY.md) - AMD Skills and ROCm adoption strategy
-- [`docs/ALL_THINGS_AGENTIC.md`](docs/ALL_THINGS_AGENTIC.md) - submission scope, requirements and evidence checklist
-- `platform/README.md` - legacy/core MCP runtime notes retained for historical/technical context
+- [`JUDGES_START_HERE.md`](JUDGES_START_HERE.md) — judge entrypoint and final testing instructions
+- [`docs/ALL_THINGS_AGENTIC.md`](docs/ALL_THINGS_AGENTIC.md) — requirements and final evidence mapping
+- [`docs/THE_STORY.md`](docs/THE_STORY.md) — origin and product story
+- [`docs/AGENTIC_DEFENSE.md`](docs/AGENTIC_DEFENSE.md) — security and governance mapping
+- [`docs/AMD_ROCM_STRATEGY.md`](docs/AMD_ROCM_STRATEGY.md) — AMD / ROCm strategy
+- `platform/README.md` — lower-level runtime notes
 
 ---
 
 ## Final principle
 
-**InnerOS notices what matters, does what it safely can, and brings the human back only when the human is actually needed.**
+**InnerOS notices what matters, chooses the right bounded intelligence and execution resource, does what it safely can, proves what happened, and brings the human back only when the human is actually needed.**
