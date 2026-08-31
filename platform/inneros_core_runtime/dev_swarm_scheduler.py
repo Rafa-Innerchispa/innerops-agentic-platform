@@ -19,11 +19,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from inneros_core_runtime import scheduler_task_contract
 from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, local_execution_plane, local_model_router, mongo_store
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
-EXECUTOR_VERSION = "autonomous_impl_v10_a2a_liveness"
+EXECUTOR_VERSION = "autonomous_impl_v11_scheduler_truth"
 executor_version = EXECUTOR_VERSION
 DEFAULT_MAX_CONCURRENT = 4
 STALE_WORKER_SECONDS = 3600
@@ -31,6 +32,7 @@ STALE_PROGRESS_SECONDS = 1800
 MAX_STALE_RECLAIMS = 2
 CAPACITY_STATE_KEY = "dev_swarm_capacity_governor"
 ELIGIBLE_STATUSES = ("proposed",)
+OPS_TERMINAL_STATUSES = frozenset({"blocked", "completed", "cancelled", "failed"})
 PRIORITY_ORDER = {"critical": 0, "p0": 1, "p1": 2, "normal": 3, "p2": 4, "low": 5}
 SAFE_INNEROS_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
 ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini"}
@@ -266,30 +268,9 @@ def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
         for marker, repo in CANONICAL_REPO_HINTS.items():
             if marker in lowered:
                 return repo
-
-    # Human-authored ops tasks frequently carry the canonical repository in
-    # the checklist instead of a structured ``repo`` field. A labelled repo is
-    # authoritative and must win before keyword heuristics. Otherwise a phrase
-    # such as "Repo explícito: <platform>; no tocar Workforce" can be routed to
-    # Workforce merely because the negative sentence contains that product
-    # name.
-    raw_parts = [
-        str(task.get("title") or ""),
-        *[str(item) for item in task.get("checklist") or []],
-    ]
-    raw_text = " ".join(raw_parts)
-    labelled = re.search(
-        r"\b(?:repo|repository|repositorio)\s+(?:expl[ií]cito|explicit)\s*[:=]\s*(Rafa-Innerchispa/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)",
-        raw_text,
-        flags=re.IGNORECASE,
-    )
+    labelled = scheduler_task_contract.explicit_repo_from_labels(task, canonical_hints=CANONICAL_REPO_HINTS)
     if labelled:
-        repo_name = labelled.group(1).split("/", 1)[1]
-        for marker, repo in CANONICAL_REPO_HINTS.items():
-            if marker == repo_name.lower():
-                return repo
-        return f"Rafa-Innerchispa/{repo_name}"
-
+        return labelled
     if "services/femar-mvp-core" in text:
         return "Rafa-Innerchispa/innerspark-workforce-ai"
     if "innerspark-workforce-ai" in text:
@@ -422,7 +403,7 @@ def _active_worker_query() -> dict[str, Any]:
 
 def _worker_progress_time(worker: dict[str, Any]) -> datetime | None:
     executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-    # Heartbeat proves process liveness, not useful progress.
+    # Heartbeat proves process liveness, not useful implementation progress.
     candidates = [
         executor.get("last_progress_at"),
         worker.get("started_at"),
@@ -433,13 +414,6 @@ def _worker_progress_time(worker: dict[str, Any]) -> datetime | None:
     return max(parsed) if parsed else None
 
 
-def _worker_needs_executor_upgrade(worker: dict[str, Any]) -> bool:
-    """Detect an active durable worker created by an older executor."""
-    executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-    version = str(executor.get("version") or "").strip()
-    return bool(version and version != EXECUTOR_VERSION)
-
-
 def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso: str, reason: str) -> dict[str, int]:
     retriable = 0
     exhausted = 0
@@ -448,11 +422,7 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
         if not task_id:
             continue
         executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-        task = _task_doc(task_id) or {}
-        reclaim_count = max(
-            int(executor.get("stale_reclaim_count") or 0),
-            int(task.get("dev_swarm_retry_count") or 0),
-        ) + 1
+        reclaim_count = int(executor.get("stale_reclaim_count") or 0) + 1
         retryable = reclaim_count <= MAX_STALE_RECLAIMS
         executor_status = "failed_retryable" if retryable else "blocked"
         blocker = "stale_worker_reclaimed_for_retry" if retryable else "stale_worker_retry_budget_exhausted"
@@ -483,7 +453,6 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
                     "dev_swarm_last_skip_reason": blocker,
                     "dev_swarm_last_skip_at": now_iso,
                     "dev_swarm_retry_requested": retryable,
-                    "dev_swarm_retry_count": reclaim_count,
                     "updated_at": now_iso,
                 }
             },
@@ -529,50 +498,6 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     )
     terminal_modified = executed_res.modified_count + failed_res.modified_count + blocked_res.modified_count
 
-    # A service restart kills the in-memory execution that owned old-version
-    # workers, but their Mongo rows can still say "running". Never relabel such
-    # ghosts as current. Reclaim them and let the scheduler relaunch the same
-    # durable task under the current executor from the canonical base.
-    version_mismatch_count = 0
-    for worker in db[WORKERS_COL].find(_active_worker_query(), {"_id": 0}):
-        if not _worker_needs_executor_upgrade(worker):
-            continue
-        task_id = str(worker.get("task_id") or "")
-        if not task_id:
-            continue
-        executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-        previous_version = str(executor.get("version") or "unknown")
-        blocker = "executor_version_mismatch_reclaimed"
-        db[WORKERS_COL].update_one(
-            {"task_id": task_id},
-            {"$set": {
-                "owner": "dev_swarm",
-                "status": "blocked",
-                "blocker": blocker,
-                "slot_reclaimed_at": now_iso,
-                "capacity_reconciled_at": now_iso,
-                "capacity_reconcile_reason": reason,
-                "executor.status": "failed_retryable",
-                "executor.phase": "version_mismatch",
-                "executor.blocker": blocker,
-                "executor.previous_version": previous_version,
-                "executor.target_version": EXECUTOR_VERSION,
-                "executor.updated_at": now_iso,
-            }},
-        )
-        db[coordination_live.OPS_TASKS_COL].update_one(
-            {"task_id": task_id},
-            {"$set": {
-                "owner": "dev_swarm",
-                "status": "blocked",
-                "dev_swarm_last_skip_reason": blocker,
-                "dev_swarm_last_skip_at": now_iso,
-                "dev_swarm_retry_requested": True,
-                "updated_at": now_iso,
-            }},
-        )
-        version_mismatch_count += 1
-
     invalid_route_count = 0
     for worker in db[WORKERS_COL].find(
         {
@@ -589,8 +514,17 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         else:
             ok, invalid_reason, expected_repo = _eligible_reason(task)
             worker_repo = _worker_repo(worker)
+            ops_status = str(task.get("status") or "").lower()
+            if ops_status in OPS_TERMINAL_STATUSES and not _ops_auto_retry_allowed(task):
+                invalid_reason = f"ops_status_{ops_status}_no_auto_retry"
+                ok = False
             if ok:
                 continue
+            if expected_repo and worker_repo and scheduler_task_contract.repo_route_mismatch(
+                worker_repo=worker_repo, expected_repo=expected_repo
+            ):
+                invalid_reason = "repo_route_mismatch"
+                ok = False
             if invalid_reason == "repo_not_inferred" and worker_repo:
                 policy = local_execution_plane.repo_policy_status(worker_repo)
                 if policy.get("ok") and policy.get("write_scope") not in {"none", "read_only"}:
@@ -679,14 +613,87 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     }
 
 
+def reconcile_stale_ops_liveness(*, stale_seconds: int = STALE_PROGRESS_SECONDS, dry_run: bool = False) -> dict[str, Any]:
+    """Reclaim zombie ops stuck in_progress without worker token or fresh heartbeat."""
+    db = _db()
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    reconciled: list[str] = []
+    for task in db[coordination_live.OPS_TASKS_COL].find(
+        {"status": {"$in": ["accepted", "in_progress", "verification"]}},
+        {"_id": 0},
+    ):
+        task_id = str(task.get("task_id") or "")
+        if not task_id:
+            continue
+        if not scheduler_task_contract.ops_liveness_expired(task, stale_seconds=stale_seconds, now=now):
+            continue
+        worker = db[WORKERS_COL].find_one(
+            {"task_id": task_id, "status": {"$in": ["starting", "running", "verification"]}},
+            {"_id": 0, "last_heartbeat_at": 1, "updated_at": 1},
+        )
+        if worker:
+            heartbeat = _parse_dt(worker.get("last_heartbeat_at") or worker.get("updated_at"))
+            if heartbeat and (now.timestamp() - heartbeat.timestamp()) <= stale_seconds:
+                continue
+        reconciled.append(task_id)
+        if dry_run:
+            continue
+        blocker = "stale_in_progress_no_liveness"
+        db[coordination_live.OPS_TASKS_COL].update_one(
+            {"task_id": task_id},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "blocker": blocker,
+                    "dev_swarm_last_skip_reason": blocker,
+                    "dev_swarm_last_skip_at": now_iso,
+                    "dev_swarm_retry_requested": bool(str(task.get("owner") or "").lower() == "dev_swarm"),
+                    "updated_at": now_iso,
+                }
+            },
+        )
+        db[WORKERS_COL].update_many(
+            {"task_id": task_id, "status": {"$in": ["starting", "running", "verification"]}},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "blocker": blocker,
+                    "slot_reclaimed_at": now_iso,
+                    "executor.status": "blocked",
+                    "executor.phase": "stale_ops",
+                    "executor.blocker": blocker,
+                    "executor.updated_at": now_iso,
+                    "updated_at": now_iso,
+                }
+            },
+        )
+        db["ralfia_coordination_locks"].update_many(
+            {"task_id": task_id, "status": "active"},
+            {"$set": {"status": "released", "released_at": now_iso, "release_reason": blocker, "updated_at": now_iso}},
+        )
+    return {"ok": True, "dry_run": dry_run, "stale_ops_reconciled": len(reconciled), "task_ids": reconciled[:20]}
+
+
+def _ops_auto_retry_allowed(task: dict[str, Any]) -> bool:
+    """Only explicit retry flag may relaunch blocked/in_progress ops owned by dev_swarm."""
+    if not task.get("dev_swarm_retry_requested"):
+        return False
+    owner = str(task.get("owner") or "").lower()
+    return owner == "dev_swarm"
+
+
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     status = str(task.get("status") or "").lower()
-    retryable_existing = (
-        status in {"accepted", "in_progress", "blocked"}
-        and task.get("owner") == "dev_swarm"
-        and task.get("dev_swarm_retry_requested") is True
-    )
-    if status not in ELIGIBLE_STATUSES and not retryable_existing:
+    if status in OPS_TERMINAL_STATUSES:
+        if status == "blocked" and _ops_auto_retry_allowed(task):
+            pass
+        else:
+            return False, f"ops_status_{status}_no_auto_retry", None
+    retryable_blocked = status == "blocked" and _ops_auto_retry_allowed(task)
+    if status not in ELIGIBLE_STATUSES and not (
+        status in {"accepted", "in_progress"} and str(task.get("owner") or "").lower() == "dev_swarm"
+    ) and not retryable_blocked:
         return False, "status_not_proposed", None
     assignee = str(task.get("assignee") or "").lower()
     if assignee not in ALLOWED_ASSIGNEES:
@@ -694,6 +701,8 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     text = _task_search_text(task)
     if _is_non_dev_ops_task(task, text):
         return False, "non_development_ops_filtered", None
+    if scheduler_task_contract.is_read_only_task(task):
+        return False, "read_only_task_not_swarm_write_eligible", _infer_repo(task)
     repo = _infer_repo(task)
     if not repo:
         return False, "repo_not_inferred", None
@@ -894,6 +903,7 @@ def scheduler_stop(reason: str = "", dry_run: bool = False) -> dict[str, Any]:
 
 def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool = False) -> dict[str, Any]:
     db = _db()
+    ops_liveness = reconcile_stale_ops_liveness(dry_run=dry_run)
     reconcile = reconcile_capacity_state(reason="scheduler_tick")
     state = _state()
     capacity = capacity_status()
@@ -923,7 +933,6 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     if include_fixtures:
         retry_query = {
             "status": "blocked",
-            "executor.status": "failed_retryable",
             "$or": [
                 {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
                 {"tags": "dev_swarm_fixture"},
@@ -932,8 +941,10 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     else:
         retry_query = {
             "status": "blocked",
-            "executor.status": "failed_retryable",
-            "owner": "dev_swarm",
+            "$or": [
+                {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
+                {"owner": "dev_swarm"},
+            ],
         }
     retry_ids = [
         row["task_id"]
@@ -942,15 +953,19 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         .limit(max(1, min(limit, 25)))
         if row.get("task_id")
     ]
+    # Only retry when ops explicitly requests it; blocked workers alone must not relaunch.
+    if retry_ids:
+        retry_ids = [
+            tid
+            for tid in retry_ids
+            if (doc := db[coordination_live.OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "dev_swarm_retry_requested": 1, "status": 1}))
+            and doc.get("dev_swarm_retry_requested")
+            and str(doc.get("status") or "").lower() in {"accepted", "in_progress", "blocked"}
+        ]
     if retry_ids:
         seen = {task.get("task_id") for task in tasks}
         retry_tasks = db[coordination_live.OPS_TASKS_COL].find(
-            {
-                "task_id": {"$in": retry_ids},
-                "owner": "dev_swarm",
-                "status": {"$in": ["accepted", "in_progress", "blocked"]},
-                "dev_swarm_retry_requested": True,
-            },
+            {"task_id": {"$in": retry_ids}, "owner": "dev_swarm", "status": {"$in": ["accepted", "in_progress", "blocked"]}},
             {"_id": 0},
         )
         tasks.extend(task for task in retry_tasks if task.get("task_id") not in seen)
@@ -986,7 +1001,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         if dry_run:
             continue
     if dry_run:
-        return {"ok": True, "dry_run": True, "enabled": bool(state.get("enabled")), "selected": selected, "skipped": skipped, "filtered": filtered, "filtered_count": len(filtered), "capacity": capacity, "available": available, "reconcile": reconcile, "admission_policy": "repo_policy_priority_capacity"}
+        return {"ok": True, "dry_run": True, "enabled": bool(state.get("enabled")), "selected": selected, "skipped": skipped, "filtered": filtered, "filtered_count": len(filtered), "capacity": capacity, "available": available, "reconcile": reconcile, "ops_liveness": ops_liveness, "admission_policy": "repo_policy_priority_capacity"}
 
     batches: dict[str, list[str]] = {}
     for row in selected:
@@ -1007,6 +1022,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         "filtered": filtered,
         "filtered_count": len(filtered),
         "results": results,
+        "ops_liveness": ops_liveness,
         "admission_policy": "repo_policy_priority_capacity",
     }
 
@@ -1233,8 +1249,8 @@ def _is_docs_only_task(objective: str) -> bool:
     return any(term in text for term in DOCS_TASK_TERMS) and not any(term in text for term in DEV_TASK_TERMS)
 
 
-def _requires_product_writes(objective: str) -> bool:
-    return not _is_docs_only_task(objective) and any(term in (objective or "").lower() for term in DEV_TASK_TERMS)
+def _requires_product_writes(objective: str, task: dict[str, Any] | None = None) -> bool:
+    return scheduler_task_contract.requires_product_writes(objective, task)
 
 
 def _is_platform_regression_task(objective: str) -> bool:
@@ -1895,7 +1911,9 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
     }})
     if _is_docs_only_task(objective):
         return _fail_worker_early(task_id, "docs_only_tasks_must_use_docs_executor")
-    if not _requires_product_writes(objective):
+    if scheduler_task_contract.is_read_only_task(task):
+        return _fail_worker_early(task_id, "read_only_task_not_swarm_write_eligible")
+    if not _requires_product_writes(objective, task):
         return _fail_worker_early(task_id, "development_intent_not_detected")
 
     failures = ""
@@ -1980,7 +1998,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
                 files_touched.append(rel)
         write_validation = _verified_write_classes(repo, worktree, files_touched)
         write_classes = write_validation["classes"]
-        product_task_requires_real_write = _requires_product_writes(objective) and not _is_platform_regression_task(objective)
+        product_task_requires_real_write = _requires_product_writes(objective, task) and not _is_platform_regression_task(objective)
         if write_validation.get("invalid_files"):
             failures = "reported_write_validation_failed: " + str(write_validation.get("invalid_files"))[:2500]
             attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "write_validation": write_validation, "rejected_files": rejected_files, "error": failures})
@@ -2147,18 +2165,10 @@ def _resolve_base_ref(source: Path, requested_base_ref: str) -> dict[str, Any]:
     if requested.startswith("origin/"):
         fetch_ref = requested.split("/", 1)[1]
     fetch = local_execution_plane._run(["git", "fetch", "origin", fetch_ref], source, timeout_seconds=180)
-    candidates: list[str] = []
+    candidates = []
     if re.fullmatch(r"[a-fA-F0-9]{7,40}", requested):
         candidates.extend([requested])
-    # GitHub main is canonical. After fetch, prefer the refreshed remote ref
-    # over a potentially stale local main. Explicit non-main repair branches
-    # keep their exact branch semantics.
-    if requested in {"main", "origin/main"}:
-        candidates.extend(["origin/main", "main"])
-    else:
-        candidates.extend([requested, f"origin/{fetch_ref}"])
-        if not explicit:
-            candidates.append("origin/main")
+    candidates.extend([requested, f"origin/{fetch_ref}", "origin/main" if not explicit else ""])
     attempts = []
     for candidate in [c for c in candidates if c]:
         res = local_execution_plane._run(["git", "rev-parse", "--verify", f"{candidate}^{{commit}}"], source, timeout_seconds=30)
@@ -2191,10 +2201,8 @@ def _fanout_base_snapshot(repo: str, base_ref: str = "") -> dict[str, Any]:
         )
         if not prepared.get("ok"):
             return {"ok": False, "error": "source_repo_prepare_failed", "source_path": str(source), "prepare": prepared}
-    # Project Runtime Registry is authoritative. Auto-detect only when a
-    # repository has no explicit execution profile.
-    if not str(conf.get("profile") or "").strip():
-        conf["profile"] = "node-tests" if (source / "package.json").exists() else "python-tests"
+    if (source / "package.json").exists():
+        conf["profile"] = "node-tests"
     resolved = _resolve_base_ref(source, base_ref)
     if not resolved.get("ok"):
         return {"ok": False, "error": "base_ref_failed", "repo": repo, "source_path": str(source), "base_ref": base_ref or "main", "base_resolution": resolved}
@@ -2319,6 +2327,32 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
     task = _task_doc(task_id)
     if not task:
         return {"ok": False, "task_id": task_id, "error": "task_not_found"}
+    ops_status = str(task.get("status") or "").lower()
+    if ops_status in OPS_TERMINAL_STATUSES and not _ops_auto_retry_allowed(task):
+        blocker = str(task.get("blocker") or task.get("dev_swarm_last_skip_reason") or ops_status)
+        db = _db()
+        db[WORKERS_COL].update_one(
+            {"task_id": task_id, "status": {"$in": ["starting", "running", "verification"]}},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "blocker": f"ops_{ops_status}:{blocker[:200]}",
+                    "slot_reclaimed_at": _now(),
+                    "executor.status": "blocked",
+                    "executor.phase": "ops_not_runnable",
+                    "executor.blocker": blocker[:200],
+                    "executor.updated_at": _now(),
+                    "updated_at": _now(),
+                }
+            },
+        )
+        return {
+            "ok": False,
+            "task_id": task_id,
+            "outcome": "SKIPPED",
+            "error": f"ops_status_{ops_status}_no_auto_retry",
+            "blocker": blocker,
+        }
     objective = f"{task.get('title') or task_id}\n\n" + "\n".join(str(x) for x in task.get("checklist") or [])
     correlation_id = str(task.get("correlation_id") or f"fanout-{task_id}")
     branch = f"local-agent/{task_id}-{secrets.token_hex(3)}"
@@ -2366,6 +2400,17 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
     }
     db = _db()
     db[WORKERS_COL].update_one({"task_id": task_id}, {"$set": worker}, upsert=True)
+    db[coordination_live.OPS_TASKS_COL].update_one(
+        {"task_id": task_id},
+        {
+            "$set": {
+                "worker_token": worker["worker_id"],
+                "execution_actor": "dev_swarm",
+                "last_heartbeat_at": _now(),
+                "updated_at": _now(),
+            }
+        },
+    )
     return _execute_existing_worker_generic(worker, run_tests=True)
 
 

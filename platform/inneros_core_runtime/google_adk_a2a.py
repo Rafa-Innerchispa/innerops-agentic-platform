@@ -109,9 +109,17 @@ def project_ide_task_bridge(
     ops = (ops_status or str((a2a_status or {}).get("ops_status") or "")).strip().lower()
     combined = {a2a_state.lower(), ops}
 
+    worker_token = str(
+        (a2a_status or {}).get("worker_token")
+        or (a2a_status or {}).get("execution_token")
+        or (a2a_status or {}).get("worker_id")
+        or ""
+    ).strip()
+    dispatch_claimed = bool((a2a_status or {}).get("dispatch_claimed") or (a2a_status or {}).get("claimed_at"))
+    a2a_running = a2a_state.lower() in {"working", "running", "in_progress"}
     delivered = bool(a2a_status) or bool(ops)
-    claimed = bool(combined & IDE_CLAIMED_STATES)
-    running = bool(combined & IDE_RUNNING_STATES)
+    claimed = bool(combined & IDE_CLAIMED_STATES) or dispatch_claimed
+    running = a2a_running or (bool(combined & IDE_RUNNING_STATES) and (claimed or bool(worker_token)))
     terminal = bool(combined & IDE_TERMINAL_STATES)
     completed = "completed" in combined and not (a2a_status or {}).get("integrity_error")
 

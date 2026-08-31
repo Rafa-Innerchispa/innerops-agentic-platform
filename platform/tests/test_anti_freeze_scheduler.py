@@ -36,11 +36,11 @@ class AntiFreezeSchedulerTests(unittest.TestCase):
             "assignee": "ralfia",
             "priority": "p0",
             "title": "InnerOS scheduler repair",
-            "checklist": ["Repo explícito: Rafa-Innerchispa/innerops-agentic-platform."],
+            "checklist": ["Repo explícito: Rafa-Innerchispa/innerops-agentic-platform.", "Implement scheduler truth fixes."],
         }
         ok, reason, _repo = dev_swarm_scheduler._eligible_reason(task)
         self.assertFalse(ok)
-        self.assertEqual(reason, "status_not_proposed")
+        self.assertEqual(reason, "ops_status_blocked_no_auto_retry")
 
     def test_failed_retryable_task_requires_explicit_retry_flag_and_policy(self):
         task = {
@@ -50,7 +50,7 @@ class AntiFreezeSchedulerTests(unittest.TestCase):
             "assignee": "ralfia",
             "priority": "p0",
             "title": "InnerOS scheduler repair",
-            "checklist": ["Repo explícito: Rafa-Innerchispa/innerops-agentic-platform."],
+            "checklist": ["Repo explícito: Rafa-Innerchispa/innerops-agentic-platform.", "Implement scheduler truth fixes."],
             "dev_swarm_retry_requested": True,
         }
         with mock.patch.object(

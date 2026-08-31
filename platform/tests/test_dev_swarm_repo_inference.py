@@ -205,6 +205,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
                 "Implementacion de features grandes por Dev Swarm/modelos locales.",
                 "Browser QA de todos los menus CRUD/reportes.",
             ],
+            "dev_swarm_retry_requested": True,
         }
         with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
             ok, reason, repo = scheduler._eligible_reason(task)
