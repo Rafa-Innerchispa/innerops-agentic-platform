@@ -6,7 +6,13 @@
 
 **All Things Agentic Hackathon 2026 - Fortified Enterprise Fleet**
 
-Devpost: https://devpost.com/software/innerops-aria-enterprise-agent-fleet
+## Judges
+
+**Start here:** [`JUDGES_START_HERE.md`](JUDGES_START_HERE.md)  
+**Live Judge Console:** https://inneros.creatorcore.ai/app/judge  
+**Devpost:** https://devpost.com/software/innerops-aria-enterprise-agent-fleet
+
+This public repository is the **single canonical hackathon source of truth**. Existing products such as Workforce are real integration targets and operational proof, but judges do not need a second repository to evaluate InnerOS.
 
 ---
 
@@ -61,32 +67,6 @@ ARIA, the agent fleet, then coordinates the next safe action:
 10. suppress duplicate noise once the loop is closed.
 
 This is deliberately different from a chat loop. **Many agent demos begin with a prompt. InnerOS begins with the world.**
-
----
-
-## A real failure that became a feature
-
-During the hackathon, an email explicitly stated that **$100 of AMD Developer Cloud credit would expire on August 30, 2026**.
-
-The legacy inbox classifier marked it as low importance because the message looked like marketing.
-
-That failure captures the problem InnerOS is trying to solve. Keyword urgency is not strategic relevance.
-
-The new Executive Intelligence loop is being built to connect the signal to the company's actual context:
-
-```text
-expiring credit detected
-  -> active projects and hardware checked
-  -> strategic relevance calculated
-  -> funding resource registered
-  -> highest-value bounded use recommended
-  -> one canonical action created
-  -> approval requested only if necessary
-  -> execution verified
-  -> outcome recorded
-```
-
-The same mechanism applies to Google Cloud technical guidance, Devpost deadlines, security announcements, development blockers, infrastructure incidents, and business opportunities.
 
 ---
 
@@ -358,8 +338,6 @@ git clone https://github.com/Rafa-Innerchispa/innerops-agentic-platform.git
 cd innerops-agentic-platform/platform
 ```
 
-For private-repository judging access, use the repository access granted to the Devpost/Google judging accounts.
-
 ### 2. Create environment
 
 ```bash
@@ -441,6 +419,7 @@ The strongest candidate is the Executive Intelligence workflow built from real i
 
 ## Documentation
 
+- [`JUDGES_START_HERE.md`](JUDGES_START_HERE.md) - single entrypoint for evaluation
 - [`docs/THE_STORY.md`](docs/THE_STORY.md) - the lived story behind InnerOS
 - [`docs/AGENTIC_DEFENSE.md`](docs/AGENTIC_DEFENSE.md) - security/governance mapping
 - [`docs/AMD_ROCM_STRATEGY.md`](docs/AMD_ROCM_STRATEGY.md) - AMD Skills and ROCm adoption strategy
