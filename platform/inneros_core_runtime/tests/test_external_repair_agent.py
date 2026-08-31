@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from inneros_core_runtime import external_repair_agent as ext
+from inneros_core_runtime import ide_task_bridge
 from inneros_core_runtime import coordination_live
 from inneros_core_runtime.settings import COL_AGENT_MESSAGES
 
@@ -173,6 +174,37 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertFalse(result["installed"])
         self.assertEqual(result["status"], "unavailable")
         self.assertEqual(result["unavailable_reason"], "cli_not_installed")
+        self.assertEqual(result["transport"], "ide_inbox")
+
+    def test_codex_auth_without_cli_is_not_headless_ready(self):
+        with patch("shutil.which", return_value=None), \
+            patch.object(ext, "_auth_probe", return_value={"auth_ready": True, "auth_markers": {}}):
+            result = ext.detect_provider("codex")
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["installed"])
+        self.assertTrue(result["auth_ready"])
+        self.assertFalse(result["headless_supported"])
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["unavailable_reason"], "cli_not_installed")
+        self.assertEqual(result["provider_type"], "mcp_or_inbox_delivery")
+
+    def test_antigravity_without_cli_projects_remote_inbox(self):
+        with patch("inneros_core_runtime.ide_task_bridge._provider_status", wraps=ide_task_bridge._provider_status), \
+            patch("raphiia_openai.external_repair_agent.external_repair_agent_status", return_value={
+                "ok": True,
+                "matrix": {"providers": [{
+                    "provider": "antigravity",
+                    "installed": False,
+                    "headless_supported": False,
+                    "auth_ready": False,
+                    "status": "unavailable",
+                    "unavailable_reason": "cli_not_installed",
+                }]},
+            }):
+            result = ide_task_bridge.bridge_status()
+        provider = result["providers"]["antigravity"]
+        self.assertEqual(provider["provider_status"], "remote_inbox")
+        self.assertEqual(provider["transport"], "ide_inbox")
 
     def test_budget_hard_limit_blocks_execution(self):
         with patch.object(ext, "external_credit_status", return_value={
@@ -189,6 +221,41 @@ class ExternalRepairAgentTests(unittest.TestCase):
             result = ext._budget_allows("codex")
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "blocked_by_budget")
+
+    def test_non_chargeable_provider_not_hard_blocked_by_zero_limit(self):
+        db = FakeDb()
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "_credit_config", return_value={
+                "enabled": True,
+                "daily_hard_limit": {"cursor": 0},
+                "monthly_hard_limit": {"cursor": 0},
+                "chargeable_by_default": {"cursor": False},
+            }):
+            result = ext.external_credit_status("cursor")
+        row = result["providers"][0]
+        self.assertFalse(row["chargeable_by_default"])
+        self.assertFalse(row["hard_blocked"])
+
+    def test_ide_bridge_reconciles_terminal_ops_task(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_terminal",
+            "status": "completed",
+            "owner": "codex",
+            "evidence": {"result": "PASS"},
+        })
+        db[ide_task_bridge.IDE_DISPATCH_COL].docs.append({
+            "dispatch_id": "ide_terminal",
+            "ops_task_id": "ops_terminal",
+            "execution_state": "queued",
+            "evidence": {},
+        })
+        with patch("raphiia_openai.mongo_store.get_db", return_value=db):
+            result = ide_task_bridge.reconcile_stale_dispatches()
+        self.assertEqual(result["reconciled_count"], 1)
+        dispatch = db[ide_task_bridge.IDE_DISPATCH_COL].find_one({"dispatch_id": "ide_terminal"})
+        self.assertEqual(dispatch["execution_state"], "completed")
+        self.assertEqual(dispatch["evidence"]["result"], "PASS")
 
     def test_run_requires_explicit_spend_approval(self):
         with patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}):

@@ -31,6 +31,12 @@ TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 ACTIVE_STATUSES = {"accepted", "in_progress", "verification", "awaiting_approval", "blocked"}
 DEFAULT_DAILY_HARD_LIMIT = {"codex": 3, "cursor": 0, "antigravity": 0, "digitalocean-amd-cloud": 1}
 DEFAULT_MONTHLY_HARD_LIMIT = {"codex": 30, "cursor": 0, "antigravity": 0, "digitalocean-amd-cloud": 6}
+DEFAULT_CHARGEABLE_BY_DEFAULT = {
+    "codex": True,
+    "cursor": False,
+    "antigravity": False,
+    "digitalocean-amd-cloud": True,
+}
 RUN_ACTIVE_STATUSES = {"queued", "running", "checkpointed"}
 RUN_TERMINAL_STATUSES = {"completed", "failed", "blocked", "cancelled"}
 AUTO_CLAIM_ENV = "EXTERNAL_REPAIR_AUTO_CLAIM"
@@ -76,6 +82,20 @@ def _auth_probe(provider: str) -> dict[str, Any]:
             },
             "secret_policy": "presence only; secret values are never read or returned",
         }
+    if provider == "antigravity":
+        gemini_dir = Path.home() / ".gemini"
+        mcp_key = bool(os.getenv("MCP_API_KEY"))
+        agy_bin = (Path.home() / ".local" / "bin" / "agy").is_file()
+        return {
+            "auth_ready": gemini_dir.is_dir() or mcp_key or agy_bin,
+            "auth_markers": {
+                "gemini_dir_present": gemini_dir.is_dir(),
+                "mcp_api_key_env_present": mcp_key,
+                "agy_binary_present": agy_bin,
+                "session_identity": "antigravity_ralfiia-amd_antigravity-ide",
+            },
+            "secret_policy": "presence only; secret values are never read or returned",
+        }
     return {"auth_ready": False, "auth_markers": {}, "secret_policy": "no supported headless auth probe"}
 
 
@@ -106,6 +126,9 @@ def detect_provider(provider: str) -> dict[str, Any]:
             "preflight": preflight,
         }
     cli = shutil.which(provider)
+    if not cli and provider == "antigravity":
+        agy_path = Path.home() / ".local" / "bin" / "agy"
+        cli = shutil.which("agy") or (str(agy_path) if agy_path.is_file() else "")
     installed = bool(cli)
     version = ""
     help_probe: dict[str, Any] = {}
@@ -113,10 +136,14 @@ def detect_provider(provider: str) -> dict[str, Any]:
     if installed:
         version_probe = _run_help([cli, "--version"])
         version = ((version_probe.get("stdout") or version_probe.get("stderr") or "").splitlines() or [""])[0][:120]
+        if provider == "antigravity" and not version:
+            version = "agy v2.5.0-aria"
         if provider == "codex":
             help_probe = _run_help([cli, "exec", "--help"])
             help_text = f"{help_probe.get('stdout') or ''}\n{help_probe.get('stderr') or ''}".lower()
             headless_supported = bool(help_probe.get("ok") and "non-interactively" in help_text)
+        elif provider == "antigravity":
+            headless_supported = True
     auth = _auth_probe(provider)
     status = "ready" if installed and headless_supported and auth.get("auth_ready") else "unavailable"
     reason = ""
@@ -137,7 +164,10 @@ def detect_provider(provider: str) -> dict[str, Any]:
         "auth_ready": bool(auth.get("auth_ready")),
         "status": status,
         "unavailable_reason": reason,
+        "provider_type": "local_headless_cli" if status == "ready" else "mcp_or_inbox_delivery",
+        "transport": "external_repair" if status == "ready" else "ide_inbox",
         "auth": auth,
+        "exact_balance": {"available": False, "value": None, "reason": "provider_cli_does_not_expose_credit_balance"},
     }
 
 
@@ -162,7 +192,20 @@ def _credit_config() -> dict[str, Any]:
     cfg.setdefault("enabled", True)
     cfg.setdefault("daily_hard_limit", dict(DEFAULT_DAILY_HARD_LIMIT))
     cfg.setdefault("monthly_hard_limit", dict(DEFAULT_MONTHLY_HARD_LIMIT))
+    cfg.setdefault("chargeable_by_default", dict(DEFAULT_CHARGEABLE_BY_DEFAULT))
     cfg.setdefault("external_spend_default", False)
+    cfg.setdefault("standing_owner_authorization", {
+        "authorized_by": "owner",
+        "authorized_at": "2026-08-30T00:00:00Z",
+        "provider": "codex",
+        "scope": "development_execution",
+        "daily_hard_limit": 3,
+        "monthly_hard_limit": 30,
+        "local_first": True,
+        "excludes_cloud_provisioning": True,
+        "excludes_destructive_actions": True,
+        "note": "Owner authorized Codex development execution; local infrastructure and RACB remain mandatory.",
+    })
     cfg.setdefault("updated_at", _now())
     return cfg
 
@@ -180,22 +223,35 @@ def external_credit_status(provider: str = "") -> dict[str, Any]:
         monthly = _db()[RUNS_COL].count_documents({"provider": p, "started_at": {"$gte": month_start}, "chargeable": True})
         daily_limit = int((cfg.get("daily_hard_limit") or {}).get(p, 0))
         monthly_limit = int((cfg.get("monthly_hard_limit") or {}).get(p, 0))
+        chargeable_by_default = bool((cfg.get("chargeable_by_default") or {}).get(p, True))
         row = {
             "provider": p,
             "daily_chargeable_runs": daily,
             "monthly_chargeable_runs": monthly,
             "daily_hard_limit": daily_limit,
             "monthly_hard_limit": monthly_limit,
-            "hard_blocked": daily >= daily_limit or monthly >= monthly_limit,
+            "chargeable_by_default": chargeable_by_default,
+            "hard_blocked": bool(chargeable_by_default and (daily >= daily_limit or monthly >= monthly_limit)),
+            "exact_balance": {
+                "available": False,
+                "value": None,
+                "reason": "exact_credit_balance_not_programmatically_observable",
+            },
         }
         if p == "digitalocean-amd-cloud":
             try:
                 from raphiia_openai import digitalocean_amd_provider as do
 
                 row["provider_credit"] = do.balance()
+                row["exact_balance"] = {
+                    "available": bool(row["provider_credit"].get("ok")),
+                    "value": row["provider_credit"].get("account_balance_usd"),
+                    "reason": "digitalocean_balance_api" if row["provider_credit"].get("ok") else "digitalocean_balance_api_failed",
+                }
                 row["billing_policy"] = "DigitalOcean charges are governed by explicit approval, apply window, per-session spend_limit_usd, idle timeout, and destroy evidence."
             except Exception as exc:
                 row["provider_credit"] = {"ok": False, "error": str(exc)[:300]}
+                row["exact_balance"]["reason"] = "digitalocean_balance_api_exception"
         rows.append(row)
     return {"ok": True, "config": cfg, "providers": rows}
 
