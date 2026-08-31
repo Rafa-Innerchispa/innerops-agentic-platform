@@ -190,6 +190,21 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "blocked_by_budget")
 
+    def test_cancelled_not_executed_does_not_consume_quota(self):
+        db = FakeDb()
+        now = ext._now()
+        db[ext.RUNS_COL].docs.extend([
+            {"provider": "codex", "started_at": now, "status": "completed", "result": "PASS", "attempts": 0, "chargeable": True},
+            {"provider": "codex", "started_at": now, "status": "cancelled", "result": "NOT_EXECUTED", "attempts": 0, "chargeable": True, "evidence": {"provider_execution_started": False}},
+            {"provider": "codex", "started_at": now, "status": "cancelled", "result": "NOT_EXECUTED", "attempts": 0, "chargeable": True, "evidence": {"provider_execution_started": False}},
+        ])
+        config = {"enabled": True, "daily_hard_limit": {"codex": 3}, "monthly_hard_limit": {"codex": 30}}
+        with patch.object(ext, "_db", return_value=db), patch.object(ext, "_credit_config", return_value=config):
+            row = ext.external_credit_status("codex")["providers"][0]
+        self.assertEqual(row["daily_chargeable_runs"], 1)
+        self.assertEqual(row["monthly_chargeable_runs"], 1)
+        self.assertFalse(row["hard_blocked"])
+
     def test_run_requires_explicit_spend_approval(self):
         with patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}):
             result = ext.external_repair_agent_run_task("codex", "ops_fixture", dry_run=False)

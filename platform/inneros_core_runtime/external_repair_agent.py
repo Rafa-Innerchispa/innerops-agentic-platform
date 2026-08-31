@@ -176,8 +176,8 @@ def external_credit_status(provider: str = "") -> dict[str, Any]:
     cfg = _credit_config()
     rows = []
     for p in providers:
-        daily = _db()[RUNS_COL].count_documents({"provider": p, "started_at": {"$gte": day_start}, "chargeable": True})
-        monthly = _db()[RUNS_COL].count_documents({"provider": p, "started_at": {"$gte": month_start}, "chargeable": True})
+        daily = _db()[RUNS_COL].count_documents({"provider": p, "started_at": {"$gte": day_start}, "chargeable": True, "$or": [{"attempts": {"$gte": 1}}, {"evidence.provider_execution_started": True}, {"status": {"$in": ["completed", "failed"]}, "result": {"$nin": ["NOT_EXECUTED"]}}]})
+        monthly = _db()[RUNS_COL].count_documents({"provider": p, "started_at": {"$gte": month_start}, "chargeable": True, "$or": [{"attempts": {"$gte": 1}}, {"evidence.provider_execution_started": True}, {"status": {"$in": ["completed", "failed"]}, "result": {"$nin": ["NOT_EXECUTED"]}}]})
         daily_limit = int((cfg.get("daily_hard_limit") or {}).get(p, 0))
         monthly_limit = int((cfg.get("monthly_hard_limit") or {}).get(p, 0))
         row = {
