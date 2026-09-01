@@ -99,10 +99,15 @@ def seed_standard_entities() -> dict[str, Any]:
     changed = 0
     now = _now_iso()
     for row in STANDARD_ENTITIES:
+        insert_doc = {
+            key: value
+            for key, value in row.items()
+            if key not in {"status", "kind", "slug", "linkedin_publish_as"}
+        }
         res = db.entities.update_one(
             {"entity_id": row["entity_id"]},
             {
-                "$setOnInsert": {**row, "created_at": now},
+                "$setOnInsert": {**insert_doc, "created_at": now},
                 "$set": {
                     "status": row["status"],
                     "kind": row["kind"],

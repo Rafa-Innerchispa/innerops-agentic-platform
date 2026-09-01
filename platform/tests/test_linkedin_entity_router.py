@@ -88,3 +88,5 @@ def test_seed_standard_entities_upserts_four_entities(monkeypatch: pytest.Monkey
     assert result["ok"] is True
     assert result["entities"] == ["ent_rafael_personal", "ent_innerchispa", "ent_pcdoctor", "ent_innerspark"]
     assert len(calls) == 4
+    for _, patch, _ in calls:
+        assert set(patch["$set"]).isdisjoint(patch["$setOnInsert"])
