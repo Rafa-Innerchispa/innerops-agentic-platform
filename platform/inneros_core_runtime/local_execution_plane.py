@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from raphiia_openai import execution_policy
+
 CAPABILITY = "local_execution_plane"
 DEFAULT_INNEROS_CORE_ROOT = Path("/home/rlopez/inneros/inneros_core")
 DEFAULT_ROOT = DEFAULT_INNEROS_CORE_ROOT / "var" / "local_execution"
@@ -300,7 +302,12 @@ def _repo_name_allowed(repo: str) -> bool:
 def _root() -> Path:
     configured_root = os.getenv("RALFIA_LOCAL_EXEC_ROOT", "").strip()
     if configured_root:
-        return Path(configured_root).expanduser().resolve()
+        resolved = Path(configured_root).expanduser().resolve()
+        legacy = Path("/home/rlopez/projects/inneros-local-execution-worktrees")
+        if resolved == legacy or legacy in resolved.parents:
+            inneros_core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser()
+            return (inneros_core / "var" / "local_execution").resolve()
+        return resolved
     inneros_core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser()
     return (inneros_core / "var" / "local_execution").resolve()
 
@@ -470,6 +477,7 @@ def _require_metadata(actor: str, task_id: str, correlation_id: str, idempotency
 def _execution_env() -> dict[str, str]:
     env = dict(os.environ)
     path_parts = [
+        "/home/rlopez/inneros/inneros_core/platform/venv/bin",
         "/home/rlopez/inneros/inneros_core/tools/go/bin",
         "/home/rlopez/.local/opt",
         "/home/rlopez/.local/bin",
@@ -1410,24 +1418,56 @@ def dev_swarm_launch_task(
 ) -> dict[str, Any]:
     """Prepare the safe local development lane for a repo without ralfia:admin."""
     try:
-        _require_metadata(actor, task_id, correlation_id, idempotency_key)
-        if not (objective or "").strip():
+        actor = (actor or "chatgpt").strip().lower()
+        objective_text = (objective or "").strip()
+        correlation_id = (correlation_id or "").strip()
+        task_id = (task_id or "").strip()
+        if not objective_text:
             raise ValueError("objective_required")
+        generated_task: dict[str, Any] | None = None
+        if not task_id:
+            if not correlation_id:
+                digest = hashlib.sha256(f"{repo}|{objective_text}|{actor}".encode("utf-8")).hexdigest()[:12]
+                correlation_id = f"dev-swarm-{digest}"
+            from raphiia_openai import coordination_live
+
+            generated = coordination_live.create_ops_task(
+                assignee="dev_swarm",
+                title=f"Dev Swarm local execution: {repo}",
+                checklist=[objective_text],
+                evidence_required=["task_id", "worktree", "provider/model", "tests/evidence"],
+                priority="p0",
+                from_agent=actor,
+                correlation_id=correlation_id,
+                related_project=repo,
+            )
+            if not generated.get("ok"):
+                return {"ok": False, "stage": "create_ops_task", "error": generated.get("error"), "generated_task": generated}
+            generated_task = generated.get("task") or {}
+            task_id = str(generated.get("task_id") or generated_task.get("task_id") or "").strip()
+        if not idempotency_key:
+            raw = f"dev_swarm_launch_task|{repo}|{task_id}|{correlation_id}|{objective_text}"
+            idempotency_key = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+        _require_metadata(actor, task_id, correlation_id, idempotency_key)
         conf = _repo_config(repo)
         branch = work_branch.strip() or f"{actor}/{re.sub(r'[^A-Za-z0-9_.-]+', '-', task_id)[:48]}"
         _validate_branch(base_branch, allow_protected=True)
         _validate_branch(branch, require_work_branch=True)
+        route = execution_policy.route_metadata(task_class="coding")
         plan = {
             "repo": repo,
-            "objective": objective,
+            "objective": objective_text,
             "base_branch": base_branch,
             "work_branch": branch,
             "actor": actor,
             "task_id": task_id,
             "correlation_id": correlation_id,
+            "idempotency_key": idempotency_key,
             "profile": conf.get("profile"),
             "allowed_paths": conf.get("allowed_paths"),
             "source_path": conf.get("source_path"),
+            "generated_task_id": task_id if generated_task else None,
+            **route,
             "admin_scope_required": False,
             "required_scope": "ralfia:agents",
             "checkout_or_pull": False,
@@ -1456,12 +1496,13 @@ def dev_swarm_launch_task(
         worktree = create_worktree(repo, base_branch, branch, actor, task_id, correlation_id, idempotency_key)
         evidence = {
             "launcher": "dev_swarm_launch_task",
-            "objective": objective,
+            "objective": objective_text,
             "prepared_ok": bool(prepared.get("ok")),
             "lock_ok": bool(lock.get("ok")),
             "worktree_ok": bool(worktree.get("ok")),
             "work_branch": branch,
             "source_path": conf.get("source_path"),
+            **route,
         }
         report = report_evidence(repo, branch, actor, task_id, correlation_id, "launched" if worktree.get("ok") else "launch_failed", evidence)
         return {

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from raphiia_openai import mongo_store
+from raphiia_openai import execution_policy as owner_execution_policy
 from raphiia_openai.settings import COL_AGENT_MESSAGES, COORD_ROOT
 
 STATE_KEY = "coordination_live"
@@ -23,7 +24,7 @@ MANDATORY_READS: tuple[str, ...] = (
     "OPEN_QUESTIONS.md",
 )
 
-ASSIGNEES = frozenset({"cursor", "codex", "antigravity", "chatgpt", "gemini", "notion", "ralfia", "rafael"})
+ASSIGNEES = frozenset({"cursor", "codex", "antigravity", "chatgpt", "gemini", "notion", "ralfia", "rafael", "dev_swarm"})
 
 
 def _now() -> str:
@@ -263,6 +264,7 @@ def create_ops_task(
 
     tid = _task_id()
     now = _now()
+    policy = owner_execution_policy.task_contract(task_class="coding")
     doc = {
         "task_id": tid,
         "correlation_id": cid,
@@ -283,6 +285,14 @@ def create_ops_task(
         "source_message_id": (source_message_id or "").strip() or None,
         "conversation_ref": (conversation_ref or "").strip() or None,
         "related_project": (related_project or "").strip() or None,
+        "execution_policy": policy["execution_policy"],
+        "owner_policy_id": policy["owner_policy_id"],
+        "execution_policy_version": policy["policy_version"],
+        "local_first_required": policy["local_first_required"],
+        "preferred_provider": policy["preferred_provider"],
+        "preferred_model": policy["preferred_model"],
+        "fallback_reason": policy["fallback_reason"],
+        "external_approval_id": policy["approval_id"],
     }
     # PyMongo mutates the inserted mapping by adding ``_id``. Keep the public
     # tool response JSON-safe so MCP can return structuredContent reliably.
