@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import secrets
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -12,6 +14,7 @@ from raphiia_openai.settings import LINKEDIN_ACCESS_TOKEN, LINKEDIN_AUTHOR_URN
 from raphiia_openai import config_store
 
 LINKEDIN_API_VERSION = "202608"
+DEFAULT_OAUTH_SCOPES = ["openid", "profile", "email", "w_member_social"]
 
 
 def _token() -> str:
@@ -20,6 +23,18 @@ def _token() -> str:
 
 def _default_author() -> str:
     return config_store.get("LINKEDIN_AUTHOR_URN") or LINKEDIN_AUTHOR_URN
+
+
+def _client_id() -> str:
+    return config_store.get("LINKEDIN_CLIENT_ID")
+
+
+def _client_secret() -> str:
+    return config_store.get("LINKEDIN_CLIENT_SECRET")
+
+
+def _redirect_uri() -> str:
+    return config_store.get("LINKEDIN_REDIRECT_URI") or "https://www.linkedin.com/developers/tools/oauth/redirect"
 
 
 def _author(override: str | None = None) -> str:
@@ -67,6 +82,80 @@ def _request_result(method: str, url: str, data: dict | None = None) -> dict[str
         return {"ok": False, "error": str(exc), "needs_token": "LINKEDIN_ACCESS_TOKEN" in str(exc)}
     except Exception as exc:
         return {"ok": False, "error": str(exc)[:1000]}
+
+
+def oauth_authorization_url(scopes: list[str] | None = None, *, state: str | None = None) -> dict[str, Any]:
+    client_id = _client_id()
+    redirect_uri = _redirect_uri()
+    if not client_id:
+        return {"ok": False, "error": "LINKEDIN_CLIENT_ID missing"}
+    clean_scopes = [s.strip() for s in (scopes or DEFAULT_OAUTH_SCOPES) if s and s.strip()]
+    state_value = state or f"inneros-linkedin-{secrets.token_urlsafe(18)}"
+    params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": " ".join(clean_scopes),
+        "state": state_value,
+    }
+    return {
+        "ok": True,
+        "url": "https://www.linkedin.com/oauth/v2/authorization?" + urllib.parse.urlencode(params),
+        "state": state_value,
+        "scopes": clean_scopes,
+        "redirect_uri": redirect_uri,
+        "organization_posting_ready": "w_organization_social" in clean_scopes,
+        "note": "Current app scopes can authorize personal posting. Organization posting requires LinkedIn app approval for w_organization_social.",
+    }
+
+
+def exchange_authorization_code(code: str, *, redirect_uri: str | None = None) -> dict[str, Any]:
+    clean_code = (code or "").strip()
+    client_id = _client_id()
+    client_secret = _client_secret()
+    final_redirect = (redirect_uri or _redirect_uri()).strip()
+    missing = [name for name, value in {
+        "authorization_code": clean_code,
+        "LINKEDIN_CLIENT_ID": client_id,
+        "LINKEDIN_CLIENT_SECRET": client_secret,
+        "LINKEDIN_REDIRECT_URI": final_redirect,
+    }.items() if not value]
+    if missing:
+        return {"ok": False, "error": "missing_oauth_config", "missing": missing}
+    body = urllib.parse.urlencode(
+        {
+            "grant_type": "authorization_code",
+            "code": clean_code,
+            "redirect_uri": final_redirect,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        "https://www.linkedin.com/oauth/v2/accessToken",
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")[:1000]
+        return {"ok": False, "http_status": exc.code, "error": raw or exc.reason, "needs_new_code": True}
+    token = str(data.get("access_token") or "").strip()
+    if not token:
+        return {"ok": False, "error": "linkedin_response_missing_access_token", "raw_keys": sorted(data)}
+    config_store.set_values({"LINKEDIN_ACCESS_TOKEN": token}, updated_by="LINKEDIN_OAUTH", sync_env=True)
+    return {
+        "ok": True,
+        "status": "access_token_updated",
+        "expires_in": data.get("expires_in"),
+        "scope": data.get("scope", ""),
+        "token_display": config_store.mask_secret(token),
+        "diagnostics": token_diagnostics(),
+    }
 
 
 def register_image_upload(*, author_urn: str | None = None) -> dict[str, Any]:

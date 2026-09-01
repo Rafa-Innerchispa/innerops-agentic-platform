@@ -36,6 +36,11 @@ class SocialAccountPatchBody(BaseModel):
     label: str | None = None
 
 
+class LinkedInCodeExchangeBody(BaseModel):
+    authorization_code: str
+    redirect_uri: str | None = None
+
+
 class DraftPatchBody(BaseModel):
     title: str | None = None
     markdown: str | None = None
@@ -105,6 +110,25 @@ def api_update_linkedin_token(body: LinkedInTokenUpdateBody):
         raise HTTPException(400, "token inválido")
     config_store.set("LINKEDIN_ACCESS_TOKEN", token)
     return {"ok": True, "status": "updated", "message": "Token LinkedIn actualizado en MongoDB config_store"}
+
+
+@router.get("/api/editorial/linkedin/oauth-url")
+def api_linkedin_oauth_url(include_org_scope: bool = False):
+    scopes = ["openid", "profile", "email", "w_member_social"]
+    if include_org_scope:
+        scopes.append("w_organization_social")
+    return linkedin_client.oauth_authorization_url(scopes)
+
+
+@router.post("/api/editorial/linkedin/exchange-code")
+def api_linkedin_exchange_code(body: LinkedInCodeExchangeBody):
+    result = linkedin_client.exchange_authorization_code(
+        body.authorization_code,
+        redirect_uri=body.redirect_uri,
+    )
+    if not result.get("ok"):
+        raise HTTPException(400, result)
+    return result
 
 
 @router.get("/api/editorial/i18n")

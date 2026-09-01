@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import urllib.parse
 
 import pytest
 
@@ -111,3 +112,33 @@ def test_config_store_set_delegates_to_set_values(monkeypatch: pytest.MonkeyPatc
 
     assert result["ok"] is True
     assert calls == [({"LINKEDIN_ACCESS_TOKEN": "token-value"}, "TEST", False)]
+
+
+def test_linkedin_oauth_authorization_url_uses_configured_redirect(monkeypatch: pytest.MonkeyPatch) -> None:
+    values = {
+        "LINKEDIN_CLIENT_ID": "client-id",
+        "LINKEDIN_REDIRECT_URI": "https://www.linkedin.com/developers/tools/oauth/redirect",
+    }
+    monkeypatch.setattr(linkedin_client.config_store, "get", lambda key: values.get(key, ""))
+
+    result = linkedin_client.oauth_authorization_url(["openid", "profile", "email", "w_member_social"], state="state-1")
+
+    parsed = urllib.parse.urlparse(result["url"])
+    query = urllib.parse.parse_qs(parsed.query)
+    assert result["ok"] is True
+    assert parsed.netloc == "www.linkedin.com"
+    assert query["client_id"] == ["client-id"]
+    assert query["redirect_uri"] == ["https://www.linkedin.com/developers/tools/oauth/redirect"]
+    assert query["scope"] == ["openid profile email w_member_social"]
+    assert query["state"] == ["state-1"]
+    assert result["organization_posting_ready"] is False
+
+
+def test_linkedin_exchange_code_reports_missing_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(linkedin_client.config_store, "get", lambda key: "")
+
+    result = linkedin_client.exchange_authorization_code("code-1")
+
+    assert result["ok"] is False
+    assert result["error"] == "missing_oauth_config"
+    assert "LINKEDIN_CLIENT_ID" in result["missing"]

@@ -67,6 +67,27 @@ Scopes mínimos para el flujo:
 - `r_organization_admin` o acceso equivalente de Marketing Developer Platform — descubrir páginas administradas con `organizationAcls`.
 - `openid`/`profile` o `r_liteprofile` equivalente — validar identidad del token.
 
+## Renovación OAuth interna
+
+No se necesitan cuatro tokens si Rafael autoriza con una cuenta que administra todas las páginas.
+
+Flujo:
+
+1. Guardar `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` y `LINKEDIN_REDIRECT_URI` en config local.
+2. Pedir enlace con `GET /api/editorial/linkedin/oauth-url`.
+3. Rafael abre el enlace, acepta permisos y copia el `code` de retorno.
+4. Canjearlo con `POST /api/editorial/linkedin/exchange-code`.
+5. El backend guarda `LINKEDIN_ACCESS_TOKEN` en `config_store`/`.env`, reinicia lo necesario y ejecuta diagnóstico.
+
+Scopes disponibles actualmente en la app registrada:
+
+- `openid`
+- `profile`
+- `email`
+- `w_member_social`
+
+Con eso queda activo el perfil personal. Para publicar como InnerChispa, PC Doctor o InnerSpark, LinkedIn debe aprobar/agregar `w_organization_social`.
+
 ---
 
 ## Cómo configurar cada marca
