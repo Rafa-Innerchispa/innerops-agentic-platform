@@ -7,7 +7,7 @@ from inneros_core_runtime import config_store, editorial_social, linkedin_client
 
 
 def test_token_diagnostics_reports_missing_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(linkedin_client, "_token", lambda: "")
+    monkeypatch.setattr(linkedin_client, "_token", lambda *args, **kwargs: "")
     monkeypatch.setattr(linkedin_client, "_default_author", lambda: "")
 
     result = linkedin_client.token_diagnostics()
@@ -98,6 +98,8 @@ def test_linkedin_oauth_keys_are_in_config_catalog() -> None:
 
     assert {"LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET", "LINKEDIN_REDIRECT_URI"}.issubset(keys)
     assert {
+        "LINKEDIN_PERSONAL_ACCESS_TOKEN",
+        "LINKEDIN_ORG_ACCESS_TOKEN",
         "LINKEDIN_PERSONAL_CLIENT_ID",
         "LINKEDIN_PERSONAL_CLIENT_SECRET",
         "LINKEDIN_ORG_CLIENT_ID",
@@ -165,3 +167,48 @@ def test_linkedin_exchange_code_reports_missing_config(monkeypatch: pytest.Monke
     assert result["ok"] is False
     assert result["error"] == "missing_oauth_config"
     assert "LINKEDIN_CLIENT_ID" in result["missing"]
+
+
+def test_linkedin_token_selection_prefers_mode_specific_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    values = {
+        "LINKEDIN_ACCESS_TOKEN": "generic-token",
+        "LINKEDIN_PERSONAL_ACCESS_TOKEN": "personal-token",
+        "LINKEDIN_ORG_ACCESS_TOKEN": "org-token",
+    }
+    monkeypatch.setattr(linkedin_client.config_store, "get", lambda key: values.get(key, ""))
+
+    assert linkedin_client._token("personal") == "personal-token"
+    assert linkedin_client._token("organization") == "org-token"
+    assert linkedin_client._token(author_urn="urn:li:person:abc") == "personal-token"
+    assert linkedin_client._token(author_urn="urn:li:organization:123") == "org-token"
+
+
+def test_linkedin_exchange_code_stores_mode_specific_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    values = {
+        "LINKEDIN_ORG_CLIENT_ID": "org-client-id",
+        "LINKEDIN_ORG_CLIENT_SECRET": "org-secret",
+        "LINKEDIN_REDIRECT_URI": "https://www.linkedin.com/developers/tools/oauth/redirect",
+    }
+    saved = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"access_token":"new-org-token","expires_in":5184000,"scope":"w_organization_social"}'
+
+    monkeypatch.setattr(linkedin_client.config_store, "get", lambda key: values.get(key, ""))
+    monkeypatch.setattr(linkedin_client.config_store, "set_values", lambda updates, **kwargs: saved.append(updates) or {"ok": True})
+    monkeypatch.setattr(linkedin_client.config_store, "mask_secret", lambda value: "masked")
+    monkeypatch.setattr(linkedin_client, "token_diagnostics", lambda: {"ok": True})
+    monkeypatch.setattr(linkedin_client.urllib.request, "urlopen", lambda req, timeout=60: FakeResponse())
+
+    result = linkedin_client.exchange_authorization_code("code-1", mode="organization")
+
+    assert result["ok"] is True
+    assert result["mode"] == "organization"
+    assert saved == [{"LINKEDIN_ORG_ACCESS_TOKEN": "new-org-token", "LINKEDIN_ACCESS_TOKEN": "new-org-token"}]

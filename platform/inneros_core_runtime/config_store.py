@@ -26,6 +26,22 @@ CONFIG_CATALOG: list[dict[str, Any]] = [
         "help": "Developer Portal → OAuth token con w_member_social",
     },
     {
+        "key": "LINKEDIN_PERSONAL_ACCESS_TOKEN",
+        "label": "LinkedIn personal — Access Token",
+        "group": "editorial",
+        "secret": True,
+        "required": False,
+        "help": "Token de la app personal/sign-in/sharing.",
+    },
+    {
+        "key": "LINKEDIN_ORG_ACCESS_TOKEN",
+        "label": "LinkedIn páginas — Access Token",
+        "group": "editorial",
+        "secret": True,
+        "required": False,
+        "help": "Token de la app Community Management para publicar como páginas.",
+    },
+    {
         "key": "LINKEDIN_AUTHOR_URN",
         "label": "LinkedIn — URN default (persona)",
         "group": "editorial",

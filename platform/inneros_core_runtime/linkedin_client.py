@@ -18,8 +18,22 @@ DEFAULT_OAUTH_SCOPES = ["openid", "profile", "email", "w_member_social"]
 ORG_OAUTH_SCOPES = ["openid", "profile", "email", "w_member_social", "w_organization_social"]
 
 
-def _token() -> str:
-    return config_store.get("LINKEDIN_ACCESS_TOKEN") or LINKEDIN_ACCESS_TOKEN
+def _token(mode: str | None = None, *, author_urn: str | None = None) -> str:
+    oauth_mode = _oauth_mode(mode)
+    if author_urn and "urn:li:organization:" in author_urn:
+        oauth_mode = "organization"
+    elif author_urn and "urn:li:person:" in author_urn:
+        oauth_mode = "personal"
+    if oauth_mode == "organization":
+        return config_store.get("LINKEDIN_ORG_ACCESS_TOKEN") or config_store.get("LINKEDIN_ACCESS_TOKEN") or LINKEDIN_ACCESS_TOKEN
+    if oauth_mode == "personal":
+        return config_store.get("LINKEDIN_PERSONAL_ACCESS_TOKEN") or config_store.get("LINKEDIN_ACCESS_TOKEN") or LINKEDIN_ACCESS_TOKEN
+    return (
+        config_store.get("LINKEDIN_ACCESS_TOKEN")
+        or config_store.get("LINKEDIN_PERSONAL_ACCESS_TOKEN")
+        or config_store.get("LINKEDIN_ORG_ACCESS_TOKEN")
+        or LINKEDIN_ACCESS_TOKEN
+    )
 
 
 def _default_author() -> str:
@@ -64,8 +78,8 @@ def _author(override: str | None = None) -> str:
     return urn
 
 
-def _headers() -> dict[str, str]:
-    token = _token()
+def _headers(mode: str | None = None, *, author_urn: str | None = None) -> dict[str, str]:
+    token = _token(mode, author_urn=author_urn)
     if not token:
         raise RuntimeError("LINKEDIN_ACCESS_TOKEN no configurado — usa Panel :2002 → Configuración")
     return {
@@ -76,9 +90,16 @@ def _headers() -> dict[str, str]:
     }
 
 
-def _request(method: str, url: str, data: dict | None = None) -> dict[str, Any]:
+def _request(
+    method: str,
+    url: str,
+    data: dict | None = None,
+    *,
+    mode: str | None = None,
+    author_urn: str | None = None,
+) -> dict[str, Any]:
     body = json.dumps(data).encode("utf-8") if data is not None else None
-    req = urllib.request.Request(url, data=body, headers=_headers(), method=method)
+    req = urllib.request.Request(url, data=body, headers=_headers(mode, author_urn=author_urn), method=method)
     with urllib.request.urlopen(req, timeout=60) as resp:
         raw = resp.read().decode("utf-8")
         if not raw:
@@ -86,9 +107,16 @@ def _request(method: str, url: str, data: dict | None = None) -> dict[str, Any]:
         return json.loads(raw)
 
 
-def _request_result(method: str, url: str, data: dict | None = None) -> dict[str, Any]:
+def _request_result(
+    method: str,
+    url: str,
+    data: dict | None = None,
+    *,
+    mode: str | None = None,
+    author_urn: str | None = None,
+) -> dict[str, Any]:
     try:
-        data_out = _request(method, url, data)
+        data_out = _request(method, url, data, mode=mode, author_urn=author_urn)
         return {"ok": True, "data": data_out}
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")[:1000]
@@ -171,7 +199,8 @@ def exchange_authorization_code(code: str, *, redirect_uri: str | None = None, m
     token = str(data.get("access_token") or "").strip()
     if not token:
         return {"ok": False, "error": "linkedin_response_missing_access_token", "raw_keys": sorted(data)}
-    config_store.set_values({"LINKEDIN_ACCESS_TOKEN": token}, updated_by="LINKEDIN_OAUTH", sync_env=True)
+    token_key = "LINKEDIN_ORG_ACCESS_TOKEN" if oauth_mode == "organization" else "LINKEDIN_PERSONAL_ACCESS_TOKEN"
+    config_store.set_values({token_key: token, "LINKEDIN_ACCESS_TOKEN": token}, updated_by="LINKEDIN_OAUTH", sync_env=True)
     return {
         "ok": True,
         "status": "access_token_updated",
@@ -200,10 +229,11 @@ def register_image_upload(*, author_urn: str | None = None) -> dict[str, Any]:
                 ],
             }
         },
+        author_urn=author,
     )
 
 
-def upload_image(upload_url: str, image_path: str) -> None:
+def upload_image(upload_url: str, image_path: str, *, author_urn: str | None = None) -> None:
     path = Path(image_path)
     if not path.is_file() or path.stat().st_size == 0:
         raise RuntimeError(f"imagen inválida: {image_path}")
@@ -212,7 +242,7 @@ def upload_image(upload_url: str, image_path: str) -> None:
         upload_url,
         data=data,
         headers={
-            "Authorization": f"Bearer {_token()}",
+            "Authorization": f"Bearer {_token(author_urn=author_urn)}",
             "Content-Type": "application/octet-stream",
         },
         method="PUT",
@@ -251,7 +281,7 @@ def publish_post(
         "specificContent": {"com.linkedin.ugc.ShareContent": share_content},
         "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": vis},
     }
-    return _request("POST", "https://api.linkedin.com/v2/ugcPosts", payload)
+    return _request("POST", "https://api.linkedin.com/v2/ugcPosts", payload, author_urn=author)
 
 
 def publish_with_image(
@@ -270,7 +300,7 @@ def publish_with_image(
     asset = value.get("asset")
     if not upload_url or not asset:
         raise RuntimeError(f"registerUpload respuesta inválida: {json.dumps(reg)[:400]}")
-    upload_image(upload_url, image_path)
+    upload_image(upload_url, image_path, author_urn=author_urn)
     result = publish_post(
         text=text, asset_urn=asset, media_title=media_title, visibility=visibility, author_urn=author_urn
     )
@@ -289,9 +319,10 @@ def config_status() -> dict[str, Any]:
     }
 
 
-def token_diagnostics() -> dict[str, Any]:
+def token_diagnostics(mode: str | None = None) -> dict[str, Any]:
     """Read-only OAuth health check. Never publishes content."""
-    token_present = bool(_token())
+    oauth_mode = _oauth_mode(mode)
+    token_present = bool(_token(oauth_mode))
     author = _default_author()
     out: dict[str, Any] = {
         "ok": token_present,
@@ -299,6 +330,7 @@ def token_diagnostics() -> dict[str, Any]:
         "default_author_present": bool(author),
         "default_author_urn_display": author.rsplit(":", 1)[-1][-8:] if author else "",
         "api_version": LINKEDIN_API_VERSION,
+        "mode": oauth_mode,
         "required_scopes": ["w_member_social", "w_organization_social"],
         "recommended_read_scopes": ["openid", "profile", "r_organization_admin"],
     }
@@ -310,7 +342,7 @@ def token_diagnostics() -> dict[str, Any]:
             }
         )
         return out
-    me = _request_result("GET", "https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName)")
+    me = _request_result("GET", "https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName)", mode=oauth_mode)
     out["me"] = me
     if not me.get("ok"):
         out["ok"] = False

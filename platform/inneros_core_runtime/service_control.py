@@ -22,6 +22,8 @@ CONFIG_RESTART_MAP: dict[str, list[dict[str, str]]] = {
         {"unit": "ralfia-editorial-worker.service", "scope": "user"},
     ],
     "LINKEDIN_ACCESS_TOKEN": [{"unit": "ralfia-app.service", "scope": "user"}],
+    "LINKEDIN_PERSONAL_ACCESS_TOKEN": [{"unit": "ralfia-app.service", "scope": "user"}],
+    "LINKEDIN_ORG_ACCESS_TOKEN": [{"unit": "ralfia-app.service", "scope": "user"}],
     "LINKEDIN_AUTHOR_URN": [{"unit": "ralfia-app.service", "scope": "user"}],
     "LINKEDIN_CLIENT_ID": [{"unit": "ralfia-app.service", "scope": "user"}],
     "LINKEDIN_CLIENT_SECRET": [{"unit": "ralfia-app.service", "scope": "user"}],
