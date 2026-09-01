@@ -47,7 +47,7 @@ def _db():
 
 def _run_help(argv: list[str], timeout: int = 8) -> dict[str, Any]:
     try:
-        proc = subprocess.run(argv, text=True, capture_output=True, timeout=timeout)
+        proc = subprocess.run(argv, text=True, capture_output=True, timeout=timeout, env=_provider_exec_env())
         return {
             "ok": proc.returncode == 0,
             "returncode": proc.returncode,
@@ -56,6 +56,17 @@ def _run_help(argv: list[str], timeout: int = 8) -> dict[str, Any]:
         }
     except Exception as exc:
         return {"ok": False, "error": str(exc)[:500]}
+
+
+def _provider_exec_env() -> dict[str, str]:
+    env = os.environ.copy()
+    home = Path.home()
+    user_paths = [
+        str(home / ".local" / "bin"),
+        str(home / ".local" / "npm-global" / "bin"),
+    ]
+    env["PATH"] = os.pathsep.join(user_paths + [env.get("PATH", "")])
+    return env
 
 
 def _provider_path_candidates(provider: str) -> list[Path]:

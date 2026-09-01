@@ -152,6 +152,17 @@ def mark_running_with_proof(dispatch_id: str, provider: str, proof: dict[str, An
     return ide_task_bridge.mark_running(dispatch_id, provider, execution_proof=enriched)
 
 
+def _provider_exec_env() -> dict[str, str]:
+    env = os.environ.copy()
+    home = Path.home()
+    user_paths = [
+        str(home / ".local" / "bin"),
+        str(home / ".local" / "npm-global" / "bin"),
+    ]
+    env["PATH"] = os.pathsep.join(user_paths + [env.get("PATH", "")])
+    return env
+
+
 def execute_provider_task(
     *,
     provider: str,
@@ -223,6 +234,7 @@ def _execute_codex_smoke(dispatch: dict[str, Any], capability: dict[str, Any]) -
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        env=_provider_exec_env(),
         cwd=Path(dispatch.get("worktree") or os.getcwd()),
     )
     try:
