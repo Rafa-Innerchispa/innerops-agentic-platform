@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import os
 import re
 from datetime import datetime, timezone
@@ -314,7 +315,7 @@ def _sync_env_file(updates: dict[str, str]) -> None:
 
     text = ENV_PATH.read_text(encoding="utf-8")
     out_lines: list[str] = []
-    seen: set[str] = set()
+    seen: builtins.set[str] = builtins.set()
     for line in text.splitlines(keepends=True):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
