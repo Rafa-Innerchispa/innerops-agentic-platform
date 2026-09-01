@@ -97,6 +97,12 @@ def test_linkedin_oauth_keys_are_in_config_catalog() -> None:
     keys = {row["key"] for row in config_store.CONFIG_CATALOG}
 
     assert {"LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET", "LINKEDIN_REDIRECT_URI"}.issubset(keys)
+    assert {
+        "LINKEDIN_PERSONAL_CLIENT_ID",
+        "LINKEDIN_PERSONAL_CLIENT_SECRET",
+        "LINKEDIN_ORG_CLIENT_ID",
+        "LINKEDIN_ORG_CLIENT_SECRET",
+    }.issubset(keys)
 
 
 def test_config_store_set_delegates_to_set_values(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,22 +122,39 @@ def test_config_store_set_delegates_to_set_values(monkeypatch: pytest.MonkeyPatc
 
 def test_linkedin_oauth_authorization_url_uses_configured_redirect(monkeypatch: pytest.MonkeyPatch) -> None:
     values = {
-        "LINKEDIN_CLIENT_ID": "client-id",
+        "LINKEDIN_PERSONAL_CLIENT_ID": "personal-client-id",
         "LINKEDIN_REDIRECT_URI": "https://www.linkedin.com/developers/tools/oauth/redirect",
     }
     monkeypatch.setattr(linkedin_client.config_store, "get", lambda key: values.get(key, ""))
 
-    result = linkedin_client.oauth_authorization_url(["openid", "profile", "email", "w_member_social"], state="state-1")
+    result = linkedin_client.oauth_authorization_url(["openid", "profile", "email", "w_member_social"], state="state-1", mode="personal")
 
     parsed = urllib.parse.urlparse(result["url"])
     query = urllib.parse.parse_qs(parsed.query)
     assert result["ok"] is True
     assert parsed.netloc == "www.linkedin.com"
-    assert query["client_id"] == ["client-id"]
+    assert query["client_id"] == ["personal-client-id"]
     assert query["redirect_uri"] == ["https://www.linkedin.com/developers/tools/oauth/redirect"]
     assert query["scope"] == ["openid profile email w_member_social"]
     assert query["state"] == ["state-1"]
     assert result["organization_posting_ready"] is False
+
+
+def test_linkedin_oauth_authorization_url_can_use_org_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    values = {
+        "LINKEDIN_ORG_CLIENT_ID": "org-client-id",
+        "LINKEDIN_REDIRECT_URI": "https://www.linkedin.com/developers/tools/oauth/redirect",
+    }
+    monkeypatch.setattr(linkedin_client.config_store, "get", lambda key: values.get(key, ""))
+
+    result = linkedin_client.oauth_authorization_url(state="state-2", mode="organization")
+
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(result["url"]).query)
+    assert result["ok"] is True
+    assert result["mode"] == "organization"
+    assert query["client_id"] == ["org-client-id"]
+    assert "w_organization_social" in query["scope"][0]
+    assert result["organization_posting_ready"] is True
 
 
 def test_linkedin_exchange_code_reports_missing_config(monkeypatch: pytest.MonkeyPatch) -> None:

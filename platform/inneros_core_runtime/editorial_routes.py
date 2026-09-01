@@ -39,6 +39,7 @@ class SocialAccountPatchBody(BaseModel):
 class LinkedInCodeExchangeBody(BaseModel):
     authorization_code: str
     redirect_uri: str | None = None
+    mode: str | None = None
 
 
 class DraftPatchBody(BaseModel):
@@ -113,11 +114,13 @@ def api_update_linkedin_token(body: LinkedInTokenUpdateBody):
 
 
 @router.get("/api/editorial/linkedin/oauth-url")
-def api_linkedin_oauth_url(include_org_scope: bool = False):
-    scopes = ["openid", "profile", "email", "w_member_social"]
+def api_linkedin_oauth_url(include_org_scope: bool = False, mode: str = "personal"):
     if include_org_scope:
-        scopes.append("w_organization_social")
-    return linkedin_client.oauth_authorization_url(scopes)
+        mode = "organization"
+    scopes = None
+    if mode == "personal":
+        scopes = ["openid", "profile", "email", "w_member_social"]
+    return linkedin_client.oauth_authorization_url(scopes, mode=mode)
 
 
 @router.post("/api/editorial/linkedin/exchange-code")
@@ -125,6 +128,7 @@ def api_linkedin_exchange_code(body: LinkedInCodeExchangeBody):
     result = linkedin_client.exchange_authorization_code(
         body.authorization_code,
         redirect_uri=body.redirect_uri,
+        mode=body.mode,
     )
     if not result.get("ok"):
         raise HTTPException(400, result)

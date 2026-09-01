@@ -15,6 +15,7 @@ from raphiia_openai import config_store
 
 LINKEDIN_API_VERSION = "202608"
 DEFAULT_OAUTH_SCOPES = ["openid", "profile", "email", "w_member_social"]
+ORG_OAUTH_SCOPES = ["openid", "profile", "email", "w_member_social", "w_organization_social"]
 
 
 def _token() -> str:
@@ -25,12 +26,31 @@ def _default_author() -> str:
     return config_store.get("LINKEDIN_AUTHOR_URN") or LINKEDIN_AUTHOR_URN
 
 
-def _client_id() -> str:
-    return config_store.get("LINKEDIN_CLIENT_ID")
+def _oauth_mode(mode: str | None) -> str:
+    clean = (mode or "default").strip().lower()
+    if clean in {"org", "organization", "company", "page", "pages"}:
+        return "organization"
+    if clean in {"personal", "member", "profile"}:
+        return "personal"
+    return "default"
 
 
-def _client_secret() -> str:
-    return config_store.get("LINKEDIN_CLIENT_SECRET")
+def _client_id(mode: str | None = None) -> str:
+    oauth_mode = _oauth_mode(mode)
+    if oauth_mode == "personal":
+        return config_store.get("LINKEDIN_PERSONAL_CLIENT_ID") or config_store.get("LINKEDIN_CLIENT_ID")
+    if oauth_mode == "organization":
+        return config_store.get("LINKEDIN_ORG_CLIENT_ID") or config_store.get("LINKEDIN_CLIENT_ID")
+    return config_store.get("LINKEDIN_CLIENT_ID") or config_store.get("LINKEDIN_PERSONAL_CLIENT_ID") or config_store.get("LINKEDIN_ORG_CLIENT_ID")
+
+
+def _client_secret(mode: str | None = None) -> str:
+    oauth_mode = _oauth_mode(mode)
+    if oauth_mode == "personal":
+        return config_store.get("LINKEDIN_PERSONAL_CLIENT_SECRET") or config_store.get("LINKEDIN_CLIENT_SECRET")
+    if oauth_mode == "organization":
+        return config_store.get("LINKEDIN_ORG_CLIENT_SECRET") or config_store.get("LINKEDIN_CLIENT_SECRET")
+    return config_store.get("LINKEDIN_CLIENT_SECRET") or config_store.get("LINKEDIN_PERSONAL_CLIENT_SECRET") or config_store.get("LINKEDIN_ORG_CLIENT_SECRET")
 
 
 def _redirect_uri() -> str:
@@ -84,13 +104,15 @@ def _request_result(method: str, url: str, data: dict | None = None) -> dict[str
         return {"ok": False, "error": str(exc)[:1000]}
 
 
-def oauth_authorization_url(scopes: list[str] | None = None, *, state: str | None = None) -> dict[str, Any]:
-    client_id = _client_id()
+def oauth_authorization_url(scopes: list[str] | None = None, *, state: str | None = None, mode: str | None = None) -> dict[str, Any]:
+    oauth_mode = _oauth_mode(mode)
+    default_scopes = ORG_OAUTH_SCOPES if oauth_mode == "organization" else DEFAULT_OAUTH_SCOPES
+    client_id = _client_id(oauth_mode)
     redirect_uri = _redirect_uri()
     if not client_id:
-        return {"ok": False, "error": "LINKEDIN_CLIENT_ID missing"}
-    clean_scopes = [s.strip() for s in (scopes or DEFAULT_OAUTH_SCOPES) if s and s.strip()]
-    state_value = state or f"inneros-linkedin-{secrets.token_urlsafe(18)}"
+        return {"ok": False, "error": "LINKEDIN_CLIENT_ID missing", "mode": oauth_mode}
+    clean_scopes = [s.strip() for s in (scopes or default_scopes) if s and s.strip()]
+    state_value = state or f"inneros-linkedin-{oauth_mode}-{secrets.token_urlsafe(18)}"
     params = {
         "response_type": "code",
         "client_id": client_id,
@@ -102,6 +124,7 @@ def oauth_authorization_url(scopes: list[str] | None = None, *, state: str | Non
         "ok": True,
         "url": "https://www.linkedin.com/oauth/v2/authorization?" + urllib.parse.urlencode(params),
         "state": state_value,
+        "mode": oauth_mode,
         "scopes": clean_scopes,
         "redirect_uri": redirect_uri,
         "organization_posting_ready": "w_organization_social" in clean_scopes,
@@ -109,10 +132,11 @@ def oauth_authorization_url(scopes: list[str] | None = None, *, state: str | Non
     }
 
 
-def exchange_authorization_code(code: str, *, redirect_uri: str | None = None) -> dict[str, Any]:
+def exchange_authorization_code(code: str, *, redirect_uri: str | None = None, mode: str | None = None) -> dict[str, Any]:
     clean_code = (code or "").strip()
-    client_id = _client_id()
-    client_secret = _client_secret()
+    oauth_mode = _oauth_mode(mode)
+    client_id = _client_id(oauth_mode)
+    client_secret = _client_secret(oauth_mode)
     final_redirect = (redirect_uri or _redirect_uri()).strip()
     missing = [name for name, value in {
         "authorization_code": clean_code,
@@ -121,7 +145,7 @@ def exchange_authorization_code(code: str, *, redirect_uri: str | None = None) -
         "LINKEDIN_REDIRECT_URI": final_redirect,
     }.items() if not value]
     if missing:
-        return {"ok": False, "error": "missing_oauth_config", "missing": missing}
+        return {"ok": False, "error": "missing_oauth_config", "missing": missing, "mode": oauth_mode}
     body = urllib.parse.urlencode(
         {
             "grant_type": "authorization_code",
@@ -154,6 +178,7 @@ def exchange_authorization_code(code: str, *, redirect_uri: str | None = None) -
         "expires_in": data.get("expires_in"),
         "scope": data.get("scope", ""),
         "token_display": config_store.mask_secret(token),
+        "mode": oauth_mode,
         "diagnostics": token_diagnostics(),
     }
 
