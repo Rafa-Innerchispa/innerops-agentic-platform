@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -58,6 +58,29 @@ class ProviderExecutionFabricTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["execution_state"], "blocked")
         self.assertEqual(result["error"], "provider_not_executable_on_this_node")
+
+    @patch("inneros_core_runtime.provider_execution_fabric.ide_task_bridge.complete_task")
+    @patch("inneros_core_runtime.provider_execution_fabric.mark_running_with_proof")
+    @patch("inneros_core_runtime.provider_execution_fabric.subprocess.Popen")
+    def test_codex_smoke_invokes_codex_cli_without_prompt(self, popen, mark_running, complete_task):
+        proc = Mock()
+        proc.pid = 12345
+        proc.returncode = 0
+        proc.communicate.return_value = ("codex-cli 0.139.0\n", "")
+        popen.return_value = proc
+        mark_running.return_value = {"ok": True, "execution_state": "running"}
+        complete_task.return_value = {"ok": True, "execution_state": "completed"}
+
+        result = fabric._execute_codex_smoke(
+            {"dispatch_id": "ide_1", "worktree": str(Path.cwd())},
+            {"cli_path": "/usr/local/bin/codex"},
+        )
+
+        popen.assert_called_once()
+        self.assertEqual(popen.call_args.args[0], ["/usr/local/bin/codex", "--version"])
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["evidence"]["process"]["pid"], 12345)
+        self.assertIn("codex-cli", result["evidence"]["process"]["stdout_tail"])
 
 
 if __name__ == "__main__":

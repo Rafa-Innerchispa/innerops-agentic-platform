@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from inneros_core_runtime import external_repair_agent as ext
@@ -173,6 +175,17 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertFalse(result["installed"])
         self.assertEqual(result["status"], "unavailable")
         self.assertEqual(result["unavailable_reason"], "cli_not_installed")
+
+    def test_provider_detection_falls_back_to_user_local_bin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            cli = home / ".local" / "bin" / "codex"
+            cli.parent.mkdir(parents=True)
+            cli.write_text("#!/bin/sh\n", encoding="utf-8")
+            cli.chmod(0o755)
+            with patch("pathlib.Path.home", return_value=home), patch("shutil.which", return_value=None):
+                result = ext._which_provider("codex")
+        self.assertEqual(result, str(cli))
 
     def test_budget_hard_limit_blocks_execution(self):
         with patch.object(ext, "external_credit_status", return_value={

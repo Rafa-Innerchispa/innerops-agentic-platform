@@ -215,24 +215,32 @@ def execute_provider_task(
 
 
 def _execute_codex_smoke(dispatch: dict[str, Any], capability: dict[str, Any]) -> dict[str, Any]:
-    """Cheap local smoke proving lifecycle semantics without running paid prompts."""
+    """Cheap local smoke proving Codex CLI lifecycle without running paid prompts."""
     started = _now()
-    proc = subprocess.run(
-        ["python3", "-c", "import os; print('provider-fabric-smoke', os.getpid())"],
+    cli_path = str(capability.get("cli_path") or "codex")
+    proc = subprocess.Popen(
+        [cli_path, "--version"],
         text=True,
-        capture_output=True,
-        timeout=10,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         cwd=Path(dispatch.get("worktree") or os.getcwd()),
     )
+    try:
+        stdout, stderr = proc.communicate(timeout=20)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout, stderr = proc.communicate()
+        stderr = (stderr or "") + "\nprovider fabric codex version smoke timed out"
     proof = {
         "proof_type": "process",
-        "pid": os.getpid(),
+        "pid": proc.pid,
         "started_at": started,
         "last_output_at": _now(),
         "exit_code": proc.returncode,
-        "stdout_tail": proc.stdout[-1000:],
-        "stderr_tail": proc.stderr[-1000:],
-        "transport": "local_smoke",
+        "stdout_tail": (stdout or "")[-1000:],
+        "stderr_tail": (stderr or "")[-1000:],
+        "transport": "local_cli",
+        "command": ["codex", "--version"],
     }
     running = mark_running_with_proof(dispatch["dispatch_id"], "codex", proof)
     evidence = {
@@ -241,7 +249,7 @@ def _execute_codex_smoke(dispatch: dict[str, Any], capability: dict[str, Any]) -
         "run_id": f"provider_smoke_{dispatch['dispatch_id']}",
         "process": proof,
         "capability": capability,
-        "tests": "provider fabric local smoke",
+        "tests": "provider fabric codex cli version smoke",
     }
     completed = ide_task_bridge.complete_task(dispatch["dispatch_id"], "codex", evidence=evidence)
     return {

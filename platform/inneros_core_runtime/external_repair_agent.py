@@ -58,6 +58,24 @@ def _run_help(argv: list[str], timeout: int = 8) -> dict[str, Any]:
         return {"ok": False, "error": str(exc)[:500]}
 
 
+def _provider_path_candidates(provider: str) -> list[Path]:
+    home = Path.home()
+    return [
+        home / ".local" / "bin" / provider,
+        home / ".local" / "npm-global" / "bin" / provider,
+    ]
+
+
+def _which_provider(provider: str) -> str:
+    cli = shutil.which(provider)
+    if cli:
+        return cli
+    for candidate in _provider_path_candidates(provider):
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return ""
+
+
 def _codex_home() -> Path:
     return Path(os.getenv("CODEX_HOME") or Path.home() / ".codex").expanduser()
 
@@ -105,7 +123,7 @@ def detect_provider(provider: str) -> dict[str, Any]:
             "mutations_require": status.get("mutations_require") or ["approval_id", "apply_window"],
             "preflight": preflight,
         }
-    cli = shutil.which(provider)
+    cli = _which_provider(provider)
     installed = bool(cli)
     version = ""
     help_probe: dict[str, Any] = {}
