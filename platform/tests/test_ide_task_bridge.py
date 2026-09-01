@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from inneros_core_runtime import ide_task_bridge as bridge
 
 FAST_MCP_AVAILABLE = importlib.util.find_spec("fastmcp") is not None
+MCP_SERVER_IMPORT_DEPS_AVAILABLE = importlib.util.find_spec("inneros_core_runtime.document_vault") is not None
 
 
 class FakeStore:
@@ -80,7 +81,15 @@ class IdeTaskBridgeTests(unittest.TestCase):
         did = dispatched["dispatch_id"]
         claimed = bridge.claim_task(did, "gemini", store=self.store)
         self.assertEqual(claimed["execution_state"], "claimed")
-        running = bridge.mark_running(did, "gemini", store=self.store)
+        no_proof = bridge.mark_running(did, "gemini", store=self.store)
+        self.assertFalse(no_proof["ok"])
+        self.assertEqual(no_proof["error"], "execution_proof_required_for_running")
+        running = bridge.mark_running(
+            did,
+            "gemini",
+            store=self.store,
+            execution_proof={"proof_type": "remote_session", "session_id": "sess-1", "transport": "a2a"},
+        )
         self.assertEqual(running["execution_state"], "running")
         no_evidence = bridge.complete_task(did, "gemini", evidence={}, store=self.store)
         self.assertFalse(no_evidence["ok"])
@@ -119,6 +128,8 @@ class IdeTaskBridgeTests(unittest.TestCase):
 
         wanted = {
             "ide_task_bridge_status",
+            "provider_execution_fabric_status",
+            "execute_provider_task",
             "ide_dispatch_task",
             "ide_task_status",
             "ide_claim_task",
@@ -137,6 +148,7 @@ class IdeTaskBridgeTests(unittest.TestCase):
         self.assertTrue(profile["ok"])
         self.assertLessEqual(profile["tool_count"], 8)
         self.assertIn("ide_dispatch_task", profile["tools"])
+        self.assertIn("execute_provider_task", profile["tools"])
 
     @unittest.skipUnless(FAST_MCP_AVAILABLE, "fastmcp is installed only in the production platform venv")
     def test_auth_scopes_expose_ide_bridge(self):
@@ -144,13 +156,13 @@ class IdeTaskBridgeTests(unittest.TestCase):
         self.assertEqual(TOOL_SCOPES["ide_dispatch_task"], "ralfia:agents")
         self.assertEqual(TOOL_SCOPES["ide_task_status"], "ralfia:read")
 
-    @unittest.skipUnless(FAST_MCP_AVAILABLE, "fastmcp is installed only in the production platform venv")
+    @unittest.skipUnless(FAST_MCP_AVAILABLE and MCP_SERVER_IMPORT_DEPS_AVAILABLE, "mcp_server runtime deps are optional in isolated worktrees")
     def test_fastmcp_catalog_contains_ide_bridge(self):
         from inneros_core_runtime import mcp_server
         names = {tool.name for tool in asyncio.run(mcp_server.mcp.list_tools())}
         self.assertTrue({"ide_dispatch_task", "ide_task_status", "ide_claim_task", "ide_complete_task"}.issubset(names))
 
-    @unittest.skipUnless(FAST_MCP_AVAILABLE, "fastmcp is installed only in the production platform venv")
+    @unittest.skipUnless(FAST_MCP_AVAILABLE and MCP_SERVER_IMPORT_DEPS_AVAILABLE, "mcp_server runtime deps are optional in isolated worktrees")
     def test_optional_runtime_modules_do_not_break_startup(self):
         from inneros_core_runtime import mcp_server
 

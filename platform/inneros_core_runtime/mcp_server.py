@@ -4483,6 +4483,48 @@ def ide_task_bridge_status() -> dict[str, Any]:
 
 
 @mcp.tool
+def provider_execution_fabric_status() -> dict[str, Any]:
+    """Unified Provider Execution Fabric: contrato, capabilities y rutas honestas."""
+    from inneros_core_runtime import provider_execution_fabric
+
+    return provider_execution_fabric.fabric_status()
+
+
+@mcp.tool
+def execute_provider_task(
+    provider: str,
+    title: str,
+    body: str,
+    repo: str = "",
+    branch: str = "",
+    worktree: str = "",
+    correlation_id: str = "",
+    priority: str = "p0",
+    from_agent: str = "CHATGPT_A",
+    dry_run: bool = True,
+    require_evidence: bool = True,
+    idempotency_key: str = "",
+) -> dict[str, Any]:
+    """Canonical provider dispatch/execution path; dry_run by default to protect credits."""
+    from inneros_core_runtime import provider_execution_fabric
+
+    return provider_execution_fabric.execute_provider_task(
+        provider=provider,
+        title=title,
+        body=body,
+        repo=repo,
+        branch=branch,
+        worktree=worktree,
+        correlation_id=correlation_id,
+        priority=priority,
+        from_agent=from_agent,
+        dry_run=dry_run,
+        require_evidence=require_evidence,
+        idempotency_key=idempotency_key,
+    )
+
+
+@mcp.tool
 def ide_dispatch_task(
     ide: str,
     title: str,

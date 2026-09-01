@@ -135,6 +135,8 @@ TOOL_SCOPES = {
     "local_gitlab_prepare_github_mirrors": "ralfia:agents",
     "local_gitlab_credit_status": "ralfia:read",
     "ide_task_bridge_status": "ralfia:read",
+    "provider_execution_fabric_status": "ralfia:read",
+    "execute_provider_task": "ralfia:agents",
     "ide_dispatch_task": "ralfia:agents",
     "ide_task_status": "ralfia:read",
     "ide_claim_task": "ralfia:agents",

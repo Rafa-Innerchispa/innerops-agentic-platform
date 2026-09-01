@@ -164,16 +164,29 @@ def claim_task(dispatch_id: str, ide: str, store: Store | None = None) -> dict[s
     return {"ok": True, "idempotent": False, **updated}
 
 
-def mark_running(dispatch_id: str, ide: str, store: Store | None = None) -> dict[str, Any]:
+def mark_running(
+    dispatch_id: str,
+    ide: str,
+    store: Store | None = None,
+    execution_proof: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     target = normalize_ide(ide); store = store or MongoStore(); rec = store.get(str(dispatch_id or "").strip())
     if not rec: return {"ok": False, "error": "ide_dispatch_not_found"}
     if target != rec.get("ide"): return {"ok": False, "error": "ide_identity_mismatch"}
     if rec.get("execution_state") in TERMINAL: return {"ok": False, "error": "terminal_dispatch"}
+    try:
+        from inneros_core_runtime import provider_execution_fabric
+
+        proof_check = provider_execution_fabric.validate_execution_proof(target, execution_proof)
+    except Exception as exc:
+        proof_check = {"ok": False, "error": f"execution_proof_validation_failed:{type(exc).__name__}"}
+    if not proof_check.get("ok"):
+        return {"ok": False, "error": "execution_proof_required_for_running", "proof": proof_check}
     if rec.get("execution_state") == "queued":
         claimed = claim_task(dispatch_id, target, store=store)
         if not claimed.get("ok"): return claimed
         rec = store.get(dispatch_id) or rec
-    updated = {**rec, "execution_state": "running", "updated_at": _now()}; store.put(updated)
+    updated = {**rec, "execution_state": "running", "execution_proof": execution_proof, "updated_at": _now()}; store.put(updated)
     try:
         from raphiia_openai import coordination_live
         coordination_live.update_ops_task_state(rec["ops_task_id"], "in_progress", target)

@@ -323,6 +323,8 @@ PROFILES: dict[str, dict[str, Any]] = {
         "max_tools": 8,
         "tools": [
             "ide_task_bridge_status",
+            "provider_execution_fabric_status",
+            "execute_provider_task",
             "ide_dispatch_task",
             "ide_task_status",
             "ide_claim_task",
@@ -1381,4 +1383,3 @@ def get_profile(name: str) -> dict[str, Any]:
     if not conf:
         return {"ok": False, "error": "unknown_profile", "available": sorted(PROFILES)}
     return {"ok": True, "profile": name, **conf, "catalog_pin": allp["catalog_pin"], "profiles_version": PROFILES_VERSION}
-

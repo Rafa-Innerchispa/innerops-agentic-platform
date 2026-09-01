@@ -238,6 +238,8 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_prepare_github_mirrors",
     "local_gitlab_credit_status",
     "ide_task_bridge_status",
+    "provider_execution_fabric_status",
+    "execute_provider_task",
     "ide_dispatch_task",
     "ide_task_status",
     "identify_agent_session",
@@ -4251,6 +4253,16 @@ _IDE_BRIDGE_TOOL_DEFINITIONS = {
         "description": "Report durable IDE/agent task bridge status without dispatching work.",
         "category": "agent_fabric",
         "risk": "read",
+    },
+    "provider_execution_fabric_status": {
+        "description": "Report the unified provider execution fabric contract, providers, and truthful capability states.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "execute_provider_task": {
+        "description": "Canonical dispatch/execution entrypoint for Codex, Cursor, Antigravity, and manifest providers; dry-run by default.",
+        "category": "agent_fabric",
+        "risk": "write",
     },
     "ide_dispatch_task": {
         "description": "Dispatch a bounded task to the IDE/agent bridge using canonical repo metadata.",

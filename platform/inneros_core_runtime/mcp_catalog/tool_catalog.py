@@ -8,10 +8,6 @@ MCP_VERSION = "2.68.0"
 
 ALL_MCP_TOOL_NAMES = [
     "ack_coordination_revision",
-    "a2a_status",
-    "a2a_agent_cards",
-    "a2a_dispatch",
-    "a2a_task_status",
     "accounting_summary",
     "ack_agent_message",
     "poll_agent_inbox",
@@ -241,6 +237,19 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_resource_sync",
     "local_gitlab_prepare_github_mirrors",
     "local_gitlab_credit_status",
+    "ide_task_bridge_status",
+    "provider_execution_fabric_status",
+    "execute_provider_task",
+    "ide_dispatch_task",
+    "ide_task_status",
+    "identify_agent_session",
+    "ide_claim_task",
+    "ide_mark_task_running",
+    "ide_complete_task",
+    "a2a_status",
+    "a2a_agent_cards",
+    "a2a_dispatch",
+    "a2a_task_status",
     "dev_swarm_watchdog_record_anomaly",
     "dev_swarm_watchdog_close_anomaly",
     "dev_swarm_watchdog_summary",
@@ -343,14 +352,6 @@ ALL_MCP_TOOL_NAMES = [
     "get_capability_registry_summary",
     "get_mcp_profile",
     "get_coordination_live",
-    "inneros_agent_fabric_status",
-    "ide_task_bridge_status",
-    "ide_dispatch_task",
-    "ide_task_status",
-    "identify_agent_session",
-    "ide_claim_task",
-    "ide_mark_task_running",
-    "ide_complete_task",
     "get_coordination_summary",
     "get_commercial_mission",
     "get_project_map",
@@ -674,16 +675,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "reads_from": ["HUB/ESTADO_VIVO.md", "ralfia_coordination_state", "ralfia_ops_tasks"],
         "input_schema": {},
         "output_schema": {"ok": "bool", "revision": "integer", "mandatory_reads": "array"},
-        "example_payload": {},
-    },
-    "inneros_agent_fabric_status": {
-        "description": "Estado unificado MCP inbox + IDE Task Bridge + ACP matriz + KPI hooks.",
-        "required_scopes": ["ralfia:read"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": ["inneros_agent_fabric"],
-        "input_schema": {"ops_task_id": "string"},
-        "output_schema": {"ok": "bool", "fabric_version": "string", "status": "string"},
         "example_payload": {},
     },
     "ack_coordination_revision": {
@@ -4263,6 +4254,16 @@ _IDE_BRIDGE_TOOL_DEFINITIONS = {
         "category": "agent_fabric",
         "risk": "read",
     },
+    "provider_execution_fabric_status": {
+        "description": "Report the unified provider execution fabric contract, providers, and truthful capability states.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "execute_provider_task": {
+        "description": "Canonical dispatch/execution entrypoint for Codex, Cursor, Antigravity, and manifest providers; dry-run by default.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
     "ide_dispatch_task": {
         "description": "Dispatch a bounded task to the IDE/agent bridge using canonical repo metadata.",
         "category": "agent_fabric",
@@ -4307,6 +4308,113 @@ for _name, _meta in _IDE_BRIDGE_TOOL_DEFINITIONS.items():
     TOOL_DEFINITIONS[_name] = _definition
 
 
+
+_A2A_TOOL_DEFINITIONS = {
+    "a2a_status": {
+        "description": "Report the Agent-to-Agent bridge status and readiness.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "a2a_agent_cards": {
+        "description": "List available A2A agent cards/capabilities for bounded routing.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+    "a2a_dispatch": {
+        "description": "Dispatch a bounded A2A task through the governed agent fabric.",
+        "category": "agent_fabric",
+        "risk": "write",
+    },
+    "a2a_task_status": {
+        "description": "Read status for a dispatched A2A task by correlation or task id.",
+        "category": "agent_fabric",
+        "risk": "read",
+    },
+}
+
+for _name, _meta in _A2A_TOOL_DEFINITIONS.items():
+    _definition = _generic_tool_definition(_name)
+    _definition.update(
+        {
+            "description": _meta["description"],
+            "required_scopes": ["ralfia:agents"] if _meta.get("risk") == "write" else ["ralfia:read"],
+            "risk_level": "medium" if _meta.get("risk") == "write" else "low",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_a2a_tasks"] if _meta.get("risk") == "write" else [],
+            "reads_from": ["ralfia_ops_tasks", "ralfia_a2a_tasks"],
+            "input_schema": {"task_id": "string|null", "correlation_id": "string|null"},
+            "output_schema": {"ok": "bool", "task_id": "string|null", "status": "string|null"},
+            "example_payload": {},
+        }
+    )
+    TOOL_DEFINITIONS[_name] = _definition
+
+
+TOOL_DEFINITIONS["inneros_dual_deployment_status"] = {
+    "description": "InnerOS dual deployment: estado read-only cloud/local, contrato offline/degraded, Resource Fabric y superficies públicas.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["systemd --user", "local HTTP health", "GCP Cloud Run read-only", "Resource Fabric"],
+    "input_schema": {"probe_http": "bool|null", "include_cloud": "bool|null"},
+    "output_schema": {
+        "ok": "bool",
+        "overall": "up|degraded|down",
+        "topology": "object",
+        "local_services": "array",
+        "cloud_surfaces": "array",
+        "offline_mode": "object",
+        "sync_contract": "object",
+    },
+    "example_payload": {"probe_http": True, "include_cloud": True},
+}
+
+TOOL_DEFINITIONS["inneros_dual_queue_operation"] = {
+    "description": "InnerOS dual deployment: encola una operación cloud/local idempotente para reconciliación auditada.",
+    "required_scopes": ["ralfia:agents"],
+    "risk_level": "medium",
+    "writes_to": ["inneros_dual_deployment_ops"],
+    "reads_from": ["inneros_dual_deployment_ops"],
+    "input_schema": {
+        "source": "cloud_ui|local_ui|mcp|agent",
+        "target": "local_amd|local_intel|cloud",
+        "action": "string",
+        "idempotency_key": "string",
+        "payload": "object|null",
+        "actor": "string|null",
+        "dry_run": "bool|null",
+    },
+    "output_schema": {"ok": "bool", "idempotent": "bool|null", "operation": "object"},
+    "example_payload": {
+        "source": "cloud_ui",
+        "target": "local_amd",
+        "action": "dual_health_probe",
+        "idempotency_key": "project-action-unique-key",
+        "dry_run": True,
+    },
+}
+
+TOOL_DEFINITIONS["inneros_dual_reconcile_operations"] = {
+    "description": "InnerOS dual deployment: reconcilia operaciones pendientes en modo audit-only, sin resolver conflictos destructivos.",
+    "required_scopes": ["ralfia:agents"],
+    "risk_level": "medium",
+    "writes_to": ["inneros_dual_deployment_ops"],
+    "reads_from": ["inneros_dual_deployment_ops"],
+    "input_schema": {"limit": "integer|null", "dry_run": "bool|null"},
+    "output_schema": {"ok": "bool", "count": "integer", "reconciled": "array"},
+    "example_payload": {"limit": 20, "dry_run": True},
+}
+
+TOOL_DEFINITIONS["inneros_dual_deployment_drill"] = {
+    "description": "InnerOS dual deployment: ejecuta prueba segura cloud/local/degraded/reconcile sobre la cola idempotente.",
+    "required_scopes": ["ralfia:agents"],
+    "risk_level": "medium",
+    "writes_to": ["inneros_dual_deployment_ops"],
+    "reads_from": ["systemd --user", "local HTTP health", "GCP Cloud Run read-only", "Resource Fabric", "inneros_dual_deployment_ops"],
+    "input_schema": {"dry_run": "bool|null"},
+    "output_schema": {"ok": "bool", "result": "PASS|PARTIAL", "operations": "array", "reconcile": "object"},
+    "example_payload": {"dry_run": True},
+}
+
 TOOL_DEFINITIONS["module_manifest"] = {
     "description": "Contrato canónico de módulo InnerOS: tenant, menús, acciones ARIA, estado LIVE/PARTIAL/NOT_READY y rutas públicas sin IP LAN.",
     "required_scopes": ["ralfia:read"],
@@ -4349,12 +4457,13 @@ TOOL_DEFINITIONS["module_artifact_download"] = {
 
 for _alias in ("agent_iskcon_module_manifest", "agent_iskcon_action", "agent_iskcon_artifact_download"):
     if _alias not in TOOL_DEFINITIONS:
+        base = {
+            "agent_iskcon_module_manifest": "AG-52 devuelve el manifiesto canónico ISKCON para ARIA y modelos locales pequeños.",
+            "agent_iskcon_action": "AG-52 ejecuta una acción ISKCON a través del contrato común ModuleAction.",
+            "agent_iskcon_artifact_download": "AG-52 resuelve artifacts ISKCON con tenant isolation.",
+        }[_alias]
         TOOL_DEFINITIONS[_alias] = {
-            "description": {
-                "agent_iskcon_module_manifest": "AG-52 devuelve el manifiesto canónico ISKCON para ARIA y modelos locales pequeños.",
-                "agent_iskcon_action": "AG-52 ejecuta una acción ISKCON a través del contrato común ModuleAction.",
-                "agent_iskcon_artifact_download": "AG-52 resuelve artifacts ISKCON con tenant isolation.",
-            }[_alias],
+            "description": base,
             "required_scopes": ["ralfia:write" if _alias == "agent_iskcon_action" else "ralfia:read"],
             "risk_level": "medium" if _alias == "agent_iskcon_action" else "low",
             "writes_to": ["inneros_module_actions", "inneros_module_artifacts"] if _alias == "agent_iskcon_action" else [],
@@ -4416,12 +4525,6 @@ def describe_tool(name: str) -> dict[str, Any]:
     if meta is None:
         if key in ALL_MCP_TOOL_NAMES:
             meta = _generic_tool_definition(key)
-            if key == "a2a_dispatch":
-                meta["required_scopes"] = ["ralfia:agents"]
-                meta["risk_level"] = "medium"
-                meta["writes_to"] = ["ralfia_ops_tasks", "ralfia_a2a_tasks"]
-            elif key.startswith("a2a_"):
-                meta["reads_from"] = ["ralfia_ops_tasks", "ralfia_a2a_tasks"]
         else:
             return {"ok": False, "error": f"unknown_tool: {key}", "hint": "call list_mcp_capabilities()"}
     return {
