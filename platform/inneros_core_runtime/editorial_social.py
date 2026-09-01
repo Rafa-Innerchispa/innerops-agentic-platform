@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from raphiia_openai import config_store, mongo_store
-from raphiia_openai.settings import LINKEDIN_AUTHOR_URN
+from raphiia_openai.settings import LINKEDIN_ACCESS_TOKEN, LINKEDIN_AUTHOR_URN
 
 COL = "editorial_linkedin_accounts"
 
@@ -45,6 +45,42 @@ DEFAULT_ACCOUNTS = [
     },
 ]
 
+STANDARD_ENTITIES = [
+    {
+        "entity_id": "ent_rafael_personal",
+        "name": "Rafael López",
+        "slug": "rafael-lopez",
+        "kind": "person",
+        "status": "active",
+        "linkedin_publish_as": "person",
+    },
+    {
+        "entity_id": "ent_innerchispa",
+        "name": "InnerChispa",
+        "slug": "innerchispa",
+        "kind": "organization",
+        "status": "active",
+        "linkedin_publish_as": "organization",
+    },
+    {
+        "entity_id": "ent_pcdoctor",
+        "name": "PC Doctor",
+        "slug": "pcdoctor",
+        "kind": "organization",
+        "status": "active",
+        "linkedin_publish_as": "organization",
+    },
+    {
+        "entity_id": "ent_innerspark",
+        "name": "InnerSpark",
+        "slug": "innerspark",
+        "kind": "organization",
+        "status": "active",
+        "linkedin_publish_as": "organization",
+        "setup_status": "linkedin_page_pending_creation",
+    },
+]
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -55,7 +91,31 @@ def _default_urn() -> str:
 
 
 def _token_ok() -> bool:
-    return bool(config_store.get("LINKEDIN_ACCESS_TOKEN"))
+    return bool(config_store.get("LINKEDIN_ACCESS_TOKEN") or LINKEDIN_ACCESS_TOKEN)
+
+
+def seed_standard_entities() -> dict[str, Any]:
+    db = mongo_store.get_db()
+    changed = 0
+    now = _now_iso()
+    for row in STANDARD_ENTITIES:
+        res = db.entities.update_one(
+            {"entity_id": row["entity_id"]},
+            {
+                "$setOnInsert": {**row, "created_at": now},
+                "$set": {
+                    "status": row["status"],
+                    "kind": row["kind"],
+                    "slug": row["slug"],
+                    "linkedin_publish_as": row["linkedin_publish_as"],
+                    "updated_at": now,
+                },
+            },
+            upsert=True,
+        )
+        if res.upserted_id or res.modified_count:
+            changed += 1
+    return {"ok": True, "changed": changed, "entities": [row["entity_id"] for row in STANDARD_ENTITIES]}
 
 
 def _urn_short(urn: str) -> str:
@@ -92,6 +152,7 @@ def _account_status(urn: str, acct: dict[str, Any]) -> str:
 
 def seed_linkedin_accounts() -> dict[str, Any]:
     db = mongo_store.get_db()
+    seed_standard_entities()
     n = 0
     for row in DEFAULT_ACCOUNTS:
         ent = _entity_doc(row["entity_id"]) or {}

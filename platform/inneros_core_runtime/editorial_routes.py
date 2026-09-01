@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from raphiia_openai import editorial_store, image_gen, linkedin_client
+from raphiia_openai import editorial_media_upload
 from raphiia_openai.editorial_i18n import PANEL_LANGUAGES, PUBLICATION_LANGUAGES, normalize_lang, ui_strings
 from raphiia_openai.editorial_translate import translate_content
 from raphiia_openai.editorial_publish import publish_destination
@@ -50,6 +51,8 @@ class TranslateBody(BaseModel):
 
 
 class GenerateImageBody(BaseModel):
+    provider: str | None = None
+    seed: int | None = None
     include_ai_text: bool = False
     overlay_text: str = ""
     overlay_lang: str = "es"
@@ -82,6 +85,10 @@ def _slugify(value: str) -> str:
     return raw or "innerchispa-update"
 
 
+class LinkedInTokenUpdateBody(BaseModel):
+    access_token: str
+
+
 @router.get("/api/editorial/languages")
 def api_languages():
     return {
@@ -89,6 +96,15 @@ def api_languages():
         "panel": PANEL_LANGUAGES,
         "visibility": linkedin_client.list_visibility_options(),
     }
+
+
+@router.post("/api/editorial/linkedin/update-token")
+def api_update_linkedin_token(body: LinkedInTokenUpdateBody):
+    token = body.access_token.strip()
+    if not token or len(token) < 20:
+        raise HTTPException(400, "token inválido")
+    config_store.set("LINKEDIN_ACCESS_TOKEN", token)
+    return {"ok": True, "status": "updated", "message": "Token LinkedIn actualizado en MongoDB config_store"}
 
 
 @router.get("/api/editorial/i18n")
@@ -100,6 +116,16 @@ def api_i18n(lang: str = "es"):
 @router.get("/api/editorial/linkedin/profile")
 def api_linkedin_profile():
     return linkedin_client.get_member_profile()
+
+
+@router.get("/api/editorial/linkedin/diagnostics")
+def api_linkedin_diagnostics():
+    return linkedin_client.token_diagnostics()
+
+
+@router.get("/api/editorial/linkedin/organizations")
+def api_linkedin_organizations():
+    return linkedin_client.list_administered_organizations()
 
 
 @router.get("/api/editorial/published")
@@ -143,7 +169,13 @@ def editorial_config():
         "google_api": bool(config_store.get_google_api_key() or GOOGLE_API_KEY),
         "linkedin": linkedin_client.config_status(),
         "linkedin_capabilities": linkedin_client.api_capabilities(),
+        "image_providers": image_gen.available_providers(check_live=True),
     }
+
+
+@router.get("/api/editorial/image-providers")
+def api_image_providers(check_live: bool = True):
+    return image_gen.available_providers(check_live=check_live)
 
 
 @router.get("/api/editorial/entities")
@@ -158,6 +190,7 @@ def api_list_entities():
 def api_social_accounts():
     from raphiia_openai import editorial_social
 
+    editorial_social.seed_standard_entities()
     items = editorial_social.list_linkedin_accounts()
     return {"ok": True, "items": items}
 
@@ -301,6 +334,26 @@ def api_reopen_draft(draft_id: str):
     return r
 
 
+@router.post("/api/editorial/drafts/{draft_id}/upload-image")
+async def api_upload_draft_image(draft_id: str, file: UploadFile = File(...)):
+    import base64
+
+    raw = await file.read()
+    if len(raw) < 100:
+        raise HTTPException(400, "archivo demasiado pequeño")
+    b64 = base64.b64encode(raw).decode("ascii")
+    mime = file.content_type or "image/png"
+    result = editorial_media_upload.upload_to_draft(
+        draft_id,
+        image_base64=f"data:{mime};base64,{b64}",
+        source="chatgpt",
+        prompt=f"Upload manual ({file.filename or 'image'})",
+    )
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("error", "upload failed"))
+    return result
+
+
 @router.post("/api/editorial/drafts/{draft_id}/generate-image")
 def api_generate_image(draft_id: str, body: GenerateImageBody | None = None):
     body = body or GenerateImageBody()
@@ -317,6 +370,9 @@ def api_generate_image(draft_id: str, body: GenerateImageBody | None = None):
         draft_id,
         d.get("title", ""),
         d.get("markdown", d.get("body", "")),
+        metadata=d.get("metadata") or {},
+        provider=body.provider,
+        seed=body.seed,
         include_ai_text=body.include_ai_text,
         overlay_text=overlay or None,
         overlay_lang=body.overlay_lang or pub_lang,
@@ -329,8 +385,20 @@ def api_generate_image(draft_id: str, body: GenerateImageBody | None = None):
         media_path=gen["media_path"],
         media_prompt=gen["media_prompt"],
         provider=gen["provider"],
+        metadata={
+            "provider": gen.get("provider"),
+            "model": gen.get("model", ""),
+            "backend": gen.get("backend", ""),
+            "seed": gen.get("seed"),
+            "prompt_effective": gen.get("media_prompt", ""),
+            "prompt_id": gen.get("prompt_id", ""),
+            "request_id": gen.get("request_id", ""),
+            "warnings": gen.get("warnings", []),
+            "overlay_applied": gen.get("overlay_applied", False),
+            "include_ai_text": gen.get("include_ai_text", False),
+        },
     )
-    return {**out, "warnings": gen.get("warnings", [])}
+    return {**out, "provider": gen.get("provider"), "model": gen.get("model", ""), "seed": gen.get("seed"), "warnings": gen.get("warnings", [])}
 
 
 @router.post("/api/editorial/drafts/{draft_id}/approve")
@@ -438,7 +506,8 @@ _EDITORIAL_HTML = """<!DOCTYPE html>
   <style>
     :root { --bg:#0f172a; --card:#1e293b; --accent:#38bdf8; --text:#f1f5f9; --muted:#94a3b8; }
     * { box-sizing: border-box; }
-    body { font-family: "Outfit", system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 1.5rem; }
+    body { font-family: "Outfit", system-ui, sans-serif; background: radial-gradient(1200px 600px at 20% -10%, #1e3a5f33, transparent), var(--bg); color: var(--text); margin: 0; padding: 1.5rem; max-width: 1400px; margin-inline: auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .ralphi-banner {
       margin: -1.5rem -1.5rem 1.25rem; padding: 1.25rem 1.5rem;
       background: linear-gradient(125deg, #0c1424, #121a2e 50%, #0f1f38);
@@ -463,15 +532,21 @@ _EDITORIAL_HTML = """<!DOCTYPE html>
     .status.review { background: #854d0e; }
     .status.approved { background: #166534; }
     pre { white-space: pre-wrap; font-size: .85rem; background: #0f172a; padding: .75rem; border-radius: 8px; max-height: 240px; overflow: auto; }
-    img.preview { max-width: 100%; border-radius: 8px; margin-top: .5rem; }
+    img.preview { max-width: 100%; max-height: 420px; object-fit: contain; border-radius: 12px; margin-top: .5rem; border: 1px solid #334155; background: #0f172a; display: block; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:.5rem; margin:.75rem 0; }
+    .provider-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.7rem; border:1px solid #334155; margin-right:.35rem; }
+    .provider-badge.ready { border-color:#22c55e66; color:#86efac; }
+    .provider-badge.not-ready { border-color:#f8717166; color:#fca5a5; }
+    .meta-block { background:#0f172a; border:1px solid #334155; border-radius:8px; padding:.65rem; margin:.5rem 0; font-size:.78rem; }
     button { cursor: pointer; border: none; border-radius: 8px; padding: .5rem 1rem; font-weight: 600; margin-right: .5rem; margin-top: .5rem; }
     .btn-primary { background: var(--accent); color: #0f172a; }
     .btn-ok { background: #22c55e; color: #052e16; }
     .btn-danger { background: #ef4444; color: #fff; }
     .btn-muted { background: #475569; color: #fff; }
     #config { font-size: .85rem; color: var(--muted); margin-bottom: 1rem; }
-    .item { border-bottom: 1px solid #334155; padding: .75rem 0; cursor: pointer; }
-    .item:hover { background: #33415533; }
+    .item { border-bottom: 1px solid #334155; padding: .75rem; cursor: pointer; border-radius: 8px; transition: background .15s; }
+    .item:hover { background: #33415544; }
+    .item-flex { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
     .li-preview { background:#fff; color:#000; border-radius:8px; padding:12px; margin:.75rem 0; font-size:.9rem; }
     .li-preview .li-head { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
     .li-preview .li-avatar { width:40px; height:40px; border-radius:50%; background:#0a66c2; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
@@ -480,7 +555,7 @@ _EDITORIAL_HTML = """<!DOCTYPE html>
     .meta { font-size:.8rem; color:var(--muted); }
     .img-opts { background:#0f172a; padding:.75rem; border-radius:8px; margin:.5rem 0; font-size:.85rem; }
     .img-opts label { display:block; margin:.35rem 0; cursor:pointer; }
-    .item.active { background: #33415566; }
+    .item.active { background: #33415588; border-left: 3px solid var(--accent); }
     .dest-row { display:grid; grid-template-columns:1fr auto; gap:.5rem; align-items:start; padding:.5rem 0; border-bottom:1px solid #334155; font-size:.85rem; }
     .dest-ok { color:#4ade80; }
     .dest-warn { color:#fbbf24; }
@@ -491,55 +566,109 @@ _EDITORIAL_HTML = """<!DOCTYPE html>
     .web-status-approved { color:#38bdf8; }
     .web-status-review { color:#fbbf24; }
     .web-status-draft { color:#94a3b8; }
+    .gen-banner { background:#0369a1; color:#fff; padding:.75rem 1rem; border-radius:8px; margin:.5rem 0; font-weight:600; font-size:.85rem; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
   </style>
 </head>
 <body>
   <header class="ralphi-banner">
     <h1>Ralphi IA <span class="ralphi-ver">v2.0</span></h1>
-    <p><em>your second brain</em> · Editorial Hub · LinkedIn y multicanal</p>
+    <p><em>your second brain</em> · Editorial Hub · LinkedIn y multicanal · <a href="http://192.168.1.4:8101/editorial" style="color:#5bd8ff">editorial.creatorcore.ai</a> · <a href="http://192.168.1.4:8101/status" style="color:#94a3b8">PC Doctor portal</a></p>
   </header>
   <h1 class="page-title" id="t_hub_title">Editorial Hub</h1>
   <p class="sub" id="t_hub_sub">…</p>
-  <div class="meta" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:1rem;align-items:center">
-    <span>
-      <label id="t_panel_lang">Panel</label>
-      <select id="panelLang" class="field" style="max-width:220px;display:inline-block;width:auto" onchange="setPanelLang(this.value)"></select>
-    </span>
-    <span>
-      <label id="t_entity_filter">Entidad</label>
-      <select id="entityFilter" class="field" style="max-width:260px;display:inline-block;width:auto" onchange="loadDrafts()"></select>
-    </span>
+  <div class="token-card">
+    <h3>🔑 Estado & Renovación de Token OAuth de LinkedIn</h3>
+    <p class="meta" style="color:#cbd5e1;margin:0 0 .75rem">
+      LinkedIn requiere renovar el token OAuth cada 60 días. Si al publicar sale <em>"EXPIRED_ACCESS_TOKEN"</em>, pega tu nuevo token aquí. El mismo token te permite publicar en tu Perfil Personal y en Páginas de Empresa donde eres Administrador (PC Doctor / InnerChispa).
+    </p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <input class="field" style="margin:0;flex:1;min-width:280px" id="newLinkedinToken" placeholder="Pega tu nuevo token Bearer de LinkedIn (AQ...)" />
+      <button class="btn-primary" style="margin:0;background:#6366f1;white-space:nowrap;color:#fff" onclick="updateLinkedinToken()">⚡ Guardar Token LinkedIn</button>
+    </div>
   </div>
-  <div id="config">…</div>
-  <div class="card" id="socialDestPanel" style="margin-bottom:1rem">
-    <h2 style="margin:0 0 .5rem;font-size:1rem;color:var(--accent)">Destinos LinkedIn</h2>
-    <p class="meta">Entidad editorial ≠ cuenta real. Configura URN de página aquí — sin editar .env.</p>
+
+  <div class="nav-tabs">
+    <button class="tab-btn active" id="tabLinkedIn" onclick="switchTab('linkedin')">📱 Publicación LinkedIn</button>
+    <button class="tab-btn" id="tabAstro" onclick="switchTab('astro')">🌐 Web Staging (Astro Portfolio)</button>
+    <button class="tab-btn" id="tabConfig" onclick="switchTab('config')">⚙️ Destinos & URNs LinkedIn</button>
+  </div>
+
+  <div id="secConfig" class="card" style="display:none;margin-bottom:1rem">
+    <h2 style="margin:0 0 .5rem;font-size:1rem;color:var(--accent)">Configuración de URNs de Páginas LinkedIn</h2>
+    <p class="meta">Asigna la URN de cada entidad (ej: `urn:li:organization:108226065` para PC Doctor o `urn:li:person:8CRTov6_mo` para Rafael López):</p>
     <div id="socialAccounts"></div>
   </div>
-  <div class="card" id="webAstroPanel" style="margin-bottom:1rem">
-    <h2 style="margin:0 0 .5rem;font-size:1rem;color:var(--accent)">Web / Astro interno</h2>
-    <p class="meta">Mismo flujo de aprobación, otro canal. Al publicar aquí se exporta para Astro staging interno; LinkedIn sigue separado.</p>
-    <button class="btn-muted" onclick="loadWebContent()">Actualizar web</button>
+
+  <div id="secAstro" class="card" style="display:none;margin-bottom:1rem">
+    <h2 style="margin:0 0 .5rem;font-size:1rem;color:var(--accent)">🌐 Web Staging / Astro Portfolio Interno</h2>
+    <p class="meta">Los proyectos y hackathons desarrollados en InnerOS/ARIA se capturan automáticamente para la Web Interna. Al publicar aquí, se exportan a Astro staging (no afecta a LinkedIn).</p>
+    <button class="btn-muted" onclick="loadWebContent()">Actualizar lista web</button>
     <button class="btn-ok" onclick="syncCanonicalNow()">Sincronizar inventario canónico</button>
     <button class="btn-primary" onclick="exportAstroNow()">Exportar JSON Astro</button>
-    <div id="webContentList"></div>
+    <div id="webContentList" style="margin-top:.75rem"></div>
   </div>
-  <div class="grid">
-    <div class="card">
-      <h2 id="t_queue">Cola</h2>
-      <button class="btn-muted" id="t_refresh" onclick="loadDrafts()">Actualizar</button>
-      <label class="meta"><input type="checkbox" id="showArchived" onchange="loadDrafts()"/> <span id="t_archived">Archivados</span></label>
-      <div id="list"></div>
-      <h2 id="t_published" style="margin-top:1rem">Publicados</h2>
-      <div id="published"></div>
+
+  <div id="secLinkedIn">
+    <div class="meta" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:1rem;align-items:center">
+      <span>
+        <label id="t_panel_lang">Idioma Panel</label>
+        <select id="panelLang" class="field" style="max-width:180px;display:inline-block;width:auto" onchange="setPanelLang(this.value)"></select>
+      </span>
+      <span>
+        <label id="t_entity_filter">Filtrar por Entidad</label>
+        <select id="entityFilter" class="field" style="max-width:240px;display:inline-block;width:auto" onchange="loadDrafts()"></select>
+      </span>
+      <div id="config" style="margin:0">…</div>
     </div>
-    <div class="card">
-      <h2 id="t_editor">Editor</h2>
-      <div id="detail"><p class="sub" id="t_select">Selecciona un borrador</p></div>
+    <div class="grid">
+      <div class="card">
+        <h2 id="t_queue">Cola de Borradores</h2>
+        <button class="btn-muted" id="t_refresh" onclick="loadDrafts()">Actualizar</button>
+        <label class="meta"><input type="checkbox" id="showArchived" onchange="loadDrafts()"/> <span id="t_archived">Ver Archivados</span></label>
+        <div id="list" style="margin-top:.5rem"></div>
+        <h2 id="t_published" style="margin-top:1rem">Últimos Publicados</h2>
+        <div id="published"></div>
+      </div>
+      <div class="card">
+        <h2 id="t_editor">Editor de Borrador</h2>
+        <div id="detail"><p class="sub" id="t_select">Selecciona un borrador de la izquierda</p></div>
+      </div>
     </div>
   </div>
 <script>
-let drafts = [], selected = null, capNotes = [], pubLangs = {}, panelLangs = {}, visOpts = [], UI = {}, entities = [], entityMap = {}, socialAccounts = [], panelLang = localStorage.getItem('ralfia_panel_lang')||'es';
+let drafts = [], selected = null, capNotes = [], pubLangs = {}, panelLangs = {}, visOpts = [], UI = {}, entities = [], entityMap = {}, socialAccounts = [], panelLang = localStorage.getItem('ralfia_panel_lang')||'es', imageProviders = [];
+
+function switchTab(tab) {
+  document.getElementById('tabLinkedIn').classList.toggle('active', tab==='linkedin');
+  document.getElementById('tabAstro').classList.toggle('active', tab==='astro');
+  document.getElementById('tabConfig').classList.toggle('active', tab==='config');
+  document.getElementById('secLinkedIn').style.display = tab==='linkedin' ? 'block' : 'none';
+  document.getElementById('secAstro').style.display = tab==='astro' ? 'block' : 'none';
+  document.getElementById('secConfig').style.display = tab==='config' ? 'block' : 'none';
+}
+
+function providerOptionsHtml(selectedId) {
+  const list = [
+    {id:'local_amd', label:'Local GPU (.4 · ComfyUI Turbo ~15s)', ready:true, generates:true},
+    {id:'local_comfy_realvis', label:'Local GPU (.4 · ComfyUI RealVisXL ~120s)', ready:true, generates:true},
+    {id:'google_gemini', label:'Google / Gemini Cloud (~5s)', ready:true, generates:true},
+    {id:'uploaded_chatgpt', label:'📁 Subir / Importar foto (ChatGPT / Manual)', ready:true, generates:false}
+  ];
+  return list.map(p =>
+    `<option value="${esc(p.id)}" ${p.id===selectedId || (selectedId==='local_amd' && p.id==='local_amd')?'selected':''}>${esc(p.label)}</option>`
+  ).join('');
+}
+
+function renderGenMeta(d) {
+  const lines = [];
+  if (d.media_prompt || d.image_prompt_effective) lines.push('<div><strong>Prompt:</strong> '+esc((d.image_prompt_effective||d.media_prompt||'').slice(0,220))+'</div>');
+  if (d.image_provider) lines.push('<div><strong>Provider:</strong> '+esc(d.image_provider)+'</div>');
+  if (d.image_model) lines.push('<div><strong>Model:</strong> '+esc(String(d.image_model))+'</div>');
+  if (d.image_backend) lines.push('<div><strong>Backend:</strong> '+esc(String(d.image_backend))+'</div>');
+  if (d.image_seed != null && d.image_seed !== '') lines.push('<div><strong>Seed:</strong> '+esc(String(d.image_seed))+'</div>');
+  if (d.image_generated_at) lines.push('<div><strong>Generated:</strong> '+esc(String(d.image_generated_at).slice(0,19))+'</div>');
+  return lines.length ? '<div class="meta-block">'+lines.join('')+'</div>' : '<p class="meta">Sin metadatos de generación aún.</p>';
+}
 
 function destStatusClass(s) {
   if (s === 'connected') return 'dest-ok';
@@ -565,6 +694,22 @@ async function loadSocialAccounts() {
       </div>
       <button class="btn-muted" style="margin:0" onclick="saveSocialUrn('${esc(a.entity_id)}')">Guardar URN</button>
     </div>`).join('');
+}
+
+async function updateLinkedinToken() {
+  const token = (document.getElementById('newLinkedinToken')?.value || '').trim();
+  if (!token) { alert('Ingresa un token de LinkedIn válido.'); return; }
+  const r = await fetch('/api/editorial/linkedin/update-token', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({access_token: token})
+  });
+  const j = await r.json();
+  if (!j.ok) alert('Error: ' + (j.detail || j.error || '?'));
+  else {
+    alert('¡Token OAuth de LinkedIn actualizado con éxito!');
+    document.getElementById('newLinkedinToken').value = '';
+    await loadConfig();
+  }
 }
 
 async function saveSocialUrn(entityId) {
@@ -645,9 +790,13 @@ async function loadConfig() {
   const r = await fetch('/api/editorial/config');
   const c = await r.json();
   capNotes = (c.linkedin_capabilities && c.linkedin_capabilities.available_now) || [];
+  imageProviders = (c.image_providers && c.image_providers.providers) || c.image_providers || [];
+  const provBadges = (Array.isArray(imageProviders) ? imageProviders : []).slice(0,4).map(p =>
+    `<span class="provider-badge ${p.ready===false?'not-ready':'ready'}">${esc(p.label||p.id)}</span>`
+  ).join('');
   document.getElementById('config').innerHTML =
     `Google API: ${c.google_api ? '✓' : '✗'} · LinkedIn: ${c.linkedin.ready ? '✓' : '✗'} · ` +
-    capNotes.slice(0,3).join(' · ');
+    capNotes.slice(0,2).join(' · ') + (provBadges ? '<br/>'+provBadges : '');
   loadPublished();
   loadSocialAccounts();
 }
@@ -734,9 +883,14 @@ async function loadDrafts() {
   if (!drafts.length) { el.innerHTML = '<p class="sub">Sin borradores — usa ChatGPT MCP save_pipeline_draft(channel=linkedin)</p>'; return; }
   el.innerHTML = drafts.map(d => `
     <div class="item ${selected===d._id?'active':''}" onclick="selectDraft('${d._id}')">
-      <strong>${esc(d.title||d.channel||'Sin título')}</strong>
-      <span class="status ${d.status==='ready_for_review'?'review':''}">${esc(d.status)}</span>
-      <div class="sub">${esc(d.channel)} · ${esc(entityLabel(d.entity_id))} · ${esc((d.updated_at||'').slice(0,19))}</div>
+      <div class="item-flex">
+        <div>
+          <strong>${esc(d.title||d.channel||'Sin título')}</strong>
+          <span class="status ${d.status==='ready_for_review'?'review':''}">${esc(d.status)}</span>
+          <div class="sub">${esc(d.channel)} · ${esc(entityLabel(d.entity_id))} · ${esc((d.updated_at||'').slice(0,19))}</div>
+        </div>
+        ${d.media_path ? `<img src="/api/editorial/media?path=${encodeURIComponent(d.media_path)}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid #334155;flex-shrink:0"/>` : '<span style="font-size:1.2rem;opacity:0.35">🖼️</span>'}
+      </div>
     </div>`).join('');
 }
 
@@ -766,9 +920,9 @@ async function selectDraft(id) {
   const entSel = entitySelectOptions(entId);
   const locs = d.localizations || {};
   const locBadges = Object.keys(locs).map(l=>`<span class="status">${esc(l)}</span>`).join(' ');
-  const img = d.media_path ? `<img class="preview" src="/api/editorial/media?path=${encodeURIComponent(d.media_path)}" alt="preview"/>` : '<p class="sub">Sin imagen</p>';
+  const img = d.media_path ? `<img class="preview" src="/api/editorial/media?path=${encodeURIComponent(d.media_path)}" alt="preview"/><p class="meta" style="margin-top:4px"><a href="/api/editorial/media?path=${encodeURIComponent(d.media_path)}" target="_blank" style="color:#38bdf8">🔍 Ver o descargar foto completa (alta resolución)</a></p>` : '<div class="meta-block" style="border-style:dashed;text-align:center;padding:1rem;color:var(--muted)">📷 Borrador sin foto adjunta.<br/><span class="meta">Haz clic en <strong>Generar imagen</strong> abajo para crear una con ComfyUI / Gemini, o en <strong>📁 Subir / Importar foto</strong> para cargar una propia o de ChatGPT.</span></div>';
   const prov = d.image_provider || '';
-  const provLabel = prov.startsWith('chatgpt') ? '🟢 ChatGPT (tu imagen)' : (prov.startsWith('google') ? '🟡 Google/Gemini (servidor)' : (prov === 'placeholder' ? '⚪ Placeholder (sin foto LinkedIn)' : (prov ? esc(prov) : 'Sin imagen adjunta')));
+  const provLabel = prov.startsWith('chatgpt') ? '🟢 ChatGPT / Upload manual' : (prov.startsWith('google') ? '🟡 Google/Gemini (Cloud)' : (prov.includes('amd') || prov.includes('comfy') ? '🔵 ComfyUI GPU Local (.4)' : (prov ? esc(prov) : 'Sin imagen adjunta')));
   const rejected = d.status === 'rejected';
   document.getElementById('detail').innerHTML = `
     <span class="status ${d.status==='ready_for_review'?'review':''}">${esc(d.status)}</span>
@@ -785,22 +939,34 @@ async function selectDraft(id) {
     <input class="field" id="editTitle" value="${esc(d.title||'')}"/>
     <textarea class="field" id="editBody">${esc(d.markdown||d.body||'')}</textarea>
     ${linkedinPreview(d.title, d.markdown||d.body||'', entId)}
-    <p class="meta"><strong>Imagen:</strong> ${provLabel}</p>
+    <p class="meta"><strong>Imagen adjunta:</strong> ${provLabel}</p>
     ${img}
+    <div id="genStatusBanner" class="gen-banner" style="display:none">
+      <span style="display:inline-block;animation:spin 1s linear infinite">⏳</span>
+      <span id="genStatusText">Generando imagen local con ComfyUI en el nodo .4... Por favor espera.</span>
+    </div>
     <div class="img-opts">
+      <label class="meta"><strong>Proveedor de Imagen (Image Provider)</strong></label>
+      <select id="imageProvider" class="field">${providerOptionsHtml(d.image_provider && d.image_provider.startsWith('chatgpt') ? 'uploaded_chatgpt' : (d.image_provider || 'local_amd'))}</select>
+      <p class="meta">ComfyUI Turbo (~15s) · ComfyUI RealVisXL (~120s) · Google Gemini (~5s)</p>
+      ${renderGenMeta(d)}
       <label><input type="checkbox" id="optTitleOverlay" checked/> ${t('title_overlay')}</label>
       <input class="field" id="optOverlay" placeholder="${t('custom_overlay')}"/>
       <label class="meta"><input type="checkbox" id="optAiText"/> ${t('allow_ai_text')}</label>
     </div>
+    <div class="toolbar">
     <button class="btn-primary" onclick="saveDraft('${d._id}')">${t('save')}</button>
     <button class="btn-primary" onclick="translateDraft('${d._id}')">${t('translate')}</button>
-    <button class="btn-primary" onclick="genImage('${d._id}')">${t('regen_image')}</button>
+    <button class="btn-primary" style="background:#0284c7;color:#fff" onclick="document.getElementById('imageUpload')?.click()">📁 Subir / Importar foto</button>
+    <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="uploadDraftImage('${d._id}', this)"/>
+    <button class="btn-primary" id="btnGenImage" onclick="genImage('${d._id}')">🎨 ${t('regen_image')}</button>
     <button class="btn-primary" onclick="createWebFromDraft('${d._id}')">Crear Web/Astro</button>
+    </div>
     <button class="btn-muted" onclick="copyPost()">${t('copy')}</button>
     <button class="btn-muted" onclick="duplicateDraft('${d._id}')">${t('duplicate')}</button>
     ${rejected ? `<button class="btn-muted" onclick="reopenDraft('${d._id}')">${t('reopen')}</button>` : ''}
     <button class="btn-ok" onclick="approveOnly('${d._id}')">${t('approve')}</button>
-    <button class="btn-ok" onclick="publishNow('${d._id}')">${t('publish')}</button>
+    <button class="btn-ok" id="btnPublish" onclick="publishNow('${d._id}')">🚀 ${t('publish')}</button>
     <button class="btn-danger" onclick="reject('${d._id}')">${t('archive')}</button>
     <p class="meta">${t('archived_hint')}</p>`;
   refreshDestHint(entId);
@@ -891,28 +1057,72 @@ async function reopenDraft(id) {
   loadDrafts(); selectDraft(id);
 }
 
+async function uploadDraftImage(id, input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  const banner = document.getElementById('genStatusBanner');
+  const text = document.getElementById('genStatusText');
+  if (banner && text) {
+    banner.style.display = 'flex';
+    text.textContent = '⬆ Subiendo foto al borrador (' + file.name + ')... Por favor espera.';
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/editorial/drafts/'+id+'/upload-image', { method:'POST', body: fd });
+    const j = await r.json();
+    if (!j.ok) alert('Upload error: '+(j.detail||j.error||'?'));
+    else { alert('Foto adjuntada exitosamente ('+(file.name)+')'); selectDraft(id); loadDrafts(); }
+  } catch (err) {
+    alert('Upload failed: '+err);
+  } finally {
+    if (banner) banner.style.display = 'none';
+    input.value = '';
+  }
+}
+
 async function genImage(id) {
   const useTitle = document.getElementById('optTitleOverlay')?.checked;
   const overlay = document.getElementById('optOverlay')?.value || '';
   const includeAiText = document.getElementById('optAiText')?.checked || false;
+  const provider = document.getElementById('imageProvider')?.value || 'local_amd';
+  if (provider === 'uploaded_chatgpt') {
+    alert('Selecciona una foto de tu equipo o descargada de ChatGPT.');
+    document.getElementById('imageUpload')?.click();
+    return;
+  }
   const r0 = await fetch('/api/editorial/drafts/'+id);
   const cur = (await r0.json()).draft;
-  if (cur?.image_provider?.startsWith('chatgpt') && !confirm('Ya hay imagen de ChatGPT. ¿Sustituir por Google/Gemini?')) return;
-  const r = await fetch('/api/editorial/drafts/'+id+'/generate-image', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({include_ai_text: includeAiText, overlay_text: overlay, use_title_overlay: useTitle, overlay_lang: document.getElementById('pubLang')?.value || 'es'})
-  });
-  const j = await r.json();
-  if (!j.ok) alert('Error: '+(j.detail||JSON.stringify(j)));
-  else {
-    const p = j.draft?.image_provider || '';
-    const msg = p.startsWith('chatgpt')
-      ? 'Imagen ChatGPT guardada ('+p+') — LinkedIn usará esta foto.'
-      : (p === 'placeholder'
-      ? 'Placeholder (Google falló) — preview OK; LinkedIn irá solo texto si publicas.'
-      : 'Imagen Google/Gemini ('+p+')');
-    alert(msg);
-    selectDraft(id);
+  if (cur?.image_provider?.startsWith('chatgpt') && provider !== 'uploaded_chatgpt' && !confirm('¿Reemplazar la foto subida manualmente por una imagen generada?')) return;
+
+  const banner = document.getElementById('genStatusBanner');
+  const text = document.getElementById('genStatusText');
+  const btn = document.getElementById('btnGenImage');
+  if (banner && text) {
+    banner.style.display = 'flex';
+    if (provider.includes('gemini')) text.textContent = '🎨 Generando imagen con Google Gemini Cloud... (est ~5s)';
+    else if (provider.includes('realvis')) text.textContent = '🎨 Generando imagen con ComfyUI SDXL RealVisXL en GPU .4... (est ~120s, por favor espera)';
+    else text.textContent = '🎨 Generando imagen local rápida con ComfyUI SD-Turbo en GPU .4... (est ~15s, por favor espera)';
+  }
+  if (btn) btn.disabled = true;
+
+  try {
+    const r = await fetch('/api/editorial/drafts/'+id+'/generate-image', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({provider, include_ai_text: includeAiText, overlay_text: overlay, use_title_overlay: useTitle, overlay_lang: document.getElementById('pubLang')?.value || 'es'})
+    });
+    const j = await r.json();
+    if (!j.ok) alert('Error: '+(j.detail||JSON.stringify(j)));
+    else {
+      const p = j.draft?.image_provider || j.provider || '';
+      alert('¡Imagen generada con éxito! Provider: '+p+(j.model ? ' · Modelo: '+j.model : '')+(j.seed != null ? ' · Seed: '+j.seed : ''));
+      selectDraft(id);
+    }
+  } catch (err) {
+    alert('Error en generación: '+err);
+  } finally {
+    if (banner) banner.style.display = 'none';
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -945,24 +1155,32 @@ async function publishNow(id) {
   } else {
     if (!confirm(msg + '\\n\\n¿Publicar AHORA en LinkedIn? Acción irreversible.')) return;
   }
-  const r = await fetch('/api/editorial/drafts/'+id+'/approve', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({publish_now:true, allow_personal_fallback: allowFallback})
-  });
-  const j = await r.json();
-  if (j.publish && !j.publish.ok) {
-    const err = j.publish.error || JSON.stringify(j.publish);
-    alert(j.publish.blocked ? ('Bloqueado:\\n'+err+'\\n\\n'+(j.publish.hint||'')) : ('Aprobado pero LinkedIn: '+err));
+  const btnPub = document.getElementById('btnPublish');
+  if (btnPub) { btnPub.disabled = true; btnPub.textContent = '⏳ Publicando...'; }
+  try {
+    const r = await fetch('/api/editorial/drafts/'+id+'/approve', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({publish_now:true, allow_personal_fallback: allowFallback})
+    });
+    const j = await r.json();
+    if (j.publish && !j.publish.ok) {
+      const err = j.publish.error || JSON.stringify(j.publish);
+      alert(j.publish.blocked ? ('Bloqueado:\\n'+err+'\\n\\n'+(j.publish.hint||'')) : ('Aprobado pero LinkedIn: '+err));
+    }
+    else if (j.publish?.ok) {
+      let msg = '🎉 Publicado en LinkedIn: '+j.publish.linkedin_urn;
+      if (j.publish.publish_mode==='text_only') msg += ' (solo texto, sin imagen)';
+      if (j.publish.publish_mode==='text_only_fallback') msg += ' (solo texto — falló imagen: '+(j.publish.image_error||'?')+')';
+      if (j.publish.author?.warning) msg += '\\n\\n⚠ '+j.publish.author.warning;
+      alert(msg);
+    }
+    else alert('En cola — revisa estado.');
+  } catch (err) {
+    alert('Error al publicar: '+err);
+  } finally {
+    if (btnPub) { btnPub.disabled = false; btnPub.textContent = '🚀 '+t('publish'); }
+    loadDrafts(); selectDraft(id);
   }
-  else if (j.publish?.ok) {
-    let msg = 'Publicado: '+j.publish.linkedin_urn;
-    if (j.publish.publish_mode==='text_only') msg += ' (solo texto, sin imagen)';
-    if (j.publish.publish_mode==='text_only_fallback') msg += ' (solo texto — falló imagen: '+(j.publish.image_error||'?')+')';
-    if (j.publish.author?.warning) msg += '\\n\\n⚠ '+j.publish.author.warning;
-    alert(msg);
-  }
-  else alert('En cola — revisa estado.');
-  loadDrafts(); selectDraft(id);
 }
 
 async function approve(id) { return approveOnly(id); }
@@ -978,7 +1196,7 @@ async function reject(id) {
   document.getElementById('detail').innerHTML='<p class="sub">Archivado — recuperable en la lista</p>';
 }
 
-loadLangCatalog().then(()=>loadEntities()).then(()=>setPanelLang(panelLang)).then(()=>{ loadConfig(); loadDrafts(); loadWebContent(); });
+loadLangCatalog().then(()=>loadEntities()).then(()=>setPanelLang(panelLang)).then(()=>{ loadConfig(); loadDrafts(); loadWebContent(); const qp=new URLSearchParams(window.location.search); const draftId=qp.get('draft'); if(draftId) selectDraft(draftId); });
 setInterval(loadDrafts, 30000);
 setInterval(loadWebContent, 45000);
 </script>

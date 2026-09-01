@@ -1,22 +1,40 @@
 # LinkedIn — entidad, cuenta y visibilidad
 
-**Actualizado:** 2026-07-06 · Cursor
+**Actualizado:** 2026-09-01 · Codex
 
 ---
 
-## Por qué InnerChispa publicaba en tu perfil personal
+## Modelo correcto: una conexión, cuatro entidades
 
-Hay **un solo token** LinkedIn en el panel (`LINKEDIN_ACCESS_TOKEN`), pero **dónde** publica lo define el **URN del autor**:
+El sistema editorial maneja cuatro entidades:
+
+| entity_id | Entidad | Tipo LinkedIn | Estado esperado |
+|-----------|---------|---------------|-----------------|
+| `ent_rafael_personal` | Rafael López | Perfil personal | Token + `urn:li:person:...` |
+| `ent_innerchispa` | InnerChispa | Página empresa | `urn:li:organization:...` |
+| `ent_pcdoctor` | PC Doctor | Página empresa | `urn:li:organization:...` |
+| `ent_innerspark` | InnerSpark | Página empresa | Crear página primero, luego URN |
+
+LinkedIn no ofrece una API general para “controlar toda la cuenta” sin OAuth.
+El camino correcto es **una app LinkedIn** autorizada por tu usuario, con scopes
+de perfil y organización. Si tu usuario es administrador de InnerChispa, PC
+Doctor e InnerSpark, el mismo token puede publicar en esas páginas usando URNs
+distintos.
+
+## Por qué una marca puede caer al perfil personal
+
+Hay **un solo token** LinkedIn (`LINKEDIN_ACCESS_TOKEN`), pero **dónde** publica lo define el **URN del autor**:
 
 | Campo | Dónde |
 |-------|--------|
 | `LINKEDIN_AUTHOR_URN` (.env / panel) | **Fallback** — perfil personal Rafael |
 | `entities.linkedin_author_urn` (Mongo) | **Por marca** — persona o página empresa |
 
-**Regla en código** (`entity_linkedin.resolve_author_urn`):
+**Regla en código** (`editorial_social.resolve_for_publish`):
 
-1. Si la entidad del borrador tiene `linkedin_author_urn` → usa esa cuenta.
-2. Si está **vacío** (InnerChispa, PC Doctor, InnerSpark hoy) → **cae al URN del .env** = tu perfil personal.
+1. Rafael personal puede usar fallback `.env`.
+2. Páginas empresa requieren `entities.linkedin_author_urn`.
+3. Sin URN de página → queda bloqueado hasta configurar la página, salvo que Rafael confirme fallback personal explícito.
 
 Por eso elegir «InnerChispa» en el selector **no cambiaba** el destino hasta que configures el URN de esa entidad.
 
@@ -40,7 +58,14 @@ Por eso elegir «InnerChispa» en el selector **no cambiaba** el destino hasta q
 | **Una app** con `w_member_social` + `w_organization_social` | Recomendado si tú eres admin de todas las páginas |
 | **Varias apps** | Solo si marcas separadas / tokens distintos por cliente |
 
-Hoy el servidor usa **un token global**. Cada entidad diferencia **URN** (destino), no token distinto (P2 futuro si hace falta).
+Hoy el servidor usa **un token global**. Cada entidad diferencia **URN** (destino), no token distinto.
+
+Scopes mínimos para el flujo:
+
+- `w_member_social` — publicar como Rafael.
+- `w_organization_social` — publicar como páginas empresa.
+- `r_organization_admin` o acceso equivalente de Marketing Developer Platform — descubrir páginas administradas con `organizationAcls`.
+- `openid`/`profile` o `r_liteprofile` equivalente — validar identidad del token.
 
 ---
 
@@ -52,7 +77,8 @@ Hoy el servidor usa **un token global**. Cada entidad diferencia **URN** (destin
 # Persona (token actual)
 curl -H "Authorization: Bearer TOKEN" https://api.linkedin.com/v2/me
 
-# Organización — ID numérico de la página en LinkedIn → urn:li:organization:ID
+# Organización — el sistema puede intentar listar páginas administradas:
+curl http://SERVER:8101/api/editorial/linkedin/organizations
 ```
 
 ### 2. Asignar en panel
@@ -72,7 +98,18 @@ Campos por entidad:
 | `ent_rafael_personal` | Rafael personal | ✅ usa `.env` |
 | `ent_innerchispa` | InnerChispa | ❌ vacío → fallback personal |
 | `ent_pcdoctor` | PC Doctor | ❌ vacío → fallback personal |
-| `ent_innerspark` | InnerSpark | ❌ vacío → fallback personal |
+| `ent_innerspark` | InnerSpark | página pendiente de crear/configurar |
+
+## Diagnóstico sin publicar
+
+```bash
+curl http://SERVER:8101/api/editorial/linkedin/diagnostics
+curl http://SERVER:8101/api/editorial/linkedin/organizations
+curl http://SERVER:8101/api/editorial/social/accounts
+```
+
+Si `organizations` devuelve 403, no es fallo del código: falta producto/scope
+LinkedIn o el usuario no es admin de la página.
 
 ---
 

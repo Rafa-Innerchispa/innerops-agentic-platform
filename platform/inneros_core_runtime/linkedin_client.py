@@ -11,6 +11,8 @@ from typing import Any
 from raphiia_openai.settings import LINKEDIN_ACCESS_TOKEN, LINKEDIN_AUTHOR_URN
 from raphiia_openai import config_store
 
+LINKEDIN_API_VERSION = "202608"
+
 
 def _token() -> str:
     return config_store.get("LINKEDIN_ACCESS_TOKEN") or LINKEDIN_ACCESS_TOKEN
@@ -34,6 +36,7 @@ def _headers() -> dict[str, str]:
     return {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
+        "Linkedin-Version": LINKEDIN_API_VERSION,
         "X-Restli-Protocol-Version": "2.0.0",
     }
 
@@ -46,6 +49,24 @@ def _request(method: str, url: str, data: dict | None = None) -> dict[str, Any]:
         if not raw:
             return {}
         return json.loads(raw)
+
+
+def _request_result(method: str, url: str, data: dict | None = None) -> dict[str, Any]:
+    try:
+        data_out = _request(method, url, data)
+        return {"ok": True, "data": data_out}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")[:1000]
+        return {
+            "ok": False,
+            "http_status": exc.code,
+            "error": raw or exc.reason,
+            "needs_reauth": exc.code in (401, 403),
+        }
+    except RuntimeError as exc:
+        return {"ok": False, "error": str(exc), "needs_token": "LINKEDIN_ACCESS_TOKEN" in str(exc)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:1000]}
 
 
 def register_image_upload(*, author_urn: str | None = None) -> dict[str, Any]:
@@ -154,6 +175,38 @@ def config_status() -> dict[str, Any]:
     }
 
 
+def token_diagnostics() -> dict[str, Any]:
+    """Read-only OAuth health check. Never publishes content."""
+    token_present = bool(_token())
+    author = _default_author()
+    out: dict[str, Any] = {
+        "ok": token_present,
+        "token_present": token_present,
+        "default_author_present": bool(author),
+        "default_author_urn_display": author.rsplit(":", 1)[-1][-8:] if author else "",
+        "api_version": LINKEDIN_API_VERSION,
+        "required_scopes": ["w_member_social", "w_organization_social"],
+        "recommended_read_scopes": ["openid", "profile", "r_organization_admin"],
+    }
+    if not token_present:
+        out.update(
+            {
+                "status": "missing_token",
+                "needs_human_action": "Generate/authorize a LinkedIn OAuth token with member + organization posting permissions.",
+            }
+        )
+        return out
+    me = _request_result("GET", "https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName)")
+    out["me"] = me
+    if not me.get("ok"):
+        out["ok"] = False
+        out["status"] = "token_invalid_or_missing_profile_scope"
+        out["needs_human_action"] = "Refresh LinkedIn token/scopes in the editorial panel."
+        return out
+    out["status"] = "token_valid_profile_ok"
+    return out
+
+
 def get_member_profile() -> dict[str, Any]:
     """Perfil LinkedIn del token actual (requiere scope r_liteprofile o similar)."""
     if not _token():
@@ -163,6 +216,49 @@ def get_member_profile() -> dict[str, Any]:
         return {"ok": True, "profile": data}
     except Exception as exc:
         return {"ok": False, "error": str(exc)[:300]}
+
+
+def list_administered_organizations() -> dict[str, Any]:
+    """List pages the authenticated member can administer, when scopes allow it."""
+    diag = token_diagnostics()
+    if not diag.get("ok"):
+        return {"ok": False, "error": diag.get("status", "token_not_ready"), "diagnostics": diag}
+    profile_id = ((diag.get("me") or {}).get("data") or {}).get("id", "")
+    if not profile_id:
+        return {"ok": False, "error": "member_id_missing", "diagnostics": diag}
+    member_urn = f"urn:li:person:{profile_id}"
+    import urllib.parse
+
+    encoded_member = urllib.parse.quote(member_urn, safe="")
+    url = (
+        "https://api.linkedin.com/v2/organizationAcls"
+        "?q=roleAssignee"
+        f"&roleAssignee={encoded_member}"
+        "&state=APPROVED"
+    )
+    raw = _request_result("GET", url)
+    if not raw.get("ok"):
+        return {
+            "ok": False,
+            "error": "organization_acl_unavailable",
+            "details": raw,
+            "requires": ["r_organization_admin or Marketing Developer Platform organization access", "admin role on each LinkedIn Page"],
+        }
+    elements = (raw.get("data") or {}).get("elements") or []
+    organizations: list[dict[str, Any]] = []
+    for item in elements:
+        org = item.get("organization") or item.get("organizationalTarget") or ""
+        if isinstance(org, str) and org:
+            organizations.append(
+                {
+                    "organization_urn": org,
+                    "organization_id": org.rsplit(":", 1)[-1],
+                    "role": item.get("role", ""),
+                    "state": item.get("state", ""),
+                    "raw": item,
+                }
+            )
+    return {"ok": True, "member_urn": member_urn, "count": len(organizations), "organizations": organizations}
 
 
 def try_post_statistics(post_urn: str) -> dict[str, Any]:
@@ -209,6 +305,8 @@ def api_capabilities() -> dict[str, Any]:
             "r_member_social — leer posts propios y estadísticas básicas",
             "w_member_social — publicar (ya usamos)",
             "r_organization_social — analytics página empresa",
+            "w_organization_social — publicar como páginas empresa",
+            "r_organization_admin — descubrir páginas administradas",
         ],
         "recommended_p1": [
             "Guardar linkedin_post_urn tras publicar (ya)",

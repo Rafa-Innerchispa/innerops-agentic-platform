@@ -201,6 +201,7 @@ def attach_media(
     media_path: str,
     media_prompt: str,
     provider: str,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     db = get_db()
     oid = _parse_id(draft_id)
@@ -210,10 +211,20 @@ def attach_media(
     draft = db[COL_EDITORIAL_PIPELINE].find_one({"_id": oid})
     if not draft:
         return {"ok": False, "error": "not found"}
+    meta = dict(metadata or {})
+    provider_n = (provider or "").strip()
     media_doc = {
         "path": media_path,
         "prompt": media_prompt,
-        "provider": provider,
+        "provider": provider_n,
+        "model": meta.get("model", ""),
+        "backend": meta.get("backend", ""),
+        "seed": meta.get("seed"),
+        "prompt_effective": meta.get("prompt_effective") or media_prompt,
+        "prompt_id": meta.get("prompt_id", ""),
+        "request_id": meta.get("request_id", ""),
+        "warnings": meta.get("warnings", []),
+        "metadata": meta,
         "channel": draft.get("channel", "linkedin"),
         "draft_id": str(oid),
         "created_at": now,
@@ -225,7 +236,15 @@ def attach_media(
             "$set": {
                 "media_path": media_path,
                 "media_prompt": media_prompt,
-                "image_provider": provider,
+                "image_provider": provider_n,
+                "image_model": meta.get("model", ""),
+                "image_backend": meta.get("backend", ""),
+                "image_seed": meta.get("seed"),
+                "image_prompt_effective": meta.get("prompt_effective") or media_prompt,
+                "image_prompt_id": meta.get("prompt_id", ""),
+                "image_request_id": meta.get("request_id", ""),
+                "image_warnings": meta.get("warnings", []),
+                "image_generated_at": now,
                 "status": STATUS_REVIEW,
                 "updated_at": now,
             }
@@ -236,7 +255,7 @@ def attach_media(
         summary=f"Imagen generada draft {draft_id}",
         event="editorial_image",
         project="editorial",
-        metadata={"media_id": str(mres.inserted_id), "provider": provider},
+        metadata={"media_id": str(mres.inserted_id), "provider": provider_n, "model": meta.get("model", "")},
     )
     doc = db[COL_EDITORIAL_PIPELINE].find_one({"_id": oid})
     return {"ok": True, "draft": _serialize(doc) if doc else {}}
@@ -347,6 +366,14 @@ def approve_draft(draft_id: str, approved_by: str = "rafael") -> dict[str, Any]:
         "body": draft.get("body", draft.get("markdown", "")),
         "media_path": draft.get("media_path", ""),
         "image_provider": draft.get("image_provider", ""),
+        "image_model": draft.get("image_model", ""),
+        "image_backend": draft.get("image_backend", ""),
+        "image_seed": draft.get("image_seed"),
+        "image_prompt_effective": draft.get("image_prompt_effective", draft.get("media_prompt", "")),
+        "image_prompt_id": draft.get("image_prompt_id", ""),
+        "image_request_id": draft.get("image_request_id", ""),
+        "image_warnings": draft.get("image_warnings", []),
+        "image_generated_at": draft.get("image_generated_at", ""),
         "publication_lang": draft.get("publication_lang", "es"),
         "linkedin_visibility": draft.get("linkedin_visibility", "PUBLIC"),
         "entity_id": draft.get("entity_id", ""),
