@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from inneros_core_runtime import editorial_social, linkedin_client
+from inneros_core_runtime import config_store, editorial_social, linkedin_client
 
 
 def test_token_diagnostics_reports_missing_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -90,3 +90,24 @@ def test_seed_standard_entities_upserts_four_entities(monkeypatch: pytest.Monkey
     assert len(calls) == 4
     for _, patch, _ in calls:
         assert set(patch["$set"]).isdisjoint(patch["$setOnInsert"])
+
+
+def test_linkedin_oauth_keys_are_in_config_catalog() -> None:
+    keys = {row["key"] for row in config_store.CONFIG_CATALOG}
+
+    assert {"LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET", "LINKEDIN_REDIRECT_URI"}.issubset(keys)
+
+
+def test_config_store_set_delegates_to_set_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    def fake_set_values(updates, *, updated_by="PANEL", sync_env=True):
+        calls.append((updates, updated_by, sync_env))
+        return {"ok": True, "updated": list(updates)}
+
+    monkeypatch.setattr(config_store, "set_values", fake_set_values)
+
+    result = config_store.set("LINKEDIN_ACCESS_TOKEN", "token-value", updated_by="TEST", sync_env=False)
+
+    assert result["ok"] is True
+    assert calls == [({"LINKEDIN_ACCESS_TOKEN": "token-value"}, "TEST", False)]

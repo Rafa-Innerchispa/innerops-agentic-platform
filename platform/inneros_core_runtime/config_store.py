@@ -34,6 +34,31 @@ CONFIG_CATALOG: list[dict[str, Any]] = [
         "placeholder": "urn:li:person:XXXXXXXX",
     },
     {
+        "key": "LINKEDIN_CLIENT_ID",
+        "label": "LinkedIn OAuth — Client ID",
+        "group": "editorial",
+        "secret": False,
+        "required": False,
+        "help": "LinkedIn Developer Portal → Auth → Client ID",
+    },
+    {
+        "key": "LINKEDIN_CLIENT_SECRET",
+        "label": "LinkedIn OAuth — Client Secret",
+        "group": "editorial",
+        "secret": True,
+        "required": False,
+        "help": "LinkedIn Developer Portal → Auth → Client Secret",
+    },
+    {
+        "key": "LINKEDIN_REDIRECT_URI",
+        "label": "LinkedIn OAuth — Redirect URI",
+        "group": "editorial",
+        "secret": False,
+        "required": False,
+        "placeholder": "https://www.linkedin.com/developers/tools/oauth/redirect",
+        "help": "Debe coincidir exactamente con Authorized redirect URLs de la app LinkedIn.",
+    },
+    {
         "key": "GOOGLE_API_KEY",
         "label": "Google AI / Imagen (Gemini)",
         "group": "editorial",
@@ -183,6 +208,10 @@ def get(key: str, default: str = "") -> str:
 
 def get_google_api_key() -> str:
     return get("GOOGLE_API_KEY") or get("GEMINI_API_KEY")
+
+
+def set(key: str, value: str, *, updated_by: str = "PANEL", sync_env: bool = True) -> dict[str, Any]:
+    return set_values({key: value}, updated_by=updated_by, sync_env=sync_env)
 
 
 def mask_secret(value: str) -> str:
