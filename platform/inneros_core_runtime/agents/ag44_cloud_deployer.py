@@ -2164,3 +2164,101 @@ def _which(cmd: str) -> bool:
     from shutil import which
 
     return which(cmd) is not None
+
+
+# --- Host Ops approval issuer (project-scoped, auditable) ---
+# AG-41 host mutations must not borrow a cloud provider identity. Keep the
+# existing cloud approval API, but add an explicit non-cloud provider whose
+# tokens are constrained by action, project (when applicable), and TTL.
+HOST_OPS_APPROVAL_ACTIONS = frozenset({
+    "systemd_user_mutation",
+    "python_project_runtime",
+    "project_fs_mutation",
+    "package_mutation",
+    "wifi_mutation",
+    "wifi_secret_store",
+})
+_HOST_OPS_PROJECT_SCOPED_ACTIONS = frozenset({
+    "systemd_user_mutation",
+    "python_project_runtime",
+    "project_fs_mutation",
+})
+_cloud_approval_issue_base = cloud_approval_issue
+
+
+def cloud_approval_issue(
+    provider: str = "gcp",
+    action: str = "gcp_apply",
+    project_id: str = "",
+    billing_account_id: str = "",
+    ttl_minutes: int = 30,
+    note: str = "",
+) -> dict[str, Any]:
+    provider_value = (provider or "gcp").strip().lower().replace("-", "_")
+    if provider_value not in {"host_ops", "hostops", "local_host"}:
+        return _cloud_approval_issue_base(
+            provider=provider,
+            action=action,
+            project_id=project_id,
+            billing_account_id=billing_account_id,
+            ttl_minutes=ttl_minutes,
+            note=note,
+        )
+
+    clean_action = (action or "").strip().lower()
+    if clean_action not in HOST_OPS_APPROVAL_ACTIONS:
+        return {
+            "ok": False,
+            "agent_id": AGENT_ID,
+            "error": "host_ops_action_not_allowed",
+            "allowed": sorted(HOST_OPS_APPROVAL_ACTIONS),
+        }
+    clean_project = (project_id or "").strip()
+    if clean_action in _HOST_OPS_PROJECT_SCOPED_ACTIONS and not clean_project:
+        return {
+            "ok": False,
+            "agent_id": AGENT_ID,
+            "error": "project_id_required_for_host_ops_action",
+            "action": clean_action,
+        }
+
+    ttl = max(5, min(int(ttl_minutes or 30), 120))
+    now = datetime.now(timezone.utc)
+    approval_id = f"approval_host_ops_{clean_action}_{now.strftime('%Y%m%d%H%M%S%f')}"
+    doc = {
+        "approval_id": approval_id,
+        "provider": "host_ops",
+        "action": clean_action,
+        "project_id": clean_project,
+        "billing_account_id": "",
+        "note": (note or "")[:300],
+        "active": True,
+        "created_at": now.isoformat(),
+        "expires_at": datetime.fromtimestamp(now.timestamp() + ttl * 60, timezone.utc).isoformat(),
+        "agent_id": AGENT_ID,
+    }
+    mongo_store.get_db()[GCP_APPROVAL_COLLECTION].insert_one(dict(doc))
+    record_agent_run(
+        AGENT_ID,
+        action="host_ops_approval_issue",
+        summary=f"host_ops/{clean_action} project={clean_project or '-'} ttl={ttl}m",
+        project="ralfia-host-ops",
+        metadata={
+            "approval_id": approval_id,
+            "provider": "host_ops",
+            "action": clean_action,
+            "project_id": clean_project,
+            "ttl_minutes": ttl,
+        },
+    )
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        "approval_id": approval_id,
+        "provider": "host_ops",
+        "action": clean_action,
+        "project_id": clean_project,
+        "expires_at": doc["expires_at"],
+        "ttl_minutes": ttl,
+        "scope": "host_ops_only",
+    }

@@ -627,3 +627,67 @@ def peer_project_fs(
         "result": result,
         "security": {"trusted_roots_only": True, "path_traversal": "denied", "destructive_delete": "denied"},
     }
+
+
+# --- Scoped Host Ops approval validation ---
+# Replace the legacy "non-empty string" gate with an auditable token from the
+# shared approval store. Host Ops tokens are usable only by the exact AG-41
+# mutation class they were issued for; project-scoped tokens are also bound to
+# one Project Runtime Registry project.
+def _require_approval(approval_id: str) -> None:
+    from datetime import datetime, timezone
+    import inspect
+    from raphiia_openai import mongo_store
+
+    clean = (approval_id or "").strip()
+    if not clean:
+        raise ValueError("approval_id_required")
+
+    try:
+        doc = mongo_store.get_db()["ralfia_cloud_approvals"].find_one(
+            {"approval_id": clean}, {"_id": 0}
+        ) or {}
+    except Exception as exc:
+        raise PermissionError("approval_store_unavailable") from exc
+
+    if not doc or not doc.get("active"):
+        raise PermissionError("approval_id_not_active")
+    if str(doc.get("provider") or "") != "host_ops":
+        raise PermissionError("approval_scope_mismatch:provider")
+    try:
+        expires = datetime.fromisoformat(str(doc.get("expires_at") or "").replace("Z", "+00:00"))
+    except Exception as exc:
+        raise PermissionError("approval_expiry_invalid") from exc
+    if expires <= datetime.now(timezone.utc):
+        raise PermissionError("approval_id_expired")
+
+    caller = inspect.currentframe().f_back
+    caller_name = caller.f_code.co_name if caller else ""
+    caller_locals = caller.f_locals if caller else {}
+
+    expected_action = {
+        "peer_user_service": "systemd_user_mutation",
+        "peer_python_runtime": "python_project_runtime",
+        "peer_project_fs": "project_fs_mutation",
+        "peer_package_install": "package_mutation",
+        "peer_package_remove": "package_mutation",
+        "peer_wifi_connect": "wifi_mutation",
+        "peer_wifi_disconnect": "wifi_mutation",
+        "peer_wifi_forget": "wifi_mutation",
+        "peer_secret_store_wifi": "wifi_secret_store",
+    }.get(caller_name)
+    if not expected_action:
+        raise PermissionError("approval_scope_unknown_caller")
+    if str(doc.get("action") or "") != expected_action:
+        raise PermissionError("approval_scope_mismatch:action")
+
+    if expected_action in {"systemd_user_mutation", "python_project_runtime", "project_fs_mutation"}:
+        requested_project = str(caller_locals.get("project_id") or "").strip()
+        if not requested_project:
+            resolved = caller_locals.get("resolved_project") or {}
+            project_meta = resolved.get("project") if isinstance(resolved, dict) else {}
+            if isinstance(project_meta, dict):
+                requested_project = str(project_meta.get("project_id") or "").strip()
+        approved_project = str(doc.get("project_id") or "").strip()
+        if not requested_project or approved_project != requested_project:
+            raise PermissionError("approval_scope_mismatch:project")
