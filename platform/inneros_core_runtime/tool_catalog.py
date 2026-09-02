@@ -68,6 +68,9 @@ ALL_MCP_TOOL_NAMES = [
     "disk_steward_cleanup_verified",
     "disk_steward_update_backup_policy",
     "get_mcp_fleet_status",
+    "owner_vault_store_secret",
+    "owner_vault_secret_status",
+    "owner_vault_materialize_project_env",
     "get_unified_stack_status",
     "inneros_agent_fabric_status",
     "invoke_agent",
@@ -4573,6 +4576,41 @@ for _name in (
         "example_payload": {},
     }
 
+
+
+_OWNER_VAULT_TOOL_DEFINITIONS = {
+    "owner_vault_store_secret": {
+        "description": "Store an owner secret server-side and return only an owner_vault reference plus metadata; plaintext is never returned.",
+        "required_scopes": ["ralfia:admin", "ralfia:private_memory"],
+        "risk_level": "high",
+        "writes_to": ["owner_vault"],
+        "reads_from": [],
+        "input_schema": {"category": "string", "key": "string", "secret": "string", "label": "string|null", "project_id": "string|null"},
+        "output_schema": {"ok": "bool", "secret_ref": "string|null", "vault_id": "string|null", "secret_returned": "false"},
+        "example_payload": {"category": "cloudflare", "key": "worker_deploy", "secret": "<redacted>", "project_id": "inneros-webmcp"},
+    },
+    "owner_vault_secret_status": {
+        "description": "Check whether an owner secret exists and return metadata only; plaintext is never returned.",
+        "required_scopes": ["ralfia:read", "ralfia:private_memory"],
+        "risk_level": "medium",
+        "writes_to": [],
+        "reads_from": ["owner_vault"],
+        "input_schema": {"category": "string", "key": "string"},
+        "output_schema": {"ok": "bool", "present": "bool", "metadata": "object", "secret_returned": "false"},
+        "example_payload": {"category": "cloudflare", "key": "worker_deploy"},
+    },
+    "owner_vault_materialize_project_env": {
+        "description": "Write a chmod-0600 runtime env file from owner_vault refs and optional static values without returning secret values.",
+        "required_scopes": ["ralfia:admin", "ralfia:private_memory"],
+        "risk_level": "high",
+        "writes_to": ["local_env_file"],
+        "reads_from": ["owner_vault"],
+        "input_schema": {"namespace": "string", "bindings": "object", "static_values": "object|null"},
+        "output_schema": {"ok": "bool", "path": "string|null", "materialized_env_keys": "array", "static_env_keys": "array", "secret_returned": "false", "mode": "0600"},
+        "example_payload": {"namespace": "inneros-webmcp", "bindings": {"CLOUDFLARE_API_TOKEN": "owner_vault:cloudflare/worker_deploy"}},
+    },
+}
+TOOL_DEFINITIONS.update(_OWNER_VAULT_TOOL_DEFINITIONS)
 
 
 def describe_tool(name: str) -> dict[str, Any]:

@@ -6566,6 +6566,54 @@ def system_health() -> dict[str, Any]:
     }
 
 
+# --- Generic Owner Vault MCP bridge (metadata-only secret surface) ---
+
+@mcp.tool
+def owner_vault_store_secret(
+    category: str,
+    key: str,
+    secret: str,
+    label: str = "",
+    project_id: str = "",
+) -> dict[str, Any]:
+    """Store an owner secret and return only metadata/reference; never plaintext."""
+    from raphiia_openai import owner_vault_bridge
+
+    return owner_vault_bridge.store_secret(
+        category=category,
+        key=key,
+        secret=secret,
+        label=label,
+        project_id=project_id,
+        actor="RAFAEL",
+    )
+
+
+@mcp.tool
+def owner_vault_secret_status(category: str, key: str) -> dict[str, Any]:
+    """Return owner-vault secret presence/metadata only; never plaintext."""
+    from raphiia_openai import owner_vault_bridge
+
+    return owner_vault_bridge.secret_status(category=category, key=key, actor="RAFAEL")
+
+
+@mcp.tool
+def owner_vault_materialize_project_env(
+    namespace: str,
+    bindings: dict[str, str],
+    static_values: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Materialize a 0600 runtime env file from owner_vault refs without returning secret values."""
+    from raphiia_openai import owner_vault_bridge
+
+    return owner_vault_bridge.materialize_project_env(
+        namespace=namespace,
+        bindings=bindings,
+        static_values=static_values,
+        actor="RAFAEL",
+    )
+
+
 @mcp.custom_route("/health", methods=["GET"])
 async def mcp_health_http(_request: Request) -> JSONResponse:
     from raphiia_openai import mcp_fleet

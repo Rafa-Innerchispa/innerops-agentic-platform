@@ -11,6 +11,20 @@ PROFILES_VERSION = "1.4.2"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
+
+    "owner_vault": {
+        "label": "Owner Vault secure secret bridge",
+        "model_minimum": "medium",
+        "max_tools": 6,
+        "tools": [
+            "mcp_version",
+            "diagnose_mcp_session",
+            "owner_vault_store_secret",
+            "owner_vault_secret_status",
+            "owner_vault_materialize_project_env",
+            "create_agent_message",
+        ],
+    },
     "contifico_analytics": {
         "label": "Contífico analítico (piloto RO)",
         "model_minimum": "small",
