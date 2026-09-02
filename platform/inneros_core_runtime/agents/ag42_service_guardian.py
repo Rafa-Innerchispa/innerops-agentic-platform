@@ -115,8 +115,8 @@ def run_self_heal_cycle(*, auto_repair: bool = False, max_repairs: int = 3) -> d
         if len(repairs) >= max(1, min(max_repairs, 5)):
             break
         sid = str(item.get("service_id") or "").lower()
-        node_label = str(item.get("node") or item.get("node_label") or "primary")
-        node = "amd" if node_label in (".5", "amd", "192.168.1.5") else "primary"
+        node_label = str(item.get("node") or item.get("node_label") or "primary").strip().lower()
+        node = "amd" if any(marker in node_label for marker in (".5", "1.5", "192.168.1.5", "amd")) else "primary"
         if sid not in _HEALABLE:
             repairs.append({"service_id": sid, "skipped": True, "reason": "not_healable"})
             continue
