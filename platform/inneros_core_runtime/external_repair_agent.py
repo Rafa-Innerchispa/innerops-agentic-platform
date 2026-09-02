@@ -715,3 +715,34 @@ def external_repair_agent_run_task(
         chargeable=False,
         evidence={"approval_id": approval_id, "note": "MCP admission succeeded; execution adapter must run inside isolated worktree worker."},
     )
+
+
+# Canonical provider CLI/auth overrides.
+# Keep these compatibility overrides at module tail while older callers still
+# import the historical helpers from external_repair_agent.  Python resolves
+# the global names when detect_provider() runs, so all provider admission uses
+# the same preflight module as the execution worker.
+from raphiia_openai import provider_cli_preflight as _provider_cli_preflight
+
+
+def _which_provider(provider: str) -> str:
+    return _provider_cli_preflight.canonical_cli(provider)
+
+
+def _auth_probe(provider: str) -> dict[str, Any]:
+    cli = _provider_cli_preflight.canonical_cli(provider)
+    return _provider_cli_preflight.provider_auth_probe(provider, cli)
+
+
+# Canonical import override: force the provider preflight to resolve through the
+# single inneros_core_runtime package, not a second raphiia_openai module object.
+from inneros_core_runtime import provider_cli_preflight as _provider_cli_preflight
+
+
+def _which_provider(provider: str) -> str:
+    return _provider_cli_preflight.canonical_cli(provider)
+
+
+def _auth_probe(provider: str) -> dict[str, Any]:
+    cli = _provider_cli_preflight.canonical_cli(provider)
+    return _provider_cli_preflight.provider_auth_probe(provider, cli)

@@ -4570,3 +4570,17 @@ def list_capabilities(*, tool_names: list[str], auth_scopes: list[str] | None = 
             "Rafael aprueba acciones de riesgo",
         ],
     }
+
+
+# Keep the generated MCP catalog aligned with the live unified Agent Fabric
+# status tool used by coordination and judge_console profiles.
+_INNEROS_AGENT_FABRIC_STATUS_TOOL = "inneros_agent_fabric_status"
+if _INNEROS_AGENT_FABRIC_STATUS_TOOL not in ALL_MCP_TOOL_NAMES:
+    if isinstance(ALL_MCP_TOOL_NAMES, list):
+        ALL_MCP_TOOL_NAMES.append(_INNEROS_AGENT_FABRIC_STATUS_TOOL)
+    elif isinstance(ALL_MCP_TOOL_NAMES, set):
+        ALL_MCP_TOOL_NAMES.add(_INNEROS_AGENT_FABRIC_STATUS_TOOL)
+    elif isinstance(ALL_MCP_TOOL_NAMES, frozenset):
+        ALL_MCP_TOOL_NAMES = ALL_MCP_TOOL_NAMES | {_INNEROS_AGENT_FABRIC_STATUS_TOOL}
+    else:
+        ALL_MCP_TOOL_NAMES = tuple(ALL_MCP_TOOL_NAMES) + (_INNEROS_AGENT_FABRIC_STATUS_TOOL,)
