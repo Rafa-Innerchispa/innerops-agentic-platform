@@ -1,11 +1,89 @@
 from __future__ import annotations
 
+import os
+import re
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 
 from raphiia_openai import browser_session_broker as broker
 
 router = APIRouter(prefix="/browser", tags=["browser-session"])
+
+_LOCAL_AUTOMATION_ENV = "BROWSER_BROKER_LOCAL_AUTOMATION_ENABLED"
+_LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
+_LOCAL_ACTIONS = {
+    "status",
+    "inspect",
+    "click_selector",
+    "press",
+    "wait",
+    "fill_from_vault",
+    "fill_totp_from_vault",
+    "vault_capture_totp",
+}
+_TOTP_RE = re.compile(r"\b[A-Z2-7]{24,80}\b")
+_SECRET_TOKEN_RE = re.compile(r"\b(?:sk-[A-Za-z0-9_-]{20,}|gh[opsu]_[A-Za-z0-9_]{20,})\b")
+
+
+def _local_automation_enabled() -> bool:
+    return os.getenv(_LOCAL_AUTOMATION_ENV, "").strip().lower() in {"1", "true", "yes"}
+
+
+def _require_local_automation(request: Request) -> None:
+    if not _local_automation_enabled():
+        raise HTTPException(status_code=404, detail="local_browser_automation_disabled")
+    host = str(getattr(getattr(request, "client", None), "host", "") or "").strip().lower()
+    if host not in _LOCAL_HOSTS:
+        raise HTTPException(status_code=403, detail="loopback_only")
+
+
+def _sanitize_local_text(value: str) -> str:
+    value = _TOTP_RE.sub("[REDACTED_TOTP_SEED]", str(value or ""))
+    return _SECRET_TOKEN_RE.sub("[REDACTED_TOKEN]", value)
+
+
+def _sanitize_local_result(value: Any) -> Any:
+    if isinstance(value, str):
+        return _sanitize_local_text(value)
+    if isinstance(value, list):
+        return [_sanitize_local_result(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _sanitize_local_result(item) for key, item in value.items()}
+    return value
+
+
+def _local_action_payload(
+    kind: str,
+    *,
+    selector: str = "",
+    category: str = "",
+    key: str = "",
+    keypress: str = "",
+    limit: int = 80,
+    ms: int = 1000,
+) -> dict[str, Any]:
+    if kind not in _LOCAL_ACTIONS:
+        raise HTTPException(status_code=400, detail="local_action_not_allowed")
+    payload: dict[str, Any] = {}
+    if kind == "inspect":
+        payload["limit"] = max(1, min(int(limit or 80), 200))
+    elif kind == "click_selector":
+        if not selector:
+            raise HTTPException(status_code=400, detail="selector_required")
+        payload["selector"] = selector
+    elif kind == "press":
+        payload["key"] = keypress or "Enter"
+    elif kind == "wait":
+        payload["ms"] = max(0, min(int(ms or 1000), 30000))
+    elif kind in {"fill_from_vault", "fill_totp_from_vault"}:
+        if not selector or not category or not key:
+            raise HTTPException(status_code=400, detail="vault_ref_and_selector_required")
+        payload.update({"selector": selector, "category": category, "key": key})
+    elif kind == "vault_capture_totp":
+        payload.update({"category": category or "alpaca", "key": key or "totp_seed"})
+    return payload
 
 
 def _html(session_id: str, token: str) -> str:
@@ -133,3 +211,53 @@ async def session_action(session_id: str, token: str, request: Request):
 @router.post("/api/session/{session_id}/stop")
 def session_stop(session_id: str, token: str):
     return broker.stop_session(session_id, token)
+
+
+@router.get("/local/start")
+def local_session_start(
+    request: Request,
+    url: str,
+    profile: str = "local-automation",
+    ttl_seconds: int = 7200,
+):
+    _require_local_automation(request)
+    result = broker.start_session(url, profile=profile, ttl_seconds=ttl_seconds, local_preview=False)
+    return _sanitize_local_result(result)
+
+
+@router.get("/local/status")
+def local_session_status(request: Request, session_id: str, token: str):
+    _require_local_automation(request)
+    return _sanitize_local_result(broker.status(session_id, token))
+
+
+@router.get("/local/action")
+def local_session_action(
+    request: Request,
+    session_id: str,
+    token: str,
+    kind: str,
+    selector: str = "",
+    category: str = "",
+    key: str = "",
+    keypress: str = "",
+    limit: int = 80,
+    ms: int = 1000,
+):
+    _require_local_automation(request)
+    payload = _local_action_payload(
+        kind,
+        selector=selector,
+        category=category,
+        key=key,
+        keypress=keypress,
+        limit=limit,
+        ms=ms,
+    )
+    return _sanitize_local_result(broker.action(session_id, token, kind, payload))
+
+
+@router.get("/local/stop")
+def local_session_stop(request: Request, session_id: str, token: str):
+    _require_local_automation(request)
+    return _sanitize_local_result(broker.stop_session(session_id, token))
