@@ -1,18 +1,21 @@
 """Human-in-the-loop Playwright browser sessions for headless servers.
 
 The browser runs on the server, while the owner controls it from a LAN/public
-broker page. Credentials typed by the owner are sent only to the live page and
-are not persisted by this module.
+broker page. Browser-backed vault actions persist encrypted values server-side
+and never return plaintext values to the caller.
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import os
 import queue
 import re
 import secrets
 import socket
+import struct
 import threading
 import time
 from dataclasses import dataclass, field
@@ -24,10 +27,32 @@ from raphiia_openai.agents import ag55_browser_ops_agent as ag55
 SESSION_ROOT = Path(os.getenv("BROWSER_SESSION_ROOT", "/home/rlopez/data/ralfia/browser_ops/human_sessions"))
 DEFAULT_TTL_SECONDS = int(os.getenv("BROWSER_SESSION_TTL_SECONDS", "7200"))
 APP_PORT = int(os.getenv("RAPHI_IA_OPENAI_PORT", "8101"))
+_VAULT_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_.-]{0,79}")
+_TOTP_SEED_RE = re.compile(r"[A-Z2-7]{24,80}")
 
 
 def _safe_profile(value: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]", "_", (value or "default")[:48])
+
+
+def _valid_vault_name(value: str) -> bool:
+    return bool(_VAULT_TOKEN_RE.fullmatch(value or ""))
+
+
+def _totp_code(seed: str, now: float | None = None) -> str:
+    normalized = "".join(str(seed or "").split()).upper()
+    padding = "=" * ((8 - len(normalized) % 8) % 8)
+    key_bytes = base64.b32decode(normalized + padding, casefold=True)
+    counter = int(now if now is not None else time.time()) // 30
+    digest = hmac.new(key_bytes, struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    binary = (
+        ((digest[offset] & 0x7F) << 24)
+        | ((digest[offset + 1] & 0xFF) << 16)
+        | ((digest[offset + 2] & 0xFF) << 8)
+        | (digest[offset + 3] & 0xFF)
+    )
+    return f"{binary % 1_000_000:06d}"
 
 
 def _lan_host() -> str:
@@ -135,8 +160,7 @@ def start_session(
     )
     with _registry_lock:
         _sessions[session_id] = session
-    thread = threading.Thread(target=_launch_session, args=(session,), daemon=True)
-    thread.start()
+    threading.Thread(target=_launch_session, args=(session,), daemon=True).start()
     return {"ok": True, "session": _public_session(session)}
 
 
@@ -149,9 +173,7 @@ def _launch_session(session: BrowserSession) -> None:
         profile_dir.mkdir(parents=True, exist_ok=True)
         pw = sync_playwright().start()
         context = pw.chromium.launch_persistent_context(
-            str(profile_dir),
-            headless=True,
-            viewport={"width": 1366, "height": 768},
+            str(profile_dir), headless=True, viewport={"width": 1366, "height": 768}
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(session.start_url, wait_until="domcontentloaded", timeout=30000)
@@ -201,17 +223,14 @@ def _execute_page_command(session: BrowserSession, kind: str, payload: dict[str,
     page = session.page
     if not page:
         return {"ok": False, "error": "page_not_ready", "status": session.status, "last_error": session.last_error}
+
     if kind == "status":
         return {"ok": True, "current_url": page.url, "title": page.title()}
     if kind == "screenshot":
         return {"ok": True, "png": page.screenshot(full_page=False)}
     if kind == "navigate":
         url = str(payload.get("url") or "").strip()
-        guard = ag55._url_allowed_result(
-            url,
-            local_preview=session.local_preview,
-            loopback_ports=session.loopback_ports,
-        )
+        guard = ag55._url_allowed_result(url, local_preview=session.local_preview, loopback_ports=session.loopback_ports)
         if not guard.get("ok"):
             return {"ok": False, "error": "url_not_allowed", "url_guard": guard}
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
@@ -223,8 +242,122 @@ def _execute_page_command(session: BrowserSession, kind: str, payload: dict[str,
         page.keyboard.press(str(payload.get("key") or "Enter"))
     elif kind == "wait":
         page.wait_for_timeout(int(payload.get("ms") or 1000))
+    elif kind == "inspect":
+        limit = max(1, min(int(payload.get("limit") or 80), 200))
+        items = page.locator("input, button, a, [role=button], select, textarea").evaluate_all(
+            """(els, limit) => els.slice(0, limit).map((el, i) => ({
+              i, tag: el.tagName.toLowerCase(), type: el.getAttribute('type') || '',
+              name: el.getAttribute('name') || '', id: el.id || '',
+              role: el.getAttribute('role') || '', href: el.getAttribute('href') || '',
+              placeholder: el.getAttribute('placeholder') || '',
+              aria: el.getAttribute('aria-label') || '',
+              text: (el.innerText || el.textContent || '').trim().slice(0, 180),
+              visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+            }))""",
+            limit,
+        )
+        return {"ok": True, "current_url": page.url, "title": page.title(), "items": items}
+    elif kind == "click_selector":
+        selector = str(payload.get("selector") or "").strip()
+        if not selector or len(selector) > 500:
+            return {"ok": False, "error": "selector_required"}
+        page.locator(selector).first.click(timeout=int(payload.get("timeout_ms") or 10000))
+        return {"ok": True, "current_url": page.url, "title": page.title()}
+    elif kind == "fill_selector":
+        selector = str(payload.get("selector") or "").strip()
+        if not selector or len(selector) > 500:
+            return {"ok": False, "error": "selector_required"}
+        page.locator(selector).first.fill(str(payload.get("text") or ""), timeout=int(payload.get("timeout_ms") or 10000))
+        return {"ok": True, "current_url": page.url, "title": page.title(), "filled": True}
+    elif kind == "text":
+        selector = str(payload.get("selector") or "body").strip() or "body"
+        text = page.locator(selector).first.inner_text(timeout=int(payload.get("timeout_ms") or 10000))
+        return {"ok": True, "current_url": page.url, "title": page.title(), "text": text[:20000]}
+    elif kind == "vault_store_value":
+        from raphiia_openai import owner_vault
+
+        category = str(payload.get("category") or "").strip().lower()
+        key = str(payload.get("key") or "").strip().lower()
+        value = str(payload.get("value") or "")
+        label = str(payload.get("label") or key).strip()[:120]
+        project_id = str(payload.get("project_id") or "").strip()
+        if not _valid_vault_name(category) or not _valid_vault_name(key):
+            return {"ok": False, "error": "invalid_vault_key"}
+        if not value:
+            return {"ok": False, "error": "value_required"}
+        saved = owner_vault.save_owner_credential(
+            key=key,
+            secret=value,
+            category=category,
+            label=label,
+            metadata={"project_id": project_id, "source": "browser_session"},
+            actor="RAFAEL",
+        )
+        return {
+            "ok": bool(saved.get("ok")),
+            "vault_id": saved.get("vault_id"),
+            "credential_ref": f"owner_vault:{category}/{key}" if saved.get("ok") else None,
+            "value_returned": False,
+        }
+    elif kind == "vault_capture_totp":
+        from raphiia_openai import owner_vault
+
+        category = str(payload.get("category") or "alpaca").strip().lower()
+        key = str(payload.get("key") or "totp_seed").strip().lower()
+        project_id = str(payload.get("project_id") or "inneros-alpha-alpaca").strip()
+        if not _valid_vault_name(category) or not _valid_vault_name(key):
+            return {"ok": False, "error": "invalid_vault_key"}
+        candidates = page.locator("button").all_inner_texts()
+        value = next((text.strip() for text in candidates if _TOTP_SEED_RE.fullmatch(text.strip())), "")
+        if not value:
+            return {"ok": False, "error": "totp_seed_not_found"}
+        saved = owner_vault.save_owner_credential(
+            key=key,
+            secret=value,
+            category=category,
+            label="Alpaca hackathon TOTP seed",
+            metadata={"project_id": project_id, "source": "alpaca_mfa_manual_code"},
+            actor="RAFAEL",
+        )
+        return {
+            "ok": bool(saved.get("ok")),
+            "vault_id": saved.get("vault_id"),
+            "credential_ref": f"owner_vault:{category}/{key}" if saved.get("ok") else None,
+            "value_returned": False,
+        }
+    elif kind == "fill_from_vault":
+        from raphiia_openai import owner_vault
+
+        category = str(payload.get("category") or "").strip().lower()
+        key = str(payload.get("key") or "").strip().lower()
+        selector = str(payload.get("selector") or "").strip()
+        if not _valid_vault_name(category) or not _valid_vault_name(key) or not selector:
+            return {"ok": False, "error": "vault_ref_and_selector_required"}
+        record = owner_vault.get_owner_credential(key, category=category, reveal=True, actor="RAFAEL")
+        value = str(record.get("secret") or "") if record.get("ok") else ""
+        if not value:
+            return {"ok": False, "error": "vault_credential_unavailable"}
+        page.locator(selector).first.fill(value, timeout=int(payload.get("timeout_ms") or 10000))
+        return {"ok": True, "filled": True, "credential_ref": f"owner_vault:{category}/{key}", "value_returned": False}
+    elif kind == "fill_totp_from_vault":
+        from raphiia_openai import owner_vault
+
+        category = str(payload.get("category") or "alpaca").strip().lower()
+        key = str(payload.get("key") or "totp_seed").strip().lower()
+        selector = str(payload.get("selector") or "input").strip()
+        record = owner_vault.get_owner_credential(key, category=category, reveal=True, actor="RAFAEL")
+        seed = str(record.get("secret") or "") if record.get("ok") else ""
+        if not seed:
+            return {"ok": False, "error": "vault_credential_unavailable"}
+        try:
+            code = _totp_code(seed)
+        except Exception:
+            return {"ok": False, "error": "totp_seed_invalid"}
+        page.locator(selector).first.fill(code, timeout=int(payload.get("timeout_ms") or 10000))
+        return {"ok": True, "filled": True, "credential_ref": f"owner_vault:{category}/{key}", "code_returned": False}
     else:
         return {"ok": False, "error": "unknown_action"}
+
     return {"ok": True, "status": session.status, "current_url": page.url, "title": page.title()}
 
 
