@@ -783,7 +783,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "cloud_ops": {
         "label": "Cloud deploy ops multi-provider (dry-run safe)",
         "model_minimum": "medium",
-        "max_tools": 105,
+        "max_tools": 108,
         "tools": [
             "get_development_roadmap",
             "cloud_deploy_status",
@@ -793,6 +793,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "cloud_deploy_apply",
             "cloudflare_status",
             "cloudflare_prepare_hostname",
+            "cloudflare_workers_preflight",
+            "cloudflare_worker_deploy",
+            "cloudflare_worker_rollback",
             "cloudflare_dns_upsert",
             "cloudflare_dns_delete",
             "cloudflare_waf_skip_challenge",

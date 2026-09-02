@@ -299,6 +299,12 @@ ALL_MCP_TOOL_NAMES = [
     "cloudflare_tunnel_ingress_status",
     "cloudflare_hostname_health_check",
     "cloudflare_prepare_hostname",
+    "cloudflare_workers_preflight",
+    "cloudflare_worker_deploy",
+    "cloudflare_worker_rollback",
+    "cloudflare_workers_preflight",
+    "cloudflare_worker_deploy",
+    "cloudflare_worker_rollback",
     "complete_ops_task",
     "codex_continuity_checkpoint",
     "dev_swarm_scheduler_status",
@@ -4576,6 +4582,40 @@ for _name in (
         "example_payload": {},
     }
 
+
+_CLOUDFLARE_WORKER_TOOL_DEFINITIONS = {
+    "cloudflare_workers_preflight": {
+        "description": "Read-only Cloudflare Workers capability probe using Owner Vault credentials server-side; never returns raw credentials.",
+        "required_scopes": ["ralfia:read", "ralfia:admin"],
+        "risk_level": "medium",
+        "writes_to": ["ralfia_cloud_ops_audit"],
+        "reads_from": ["owner_vault", "Cloudflare Workers Scripts", "Cloudflare Workers Routes"],
+        "input_schema": {"zone_name": "string|null"},
+        "output_schema": {"ok": "bool", "permissions_ok": "bool", "missing_permissions": "array", "probes": "object"},
+        "example_payload": {"zone_name": "creatorcore.ai"},
+    },
+    "cloudflare_worker_deploy": {
+        "description": "Gated Cloudflare Worker deploy from bounded source text/path. dry_run is default; real deploy requires approval_id.",
+        "required_scopes": ["ralfia:admin"],
+        "risk_level": "high",
+        "writes_to": ["Cloudflare Worker script", "Cloudflare Worker route", "ralfia_cloud_ops_audit"],
+        "reads_from": ["owner_vault", "bounded source path/text"],
+        "input_schema": {"script_name": "string", "source_path": "string|null", "source_text": "string|null", "zone_name": "string|null", "route_pattern": "string|null", "project_id": "string", "approval_id": "string|null", "dry_run": "bool"},
+        "output_schema": {"ok": "bool", "executed": "bool", "preflight": "object", "validation": "object", "execution": "object|null"},
+        "example_payload": {"script_name": "inneros-webmcp-edge", "source_path": "/home/rlopez/projects/inneros-webmcp/src/cloudflare-worker.js", "zone_name": "creatorcore.ai", "route_pattern": "webmcp.creatorcore.ai/edge/attest*", "project_id": "inneros-webmcp", "dry_run": True},
+    },
+    "cloudflare_worker_rollback": {
+        "description": "Gated rollback for scoped Cloudflare Worker routes and optional script deletion. dry_run is default; real rollback requires approval_id.",
+        "required_scopes": ["ralfia:admin"],
+        "risk_level": "high",
+        "writes_to": ["Cloudflare Worker route", "Cloudflare Worker script optional", "ralfia_cloud_ops_audit"],
+        "reads_from": ["owner_vault", "Cloudflare Workers Routes"],
+        "input_schema": {"script_name": "string", "zone_name": "string|null", "route_pattern": "string|null", "delete_script": "bool", "project_id": "string", "approval_id": "string|null", "dry_run": "bool"},
+        "output_schema": {"ok": "bool", "dry_run": "bool", "plan": "object|null", "deleted_routes": "array|null", "script_deleted": "bool|null"},
+        "example_payload": {"script_name": "inneros-webmcp-edge", "zone_name": "creatorcore.ai", "route_pattern": "webmcp.creatorcore.ai/edge/attest*", "dry_run": True},
+    },
+}
+TOOL_DEFINITIONS.update(_CLOUDFLARE_WORKER_TOOL_DEFINITIONS)
 
 
 _OWNER_VAULT_TOOL_DEFINITIONS = {

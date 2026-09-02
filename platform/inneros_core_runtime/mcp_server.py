@@ -1621,6 +1621,47 @@ def cloudflare_prepare_hostname(
 
 
 @mcp.tool
+def cloudflare_workers_preflight(zone_name: str = "creatorcore.ai") -> dict[str, Any]:
+    """AG-44: preflight read-only de permisos Cloudflare Workers; no expone secretos."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.cloudflare_workers_preflight(zone_name)
+
+
+@mcp.tool
+def cloudflare_worker_deploy(
+    script_name: str,
+    source_path: str = "",
+    source_text: str = "",
+    zone_name: str = "creatorcore.ai",
+    route_pattern: str = "",
+    project_id: str = "innerops-agentic-platform",
+    approval_id: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """AG-44: deploy Worker con fuente acotada y approval_id para mutaciones."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.cloudflare_worker_deploy(script_name, source_path=source_path, source_text=source_text, zone_name=zone_name, route_pattern=route_pattern, project_id=project_id, approval_id=approval_id, dry_run=dry_run)
+
+
+@mcp.tool
+def cloudflare_worker_rollback(
+    script_name: str,
+    zone_name: str = "creatorcore.ai",
+    route_pattern: str = "",
+    delete_script: bool = False,
+    project_id: str = "innerops-agentic-platform",
+    approval_id: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """AG-44: rollback de ruta Worker y opcional script; approval_id para mutaciones."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.cloudflare_worker_rollback(script_name, zone_name=zone_name, route_pattern=route_pattern, delete_script=delete_script, project_id=project_id, approval_id=approval_id, dry_run=dry_run)
+
+
+@mcp.tool
 def get_development_roadmap() -> dict[str, Any]:
     """Roadmap vivo agentes/flujos — qué falta y dónde está registrado."""
     from raphiia_openai.agents import ag44_cloud_deployer as ag44

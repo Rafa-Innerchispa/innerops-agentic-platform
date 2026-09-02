@@ -97,7 +97,7 @@ PROVIDERS = {
     "cloudflare": {
         "label": "Cloudflare",
         "status": "functional",
-        "targets": ["dns_api", "waf_custom_rules", "tunnel_ingress_inspect", "health_checks", "rollback"],
+        "targets": ["dns_api", "waf_custom_rules", "workers_scripts", "workers_routes", "tunnel_ingress_inspect", "health_checks", "rollback"],
         "cli": "Cloudflare API + cloudflared config inspection",
         "secret_source": f"owner_vault:{CF_VAULT_CATEGORY}",
         "note": "DNS/WAF/health/rollback cableados server-side; secretos no salen del host.",
@@ -139,6 +139,9 @@ def cloud_deploy_status() -> dict[str, Any]:
             "Use cloud_deploy_dry_run(provider, ...) before any cloud apply.",
             "cloud_deploy_apply is gated by RALFIA_CLOUD_APPLY_ENABLED=true plus approval_id.",
             "Use cloudflare_prepare_hostname(hostname, ...) for future pcdoctor.ai subdomains.",
+            "Use cloudflare_workers_preflight(zone_name) before any Worker mutation.",
+            "Use cloudflare_worker_deploy(..., dry_run=True) for audited deploy plans; dry_run=False requires approval_id.",
+            "Use cloudflare_worker_rollback(...) for scoped route/script rollback; dry_run=False requires approval_id.",
             "Use cloudflare_waf_skip_challenge(hostname) for minimal hostname challenge bypass.",
             "Use cloudflare_dns_upsert/delete for allowlisted DNS changes.",
         ],
@@ -173,6 +176,9 @@ def cloud_deploy_plan(provider: str = "gcp", service: str = "", environment: str
                 "cloudflare_tunnel_ingress_status",
                 "cloudflare_hostname_health_check",
                 "cloudflare_prepare_hostname",
+                "cloudflare_workers_preflight",
+                "cloudflare_worker_deploy",
+                "cloudflare_worker_rollback",
             ],
             "status": meta["status"],
         }
@@ -1280,6 +1286,136 @@ def cloudflare_prepare_hostname(
     return {"ok": ok, "hostname": host, "dry_run": dry_run, "steps": steps}
 
 
+def cloudflare_workers_preflight(zone_name: str = "creatorcore.ai") -> dict[str, Any]:
+    """Read-only Cloudflare Workers capability probe; never returns credentials."""
+    try:
+        zone_name = _validate_zone(zone_name)
+        creds = _cloudflare_credentials(zone_name)
+        zone = _get_zone(zone_name, creds=creds)
+        probes: dict[str, Any] = {}
+        missing: list[str] = []
+        for name, path, permission in (
+            ("workers_scripts", f"/accounts/{creds['account_id']}/workers/scripts", "Account:Workers Scripts:Read/Edit"),
+            ("workers_services", f"/accounts/{creds['account_id']}/workers/services", "Account:Workers Scripts:Read/Edit"),
+            ("workers_routes", f"/zones/{zone['id']}/workers/routes", "Zone:Workers Routes:Read/Edit"),
+        ):
+            try:
+                data = _cf_request("GET", path, creds=creds)
+                result = data.get("result") or []
+                probes[name] = {"ok": True, "count": len(result) if isinstance(result, list) else None}
+            except Exception as exc:
+                probes[name] = {"ok": False, "error": _classify_cloudflare_auth_error(str(exc))}
+                missing.append(permission)
+        ok = all(item.get("ok") for item in probes.values())
+        evidence = {"provider": "cloudflare", "zone": zone_name, "ok": ok, "missing_permissions": sorted(set(missing))}
+        _audit_cloud_ops("cloudflare_workers_preflight", evidence)
+        return {
+            "ok": ok,
+            "agent_id": AGENT_ID,
+            "provider": "cloudflare",
+            "zone": {"name": zone.get("name"), "id": zone.get("id")},
+            "account_id": creds["account_id"],
+            "permissions_ok": ok,
+            "missing_permissions": sorted(set(missing)),
+            "probes": probes,
+            "secret_policy": "owner_vault server-side only; raw values never returned",
+        }
+    except Exception as exc:
+        return {"ok": False, "agent_id": AGENT_ID, "provider": "cloudflare", "error": str(exc), "secret_policy": "redacted"}
+
+
+def cloudflare_worker_deploy(
+    script_name: str,
+    *,
+    source_path: str = "",
+    source_text: str = "",
+    zone_name: str = "creatorcore.ai",
+    route_pattern: str = "",
+    project_id: str = "innerops-agentic-platform",
+    approval_id: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Deploy a bounded Worker script with server-side Cloudflare credentials and approval gate."""
+    script = _validate_worker_script_name(script_name)
+    zone_name = _validate_zone(zone_name)
+    route = _validate_worker_route_pattern(route_pattern, zone_name) if route_pattern else ""
+    if not dry_run and not route:
+        return {"ok": False, "agent_id": AGENT_ID, "error": "route_pattern_required_for_mutating_deploy"}
+    source = _load_worker_source(source_path=source_path, source_text=source_text)
+    if not source.get("ok"):
+        return {"ok": False, "agent_id": AGENT_ID, **source}
+    preflight = cloudflare_workers_preflight(zone_name)
+    validation = _cloudflare_worker_mutation_validation("cloudflare_worker_deploy", project_id, approval_id, dry_run=dry_run)
+    command = ["wrangler", "deploy", "<bounded-source>", "--name", script, "--compatibility-date", "2026-09-02"]
+    if route:
+        command.append(f"--routes={route}")
+    result: dict[str, Any] = {
+        "ok": bool(preflight.get("ok") and validation.get("ok")),
+        "agent_id": AGENT_ID,
+        "provider": "cloudflare",
+        "action": "cloudflare_worker_deploy",
+        "script_name": script,
+        "route_pattern": route,
+        "project_id": project_id,
+        "dry_run": dry_run,
+        "preflight": preflight,
+        "validation": validation,
+        "command": command,
+        "source": {"origin": source.get("origin"), "bytes": source.get("bytes"), "sha256_12": source.get("sha256_12")},
+        "executed": False,
+        "secret_policy": "owner_vault server-side only; raw values never returned",
+    }
+    if not result["ok"]:
+        _audit_cloud_ops("cloudflare_worker_deploy", {"provider": "cloudflare", "script_name": script, "route_pattern": route, "dry_run": dry_run, "ok": False})
+        return result
+    if dry_run:
+        result["will_mutate"] = False
+        _audit_cloud_ops("cloudflare_worker_deploy_dry_run", {"provider": "cloudflare", "script_name": script, "route_pattern": route, "ok": True})
+        return result
+    exec_result = _run_wrangler_deploy(script, source["text"], route, zone_name)
+    result["executed"] = True
+    result["execution"] = exec_result
+    result["ok"] = bool(exec_result.get("ok"))
+    _audit_cloud_ops("cloudflare_worker_deploy", {"provider": "cloudflare", "script_name": script, "route_pattern": route, "ok": result["ok"], "returncode": exec_result.get("returncode")})
+    return result
+
+
+def cloudflare_worker_rollback(
+    script_name: str,
+    *,
+    zone_name: str = "creatorcore.ai",
+    route_pattern: str = "",
+    delete_script: bool = False,
+    project_id: str = "innerops-agentic-platform",
+    approval_id: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Delete a scoped Worker route and optionally the Worker script; approval required to mutate."""
+    script = _validate_worker_script_name(script_name)
+    zone_name = _validate_zone(zone_name)
+    route = _validate_worker_route_pattern(route_pattern, zone_name) if route_pattern else ""
+    validation = _cloudflare_worker_mutation_validation("cloudflare_worker_rollback", project_id, approval_id, dry_run=dry_run)
+    if not validation.get("ok"):
+        return {"ok": False, "agent_id": AGENT_ID, "provider": "cloudflare", "validation": validation}
+    creds = _cloudflare_credentials(zone_name)
+    zone = _get_zone(zone_name, creds=creds)
+    routes = _cf_request("GET", f"/zones/{zone['id']}/workers/routes", creds=creds).get("result") or []
+    matches = [r for r in routes if (not route or r.get("pattern") == route) and (not r.get("script") or r.get("script") == script)]
+    plan = {"delete_routes": [_redact_worker_route(r) for r in matches], "delete_script": bool(delete_script)}
+    if dry_run:
+        return {"ok": True, "agent_id": AGENT_ID, "provider": "cloudflare", "dry_run": True, "script_name": script, "route_pattern": route, "plan": plan}
+    deleted_routes = []
+    for item in matches:
+        _cf_request("DELETE", f"/zones/{zone['id']}/workers/routes/{item['id']}", creds=creds)
+        deleted_routes.append(_redact_worker_route(item))
+    script_deleted = False
+    if delete_script:
+        _cf_request("DELETE", f"/accounts/{creds['account_id']}/workers/scripts/{script}", creds=creds)
+        script_deleted = True
+    _audit_cloud_ops("cloudflare_worker_rollback", {"provider": "cloudflare", "script_name": script, "route_pattern": route, "deleted_routes": len(deleted_routes), "script_deleted": script_deleted})
+    return {"ok": True, "agent_id": AGENT_ID, "provider": "cloudflare", "script_name": script, "route_pattern": route, "deleted_routes": deleted_routes, "script_deleted": script_deleted}
+
+
 def get_development_roadmap() -> dict[str, Any]:
     if not ROADMAP_DOC.is_file():
         return {"ok": False, "error": "roadmap_missing", "path": str(ROADMAP_DOC)}
@@ -1292,6 +1428,103 @@ def get_development_roadmap() -> dict[str, Any]:
         "content": text[:12000],
         "truncated": len(text) > 12000,
     }
+
+
+def _validate_worker_script_name(value: str) -> str:
+    name = (value or "").strip().lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,62}", name):
+        raise ValueError("worker_script_name_invalid")
+    return name
+
+
+def _validate_worker_route_pattern(pattern: str, zone_name: str) -> str:
+    zone = _validate_zone(zone_name)
+    route = (pattern or "").strip().lower().rstrip(".")
+    forbidden = set(" \t\r\n\"'`;(){}?#")
+    if not route or any(ch in forbidden for ch in route):
+        raise ValueError("worker_route_pattern_invalid")
+    host = route.split("/", 1)[0].rstrip("*")
+    if host != zone and not host.endswith("." + zone):
+        raise ValueError(f"worker_route_not_allowlisted:{route}")
+    return route
+
+
+def _load_worker_source(*, source_path: str = "", source_text: str = "") -> dict[str, Any]:
+    if bool(source_path) == bool(source_text):
+        return {"ok": False, "error": "exactly_one_worker_source_required"}
+    if source_text:
+        text = str(source_text)
+        origin = "provided_text"
+    else:
+        raw = Path(source_path).expanduser()
+        if not raw.is_absolute():
+            return {"ok": False, "error": "source_path_absolute_required"}
+        trusted = [Path("/home/rlopez/inneros/inneros_core/workspaces"), Path("/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"), Path("/home/rlopez/projects")]
+        try:
+            resolved = raw.resolve()
+            roots = [p.resolve() for p in trusted]
+        except Exception as exc:
+            return {"ok": False, "error": "source_path_resolve_failed", "detail": str(exc)[:160]}
+        if not any(resolved == root or root in resolved.parents for root in roots):
+            return {"ok": False, "error": "source_path_not_under_trusted_root"}
+        if not resolved.is_file():
+            return {"ok": False, "error": "source_path_not_found"}
+        text = resolved.read_text(encoding="utf-8", errors="replace")
+        origin = str(resolved)
+    if not text.strip():
+        return {"ok": False, "error": "worker_source_empty"}
+    data = text.encode("utf-8")
+    if len(data) > 128_000:
+        return {"ok": False, "error": "worker_source_too_large", "max_bytes": 128000}
+    if re.search(r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][A-Za-z0-9._=-]{12,}", text):
+        return {"ok": False, "error": "raw_secret_pattern_denied"}
+    import hashlib
+    return {"ok": True, "text": text, "origin": origin, "bytes": len(data), "sha256_12": hashlib.sha256(data).hexdigest()[:12]}
+
+
+def _cloudflare_worker_mutation_validation(action: str, project_id: str, approval_id: str, *, dry_run: bool) -> dict[str, Any]:
+    project = (project_id or "").strip()
+    if not project or not _safe_name(project):
+        return {"ok": False, "error": "project_id_invalid"}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "action": action, "project_id": project}
+    if not _valid_approval_id(approval_id):
+        return {"ok": False, "error": "approval_id_required"}
+    doc = _load_approval(approval_id)
+    if not _approval_active(doc):
+        return {"ok": False, "error": "approval_id_not_active", "approval_id": approval_id}
+    if str(doc.get("provider") or "") != "cloudflare":
+        return {"ok": False, "error": "approval_provider_mismatch", "provider": doc.get("provider")}
+    doc_project = str(doc.get("project_id") or "")
+    if doc_project and doc_project != project:
+        return {"ok": False, "error": "approval_project_mismatch", "approval_project_id": doc_project, "project_id": project}
+    return {"ok": True, "dry_run": False, "action": action, "project_id": project, "approval_id": approval_id}
+
+
+def _run_wrangler_deploy(script_name: str, source_text: str, route_pattern: str, zone_name: str) -> dict[str, Any]:
+    import tempfile
+    creds = _cloudflare_credentials(zone_name)
+    node_bin = Path("/home/rlopez/.local/node-v24.20.0-linux-x64/bin")
+    env = os.environ.copy()
+    env["CLOUDFLARE_API_TOKEN"] = creds["token"]
+    env["CLOUDFLARE_ACCOUNT_ID"] = creds["account_id"]
+    env["PATH"] = f"{node_bin}:{env.get('PATH', '')}"
+    npx = shutil.which("npx", path=env["PATH"])
+    if not npx:
+        return {"ok": False, "error": "npx_missing"}
+    with tempfile.TemporaryDirectory(prefix="ag44-worker-") as tmp:
+        source = Path(tmp) / "worker.js"
+        source.write_text(source_text, encoding="utf-8")
+        argv = [npx, "wrangler", "deploy", str(source), "--name", script_name, "--compatibility-date", "2026-09-02", f"--routes={route_pattern}"]
+        try:
+            proc = subprocess.run(argv, capture_output=True, text=True, timeout=180, check=False, env=env)
+            return {"ok": proc.returncode == 0, "returncode": proc.returncode, "stdout": _redact_text(proc.stdout)[:4000], "stderr": _redact_text(proc.stderr)[:4000], "argv": ["npx", "wrangler", "deploy", "<bounded-source>", "--name", script_name, "--compatibility-date", "2026-09-02", f"--routes={route_pattern}"]}
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "error": "timeout", "argv": ["npx", "wrangler", "deploy", "<bounded-source>"]}
+
+
+def _redact_worker_route(route: dict[str, Any]) -> dict[str, Any]:
+    return {k: route.get(k) for k in ("id", "pattern", "script") if k in route}
 
 
 def _cloudflare_credentials(zone_name: str = CF_DEFAULT_ZONE) -> dict[str, str]:
