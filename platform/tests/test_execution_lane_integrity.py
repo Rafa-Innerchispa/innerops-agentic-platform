@@ -1,17 +1,9 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest import mock
 
 PLATFORM = Path(__file__).resolve().parents[1]
-PLATFORM_TEXT = str(PLATFORM)
-sys.path[:] = [item for item in sys.path if item != PLATFORM_TEXT]
-sys.path.insert(0, PLATFORM_TEXT)
-
-for prefix in ("raphiia_openai", "inneros_core_runtime"):
-    for module_name in [name for name in sys.modules if name == prefix or name.startswith(prefix + ".")]:
-        sys.modules.pop(module_name, None)
 
 from inneros_core_runtime import coordination_live
 from inneros_core_runtime import dev_swarm_scheduler as scheduler
@@ -82,8 +74,15 @@ def test_codex_task_is_rejected_before_repo_policy_or_worktree():
 
 def test_local_alpaca_task_uses_exact_registry_repo():
     task = _local_task()
-    with mock.patch.object(task_envelope.prr, "resolve_project", return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca")), \
-        mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "policy": {"write_scope": "worktree"}}):
+    with mock.patch.object(
+        task_envelope.prr,
+        "resolve_project",
+        return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca"),
+    ), mock.patch.object(
+        scheduler.local_execution_plane,
+        "repo_policy_status",
+        return_value={"ok": True, "policy": {"write_scope": "worktree"}},
+    ):
         ok, reason, repo = scheduler._eligible_reason(task)
     assert ok is True
     assert reason == "eligible"
@@ -117,9 +116,12 @@ def test_direct_fanout_cannot_claim_external_lane():
         "execution_lane": "cursor",
         "provider_transport": "ide_inbox",
     }
-    with mock.patch.object(scheduler, "_task_doc", return_value=task), \
-        mock.patch.object(scheduler, "_fanout_execute_one_without_envelope_gate") as old_executor:
-        result = scheduler._fanout_execute_one("Rafa-Innerchispa/inneros-alpha-alpaca", "ops_cursor_direct")
+    with mock.patch.object(scheduler, "_task_doc", return_value=task), mock.patch.object(
+        scheduler, "_fanout_execute_one_without_envelope_gate"
+    ) as old_executor:
+        result = scheduler._fanout_execute_one(
+            "Rafa-Innerchispa/inneros-alpha-alpaca", "ops_cursor_direct"
+        )
     assert result["ok"] is False
     assert result["zero_worktree_created"] is True
     assert result["ownership_claimed"] is False
@@ -128,10 +130,16 @@ def test_direct_fanout_cannot_claim_external_lane():
 
 def test_direct_fanout_rejects_repo_argument_mismatch_before_old_executor():
     task = _local_task("ops_repo_mismatch")
-    with mock.patch.object(task_envelope.prr, "resolve_project", return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca")), \
-        mock.patch.object(scheduler, "_task_doc", return_value=task), \
-        mock.patch.object(scheduler, "_fanout_execute_one_without_envelope_gate") as old_executor:
-        result = scheduler._fanout_execute_one("Rafa-Innerchispa/innerops-agentic-platform", "ops_repo_mismatch")
+    with mock.patch.object(
+        task_envelope.prr,
+        "resolve_project",
+        return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca"),
+    ), mock.patch.object(scheduler, "_task_doc", return_value=task), mock.patch.object(
+        scheduler, "_fanout_execute_one_without_envelope_gate"
+    ) as old_executor:
+        result = scheduler._fanout_execute_one(
+            "Rafa-Innerchispa/innerops-agentic-platform", "ops_repo_mismatch"
+        )
     assert result["ok"] is False
     assert result["error"] == "repo_argument_binding_mismatch"
     assert result["zero_worktree_created"] is True
@@ -174,8 +182,11 @@ class _DB:
 def test_bind_task_envelope_persists_verified_fields():
     doc = {"task_id": "ops_bind", "correlation_id": "bind-corr", "status": "proposed"}
     db = _DB(doc)
-    with mock.patch.object(coordination_live.mongo_store, "get_db", return_value=db), \
-        mock.patch.object(task_envelope.prr, "resolve_project", return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca")):
+    with mock.patch.object(coordination_live.mongo_store, "get_db", return_value=db), mock.patch.object(
+        task_envelope.prr,
+        "resolve_project",
+        return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca"),
+    ):
         result = coordination_live.bind_task_envelope(
             "ops_bind",
             repo="Rafa-Innerchispa/inneros-alpha-alpaca",
@@ -257,14 +268,18 @@ def test_ide_dispatch_persists_matching_execution_lane(monkeypatch):
 
 def test_ide_claim_fails_when_binding_is_not_verified():
     store = _DispatchStore()
-    store.put({
-        "dispatch_id": "ide_blocked",
-        "ide": "cursor",
-        "execution_state": "queued",
-        "task_binding_status": "needs_project_binding",
-        "execution_lane": "cursor",
-    })
-    with mock.patch.object(ide_task_bridge, "_claim_task_without_envelope_gate") as legacy_claim:
+    store.put(
+        {
+            "dispatch_id": "ide_blocked",
+            "ide": "cursor",
+            "execution_state": "queued",
+            "task_binding_status": "needs_project_binding",
+            "execution_lane": "cursor",
+        }
+    )
+    with mock.patch.object(
+        ide_task_bridge, "_claim_task_without_envelope_gate"
+    ) as legacy_claim:
         result = ide_task_bridge.claim_task("ide_blocked", "cursor", store=store)
     assert result["ok"] is False
     assert result["error"] == "task_binding_not_verified"

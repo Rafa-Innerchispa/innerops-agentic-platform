@@ -69,14 +69,36 @@ class IdeTaskBridgeTests(unittest.TestCase):
         self.assertEqual(len(self.created), 1)
         self.assertEqual(first["dispatch_id"], second["dispatch_id"])
 
+    @patch("raphiia_openai.coordination_live.bind_task_envelope")
     @patch("raphiia_openai.coordination_live.create_ops_task")
     @patch("raphiia_openai.coordination_live.update_ops_task_state")
     @patch("inneros_core_runtime.ide_task_bridge._provider_status")
-    def test_claim_running_complete_require_evidence(self, provider_status, update_state, create_task):
+    def test_claim_running_complete_require_evidence(self, provider_status, update_state, create_task, bind_envelope):
         provider_status.return_value = {"installed": False, "headless_supported": False, "auth_ready": False}
         create_task.side_effect = self.fake_create
         update_state.return_value = {"ok": True}
-        dispatched = bridge.dispatch_task(ide="gemini", title="Task", body="Body", correlation_id="cid-z", store=self.store)
+        bind_envelope.return_value = {
+            "ok": True,
+            "binding_status": "verified",
+            "envelope": {
+                "binding_status": "verified",
+                "project_id": "innerops-agentic-platform",
+                "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+                "base_ref": "main",
+                "execution_lane": "gemini",
+                "provider_transport": "ide_inbox",
+            },
+        }
+        dispatched = bridge.dispatch_task(
+            ide="gemini",
+            title="Task",
+            body="Body",
+            repo="Rafa-Innerchispa/innerops-agentic-platform",
+            branch="main",
+            correlation_id="cid-z",
+            store=self.store,
+        )
+        self.assertTrue(dispatched["executable"])
         did = dispatched["dispatch_id"]
         claimed = bridge.claim_task(did, "gemini", store=self.store)
         self.assertEqual(claimed["execution_state"], "claimed")

@@ -1,17 +1,9 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest import mock
 
 PLATFORM = Path(__file__).resolve().parents[1]
-PLATFORM_TEXT = str(PLATFORM)
-sys.path[:] = [item for item in sys.path if item != PLATFORM_TEXT]
-sys.path.insert(0, PLATFORM_TEXT)
-
-for prefix in ("raphiia_openai", "inneros_core_runtime"):
-    for module_name in [name for name in sys.modules if name == prefix or name.startswith(prefix + ".")]:
-        sys.modules.pop(module_name, None)
 
 from inneros_core_runtime import task_envelope
 
@@ -30,11 +22,7 @@ def test_task_envelope_import_is_from_current_worktree():
 
 
 def test_verified_local_alpaca_binding_is_exact():
-    with mock.patch.object(
-        task_envelope.prr,
-        "resolve_project",
-        return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca"),
-    ):
+    with mock.patch.object(task_envelope.prr, "resolve_project", return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca")):
         result = task_envelope.build_task_envelope(
             project_id="inneros-alpha-alpaca",
             repo="Rafa-Innerchispa/inneros-alpha-alpaca",
@@ -107,22 +95,14 @@ def test_local_lane_revalidates_registry_before_execution():
         "provider_transport": "local_vllm",
         "correlation_id": "alpaca-registry-revalidate",
     }
-    with mock.patch.object(
-        task_envelope.prr,
-        "resolve_project",
-        return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca"),
-    ):
+    with mock.patch.object(task_envelope.prr, "resolve_project", return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca")):
         result = task_envelope.validate_local_dev_swarm_task(task)
     assert result["ok"] is True
     assert result["repo"] == "Rafa-Innerchispa/inneros-alpha-alpaca"
 
 
 def test_exact_related_project_migration_requires_registry_proof():
-    with mock.patch.object(
-        task_envelope.prr,
-        "resolve_project",
-        return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca"),
-    ):
+    with mock.patch.object(task_envelope.prr, "resolve_project", return_value=_registry_result("inneros-alpha-alpaca", "Rafa-Innerchispa/inneros-alpha-alpaca")):
         result = task_envelope.build_task_envelope(
             related_project="Rafa-Innerchispa/inneros-alpha-alpaca",
             base_ref="main",
