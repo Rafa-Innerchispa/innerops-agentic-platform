@@ -380,3 +380,18 @@ class ExternalRepairAgentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Machine-independent replacement for the historical missing-provider test.
+# Cursor may legitimately be installed on the integration host, so simulate a
+# missing CLI explicitly rather than relying on host state.
+def _test_missing_provider_is_unavailable_not_ready_machine_independent(self):
+    with patch.object(ext, "_which_provider", return_value=""):
+        result = ext.detect_provider("cursor")
+    self.assertTrue(result["ok"])
+    self.assertFalse(result["installed"])
+    self.assertEqual(result["status"], "unavailable")
+    self.assertEqual(result["unavailable_reason"], "cli_not_installed")
+
+
+ExternalRepairAgentTests.test_missing_provider_is_unavailable_not_ready = _test_missing_provider_is_unavailable_not_ready_machine_independent
