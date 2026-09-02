@@ -150,6 +150,25 @@ class HeartbeatTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["status"], "partial")
 
+    def test_complete_ops_task_skips_notion_for_nonterminal_verification(self) -> None:
+        collection = MagicMock()
+        collection.find_one.return_value = {"task_id": "ops_1", "correlation_id": "corr-1"}
+        with (
+            patch(
+                "raphiia_openai.coordination_live.update_ops_task_state",
+                return_value={"ok": True, "task_id": "ops_1", "status": "verification"},
+            ) as update_state,
+            patch("raphiia_openai.mongo_store.get_db", return_value={"ralfia_ops_tasks": collection}),
+        ):
+            result = coordination_live.complete_ops_task(
+                "ops_1",
+                status="verification",
+                evidence={"status": "PASS", "summary": "ready for review"},
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["notion_response"]["skipped"], "non_terminal_status:verification")
+        update_state.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -465,19 +465,27 @@ def complete_ops_task(
     task_doc = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
     notion_out: dict[str, Any] | None = None
     cid = task_doc.get("correlation_id")
-    if cid:
+    terminal_notion_status = {
+        "completed": "Completed",
+        "failed": "Failed",
+        "partial": "Partial",
+        "cancelled": "Cancelled",
+    }.get(st)
+    if cid and terminal_notion_status:
         try:
             from raphiia_openai.notion_coordination import post_response_to_notion
 
             summary = (evidence or {}).get("summary") or str(evidence or "")[:500] or f"Task {st}"
             notion_out = post_response_to_notion(
                 correlation_id=cid,
-                status="Completed" if st == "completed" else "Failed",
+                status=terminal_notion_status,
                 summary=summary,
                 evidence=evidence,
             )
         except Exception as exc:
             notion_out = {"ok": False, "error": str(exc)}
+    elif cid:
+        notion_out = {"ok": True, "skipped": f"non_terminal_status:{st}"}
     return {**transition, "notion_response": notion_out}
 
 
