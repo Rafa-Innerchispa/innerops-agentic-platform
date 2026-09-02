@@ -417,3 +417,19 @@ def execute_service_action(service_id: str, node: str, action: str) -> dict[str,
         "returncode": proc.returncode,
         "stderr": sanitize_log(proc.stderr or "")[:500],
     }
+
+
+# --- Shared Cloudflare tunnel as an explicit managed user service ---
+# Keep it primary-only: this is the connector that owns opportunityops.yml and
+# the creatorcore.ai / pcdoctor.ai ingress table on Intel .4.
+if "cloudflared" not in SERVICE_BY_ID:
+    _cloudflared_service = ServiceSpec(
+        "cloudflared",
+        "Cloudflare Tunnel",
+        ("cloudflared", "cloudflare tunnel", "tunel cloudflare", "túnel cloudflare"),
+        "user",
+        "opportunityops-cloudflared.service",
+        None,
+    )
+    SERVICES = SERVICES + (_cloudflared_service,)
+    SERVICE_BY_ID = {service.service_id: service for service in SERVICES}
