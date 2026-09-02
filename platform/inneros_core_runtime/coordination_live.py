@@ -499,3 +499,156 @@ def list_ops_tasks(assignee: str | None = None, status: str | None = None, limit
         filt["status"] = status.strip().lower()
     items = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("created_at", -1).limit(max(1, min(limit, 50))))
     return {"ok": True, "count": len(items), "tasks": items}
+
+
+# TaskEnvelope v1 hardening: durable responsibility is separate from executor lane.
+# Legacy tasks remain visible, but write-capable tasks without a verified envelope
+# are intentionally not executable by the Dev Swarm.
+_create_ops_task_without_envelope = create_ops_task
+
+
+def bind_task_envelope(
+    task_id: str,
+    *,
+    project_id: str = "",
+    repo: str = "",
+    base_ref: str = "",
+    task_class: str = "coding",
+    execution_lane: str = "",
+    provider_transport: str = "",
+    correlation_id: str = "",
+    idempotency_key: str = "",
+    related_project: str = "",
+    write_capable: bool | None = None,
+    actor: str = "system",
+) -> dict[str, Any]:
+    from raphiia_openai import task_envelope
+
+    db = mongo_store.get_db()
+    task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
+    if not task:
+        return {"ok": False, "error": "task_not_found", "task_id": task_id}
+    cid = (correlation_id or str(task.get("correlation_id") or "")).strip()
+    envelope_result = task_envelope.build_task_envelope(
+        project_id=project_id,
+        repo=repo,
+        base_ref=base_ref,
+        task_class=task_class,
+        execution_lane=execution_lane,
+        provider_transport=provider_transport,
+        correlation_id=cid,
+        idempotency_key=idempotency_key,
+        related_project=related_project,
+        write_capable=write_capable,
+    )
+    envelope = dict(envelope_result.get("envelope") or {})
+    patch: dict[str, Any] = {
+        "task_binding_status": envelope_result.get("binding_status") or "invalid",
+        "task_envelope_version": envelope_result.get("version") or task_envelope.ENVELOPE_VERSION,
+        "task_envelope_error": None if envelope_result.get("ok") else envelope_result.get("error"),
+        "task_envelope_missing": envelope_result.get("missing") or [],
+        "updated_at": _now(),
+        "updated_by": actor,
+    }
+    if envelope:
+        patch.update(
+            {
+                "task_envelope": envelope,
+                "project_id": envelope.get("project_id"),
+                "repo": envelope.get("repo"),
+                "base_ref": envelope.get("base_ref"),
+                "task_class": envelope.get("task_class"),
+                "execution_lane": envelope.get("execution_lane"),
+                "provider_transport": envelope.get("provider_transport"),
+                "idempotency_key": envelope.get("idempotency_key"),
+                "write_capable": envelope.get("write_capable"),
+                "binding_source": envelope.get("binding_source"),
+                "project_path": envelope.get("project_path"),
+            }
+        )
+    else:
+        patch.update(
+            {
+                "project_id": project_id or task.get("project_id"),
+                "repo": repo or task.get("repo"),
+                "base_ref": base_ref or task.get("base_ref"),
+                "task_class": task_class or task.get("task_class") or "coding",
+                "execution_lane": task_envelope.normalize_lane(execution_lane) or task.get("execution_lane"),
+                "provider_transport": provider_transport or task.get("provider_transport"),
+                "write_capable": task_envelope.is_write_capable(task_class, write_capable),
+            }
+        )
+    db[OPS_TASKS_COL].update_one({"task_id": task_id}, {"$set": patch})
+    current = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
+    return {
+        "ok": bool(envelope_result.get("ok")),
+        "task_id": task_id,
+        "binding_status": patch["task_binding_status"],
+        "envelope": envelope,
+        "task": current,
+        "error": None if envelope_result.get("ok") else envelope_result.get("error"),
+        "missing": envelope_result.get("missing") or [],
+    }
+
+
+def create_ops_task(
+    *,
+    assignee: str,
+    title: str,
+    checklist: list[str] | str | None = None,
+    evidence_required: list[str] | str | None = None,
+    priority: str = "normal",
+    from_agent: str = "RAFAEL",
+    correlation_id: str | None = None,
+    source_message_id: str | None = None,
+    conversation_ref: str | None = None,
+    related_project: str | None = None,
+    project_id: str = "",
+    repo: str = "",
+    base_ref: str = "",
+    task_class: str = "coding",
+    execution_lane: str = "",
+    provider_transport: str = "",
+    idempotency_key: str = "",
+    write_capable: bool | None = None,
+) -> dict[str, Any]:
+    created = _create_ops_task_without_envelope(
+        assignee=assignee,
+        title=title,
+        checklist=checklist,
+        evidence_required=evidence_required,
+        priority=priority,
+        from_agent=from_agent,
+        correlation_id=correlation_id,
+        source_message_id=source_message_id,
+        conversation_ref=conversation_ref,
+        related_project=related_project,
+    )
+    if not created.get("ok"):
+        return created
+    task_id = str(created.get("task_id") or (created.get("task") or {}).get("task_id") or "")
+    bound = bind_task_envelope(
+        task_id,
+        project_id=project_id,
+        repo=repo,
+        base_ref=base_ref,
+        task_class=task_class,
+        execution_lane=execution_lane,
+        provider_transport=provider_transport,
+        correlation_id=str(created.get("correlation_id") or correlation_id or ""),
+        idempotency_key=idempotency_key,
+        related_project=str(related_project or ""),
+        write_capable=write_capable,
+        actor=(from_agent or "system").lower(),
+    )
+    # Task creation itself remains durable even when binding is incomplete.  The
+    # execution gate will fail closed until the envelope is verified.
+    return {
+        **created,
+        "task": bound.get("task") or created.get("task"),
+        "task_binding_status": bound.get("binding_status"),
+        "task_envelope": bound.get("envelope") or {},
+        "executable": bool(bound.get("ok")),
+        "binding_error": bound.get("error"),
+        "binding_missing": bound.get("missing") or [],
+    }

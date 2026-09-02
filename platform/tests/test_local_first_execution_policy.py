@@ -230,3 +230,74 @@ def test_resource_fabric_routes_local_when_capable_and_blocks_silent_cloud() -> 
     assert blocked["error"] == "blocked_local_capable"
     assert override["ok"] is True
     assert override["selected"]["provider"]["provider_id"] == "paid-cloud-1"
+
+
+# TaskEnvelope v1 migrations for two legacy inference-era fixtures.
+def test_scheduler_capacity_free_p0_eligible_selects_worker() -> None:
+    task = {
+        "task_id": "ops_local_first_fixture",
+        "status": "proposed",
+        "assignee": "dev_swarm",
+        "priority": "p0",
+        "project_id": "innerops-agentic-platform",
+        "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+        "base_ref": "main",
+        "task_class": "coding",
+        "execution_lane": "local_dev_swarm",
+        "provider_transport": "local_vllm",
+        "correlation_id": "ops-local-first-fixture",
+        "title": "Repair platform scheduler",
+        "checklist": ["Edit platform runtime and run tests"],
+    }
+    registry = {
+        "ok": True,
+        "node": "primary",
+        "project_path": "/tmp/innerops",
+        "project": {"project_id": "innerops-agentic-platform", "repo": "Rafa-Innerchispa/innerops-agentic-platform"},
+    }
+    with mock.patch.object(scheduler, "_db"), \
+        mock.patch.object(scheduler, "reconcile_capacity_state", return_value={"ok": True}), \
+        mock.patch.object(scheduler, "_state", return_value={"enabled": True, "max_concurrent": 4}), \
+        mock.patch.object(scheduler, "capacity_status", return_value={"ok": True, "recommendation": {"recommended_concurrency_total": 4}}), \
+        mock.patch.object(scheduler, "_load_scheduler_candidates", return_value=[task]), \
+        mock.patch.object(scheduler.canonical_task_envelope.prr, "resolve_project", return_value=registry), \
+        mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "worktree"}):
+        db = scheduler._db.return_value
+        db.__getitem__.return_value.count_documents.return_value = 0
+        result = scheduler.scheduler_tick(limit=1, dry_run=True)
+    assert result["ok"] is True
+    assert result["available"] == 4
+    assert len(result["selected"]) == 1
+    assert result["selected"][0]["task_id"] == "ops_local_first_fixture"
+    assert result["selected"][0]["preferred_provider"] == "local-amd-5"
+
+
+def test_related_project_canonical_repo_wins_over_generic_dev_swarm_text() -> None:
+    task = {
+        "task_id": "ops_alpaca_fixture",
+        "status": "proposed",
+        "assignee": "dev_swarm",
+        "priority": "p0",
+        "project_id": "inneros-alpha-alpaca",
+        "repo": "Rafa-Innerchispa/inneros-alpha-alpaca",
+        "base_ref": "main",
+        "task_class": "coding",
+        "execution_lane": "local_dev_swarm",
+        "provider_transport": "local_vllm",
+        "correlation_id": "ops-alpaca-fixture",
+        "related_project": "Rafa-Innerchispa/inneros-alpha-alpaca",
+        "title": "Dev Swarm local execution: Rafa-Innerchispa/inneros-alpha-alpaca",
+        "checklist": ["Verify isolated worktree"],
+    }
+    registry = {
+        "ok": True,
+        "node": "primary",
+        "project_path": "/tmp/alpaca",
+        "project": {"project_id": "inneros-alpha-alpaca", "repo": "Rafa-Innerchispa/inneros-alpha-alpaca"},
+    }
+    with mock.patch.object(scheduler.canonical_task_envelope.prr, "resolve_project", return_value=registry), \
+        mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "worktree"}):
+        ok, reason, repo = scheduler._eligible_reason(task)
+    assert ok is True
+    assert reason == "eligible"
+    assert repo == "Rafa-Innerchispa/inneros-alpha-alpaca"

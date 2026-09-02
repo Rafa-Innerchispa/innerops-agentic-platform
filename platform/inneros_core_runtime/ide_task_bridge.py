@@ -362,3 +362,124 @@ def mark_ops_progress(*, store: DispatchStore, idempotency_key: str, ops_status:
     record["execution_projection"] = projection
     record["ops_status"] = ops_status
     return {"ok": True, "idempotency_key": idempotency_key, "execution_projection": projection}
+
+
+# TaskEnvelope v1 hardening.  IDE delivery is not executable until the durable
+# ops_task carries an exact verified project binding and a matching IDE lane.
+_dispatch_task_without_envelope = dispatch_task
+_claim_task_without_envelope_gate = claim_task
+_mark_running_without_envelope_gate = mark_running
+
+
+def _dispatch_binding_gate(record: dict[str, Any], target: str) -> dict[str, Any]:
+    envelope = record.get("task_envelope") if isinstance(record.get("task_envelope"), dict) else {}
+    status = str(record.get("task_binding_status") or envelope.get("binding_status") or "")
+    lane = str(record.get("execution_lane") or envelope.get("execution_lane") or "").strip().lower()
+    if status != "verified":
+        return {"ok": False, "error": "task_binding_not_verified", "task_binding_status": status or "missing"}
+    if lane != target:
+        return {"ok": False, "error": "execution_lane_mismatch", "execution_lane": lane or None, "expected_execution_lane": target}
+    return {"ok": True, "task_binding_status": status, "execution_lane": lane}
+
+
+def dispatch_task(
+    *,
+    ide: str,
+    title: str,
+    body: str,
+    repo: str = "",
+    branch: str = "",
+    worktree: str = "",
+    correlation_id: str = "",
+    priority: str = "p0",
+    from_agent: str = "CHATGPT_A",
+    require_evidence: bool = True,
+    approval_required: bool = False,
+    idempotency_key: str = "",
+    store: Store | None = None,
+) -> dict[str, Any]:
+    target = normalize_ide(ide)
+    effective_store = store or MongoStore()
+    result = _dispatch_task_without_envelope(
+        ide=ide,
+        title=title,
+        body=body,
+        repo=repo,
+        branch=branch,
+        worktree=worktree,
+        correlation_id=correlation_id,
+        priority=priority,
+        from_agent=from_agent,
+        require_evidence=require_evidence,
+        approval_required=approval_required,
+        idempotency_key=idempotency_key,
+        store=effective_store,
+    )
+    if not result.get("ok"):
+        return result
+    dispatch_id = str(result.get("dispatch_id") or "")
+    task_id = str(result.get("ops_task_id") or "")
+    if not dispatch_id or not task_id:
+        return {**result, "ok": False, "error": "dispatch_missing_durable_ids"}
+
+    from inneros_core_runtime import coordination_live
+
+    transport = str(result.get("transport") or "ide_inbox")
+    bound = coordination_live.bind_task_envelope(
+        task_id,
+        repo=str(repo or "").strip(),
+        base_ref=str(branch or "main").strip(),
+        task_class="coding",
+        execution_lane=target,
+        provider_transport=transport,
+        correlation_id=str(result.get("correlation_id") or correlation_id or ""),
+        idempotency_key=str(result.get("idempotency_key") or idempotency_key or ""),
+        related_project=str(repo or "").strip(),
+        write_capable=True,
+        actor=target,
+    )
+    record = effective_store.get(dispatch_id) or dict(result)
+    patched = {
+        **record,
+        "task_binding_status": bound.get("binding_status"),
+        "task_envelope": bound.get("envelope") or {},
+        "execution_lane": target,
+        "provider_transport": transport,
+        "project_id": (bound.get("envelope") or {}).get("project_id"),
+        "base_ref": (bound.get("envelope") or {}).get("base_ref") or str(branch or "main").strip(),
+        "updated_at": _now(),
+    }
+    effective_store.put(patched)
+    return {
+        **result,
+        **patched,
+        "executable": bool(bound.get("ok")),
+        "binding_error": bound.get("error"),
+        "binding_missing": bound.get("missing") or [],
+    }
+
+
+def claim_task(dispatch_id: str, ide: str, store: Store | None = None) -> dict[str, Any]:
+    target = normalize_ide(ide)
+    effective_store = store or MongoStore()
+    rec = effective_store.get(str(dispatch_id or "").strip())
+    if not rec:
+        return {"ok": False, "error": "ide_dispatch_not_found"}
+    if target != rec.get("ide"):
+        return {"ok": False, "error": "ide_identity_mismatch", "expected": rec.get("ide"), "got": target}
+    gate = _dispatch_binding_gate(rec, target)
+    if not gate.get("ok"):
+        return {**gate, "dispatch_id": dispatch_id, "ide": target}
+    return _claim_task_without_envelope_gate(dispatch_id, target, store=effective_store)
+
+
+def mark_running(dispatch_id: str, ide: str, store: Store | None = None) -> dict[str, Any]:
+    target = normalize_ide(ide)
+    effective_store = store or MongoStore()
+    rec = effective_store.get(str(dispatch_id or "").strip())
+    if not rec:
+        return {"ok": False, "error": "ide_dispatch_not_found"}
+    gate = _dispatch_binding_gate(rec, target)
+    if not gate.get("ok"):
+        return {**gate, "dispatch_id": dispatch_id, "ide": target}
+    return _mark_running_without_envelope_gate(dispatch_id, target, store=effective_store)

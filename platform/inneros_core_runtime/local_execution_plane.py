@@ -1440,6 +1440,11 @@ def dev_swarm_launch_task(
                 from_agent=actor,
                 correlation_id=correlation_id,
                 related_project=repo,
+                repo=repo,
+                base_ref=base_branch,
+                task_class="coding",
+                execution_lane="local_dev_swarm",
+                provider_transport="local_vllm",
             )
             if not generated.get("ok"):
                 return {"ok": False, "stage": "create_ops_task", "error": generated.get("error"), "generated_task": generated}

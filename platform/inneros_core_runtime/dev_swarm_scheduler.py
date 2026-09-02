@@ -2638,3 +2638,88 @@ def platform_guard_regressions() -> dict[str, Any]:
     }
     results["ok"] = all(bool(v.get("ok")) for k, v in results.items() if isinstance(v, dict) and k != "base_error")
     return results
+
+
+# TaskEnvelope v1 hardening: Dev Swarm is an executor lane, not a synonym for
+# every coding assignee. Normal write tasks require a verified structured route.
+from raphiia_openai import task_envelope as canonical_task_envelope
+
+_eligible_reason_legacy_inference = _eligible_reason
+_task_base_ref_legacy_inference = _task_base_ref
+
+
+def _legacy_fixture_route_allowed(task: dict[str, Any]) -> bool:
+    tags = {str(item) for item in task.get("tags") or []}
+    return "dev_swarm_fixture" in tags or str(task.get("task_id") or "") in LEGACY_SAFE_TASK_IDS
+
+
+def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
+    if _legacy_fixture_route_allowed(task) and not task.get("execution_lane") and not task.get("task_envelope"):
+        return _eligible_reason_legacy_inference(task)
+    status = str(task.get("status") or "").lower()
+    retry_allowed = status == "blocked" and _ops_auto_retry_allowed(task)
+    if status in OPS_TERMINAL_STATUSES and not retry_allowed:
+        return False, f"ops_status_{status}_no_auto_retry", None
+    if status not in ELIGIBLE_STATUSES and not retry_allowed and not (
+        status in {"accepted", "in_progress"} and str(task.get("owner") or "").lower() == "dev_swarm"
+    ):
+        return False, "status_not_proposed", None
+    text = _task_search_text(task)
+    if _is_non_dev_ops_task(task, text):
+        return False, "non_development_ops_filtered", None
+    gate = canonical_task_envelope.validate_local_dev_swarm_task(task)
+    if not gate.get("ok"):
+        return False, str(gate.get("error") or "task_envelope_invalid"), str(task.get("repo") or "") or None
+    repo = str(gate.get("repo") or "")
+    if not repo:
+        return False, "repo_binding_missing", None
+    policy = local_execution_plane.repo_policy_status(repo)
+    if not policy.get("ok"):
+        return False, f"repo_policy_denied:{policy.get('error')}", repo
+    effective_policy = policy.get("policy") if isinstance(policy.get("policy"), dict) else policy
+    if effective_policy.get("write_scope") in {"none", "read_only"}:
+        return False, "repo_read_only_policy", repo
+    return True, "eligible", repo
+
+
+def _task_base_ref(task: dict[str, Any] | None) -> str:
+    if not task:
+        return ""
+    if _legacy_fixture_route_allowed(task) and not task.get("task_envelope"):
+        return _task_base_ref_legacy_inference(task)
+    envelope = task.get("task_envelope") if isinstance(task.get("task_envelope"), dict) else {}
+    return str(envelope.get("base_ref") or task.get("base_ref") or "").strip()
+
+
+_fanout_execute_one_without_envelope_gate = _fanout_execute_one
+
+
+def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
+    task = _task_doc(task_id)
+    if not task:
+        return {"ok": False, "task_id": task_id, "error": "task_not_found"}
+    if not _legacy_fixture_route_allowed(task):
+        gate = canonical_task_envelope.validate_local_dev_swarm_task(task)
+        if not gate.get("ok"):
+            return {
+                "ok": False,
+                "task_id": task_id,
+                "outcome": "BLOCKED",
+                "error": str(gate.get("error") or "task_envelope_invalid"),
+                "execution_lane": gate.get("execution_lane"),
+                "zero_worktree_created": True,
+                "ownership_claimed": False,
+            }
+        bound_repo = str(gate.get("repo") or "")
+        if repo != bound_repo:
+            return {
+                "ok": False,
+                "task_id": task_id,
+                "outcome": "BLOCKED",
+                "error": "repo_argument_binding_mismatch",
+                "repo_argument": repo,
+                "repo_bound": bound_repo,
+                "zero_worktree_created": True,
+                "ownership_claimed": False,
+            }
+    return _fanout_execute_one_without_envelope_gate(repo, task_id, base_snapshot)
