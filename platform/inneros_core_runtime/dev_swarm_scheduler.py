@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, local_execution_plane, local_model_router, mongo_store
+from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, execution_policy, local_execution_plane, local_model_router, mongo_store
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -34,7 +34,7 @@ ELIGIBLE_STATUSES = ("proposed",)
 OPS_TERMINAL_STATUSES = frozenset({"blocked", "completed", "cancelled", "failed"})
 PRIORITY_ORDER = {"critical": 0, "p0": 1, "p1": 2, "normal": 3, "p2": 4, "low": 5}
 SAFE_INNEROS_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
-ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini"}
+ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini", "dev_swarm"}
 TERMINAL_EXECUTOR_STATUSES = {"executed", "needs_implementation", "failed", "blocked"}
 LEGACY_SAFE_TASK_IDS = {
     "ops_e7cacfc4a525",
@@ -242,6 +242,7 @@ def _worker_objective(worker: dict[str, Any], task: dict[str, Any] | None) -> st
 
 
 CANONICAL_REPO_HINTS = {
+    "inneros-alpha-alpaca": "Rafa-Innerchispa/inneros-alpha-alpaca",
     "innerops-agentic-platform": SAFE_INNEROS_REPO,
     "innerspark-workforce-ai": "Rafa-Innerchispa/innerspark-workforce-ai",
 }
@@ -249,7 +250,7 @@ CANONICAL_REPO_HINTS = {
 
 def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
     candidates: list[str] = []
-    for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo"):
+    for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo", "project", "related_project"):
         value = str(task.get(key) or "").strip()
         if value:
             candidates.append(value)
@@ -924,7 +925,8 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
                 )
             continue
         task_id = str(task.get("task_id"))
-        selected.append({"task_id": task_id, "repo": repo, "priority": task.get("priority")})
+        route = execution_policy.route_metadata(task_class="coding")
+        selected.append({"task_id": task_id, "repo": repo, "priority": task.get("priority"), **route})
         if dry_run:
             continue
     if dry_run:
@@ -1773,6 +1775,19 @@ def _worktree_has_python_markers(worktree: Path, files_touched: list[str]) -> bo
     return any(path.is_file() and path.suffix == ".py" for path in (worktree / "tests").rglob("*")) if (worktree / "tests").exists() else False
 
 
+def _worktree_prefers_pytest(worktree: Path) -> bool:
+    if (worktree / "pytest.ini").exists() or (worktree / "conftest.py").exists():
+        return True
+    pyproject = worktree / "pyproject.toml"
+    if not pyproject.exists():
+        return False
+    try:
+        text = pyproject.read_text(encoding="utf-8", errors="ignore").lower()
+    except Exception:
+        return False
+    return "pytest" in text or "[tool.pytest" in text
+
+
 def _test_commands_for_policy(repo: str, worktree: Path, files_touched: list[str]) -> list[list[str]]:
     commands: list[list[str]] = [["git", "diff", "--check"]]
     package_roots = _product_roots_for_repo(repo, worktree)
@@ -1792,8 +1807,12 @@ def _test_commands_for_policy(repo: str, worktree: Path, files_touched: list[str
     py_roots = [root for root in ("src", "modules", "app", "lib", "components", "infra", "tests") if (worktree / root).exists()]
     if has_python and py_roots:
         commands.append(["python3", "-m", "compileall", "-q", *py_roots])
-    if (worktree / "tests").exists() and any(path.is_file() and path.suffix == ".py" for path in (worktree / "tests").rglob("*")):
-        commands.append(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"])
+    has_python_tests = (worktree / "tests").exists() and any(path.is_file() and path.suffix == ".py" for path in (worktree / "tests").rglob("*"))
+    if has_python_tests:
+        if _worktree_prefers_pytest(worktree):
+            commands.append(["python3", "-m", "pytest", "tests", "-q"])
+        else:
+            commands.append(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"])
     if len(commands) == 1 and (worktree / "pyproject.toml").exists():
         commands.append(["python3", "-m", "compileall", "-q", "."])
     return commands
@@ -1886,6 +1905,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             f"{path_contract} "
             "At least one file must be product code under src/, modules/, app/, lib/, components/ or infra/ inside the product scope. "
             "Modify/reuse the existing architecture shown below. Do not invent parallel Express/NestJS/Mongoose routes or undeclared dependencies when the repo is Next.js/Firebase or another stack. "
+            "For Python tests, prefer unittest-compatible tests unless pytest is declared by the repository. "
             "Include tests under tests/ when behavior is testable. No secrets, no cloud apply, no production deploy, no markdown-only result.\n\n"
             f"TASK:\n{objective[:4000]}\n\nPREVIOUS FAILURES:\n{failures[:1500]}\n\n"
             f"ARCHITECTURE CONTEXT:\n{_repo_architecture_context(repo, worktree, objective, max_chars=4000)}\n\n"
@@ -2470,7 +2490,8 @@ def fanout_execute(repo: str, task_ids: list[str], concurrency: int = 6, dry_run
     admitted_ids = ids[:max_workers]
     queued_ids = ids[max_workers:]
     if dry_run:
-        return {"ok": True, "dry_run": True, "repo": repo, "task_ids": ids, "admitted_task_ids": admitted_ids, "queued_task_ids": queued_ids, "concurrency": max_workers, "capacity": capacity}
+        route = execution_policy.route_metadata(task_class="coding")
+        return {"ok": True, "dry_run": True, "repo": repo, "task_ids": ids, "admitted_task_ids": admitted_ids, "queued_task_ids": queued_ids, "concurrency": max_workers, "capacity": capacity, **route}
 
     scheduler_start(max_concurrent=max_workers, dry_run=False)
     started_at = _now()

@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from raphiia_openai import funding_registry, mongo_store
+from raphiia_openai import execution_policy, funding_registry, mongo_store
 from raphiia_openai import digitalocean_amd_provider
 from raphiia_openai import local_discord_plane
 from raphiia_openai import local_gitlab_plane
@@ -32,6 +32,8 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
             "capabilities": ["coding", "heavy_reasoning", "gpu_inference", "tests_build"],
             "node": "192.168.1.5",
             "local_first": True,
+            "preferred_model": execution_policy.DEFAULT_PREFERRED_MODEL,
+            "execution_policy": "local_first",
             "status": "active",
         },
         {
@@ -51,16 +53,20 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
         {
             "model_provider": "local-amd",
             "provider_id": "local-amd-5",
-            "task_classes": ["coding", "heavy_reasoning"],
+            "task_classes": ["coding", "heavy_reasoning", "code_review", "refactor", "basic_ops"],
+            "model_name": execution_policy.DEFAULT_PREFERRED_MODEL,
             "priority": 10,
             "cost_policy": "local_first",
+            "execution_policy": "local_first",
         },
         {
             "model_provider": "local-intel",
             "provider_id": "local-intel-4",
             "task_classes": ["tests_build", "browser_review", "fallback"],
+            "model_name": "local-intel-tools",
             "priority": 20,
             "cost_policy": "local_first",
+            "execution_policy": "local_first",
         },
         digitalocean_amd_provider.model_provider_document(),
         local_gitlab_plane.model_provider_document(),
@@ -86,7 +92,7 @@ def resource_fabric_status(limit: int = 20) -> dict[str, Any]:
         "models": list(db[COL_MODEL_REGISTRY].find({}, {"_id": 0}).sort("priority", 1).limit(limit)),
         "links": list(db[COL_RESOURCE_LINKS].find({}, {"_id": 0}).sort("updated_at", -1).limit(limit)),
         "funding": funding_registry.get_funding_registry_summary(limit=5),
-        "routing_policy": "local-first; cloud burst only when explicit capability/policy and approval gates are satisfied",
+        "routing_policy": execution_policy.POLICY_ID,
     }
 
 
@@ -114,7 +120,26 @@ def link_project_capability(project_id: str, capability: str, provider_id: str =
     return {"ok": True, "link": doc}
 
 
-def route_resource_request(project_id: str, task_class: str, prefer_cloud: bool = False) -> dict[str, Any]:
+def route_resource_request(
+    project_id: str,
+    task_class: str,
+    prefer_cloud: bool = False,
+    fallback_reason: str = "",
+    approval_id: str = "",
+    owner_override: bool = False,
+) -> dict[str, Any]:
+    task_class = execution_policy.normalize_task_class(task_class)
+    if prefer_cloud:
+        local_models = list(mongo_store.get_db()[COL_MODEL_REGISTRY].find({"task_classes": task_class, "cost_policy": "local_first"}, {"_id": 0}).limit(1))
+        decision = execution_policy.external_execution_decision(
+            task_class=task_class,
+            local_available=bool(local_models),
+            fallback_reason=fallback_reason,
+            approval_id=approval_id,
+            owner_override=owner_override,
+        )
+        if not decision.get("ok"):
+            return {"ok": False, "project_id": project_id, "task_class": task_class, "error": decision["decision"], "policy": decision}
     db = mongo_store.get_db()
     models = list(db[COL_MODEL_REGISTRY].find({"task_classes": task_class}, {"_id": 0}).sort("priority", 1))
     if not models:
@@ -129,4 +154,16 @@ def route_resource_request(project_id: str, task_class: str, prefer_cloud: bool 
     if prefer_cloud:
         candidates.sort(key=lambda row: 0 if (row.get("model") or {}).get("cost_policy") == "explicit_burst_only" else 1)
     selected = candidates[0] if candidates else None
-    return {"ok": bool(selected), "project_id": project_id, "task_class": task_class, "selected": selected, "candidates": candidates}
+    return {
+        "ok": bool(selected),
+        "project_id": project_id,
+        "task_class": task_class,
+        "selected": selected,
+        "candidates": candidates,
+        "policy": execution_policy.task_contract(
+            task_class=task_class,
+            fallback_reason=fallback_reason,
+            approval_id=approval_id,
+            owner_override=owner_override,
+        ),
+    }
