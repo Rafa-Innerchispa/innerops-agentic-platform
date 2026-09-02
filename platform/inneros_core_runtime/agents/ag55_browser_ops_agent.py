@@ -6,6 +6,7 @@ Evidencia en data/ralfia/browser_ops/evidence/.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -43,16 +44,19 @@ DEFAULT_ALLOWLIST = (
     "login.microsoftonline.com",
     "login.live.com",
     "outlook.live.com",
+    "creatorcore.ai",
+    "alpaca.markets",
 )
+DEFAULT_LOOPBACK_PORTS = (8088,)
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+METADATA_HOSTS = {"169.254.169.254"}
 
-EVIDENCE_ROOT = Path(os.getenv(
-    "BROWSER_OPS_EVIDENCE",
-    "/home/rlopez/data/ralfia/browser_ops/evidence",
-))
-USER_DATA_ROOT = Path(os.getenv(
-    "BROWSER_OPS_USER_DATA",
-    "/home/rlopez/data/ralfia/browser_ops/profiles",
-))
+EVIDENCE_ROOT = Path(
+    os.getenv("BROWSER_OPS_EVIDENCE", "/home/rlopez/data/ralfia/browser_ops/evidence")
+)
+USER_DATA_ROOT = Path(
+    os.getenv("BROWSER_OPS_USER_DATA", "/home/rlopez/data/ralfia/browser_ops/profiles")
+)
 
 
 def _profile_dir(profile: str) -> Path:
@@ -73,12 +77,46 @@ def _allowlist() -> tuple[str, ...]:
     return DEFAULT_ALLOWLIST
 
 
-def _host_allowed(url: str) -> bool:
+def _loopback_ports(extra_ports: list[int] | tuple[int, ...] | None = None) -> tuple[int, ...]:
+    raw = os.getenv("BROWSER_OPS_LOOPBACK_PORTS", "")
+    ports: set[int] = set(DEFAULT_LOOPBACK_PORTS)
+    for value in [*raw.split(","), *(extra_ports or [])]:
+        try:
+            port = int(str(value).strip())
+        except (TypeError, ValueError):
+            continue
+        if 1 <= port <= 65535:
+            ports.add(port)
+    return tuple(sorted(ports))
+
+
+def _is_private_or_metadata_host(host: str) -> bool:
+    if host in METADATA_HOSTS:
+        return True
     try:
-        host = (urlparse(url).hostname or "").lower()
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+
+
+def _host_allowed(
+    url: str,
+    *,
+    local_preview: bool = False,
+    loopback_ports: list[int] | tuple[int, ...] | None = None,
+) -> bool:
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
     except ValueError:
         return False
     if not host:
+        return False
+    if host in LOOPBACK_HOSTS:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        return bool(port in _loopback_ports(loopback_ports))
+    if _is_private_or_metadata_host(host):
         return False
     for allowed in _allowlist():
         if host == allowed or host.endswith(f".{allowed}"):
@@ -86,12 +124,60 @@ def _host_allowed(url: str) -> bool:
     return False
 
 
+def _url_allowed_result(
+    url: str,
+    *,
+    local_preview: bool = False,
+    loopback_ports: list[int] | tuple[int, ...] | None = None,
+) -> dict[str, Any]:
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        return {"ok": False, "error": "invalid_url"}
+    if parsed.scheme not in {"http", "https"} or not host:
+        return {"ok": False, "error": "invalid_url"}
+    if host in LOOPBACK_HOSTS:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        ports = _loopback_ports(loopback_ports)
+        if port in ports:
+            return {
+                "ok": True,
+                "mode": "local_preview" if local_preview else "loopback_allowlist",
+                "host": host,
+                "port": port,
+                "loopback_ports": list(ports),
+            }
+        return {
+            "ok": False,
+            "error": "loopback_not_allowlisted",
+            "host": host,
+            "port": port,
+            "loopback_ports": list(ports),
+        }
+    if _is_private_or_metadata_host(host):
+        return {"ok": False, "error": "private_or_metadata_host_blocked", "host": host}
+    if _host_allowed(url):
+        return {"ok": True, "mode": "domain_allowlist", "host": host}
+    return {
+        "ok": False,
+        "error": "domain_not_allowlisted",
+        "host": host,
+        "allowlist": list(_allowlist()),
+    }
+
+
 def _playwright_available() -> dict[str, Any]:
     try:
         import playwright  # noqa: F401
+
         return {"ok": True, "package": "playwright"}
     except ImportError:
-        return {"ok": False, "error": "playwright_not_installed", "fix": "pip install playwright && playwright install chromium"}
+        return {
+            "ok": False,
+            "error": "playwright_not_installed",
+            "fix": "pip install playwright && playwright install chromium",
+        }
 
 
 def agent_browser_status() -> dict[str, Any]:
@@ -101,13 +187,15 @@ def agent_browser_status() -> dict[str, Any]:
         for p in sorted(EVIDENCE_ROOT.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)[:10]:
             try:
                 data = json.loads(p.read_text(encoding="utf-8"))
-                evidence.append({
-                    "file": p.name,
-                    "task": data.get("task"),
-                    "url": data.get("url"),
-                    "at": data.get("at"),
-                    "ok": data.get("ok"),
-                })
+                evidence.append(
+                    {
+                        "file": p.name,
+                        "task": data.get("task"),
+                        "url": data.get("url"),
+                        "at": data.get("at"),
+                        "ok": data.get("ok"),
+                    }
+                )
             except (OSError, json.JSONDecodeError):
                 continue
     return {
@@ -116,6 +204,8 @@ def agent_browser_status() -> dict[str, Any]:
         "playwright": pw,
         "headless": os.getenv("BROWSER_OPS_HEADLESS", "1") != "0",
         "allowlist": list(_allowlist()),
+        "loopback_hosts": sorted(LOOPBACK_HOSTS),
+        "loopback_ports": list(_loopback_ports()),
         "evidence_dir": str(EVIDENCE_ROOT),
         "recent_runs": evidence,
         "mission": "Automatización puntual en navegador (formularios, capturas) — local, sin cloud",
@@ -143,6 +233,8 @@ def agent_browser_run_task(
     profile: str = "",
     dry_run: bool = True,
     timeout_ms: int = 30000,
+    local_preview: bool = False,
+    loopback_ports: list[int] | None = None,
 ) -> dict[str, Any]:
     """Ejecuta tarea browser allowlisted: navigate | screenshot | fill_form | click | extract."""
     task = (task or "navigate").strip().lower()
@@ -153,14 +245,13 @@ def agent_browser_run_task(
     if task != "status" and not url:
         return {"ok": False, "error": "url_required", "agent_id": AGENT_ID}
 
-    if url and not _host_allowed(url):
-        return {
-            "ok": False,
-            "error": "domain_not_allowlisted",
-            "url": url,
-            "allowlist": list(_allowlist()),
-            "agent_id": AGENT_ID,
-        }
+    url_guard = (
+        _url_allowed_result(url, local_preview=local_preview, loopback_ports=loopback_ports)
+        if url
+        else {"ok": True}
+    )
+    if url and not url_guard.get("ok"):
+        return {"ok": False, **url_guard, "url": url, "agent_id": AGENT_ID}
 
     if dry_run:
         return {
@@ -175,6 +266,8 @@ def agent_browser_run_task(
                 "click_selector": click_selector,
                 "extract_selector": extract_selector,
                 "profile": profile or "",
+                "local_preview": local_preview,
+                "url_guard": url_guard,
             },
         }
 
@@ -190,7 +283,6 @@ def agent_browser_run_task(
         "at": _now_iso(),
         "dry_run": False,
     }
-    screenshot_path = ""
     context = None
     browser = None
 
@@ -210,8 +302,20 @@ def agent_browser_run_task(
 
             if task in ("navigate", "screenshot", "fill_form", "click", "extract"):
                 page.goto(url, wait_until="domcontentloaded")
+                final_guard = _url_allowed_result(
+                    page.url,
+                    local_preview=local_preview,
+                    loopback_ports=loopback_ports,
+                )
+                if not final_guard.get("ok"):
+                    result["ok"] = False
+                    result["error"] = "redirect_target_not_allowlisted"
+                    result["final_url"] = page.url
+                    result["url_guard"] = final_guard
+                    raise RuntimeError("redirect_target_not_allowlisted")
+                result["final_url"] = page.url
 
-            if task == "screenshot" or task == "navigate":
+            if task in ("screenshot", "navigate"):
                 EVIDENCE_ROOT.mkdir(parents=True, exist_ok=True)
                 ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
                 screenshot_path = str(EVIDENCE_ROOT / f"{ts}_screenshot.png")
@@ -233,7 +337,7 @@ def agent_browser_run_task(
 
             if task == "extract":
                 sel = extract_selector or "body"
-                result["text"] = (page.locator(sel).first.inner_text(timeout=timeout_ms))[:8000]
+                result["text"] = page.locator(sel).first.inner_text(timeout=timeout_ms)[:8000]
 
             if context:
                 context.close()
@@ -245,5 +349,10 @@ def agent_browser_run_task(
 
     evidence_file = _save_evidence(result)
     result["evidence_file"] = evidence_file
-    record_agent_run(AGENT_ID, action=f"browser_{task}", summary=f"ok={result['ok']} url={url[:60]}", project="browser-ops")
+    record_agent_run(
+        AGENT_ID,
+        action=f"browser_{task}",
+        summary=f"ok={result['ok']} url={url[:60]}",
+        project="browser-ops",
+    )
     return result
