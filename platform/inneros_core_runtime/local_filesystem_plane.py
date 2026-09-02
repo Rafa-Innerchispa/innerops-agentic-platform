@@ -62,6 +62,12 @@ SECRET_PATTERNS = [
     re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
     re.compile(r"gh[opsu]_[A-Za-z0-9_]{20,}"),
 ]
+SOURCE_CODE_SUFFIXES = {".py", ".pyi", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+SOURCE_CODE_SECRET_PATTERNS = [
+    re.compile(r"(?i)(api[_-]?key|token|secret|password|passwd|private[_-]?key)\s*[:=]\s*['\"][^'\"]{8,}['\"]"),
+    re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
+    re.compile(r"gh[opsu]_[A-Za-z0-9_]{20,}"),
+]
 
 
 def _now_iso() -> str:
@@ -127,11 +133,12 @@ def _deny_sensitive(path: Path) -> None:
         raise PermissionError("git_internal_path_denied")
 
 
-def _check_content(content: str) -> None:
+def _check_content(content: str, *, source_code: bool = False) -> None:
     data = (content or "").encode("utf-8")
     if len(data) > MAX_WRITE_BYTES:
         raise ValueError("content_too_large")
-    for pattern in SECRET_PATTERNS:
+    patterns = SOURCE_CODE_SECRET_PATTERNS if source_code else SECRET_PATTERNS
+    for pattern in patterns:
         if pattern.search(content or ""):
             raise PermissionError("secret_content_denied")
 
@@ -232,8 +239,8 @@ def mkdir(path: str, actor: str, task_id: str, correlation_id: str) -> dict[str,
 def write_file(path: str, content: str, actor: str, task_id: str, correlation_id: str, mode: str = "replace") -> dict[str, Any]:
     try:
         _require_metadata(actor, task_id, correlation_id)
-        _check_content(content)
         target = _safe_resolve(path)
+        _check_content(content, source_code=target.suffix.lower() in SOURCE_CODE_SUFFIXES)
         target.parent.mkdir(parents=True, exist_ok=True)
         existed = target.exists()
         if mode not in {"replace", "create", "append"}:
