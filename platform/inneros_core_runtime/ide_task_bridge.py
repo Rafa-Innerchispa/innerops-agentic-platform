@@ -60,19 +60,60 @@ class MongoStore:
 
 
 def _provider_status(ide: str) -> dict[str, Any]:
+    """Probe local CLI when present; remote Windows IDEs use MCP inbox transport."""
+    remote_inbox_only = ide in {"antigravity", "gemini"}
     try:
         from raphiia_openai import external_repair_agent
         out = external_repair_agent.external_repair_agent_status(provider=ide)
         providers = ((out.get("matrix") or {}).get("providers") or []) if isinstance(out, dict) else []
         provider = providers[0] if providers else {}
+        installed = bool(provider.get("installed"))
+        headless = bool(provider.get("headless_supported"))
+        auth_ready = bool(provider.get("auth_ready"))
+        status = provider.get("status") or "unknown"
+        if ide == "cursor":
+            from inneros_core_runtime import cursor_execution_plane
+
+            return cursor_execution_plane.enrich_cursor_provider_status(provider)
+        if remote_inbox_only and not installed:
+            inbox = f"{ide}/INBOX.md"
+            return {
+                "provider": ide,
+                "installed": False,
+                "headless_supported": False,
+                "auth_ready": auth_ready,
+                "provider_status": "remote_inbox",
+                "transport": "ide_inbox",
+                "note": f"Remote IDE; delivery via MCP {inbox} — CLI on server not required",
+            }
         return {
             "provider": ide,
-            "installed": bool(provider.get("installed")),
-            "headless_supported": bool(provider.get("headless_supported")),
-            "auth_ready": bool(provider.get("auth_ready")),
-            "provider_status": provider.get("status") or "unknown",
+            "installed": installed,
+            "headless_supported": headless,
+            "auth_ready": auth_ready,
+            "provider_status": status,
+            "transport": "external_repair" if installed and headless and auth_ready else "ide_inbox",
         }
     except Exception as exc:
+        if ide == "cursor":
+            try:
+                from inneros_core_runtime import cursor_execution_plane
+
+                return cursor_execution_plane.enrich_cursor_provider_status(
+                    {"installed": False, "headless_supported": False, "auth_ready": False, "error": type(exc).__name__}
+                )
+            except Exception:
+                pass
+        if remote_inbox_only:
+            return {
+                "provider": ide,
+                "installed": False,
+                "headless_supported": False,
+                "auth_ready": False,
+                "provider_status": "remote_inbox",
+                "transport": "ide_inbox",
+                "error": type(exc).__name__,
+            }
         return {"provider": ide, "installed": False, "headless_supported": False, "auth_ready": False, "provider_status": "unknown", "error": type(exc).__name__}
 
 
@@ -103,6 +144,8 @@ def dispatch_task(
         checklist=[clean_body, f"IDE target={target}", "Claim task before editing", "Use isolated worktree/RACB when repo writes are required"],
         evidence_required=["status OK/PARTIAL/FAIL", "commit/tests/evidence refs"] if require_evidence else ["status OK/PARTIAL/FAIL"],
         priority=priority, from_agent=sender_identity["actor_id"], correlation_id=cid, related_project=repo or None,
+        repo=repo or None, base_ref=branch or None, task_class="coding",
+        execution_lane="ide_inbox", provider_transport=transport if "transport" in locals() else None,
     )
     if not created.get("ok"):
         return {"ok": False, "error": "ops_task_create_failed", "details": created}
@@ -134,10 +177,40 @@ def task_status(dispatch_id: str, store: Store | None = None) -> dict[str, Any]:
     try:
         from raphiia_openai import coordination_live, mongo_store
         task = mongo_store.get_db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": rec.get("ops_task_id")}, {"_id": 0}) or {}
-        rec = {**rec, "ops_status": task.get("status"), "ops_owner": task.get("owner"), "ops_evidence": task.get("evidence") or {}}
+        ops_status = task.get("status")
+        if ops_status in {"completed", "cancelled", "failed"} and rec.get("execution_state") not in TERMINAL:
+            new_exec = "completed" if ops_status == "completed" else ("cancelled" if ops_status == "cancelled" else "failed")
+            rec["execution_state"] = new_exec
+            rec["completed_at"] = _now()
+            rec["updated_at"] = _now()
+            rec["evidence"] = task.get("evidence") or {"reconciled_from_ops_task": True}
+            store.put(rec)
+        rec = {**rec, "ops_status": ops_status, "ops_owner": task.get("owner"), "ops_evidence": task.get("evidence") or {}}
     except Exception:
         pass
     return {"ok": True, **rec, "terminal": rec.get("execution_state") in TERMINAL}
+
+
+def reconcile_stale_dispatches() -> dict[str, Any]:
+    from raphiia_openai import coordination_live, mongo_store
+    db = mongo_store.get_db()
+    col_disp = db[IDE_DISPATCH_COL]
+    col_tasks = db[coordination_live.OPS_TASKS_COL]
+    queued = list(col_disp.find({"execution_state": {"$nin": list(TERMINAL)}}))
+    reconciled = 0
+    for d in queued:
+        ops_id = d.get("ops_task_id")
+        if ops_id:
+            task = col_tasks.find_one({"task_id": ops_id})
+            ops_status = task.get("status") if task else None
+            if ops_status in {"completed", "cancelled", "failed"}:
+                new_exec = "completed" if ops_status == "completed" else ("cancelled" if ops_status == "cancelled" else "failed")
+                col_disp.update_one(
+                    {"dispatch_id": d["dispatch_id"]},
+                    {"$set": {"execution_state": new_exec, "completed_at": _now(), "updated_at": _now(), "evidence": task.get("evidence") or {}}}
+                )
+                reconciled += 1
+    return {"ok": True, "reconciled_count": reconciled}
 
 
 def claim_task(dispatch_id: str, ide: str, store: Store | None = None) -> dict[str, Any]:

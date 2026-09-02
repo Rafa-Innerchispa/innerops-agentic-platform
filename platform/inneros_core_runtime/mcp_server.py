@@ -213,6 +213,24 @@ def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = True) -> dict
 
 
 @mcp.tool
+def run_antigravity_cli(args: str = "--status") -> dict[str, Any]:
+    """Ejecuta la CLI de Antigravity (agy) en el servidor de forma remota y devuelve el resultado."""
+    import subprocess
+    cmd = ["/home/rlopez/.local/bin/agy"] + (args.split() if args else ["--status"])
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return {
+            "ok": res.returncode == 0,
+            "stdout": res.stdout,
+            "stderr": res.stderr,
+            "exit_code": res.returncode,
+            "cli_path": "/home/rlopez/.local/bin/agy",
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "cli_path": "/home/rlopez/.local/bin/agy"}
+
+
+@mcp.tool
 def identify_agent_session(
     agent: str,
     account: str = "",
@@ -2236,8 +2254,16 @@ def approve_pipeline_draft(draft_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
-def generate_draft_image(draft_id: str) -> dict[str, Any]:
-    """Genera imagen para borrador."""
+def editorial_image_providers(check_live: bool = True) -> dict[str, Any]:
+    """Lista proveedores de imagen editorial y estado ready/not_ready."""
+    from raphiia_openai import image_gen
+
+    return image_gen.available_providers(check_live=check_live)
+
+
+@mcp.tool
+def generate_draft_image(draft_id: str, provider: str = "", seed: int | None = None) -> dict[str, Any]:
+    """Genera imagen real para borrador usando proveedor explícito o default local-first."""
     from raphiia_openai import editorial_store, image_gen
 
     dr = editorial_store.get_draft(draft_id)
@@ -2245,15 +2271,33 @@ def generate_draft_image(draft_id: str) -> dict[str, Any]:
         return dr
     draft = dr["draft"]
     editorial_store.update_draft(draft_id, {"status": editorial_store.STATUS_GENERATING})
-    gen = image_gen.generate_for_draft(draft_id, draft.get("title", ""), draft.get("markdown", draft.get("body", "")))
+    gen = image_gen.generate_for_draft(
+        draft_id,
+        draft.get("title", ""),
+        draft.get("markdown", draft.get("body", "")),
+        metadata=draft.get("metadata") or {},
+        provider=provider or None,
+        seed=seed,
+    )
     if not gen.get("ok"):
         return gen
-    return editorial_store.attach_media(
+    out = editorial_store.attach_media(
         draft_id,
         media_path=gen["media_path"],
         media_prompt=gen["media_prompt"],
         provider=gen["provider"],
+        metadata={
+            "provider": gen.get("provider"),
+            "model": gen.get("model", ""),
+            "backend": gen.get("backend", ""),
+            "seed": gen.get("seed"),
+            "prompt_effective": gen.get("media_prompt", ""),
+            "prompt_id": gen.get("prompt_id", ""),
+            "request_id": gen.get("request_id", ""),
+            "warnings": gen.get("warnings", []),
+        },
     )
+    return {**out, "provider": gen.get("provider"), "model": gen.get("model", ""), "seed": gen.get("seed"), "warnings": gen.get("warnings", [])}
 
 
 @mcp.tool
@@ -3735,6 +3779,54 @@ def get_disk_steward_status(include_candidates: bool = True) -> dict[str, Any]:
     from raphiia_openai import disk_steward
 
     return disk_steward.build_status(include_candidates=include_candidates)
+
+
+@mcp.tool
+def disk_steward_inventory(include_candidates: bool = True) -> dict[str, Any]:
+    """AG-37: inventario seguro de discos/backups, candidatos, policy y guardrails."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_inventory(include_candidates=include_candidates)
+
+
+@mcp.tool
+def disk_steward_plan_migration(source_path: str = "", destination_root: str = "", reason: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """AG-37: crea un plan de migración allowlisted source->destination sin mover datos."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_plan_migration(source_path=source_path, destination_root=destination_root, reason=reason, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_execute_migration(plan_id: str, dry_run: bool = True) -> dict[str, Any]:
+    """AG-37: ejecuta copia de un plan ya creado; dry_run=True por defecto."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_execute_migration(plan_id, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_verify_migration(plan_id: str) -> dict[str, Any]:
+    """AG-37: verifica tamaño/checksums de una migración antes de permitir limpieza."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_verify_migration(plan_id)
+
+
+@mcp.tool
+def disk_steward_cleanup_verified(plan_id: str, verified: bool = False) -> dict[str, Any]:
+    """AG-37: limpia origen solo si el plan está verificado y verified=True."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_cleanup_verified(plan_id, verified=verified)
+
+
+@mcp.tool
+def disk_steward_update_backup_policy(preferred_backup_root: str = "", write: bool = False) -> dict[str, Any]:
+    """AG-37: lee o actualiza policy de destino de backups hacia disco no primario allowlisted."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_backup_policy(preferred_backup_root=preferred_backup_root or None, write=write)
 
 
 @mcp.tool

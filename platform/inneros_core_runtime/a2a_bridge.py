@@ -38,6 +38,18 @@ BASE_CARDS: dict[str, dict[str, Any]] = {
         "skills": [{"id": "integration-guardian", "name": "Integration Guardian", "description": "Evidence checks"}],
         "metadata": {"agent_id": "integration-guardian", "assignee": "ralfia", "domain": "ops", "local_first": True},
     },
+    "antigravity-agent": {
+        "name": "Antigravity Agent",
+        "description": "Antigravity 2.0 / AGY IDE agent for InnerOS pair programming and execution.",
+        "url": "inneros://a2a/antigravity-agent",
+        "version": BRIDGE_VERSION,
+        "protocolVersion": PROTOCOL_VERSION,
+        "capabilities": {"streaming": False, "pushNotifications": False, "stateTransitionHistory": True},
+        "defaultInputModes": ["text/plain", "application/json"],
+        "defaultOutputModes": ["application/json"],
+        "skills": [{"id": "antigravity-agent", "name": "Antigravity Agent", "description": "IDE and CLI execution bridge"}],
+        "metadata": {"agent_id": "antigravity-agent", "assignee": "antigravity", "domain": "platform", "local_first": True},
+    },
 }
 
 
@@ -140,6 +152,11 @@ def dispatch(
         from_agent="A2A",
         correlation_id=cid,
         related_project=related_project,
+        project_id=related_project if related_project and "/" not in related_project else None,
+        repo=related_project if related_project and "/" in related_project else None,
+        task_class="coding",
+        execution_lane="a2a",
+        provider_transport="inneros_coordination_live",
     )
     doc = {**envelope, "ops_task_id": task.get("task_id"), "ops_created": task.get("created"), "updated_at": _now()}
     mongo_store.get_db()[TASK_COL].update_one({"a2a_task_id": a2a_id}, {"$set": doc, "$setOnInsert": {"first_seen_at": doc["created_at"]}}, upsert=True)

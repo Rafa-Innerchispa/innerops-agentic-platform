@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, local_execution_plane, local_model_router, mongo_store
+from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -34,7 +34,7 @@ ELIGIBLE_STATUSES = ("proposed",)
 OPS_TERMINAL_STATUSES = frozenset({"blocked", "completed", "cancelled", "failed"})
 PRIORITY_ORDER = {"critical": 0, "p0": 1, "p1": 2, "normal": 3, "p2": 4, "low": 5}
 SAFE_INNEROS_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
-ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini"}
+ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini", "dev_swarm"}
 TERMINAL_EXECUTOR_STATUSES = {"executed", "needs_implementation", "failed", "blocked"}
 LEGACY_SAFE_TASK_IDS = {
     "ops_e7cacfc4a525",
@@ -247,16 +247,93 @@ CANONICAL_REPO_HINTS = {
 }
 
 
-def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
-    candidates: list[str] = []
-    for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo"):
-        value = str(task.get(key) or "").strip()
+WRITE_TASK_CLASSES = {"coding", "code_review", "refactor", "tests", "build", "deployment"}
+LOCAL_DEV_SWARM_LANE = "local_dev_swarm"
+
+
+def _registry_resolve_repo(project_id: str = "", repo: str = "") -> str | None:
+    try:
+        resolved = project_runtime_registry.resolve_project(project_id=project_id or "", repo=repo or "")
+    except Exception:
+        return None
+    if not resolved.get("ok"):
+        return None
+    project = resolved.get("project") if isinstance(resolved.get("project"), dict) else {}
+    value = str((project or {}).get("repo") or resolved.get("repo") or "").strip()
+    return value or None
+
+
+def _structured_repo_binding(task: dict[str, Any]) -> str | None:
+    repo = str(task.get("repo") or task.get("repository") or "").strip()
+    project_id = str(task.get("project_id") or "").strip()
+    if repo:
+        return repo
+    if project_id:
+        return _registry_resolve_repo(project_id=project_id)
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if payload:
+        repo = str(payload.get("repo") or payload.get("repository") or "").strip()
+        project_id = str(payload.get("project_id") or "").strip()
+        if repo:
+            return repo
+        if project_id:
+            return _registry_resolve_repo(project_id=project_id)
+    return None
+
+
+def _requires_structured_binding(task: dict[str, Any], text: str) -> bool:
+    if _is_non_dev_ops_task(task, text):
+        return False
+    if str(task.get("task_class") or "").lower() in WRITE_TASK_CLASSES:
+        return True
+    if any(marker in text for marker in ("write", "create files", "crear archivos", "implement", "implementar", "repair", "reparar", "npm ci", "tests", "worktree", "deploy", "activar runtime")):
+        return True
+    if any(marker in text for marker in ("workforce", "femar", "xprize", "devpost", "cloudflare", "alpaca")):
+        return True
+    return False
+
+
+def _execution_lane_for_task(task: dict[str, Any]) -> str:
+    tags = {str(item).lower() for item in task.get("tags") or []}
+    if "dev_swarm_fixture" in tags:
+        return LOCAL_DEV_SWARM_LANE
+    value = str(task.get("execution_lane") or "").strip().lower()
+    if value:
+        return value
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if payload:
+        value = str(payload.get("execution_lane") or "").strip().lower()
         if value:
-            candidates.append(value)
+            return value
+    assignee = str(task.get("assignee") or "").strip().lower()
+    if assignee == "dev_swarm":
+        return LOCAL_DEV_SWARM_LANE
+    return ""
+
+
+def _repo_from_related_project(task: dict[str, Any]) -> str | None:
+    value = str(task.get("related_project") or "").strip()
+    if value.startswith("Rafa-Innerchispa/"):
+        return value
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    value = str((payload or {}).get("related_project") or "").strip()
+    if value.startswith("Rafa-Innerchispa/"):
+        return value
+    return None
+
+
+def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
+    structured = _structured_repo_binding(task)
+    if structured:
+        return structured
+    related = _repo_from_related_project(task)
+    if related:
+        return related
+    candidates: list[str] = []
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
     for obj in (payload, metadata):
-        for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo", "project", "related_project"):
+        for key in ("repo_full_name", "canonical_repo", "target_repo"):
             value = str((obj or {}).get(key) or "").strip()
             if value:
                 candidates.append(value)
@@ -267,14 +344,6 @@ def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
         for marker, repo in CANONICAL_REPO_HINTS.items():
             if marker in lowered:
                 return repo
-    if "services/femar-mvp-core" in text:
-        return "Rafa-Innerchispa/innerspark-workforce-ai"
-    if "innerspark-workforce-ai" in text:
-        return "Rafa-Innerchispa/innerspark-workforce-ai"
-    workforce_dev = "workforce" in text and any(marker in text for marker in ("dev swarm", "implementation", "implementacion", "implementar", "tests", "jest", "package_root", "package roots", "femar", "node_modules", "npm ci", "worktree", "base_ref"))
-    hostname_only = "workforce.pcdoctor.ai" in text and not any(marker in text for marker in ("innerspark-workforce-ai", "services/femar-mvp-core", "dev swarm", "npm ci", "worktree"))
-    if workforce_dev and not hostname_only:
-        return "Rafa-Innerchispa/innerspark-workforce-ai"
     return None
 
 
@@ -627,9 +696,35 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     text = _task_search_text(task)
     if _is_non_dev_ops_task(task, text):
         return False, "non_development_ops_filtered", None
-    repo = _infer_repo(task)
+
+    lane = _execution_lane_for_task(task)
+    binding_repo = _structured_repo_binding(task) or _repo_from_related_project(task)
+    inferred_repo = _infer_repo(task)
+    repo = binding_repo or inferred_repo
+
+    product_binding_markers = (
+        "inneros-alpha-alpaca",
+        "inneros-webmcp",
+        "innerspark-workforce-ai",
+        "workforce",
+        "femar",
+        "xprize",
+        "devpost",
+        "cloudflare",
+    )
+    if _requires_structured_binding(task, text) and not binding_repo:
+        platform_context = any(marker in text for marker in ("innerops", "all things agentic", "agentic platform"))
+        product_context = any(marker in text for marker in product_binding_markers)
+        if product_context and not (repo == SAFE_INNEROS_REPO and platform_context):
+            return False, "blocked_missing_task_binding", None
+        if not (lane == LOCAL_DEV_SWARM_LANE and repo == SAFE_INNEROS_REPO):
+            return False, "blocked_missing_task_binding", None
+    if lane and lane != LOCAL_DEV_SWARM_LANE:
+        return False, f"execution_lane_not_local_dev_swarm:{lane}", None
+    if assignee in {"codex", "cursor", "antigravity"} and not retry_allowed and lane != LOCAL_DEV_SWARM_LANE:
+        return False, "execution_lane_required_for_dev_swarm", None
     if not repo:
-        return False, "repo_not_inferred", None
+        return False, "blocked_missing_task_binding", None
     policy = local_execution_plane.repo_policy_status(repo)
     if not policy.get("ok"):
         return False, f"repo_policy_denied:{policy.get('error')}", repo
@@ -924,7 +1019,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
                 )
             continue
         task_id = str(task.get("task_id"))
-        selected.append({"task_id": task_id, "repo": repo, "priority": task.get("priority")})
+        selected.append({"task_id": task_id, "repo": repo, "priority": task.get("priority"), "preferred_provider": "local-amd-5"})
         if dry_run:
             continue
     if dry_run:
@@ -1793,7 +1888,15 @@ def _test_commands_for_policy(repo: str, worktree: Path, files_touched: list[str
     if has_python and py_roots:
         commands.append(["python3", "-m", "compileall", "-q", *py_roots])
     if (worktree / "tests").exists() and any(path.is_file() and path.suffix == ".py" for path in (worktree / "tests").rglob("*")):
-        commands.append(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"])
+        pyproject = ""
+        try:
+            pyproject = (worktree / "pyproject.toml").read_text(encoding="utf-8", errors="ignore").lower()
+        except Exception:
+            pyproject = ""
+        if "pytest" in pyproject:
+            commands.append(["python3", "-m", "pytest", "tests", "-q"])
+        else:
+            commands.append(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"])
     if len(commands) == 1 and (worktree / "pyproject.toml").exists():
         commands.append(["python3", "-m", "compileall", "-q", "."])
     return commands
@@ -1881,6 +1984,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         _set_worker_phase(task_id, "inference", attempt_count=attempt, blocker=None)
         prompt = (
             "You are an autonomous LOCAL software implementation worker. IMPLEMENT the task now. "
+            "For Python tests, prefer unittest-compatible tests unless pytest is declared by the repository. "
             "Return ONLY valid JSON with this shape: "
             "{\"summary\":\"...\",\"files\":[{\"path\":\"relative/path\",\"content\":\"FULL file content\"}]}. "
             f"{path_contract} "
@@ -2045,6 +2149,19 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             },
         }})
         coordination_live.heartbeat_ops_task(task_id, "dev_swarm", next_action="PASS: ready for Integration Guardian", blocker=None, files_touched=sorted(set(files_touched)))
+        try:
+            from raphiia_openai.notifications.ops_task_alerts import notify_dev_swarm_outcome
+
+            notify_dev_swarm_outcome(
+                task_id=task_id,
+                repo=repo,
+                branch=branch,
+                outcome="PASS",
+                files_touched=sorted(set(files_touched)),
+                commit_head=str(commit.get("head") or ""),
+            )
+        except Exception:
+            pass
         return {"ok": True, "task_id": task_id, "repo": repo, "branch": branch, "outcome": "PASS", "attempts": attempt, "implementation_writes": sorted(set(files_touched)), "implementation_writes_product": _implementation_write_classes(repo, worktree, files_touched)["product"], "files_touched": sorted(set(files_touched)), "commit_head": commit.get("head"), "commands_ok": True, "local_model_ok": local_model_ok, "model_route": last_model_route}
 
     evidence = {

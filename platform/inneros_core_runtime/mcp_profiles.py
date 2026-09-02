@@ -683,7 +683,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "server_ops": {
         "label": "Ops local servidor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 19,
+        "max_tools": 26,
         "tools": [
             "get_coordination_live",
             "identify_agent_session",
@@ -704,6 +704,12 @@ PROFILES: dict[str, dict[str, Any]] = {
             "list_self_heal_incidents",
             "list_self_heal_baselines",
             "save_self_heal_baseline",
+            "get_disk_steward_status",
+            "disk_steward_inventory",
+            "disk_steward_plan_migration",
+            "disk_steward_execute_migration",
+            "disk_steward_verify_migration",
+            "disk_steward_update_backup_policy",
         ],
     },
     "peer_ops": {

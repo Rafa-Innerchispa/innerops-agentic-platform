@@ -23,7 +23,7 @@ MANDATORY_READS: tuple[str, ...] = (
     "OPEN_QUESTIONS.md",
 )
 
-ASSIGNEES = frozenset({"cursor", "codex", "antigravity", "chatgpt", "gemini", "notion", "ralfia", "rafael"})
+ASSIGNEES = frozenset({"cursor", "codex", "antigravity", "chatgpt", "gemini", "notion", "ralfia", "rafael", "dev_swarm"})
 
 
 def _now() -> str:
@@ -227,6 +227,18 @@ def create_ops_task(
     source_message_id: str | None = None,
     conversation_ref: str | None = None,
     related_project: str | None = None,
+    project_id: str | None = None,
+    repo: str | None = None,
+    base_ref: str | None = None,
+    work_branch: str | None = None,
+    task_class: str | None = None,
+    execution_lane: str | None = None,
+    provider_transport: str | None = None,
+    runtime_profile: str | None = None,
+    execution_policy: str | None = None,
+    preferred_provider: str | None = None,
+    preferred_model: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     assignee_l = (assignee or "").strip().lower()
     if assignee_l not in ASSIGNEES:
@@ -282,7 +294,19 @@ def create_ops_task(
         "evidence": {},
         "source_message_id": (source_message_id or "").strip() or None,
         "conversation_ref": (conversation_ref or "").strip() or None,
-        "related_project": (related_project or "").strip() or None,
+        "related_project": (related_project or repo or "").strip() or None,
+        "project_id": (project_id or "").strip() or None,
+        "repo": (repo or "").strip() or None,
+        "base_ref": (base_ref or "").strip() or None,
+        "work_branch": (work_branch or "").strip() or None,
+        "task_class": (task_class or "").strip() or None,
+        "execution_lane": (execution_lane or "").strip() or None,
+        "provider_transport": (provider_transport or "").strip() or None,
+        "runtime_profile": (runtime_profile or "").strip() or None,
+        "execution_policy": (execution_policy or "local_first").strip() or "local_first",
+        "preferred_provider": (preferred_provider or "").strip() or None,
+        "preferred_model": (preferred_model or "").strip() or None,
+        "idempotency_key": (idempotency_key or "").strip() or None,
     }
     # PyMongo mutates the inserted mapping by adding ``_id``. Keep the public
     # tool response JSON-safe so MCP can return structuredContent reliably.
@@ -311,6 +335,18 @@ def create_ops_task(
             "source_message_id": doc["source_message_id"],
             "conversation_ref": doc["conversation_ref"],
             "related_project": doc["related_project"],
+            "project_id": doc["project_id"],
+            "repo": doc["repo"],
+            "base_ref": doc["base_ref"],
+            "work_branch": doc["work_branch"],
+            "task_class": doc["task_class"],
+            "execution_lane": doc["execution_lane"],
+            "provider_transport": doc["provider_transport"],
+            "runtime_profile": doc["runtime_profile"],
+            "execution_policy": doc["execution_policy"],
+            "preferred_provider": doc["preferred_provider"],
+            "preferred_model": doc["preferred_model"],
+            "idempotency_key": doc["idempotency_key"],
         },
         related_project=doc["related_project"],
         tags=["ops_task", tid, cid],
@@ -434,6 +470,21 @@ def update_ops_task_state(
         return {"ok": False, "error": "concurrent_transition", "task_id": task_id}
 
     bump_revision(reason=f"ops_task {task_id} → {transition['patch']['status']}", source=actor)
+    updated = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
+    notify_out: dict[str, Any] | None = None
+    try:
+        from raphiia_openai.notifications.ops_task_alerts import notify_ops_transition
+
+        notify_out = notify_ops_transition(
+            updated,
+            previous_status=str(task.get("status") or ""),
+            actor=actor,
+            blocker=transition["patch"].get("blocker") or task.get("blocker"),
+            evidence=evidence,
+        )
+    except Exception as exc:
+        notify_out = {"ok": False, "error": str(exc)}
+
     return {
         "ok": True,
         "idempotent": False,
@@ -441,6 +492,7 @@ def update_ops_task_state(
         "status": transition["patch"]["status"],
         "revision": transition["revision"],
         "owner": transition["patch"].get("owner", task.get("owner")),
+        "whatsapp_notify": notify_out,
     }
 
 

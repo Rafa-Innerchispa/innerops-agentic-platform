@@ -87,6 +87,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "task_id": "ops_new_inneros",
             "status": "proposed",
             "assignee": "codex",
+            "execution_lane": "local_dev_swarm",
             "priority": "p0",
             "correlation_id": "devswarm-repo-inference-20260825",
             "related_project": "InnerOS platform",
@@ -155,6 +156,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "task_id": "ops_spanish_repair",
             "status": "proposed",
             "assignee": "codex",
+            "execution_lane": "local_dev_swarm",
             "priority": "p0",
             "related_project": "InnerOS platform",
             "title": "Corregir scheduler y reparar verifier del Dev Swarm",
@@ -171,8 +173,10 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "task_id": "ops_innerops_bootstrap",
             "status": "proposed",
             "assignee": "codex",
+            "execution_lane": "local_dev_swarm",
             "priority": "critical",
             "correlation_id": "innerops-allthingsagentic-20260821",
+            "related_project": "innerops-agentic-platform",
             "title": "Bootstrap InnerOps All Things Agentic",
             "checklist": ["Preserve XPRIZE baseline", "Create innerops-agentic-platform repo and docs"],
         }
@@ -191,11 +195,10 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "title": "AG-44 Cloudflare tools need DNS WAF and tunnel implementation",
             "checklist": ["Wire provider tools to owner_vault and MCP runtime"],
         }
-        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
-            ok, reason, repo = scheduler._eligible_reason(task)
-        self.assertTrue(ok)
-        self.assertEqual(reason, "eligible")
-        self.assertEqual(repo, scheduler.SAFE_INNEROS_REPO)
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "blocked_missing_task_binding")
+        self.assertIsNone(repo)
 
     def test_xprize_product_without_innerops_context_is_not_inferred(self) -> None:
         task = {
@@ -209,7 +212,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         }
         ok, reason, repo = scheduler._eligible_reason(task)
         self.assertFalse(ok)
-        self.assertEqual(reason, "repo_not_inferred")
+        self.assertEqual(reason, "blocked_missing_task_binding")
         self.assertIsNone(repo)
 
     def test_cloudflare_hostname_ops_without_ag44_context_is_not_inferred(self) -> None:
@@ -223,7 +226,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         }
         ok, reason, repo = scheduler._eligible_reason(task)
         self.assertFalse(ok)
-        self.assertEqual(reason, "repo_not_inferred")
+        self.assertEqual(reason, "blocked_missing_task_binding")
         self.assertIsNone(repo)
 
     def test_workforce_femar_without_explicit_repo_stays_excluded(self) -> None:
@@ -237,7 +240,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         }
         ok, reason, repo = scheduler._eligible_reason(task)
         self.assertFalse(ok)
-        self.assertEqual(reason, "repo_not_inferred")
+        self.assertEqual(reason, "blocked_missing_task_binding")
         self.assertIsNone(repo)
 
 
@@ -257,11 +260,10 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
                 "Browser QA de todos los menus CRUD/reportes.",
             ],
         }
-        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
-            ok, reason, repo = scheduler._eligible_reason(task)
-        self.assertTrue(ok)
-        self.assertEqual(reason, "eligible")
-        self.assertEqual(repo, "Rafa-Innerchispa/innerspark-workforce-ai")
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "blocked_missing_task_binding")
+        self.assertIsNone(repo)
 
     def test_workforce_explicit_package_root_resolves_to_workforce_repo(self) -> None:
         task = {
@@ -270,6 +272,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "assignee": "chatgpt",
             "priority": "p0",
             "correlation_id": "devswarm-code-repair-20260826",
+            "repo": "Rafa-Innerchispa/innerspark-workforce-ai",
             "title": "Restore Jest dependencies",
             "checklist": ["Run npm ci in services/femar-mvp-core inside isolated worktree"],
         }
@@ -295,6 +298,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
                     "assignee": "chatgpt",
                     "priority": "p0",
                     "created_at": "2026-08-26T20:00:00+00:00",
+                    "repo": "Rafa-Innerchispa/innerspark-workforce-ai",
                     "checklist": ["Run npm ci in services/femar-mvp-core"],
                 },
                 {
@@ -311,6 +315,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
                     "task_id": "ops_needs_repo",
                     "status": "proposed",
                     "assignee": "codex",
+                    "execution_lane": "local_dev_swarm",
                     "priority": "p0",
                     "created_at": "2026-08-26T18:00:00+00:00",
                     "coordination_bucket": "needs_repo_metadata",
@@ -348,6 +353,49 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertEqual(reasons["ops_email"], "non_development_ops_filtered")
         self.assertEqual(reasons["ops_needs_repo"], "needs_repo_metadata")
         self.assertFalse(result["skipped"])
+
+    def test_cursor_task_without_local_dev_swarm_lane_is_not_claimed(self) -> None:
+        task = {
+            "task_id": "ops_cursor_project_factory",
+            "status": "proposed",
+            "assignee": "cursor",
+            "priority": "p0",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "title": "Project Factory should stay on Cursor lane",
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "execution_lane_required_for_dev_swarm")
+        self.assertIsNone(repo)
+
+    def test_codex_task_without_local_dev_swarm_lane_is_not_claimed(self) -> None:
+        task = {
+            "task_id": "ops_codex_runtime_fix",
+            "status": "proposed",
+            "assignee": "codex",
+            "priority": "p0",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "title": "Codex-owned runtime fix",
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "execution_lane_required_for_dev_swarm")
+        self.assertIsNone(repo)
+
+    def test_manual_execution_lane_is_never_claimed_by_dev_swarm(self) -> None:
+        task = {
+            "task_id": "ops_manual_fixture",
+            "status": "proposed",
+            "assignee": "dev_swarm",
+            "execution_lane": "manual",
+            "priority": "p0",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "title": "Owner manual approval step",
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "execution_lane_not_local_dev_swarm:manual")
+        self.assertIsNone(repo)
 
 
 if __name__ == "__main__":
