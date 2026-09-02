@@ -344,7 +344,8 @@ def heartbeat_ops_task(
         return {"ok": False, "error": "actor_required"}
     if task.get("owner") not in (None, actor_n):
         return {"ok": False, "error": "ownership_conflict", "owner": task.get("owner"), "actor": actor_n}
-    if task.get("status") not in {"accepted", "in_progress", "blocked", "awaiting_approval", "verification"}:
+    active_statuses = {"accepted", "in_progress", "blocked", "awaiting_approval", "verification", "partial"}
+    if task.get("status") not in active_statuses:
         return {"ok": False, "error": "task_not_active", "status": task.get("status")}
 
     now = _now()

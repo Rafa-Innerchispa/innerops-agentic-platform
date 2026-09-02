@@ -99,6 +99,29 @@ class CoordinationIngestTests(unittest.TestCase):
         self.assertTrue(transition["ok"])
         self.assertIn("last_heartbeat_at", transition["patch"])
 
+    def test_partial_task_can_be_resolved_after_followup_evidence(self) -> None:
+        verify = racb_protocol.build_transition(
+            current_status="partial",
+            target_status="verification",
+            actor="codex",
+            current_revision=7,
+            owner="codex",
+            evidence={"status": "PARTIAL", "summary": "Residual blocker fixed; verifying."},
+        )
+        self.assertTrue(verify["ok"])
+        self.assertEqual(verify["patch"]["status"], "verification")
+
+        completed = racb_protocol.build_transition(
+            current_status="partial",
+            target_status="completed",
+            actor="codex",
+            current_revision=7,
+            owner="codex",
+            evidence={"status": "PASS", "summary": "Follow-up evidence closes residual partial task."},
+        )
+        self.assertTrue(completed["ok"])
+        self.assertEqual(completed["patch"]["status"], "completed")
+
 
 class HeartbeatTests(unittest.TestCase):
     def test_heartbeat_rejects_wrong_owner(self) -> None:
@@ -117,6 +140,15 @@ class HeartbeatTests(unittest.TestCase):
             result = coordination_live.heartbeat_ops_task("ops_1", "codex", next_action="verify")
         self.assertTrue(result["ok"])
         self.assertEqual(result["owner"], "codex")
+
+    def test_heartbeat_accepts_partial_task_for_cleanup(self) -> None:
+        collection = MagicMock()
+        collection.find_one.return_value = {"task_id": "ops_partial", "status": "partial", "owner": "codex"}
+        collection.update_one.return_value = SimpleNamespace(modified_count=1)
+        with patch("raphiia_openai.mongo_store.get_db", return_value={"ralfia_ops_tasks": collection}):
+            result = coordination_live.heartbeat_ops_task("ops_partial", "codex", next_action="resolve residuals")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "partial")
 
 
 if __name__ == "__main__":

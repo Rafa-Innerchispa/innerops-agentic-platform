@@ -33,7 +33,7 @@ LEGACY_STATUS_ALIASES = {
     "done": "completed",
 }
 
-TERMINAL_STATUSES = frozenset({"completed", "partial", "failed", "cancelled"})
+TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 ACTIVE_STATUSES = TASK_STATUSES - TERMINAL_STATUSES
 
 ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
@@ -44,7 +44,7 @@ ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     "awaiting_approval": frozenset({"in_progress", "verification", "cancelled"}),
     "verification": frozenset({"in_progress", "completed", "partial", "failed"}),
     "completed": frozenset(),
-    "partial": frozenset(),
+    "partial": frozenset({"in_progress", "verification", "completed", "blocked", "failed", "cancelled"}),
     "failed": frozenset(),
     "cancelled": frozenset(),
 }
