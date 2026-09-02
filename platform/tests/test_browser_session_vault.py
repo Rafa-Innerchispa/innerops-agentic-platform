@@ -2,14 +2,23 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 PLATFORM = Path(__file__).resolve().parents[1]
-if str(PLATFORM) not in sys.path:
-    sys.path.insert(0, str(PLATFORM))
+PLATFORM_TEXT = str(PLATFORM)
+sys.path[:] = [item for item in sys.path if item != PLATFORM_TEXT]
+sys.path.insert(0, PLATFORM_TEXT)
+
+for prefix in ("raphiia_openai", "inneros_core_runtime"):
+    cached_names = [name for name in sys.modules if name == prefix or name.startswith(prefix + ".")]
+    for module_name in cached_names:
+        sys.modules.pop(module_name, None)
 
 import raphiia_openai
 from inneros_core_runtime import browser_session_broker as broker
+
+
+def test_broker_import_is_from_current_worktree():
+    assert Path(broker.__file__).resolve().is_relative_to(PLATFORM)
 
 
 class FakeLocator:

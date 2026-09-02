@@ -48,6 +48,18 @@ class LocalFilesystemPlaneTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "secret_content_denied")
 
+    def test_source_code_allows_variable_secret_reference(self) -> None:
+        target = self.root / "module.py"
+        result = fs.write_file(str(target), "secret=value\ntoken=credential_ref\n", "chatgpt", "ops_test", "corr_test")
+        self.assertTrue(result["ok"])
+        self.assertEqual(target.read_text(encoding="utf-8"), "secret=value\ntoken=credential_ref\n")
+
+    def test_source_code_denies_literal_secret_assignment(self) -> None:
+        target = self.root / "module.py"
+        result = fs.write_file(str(target), 'api_key="abcdef123456"\n', "chatgpt", "ops_test", "corr_test")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "secret_content_denied")
+
     def test_quarantine_is_reversible(self) -> None:
         quarantine = self.root / "quarantine"
         target = self.root / "old.txt"
