@@ -78,3 +78,22 @@ def test_local_result_redacts_totp_seed_and_known_tokens():
     assert token not in repr(result)
     assert result["items"][0]["text"] == "[REDACTED_TOTP_SEED]"
     assert result["trace"] == "[REDACTED_TOKEN]"
+
+
+def test_local_vault_refs_is_metadata_only(monkeypatch):
+    import raphiia_openai
+
+    class FakeVault:
+        @staticmethod
+        def list_owner_credentials(*, category="", reveal=False, actor="RAFAEL"):
+            assert category == "alpaca"
+            assert reveal is False
+            assert actor == "RAFAEL"
+            return {"ok": True, "count": 1, "items": [{"key": "paper_email", "category": "alpaca"}]}
+
+    monkeypatch.setattr(raphiia_openai, "owner_vault", FakeVault(), raising=False)
+    with mock.patch.dict(os.environ, {routes._LOCAL_AUTOMATION_ENV: "1"}):
+        result = routes.local_vault_refs(_request("127.0.0.1"), "alpaca")
+    assert result["ok"] is True
+    assert result["items"][0]["key"] == "paper_email"
+    assert "secret" not in repr(result).lower()

@@ -261,3 +261,16 @@ def local_session_action(
 def local_session_stop(request: Request, session_id: str, token: str):
     _require_local_automation(request)
     return _sanitize_local_result(broker.stop_session(session_id, token))
+
+
+@router.get("/local/vault/refs")
+def local_vault_refs(request: Request, category: str = ""):
+    _require_local_automation(request)
+    from raphiia_openai import owner_vault
+
+    listed = owner_vault.list_owner_credentials(
+        category=str(category or "").strip().lower(),
+        reveal=False,
+        actor="RAFAEL",
+    )
+    return _sanitize_local_result(listed)
