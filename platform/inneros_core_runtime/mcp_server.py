@@ -6296,3 +6296,25 @@ def a2a_task_status(a2a_task_id: str) -> dict[str, Any]:
     from raphiia_openai import a2a_bridge
 
     return a2a_bridge.task_status(a2a_task_id)
+
+
+# --- MOD-OWNER-VAULT generic safe bridge ---
+@mcp.tool
+def owner_vault_store_secret(category: str, key: str, secret: str, label: str = "", project_id: str = "", actor: str = "RAFAEL") -> dict[str, Any]:
+    """Owner Vault: guarda un secreto server-side y nunca devuelve plaintext."""
+    from raphiia_openai import owner_vault_bridge
+    return owner_vault_bridge.store_secret(category=category, key=key, secret=secret, label=label, project_id=project_id, actor=actor)
+
+
+@mcp.tool
+def owner_vault_secret_status(category: str, key: str, actor: str = "RAFAEL") -> dict[str, Any]:
+    """Owner Vault: devuelve solo presencia y metadata, nunca plaintext."""
+    from raphiia_openai import owner_vault_bridge
+    return owner_vault_bridge.secret_status(category=category, key=key, actor=actor)
+
+
+@mcp.tool
+def owner_vault_materialize_project_env(namespace: str, bindings: dict[str, str], static_values: dict[str, str] | None = None, actor: str = "RAFAEL") -> dict[str, Any]:
+    """Owner Vault: materializa refs en runtime.env chmod 0600 sin devolver secretos."""
+    from raphiia_openai import owner_vault_bridge
+    return owner_vault_bridge.materialize_project_env(namespace=namespace, bindings=bindings, static_values=static_values, actor=actor)
