@@ -11,6 +11,20 @@ PROFILES_VERSION = "1.4.2"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
+
+    "owner_vault": {
+        "label": "Owner Vault secure secret bridge",
+        "model_minimum": "medium",
+        "max_tools": 6,
+        "tools": [
+            "mcp_version",
+            "diagnose_mcp_session",
+            "owner_vault_store_secret",
+            "owner_vault_secret_status",
+            "owner_vault_materialize_project_env",
+            "create_agent_message",
+        ],
+    },
     "contifico_analytics": {
         "label": "Contífico analítico (piloto RO)",
         "model_minimum": "small",
@@ -229,6 +243,8 @@ PROFILES: dict[str, dict[str, Any]] = {
             "summarize_productivity_events",
             "ha_turn_on_light",
             "ha_turn_off_light",
+            "dmx_set_scene",
+            "dmx_blackout",
             "get_server_status",
             "dispatch_local_agent",
             "create_agent_message",
@@ -323,6 +339,8 @@ PROFILES: dict[str, dict[str, Any]] = {
         "max_tools": 8,
         "tools": [
             "ide_task_bridge_status",
+            "provider_execution_fabric_status",
+            "execute_provider_task",
             "ide_dispatch_task",
             "ide_task_status",
             "ide_claim_task",
@@ -681,7 +699,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "server_ops": {
         "label": "Ops local servidor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 19,
+        "max_tools": 26,
         "tools": [
             "get_coordination_live",
             "identify_agent_session",
@@ -702,6 +720,12 @@ PROFILES: dict[str, dict[str, Any]] = {
             "list_self_heal_incidents",
             "list_self_heal_baselines",
             "save_self_heal_baseline",
+            "get_disk_steward_status",
+            "disk_steward_inventory",
+            "disk_steward_plan_migration",
+            "disk_steward_execute_migration",
+            "disk_steward_verify_migration",
+            "disk_steward_update_backup_policy",
         ],
     },
     "peer_ops": {
@@ -1381,4 +1405,3 @@ def get_profile(name: str) -> dict[str, Any]:
     if not conf:
         return {"ok": False, "error": "unknown_profile", "available": sorted(PROFILES)}
     return {"ok": True, "profile": name, **conf, "catalog_pin": allp["catalog_pin"], "profiles_version": PROFILES_VERSION}
-

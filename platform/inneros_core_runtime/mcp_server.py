@@ -213,6 +213,24 @@ def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = True) -> dict
 
 
 @mcp.tool
+def run_antigravity_cli(args: str = "--status") -> dict[str, Any]:
+    """Ejecuta la CLI de Antigravity (agy) en el servidor de forma remota y devuelve el resultado."""
+    import subprocess
+    cmd = ["/home/rlopez/.local/bin/agy"] + (args.split() if args else ["--status"])
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return {
+            "ok": res.returncode == 0,
+            "stdout": res.stdout,
+            "stderr": res.stderr,
+            "exit_code": res.returncode,
+            "cli_path": "/home/rlopez/.local/bin/agy",
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "cli_path": "/home/rlopez/.local/bin/agy"}
+
+
+@mcp.tool
 def identify_agent_session(
     agent: str,
     account: str = "",
@@ -2236,8 +2254,16 @@ def approve_pipeline_draft(draft_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
-def generate_draft_image(draft_id: str) -> dict[str, Any]:
-    """Genera imagen para borrador."""
+def editorial_image_providers(check_live: bool = True) -> dict[str, Any]:
+    """Lista proveedores de imagen editorial y estado ready/not_ready."""
+    from raphiia_openai import image_gen
+
+    return image_gen.available_providers(check_live=check_live)
+
+
+@mcp.tool
+def generate_draft_image(draft_id: str, provider: str = "", seed: int | None = None) -> dict[str, Any]:
+    """Genera imagen real para borrador usando proveedor explícito o default local-first."""
     from raphiia_openai import editorial_store, image_gen
 
     dr = editorial_store.get_draft(draft_id)
@@ -2245,15 +2271,33 @@ def generate_draft_image(draft_id: str) -> dict[str, Any]:
         return dr
     draft = dr["draft"]
     editorial_store.update_draft(draft_id, {"status": editorial_store.STATUS_GENERATING})
-    gen = image_gen.generate_for_draft(draft_id, draft.get("title", ""), draft.get("markdown", draft.get("body", "")))
+    gen = image_gen.generate_for_draft(
+        draft_id,
+        draft.get("title", ""),
+        draft.get("markdown", draft.get("body", "")),
+        metadata=draft.get("metadata") or {},
+        provider=provider or None,
+        seed=seed,
+    )
     if not gen.get("ok"):
         return gen
-    return editorial_store.attach_media(
+    out = editorial_store.attach_media(
         draft_id,
         media_path=gen["media_path"],
         media_prompt=gen["media_prompt"],
         provider=gen["provider"],
+        metadata={
+            "provider": gen.get("provider"),
+            "model": gen.get("model", ""),
+            "backend": gen.get("backend", ""),
+            "seed": gen.get("seed"),
+            "prompt_effective": gen.get("media_prompt", ""),
+            "prompt_id": gen.get("prompt_id", ""),
+            "request_id": gen.get("request_id", ""),
+            "warnings": gen.get("warnings", []),
+        },
     )
+    return {**out, "provider": gen.get("provider"), "model": gen.get("model", ""), "seed": gen.get("seed"), "warnings": gen.get("warnings", [])}
 
 
 @mcp.tool
@@ -3456,6 +3500,48 @@ def run_home_ops_cycle() -> dict[str, Any]:
     return home_ops_daemon.run_cycle()
 
 
+@mcp.tool
+def dmx_set_scene(
+    scene: str = "static",
+    color: str = "blanco",
+    target: str = "todas",
+    brightness: int = 255,
+    speed: float = 1.0,
+) -> dict[str, Any]:
+    """Control directo DMX512 / Art-Net para el nodo Pknight CR011R (192.168.1.10).
+    Escenas dinámicas: 'rainbow', 'frenzy', 'police', 'fire', 'chill_lounge', 'morado_uv', 'static'.
+    Colores soportados: 'rojo', 'verde', 'azul', 'cian', 'magenta', 'ambar', 'dorado', 'morado', 'blanco', etc.
+    Objetivos (target): 'todas', 'pulpos', 'beams', 'tachos', 'bola_disco'."""
+    import sys
+    dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
+    if dmx_path not in sys.path:
+        sys.path.insert(0, dmx_path)
+    from src.effects_engine import DynamicEffectsRunner
+    runner = DynamicEffectsRunner(target_ip="192.168.1.10", universe=0)
+    if scene == "blackout":
+        runner.blackout()
+        return {"ok": True, "action": "blackout"}
+    if scene in ["rainbow", "frenzy", "police", "fire", "chill_lounge"]:
+        runner.start_effect(scene, speed=speed)
+        return {"ok": True, "effect": scene, "speed": speed}
+    color_to_apply = color if color and color != "blanco" else scene
+    runner.apply_static_scene(color_name=color_to_apply, brightness=brightness, target=target)
+    return {"ok": True, "applied": color_to_apply, "target": target, "brightness": brightness}
+
+
+@mcp.tool
+def dmx_blackout() -> dict[str, Any]:
+    """Apagado general inmediato (blackout) de todas las luces DMX / Art-Net."""
+    import sys
+    dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
+    if dmx_path not in sys.path:
+        sys.path.insert(0, dmx_path)
+    from src.effects_engine import DynamicEffectsRunner
+    runner = DynamicEffectsRunner(target_ip="192.168.1.10", universe=0)
+    runner.blackout()
+    return {"ok": True, "action": "blackout"}
+
+
 # --- MOD-AUTODEV (SRE Autonomous Development and Project Approval) ---
 
 @mcp.tool
@@ -3735,6 +3821,54 @@ def get_disk_steward_status(include_candidates: bool = True) -> dict[str, Any]:
     from raphiia_openai import disk_steward
 
     return disk_steward.build_status(include_candidates=include_candidates)
+
+
+@mcp.tool
+def disk_steward_inventory(include_candidates: bool = True) -> dict[str, Any]:
+    """AG-37: inventario seguro de discos/backups, candidatos, policy y guardrails."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_inventory(include_candidates=include_candidates)
+
+
+@mcp.tool
+def disk_steward_plan_migration(source_path: str = "", destination_root: str = "", reason: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """AG-37: crea un plan de migración allowlisted source->destination sin mover datos."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_plan_migration(source_path=source_path, destination_root=destination_root, reason=reason, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_execute_migration(plan_id: str, dry_run: bool = True) -> dict[str, Any]:
+    """AG-37: ejecuta copia de un plan ya creado; dry_run=True por defecto."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_execute_migration(plan_id, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_verify_migration(plan_id: str) -> dict[str, Any]:
+    """AG-37: verifica tamaño/checksums de una migración antes de permitir limpieza."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_verify_migration(plan_id)
+
+
+@mcp.tool
+def disk_steward_cleanup_verified(plan_id: str, verified: bool = False) -> dict[str, Any]:
+    """AG-37: limpia origen solo si el plan está verificado y verified=True."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_cleanup_verified(plan_id, verified=verified)
+
+
+@mcp.tool
+def disk_steward_update_backup_policy(preferred_backup_root: str = "", write: bool = False) -> dict[str, Any]:
+    """AG-37: lee o actualiza policy de destino de backups hacia disco no primario allowlisted."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_backup_policy(preferred_backup_root=preferred_backup_root or None, write=write)
 
 
 @mcp.tool
@@ -4480,6 +4614,48 @@ def ide_task_bridge_status() -> dict[str, Any]:
     from inneros_core_runtime import ide_task_bridge
 
     return ide_task_bridge.bridge_status()
+
+
+@mcp.tool
+def provider_execution_fabric_status() -> dict[str, Any]:
+    """Unified Provider Execution Fabric: contrato, capabilities y rutas honestas."""
+    from inneros_core_runtime import provider_execution_fabric
+
+    return provider_execution_fabric.fabric_status()
+
+
+@mcp.tool
+def execute_provider_task(
+    provider: str,
+    title: str,
+    body: str,
+    repo: str = "",
+    branch: str = "",
+    worktree: str = "",
+    correlation_id: str = "",
+    priority: str = "p0",
+    from_agent: str = "CHATGPT_A",
+    dry_run: bool = True,
+    require_evidence: bool = True,
+    idempotency_key: str = "",
+) -> dict[str, Any]:
+    """Canonical provider dispatch/execution path; dry_run by default to protect credits."""
+    from inneros_core_runtime import provider_execution_fabric
+
+    return provider_execution_fabric.execute_provider_task(
+        provider=provider,
+        title=title,
+        body=body,
+        repo=repo,
+        branch=branch,
+        worktree=worktree,
+        correlation_id=correlation_id,
+        priority=priority,
+        from_agent=from_agent,
+        dry_run=dry_run,
+        require_evidence=require_evidence,
+        idempotency_key=idempotency_key,
+    )
 
 
 @mcp.tool
@@ -6430,6 +6606,54 @@ def system_health() -> dict[str, Any]:
         "oauth": oauth,
         "file_access_tools": {"ok": bool(file_access.get("ok")), "count": file_access.get("count", 0)},
     }
+
+
+# --- Generic Owner Vault MCP bridge (metadata-only secret surface) ---
+
+@mcp.tool
+def owner_vault_store_secret(
+    category: str,
+    key: str,
+    secret: str,
+    label: str = "",
+    project_id: str = "",
+) -> dict[str, Any]:
+    """Store an owner secret and return only metadata/reference; never plaintext."""
+    from raphiia_openai import owner_vault_bridge
+
+    return owner_vault_bridge.store_secret(
+        category=category,
+        key=key,
+        secret=secret,
+        label=label,
+        project_id=project_id,
+        actor="RAFAEL",
+    )
+
+
+@mcp.tool
+def owner_vault_secret_status(category: str, key: str) -> dict[str, Any]:
+    """Return owner-vault secret presence/metadata only; never plaintext."""
+    from raphiia_openai import owner_vault_bridge
+
+    return owner_vault_bridge.secret_status(category=category, key=key, actor="RAFAEL")
+
+
+@mcp.tool
+def owner_vault_materialize_project_env(
+    namespace: str,
+    bindings: dict[str, str],
+    static_values: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Materialize a 0600 runtime env file from owner_vault refs without returning secret values."""
+    from raphiia_openai import owner_vault_bridge
+
+    return owner_vault_bridge.materialize_project_env(
+        namespace=namespace,
+        bindings=bindings,
+        static_values=static_values,
+        actor="RAFAEL",
+    )
 
 
 @mcp.custom_route("/health", methods=["GET"])
