@@ -4198,3 +4198,49 @@ def list_capabilities(*, tool_names: list[str], auth_scopes: list[str] | None = 
             "Rafael aprueba acciones de riesgo",
         ],
     }
+
+
+# --- Generic Owner Vault bridge: strict owner/private-memory contract ---
+_OWNER_VAULT_TOOL_NAMES = [
+    "owner_vault_store_secret",
+    "owner_vault_secret_status",
+    "owner_vault_materialize_project_env",
+]
+for _owner_vault_tool_name in _OWNER_VAULT_TOOL_NAMES:
+    if _owner_vault_tool_name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_owner_vault_tool_name)
+
+TOOL_DEFINITIONS.update(
+    {
+        "owner_vault_store_secret": {
+            "description": "Store an owner secret server-side and return only an owner_vault reference plus metadata; plaintext is never returned.",
+            "required_scopes": ["ralfia:admin", "ralfia:private_memory"],
+            "risk_level": "high",
+            "writes_to": ["owner_vault"],
+            "reads_from": [],
+            "input_schema": {"category": "string", "key": "string", "secret": "string", "label": "string|null", "project_id": "string|null"},
+            "output_schema": {"ok": "bool", "secret_ref": "string|null", "vault_id": "string|null", "secret_returned": "false"},
+            "example_payload": {"category": "alpaca", "key": "api_secret", "secret": "<redacted>", "project_id": "inneros-alpha-alpaca"},
+        },
+        "owner_vault_secret_status": {
+            "description": "Check whether an owner secret exists and return metadata only; plaintext is never returned.",
+            "required_scopes": ["ralfia:read", "ralfia:private_memory"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["owner_vault"],
+            "input_schema": {"category": "string", "key": "string"},
+            "output_schema": {"ok": "bool", "present": "bool", "metadata": "object", "secret_returned": "false"},
+            "example_payload": {"category": "alpaca", "key": "api_secret"},
+        },
+        "owner_vault_materialize_project_env": {
+            "description": "Write a chmod-0600 runtime env file from owner_vault refs and optional static values without returning secret values.",
+            "required_scopes": ["ralfia:admin", "ralfia:private_memory"],
+            "risk_level": "high",
+            "writes_to": ["local_env_file"],
+            "reads_from": ["owner_vault"],
+            "input_schema": {"namespace": "string", "bindings": "object", "static_values": "object|null"},
+            "output_schema": {"ok": "bool", "path": "string|null", "materialized_env_keys": "array", "static_env_keys": "array", "secret_returned": "false", "mode": "0600"},
+            "example_payload": {"namespace": "inneros-alpha-alpaca", "bindings": {"ALPACA_API_SECRET": "owner_vault:alpaca/api_secret"}},
+        },
+    }
+)

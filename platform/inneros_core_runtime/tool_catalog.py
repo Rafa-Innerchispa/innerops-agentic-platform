@@ -4188,3 +4188,55 @@ def list_capabilities(*, tool_names: list[str], auth_scopes: list[str] | None = 
             "Rafael aprueba acciones de riesgo",
         ],
     }
+
+
+# --- Generic Owner Vault bridge (Alpaca + future project credentials) ---
+_OWNER_VAULT_TOOL_NAMES = [
+    "owner_vault_store_secret",
+    "owner_vault_secret_status",
+    "owner_vault_materialize_project_env",
+]
+for _owner_vault_tool_name in _OWNER_VAULT_TOOL_NAMES:
+    if _owner_vault_tool_name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_owner_vault_tool_name)
+
+TOOL_DEFINITIONS.update(
+    {
+        "owner_vault_store_secret": {
+            "description": "Guarda un secreto del owner cifrado server-side y devuelve solo una referencia, nunca plaintext.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["owner_vault"],
+            "reads_from": [],
+            "input_schema": {"category": "string", "key": "string", "secret": "string|required_never_returned", "label": "string|null", "project_id": "string|null", "actor": "RAFAEL"},
+            "output_schema": {"ok": "bool", "secret_ref": "string|null", "vault_id": "string|null", "secret_returned": "false"},
+            "example_payload": {"category": "alpaca", "key": "api_secret", "secret": "<entered-server-side>", "project_id": "inneros-alpha-alpaca", "actor": "RAFAEL"},
+        },
+        "owner_vault_secret_status": {
+            "description": "Consulta presencia y metadata de un secreto del owner sin revelar su valor.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["owner_vault"],
+            "input_schema": {"category": "string", "key": "string", "actor": "RAFAEL"},
+            "output_schema": {"ok": "bool", "present": "bool", "secret_ref": "string|null", "secret_returned": "false"},
+            "example_payload": {"category": "alpaca", "key": "api_secret", "actor": "RAFAEL"},
+        },
+        "owner_vault_materialize_project_env": {
+            "description": "Materializa referencias owner_vault en ~/.config/<namespace>/runtime.env chmod 0600 sin devolver secretos.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["owner_runtime_env"],
+            "reads_from": ["owner_vault"],
+            "input_schema": {"namespace": "string", "bindings": "object<ENV_NAME,owner_vault:category/key>", "static_values": "object|null", "actor": "RAFAEL"},
+            "output_schema": {"ok": "bool", "path": "string|null", "materialized_env_keys": "array", "mode": "0600", "secret_returned": "false"},
+            "example_payload": {"namespace": "inneros-alpha-alpaca", "bindings": {"ALPACA_API_SECRET": "owner_vault:alpaca/api_secret"}, "actor": "RAFAEL"},
+        },
+    }
+)
+
+
+# Security override: keep legacy catalog aligned with canonical Owner Vault scopes.
+TOOL_DEFINITIONS["owner_vault_store_secret"].update({"required_scopes": ["ralfia:admin", "ralfia:private_memory"], "risk_level": "high"})
+TOOL_DEFINITIONS["owner_vault_secret_status"].update({"required_scopes": ["ralfia:read", "ralfia:private_memory"], "risk_level": "medium"})
+TOOL_DEFINITIONS["owner_vault_materialize_project_env"].update({"required_scopes": ["ralfia:admin", "ralfia:private_memory"], "risk_level": "high", "writes_to": ["local_env_file"]})
