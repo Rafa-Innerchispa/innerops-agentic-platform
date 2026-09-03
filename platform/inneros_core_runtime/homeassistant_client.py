@@ -337,9 +337,53 @@ def call_service(domain: str, service: str, *, entity_id: str | None = None, dat
     return {"ok": True, "domain": dom, "service": svc, "entity_id": entity_id, "data": payload}
 
 
+def _try_dmx_dispatch(name: str, on: bool = True) -> dict[str, Any] | None:
+    low = name.lower()
+    dmx_keywords = ["tacho", "pulpo", "beam", "bola", "plantas", "escalera", "peces", "central", "disco", "dmx", "escena"]
+    if any(k in low for k in dmx_keywords):
+        try:
+            import sys
+            dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
+            if dmx_path not in sys.path:
+                sys.path.insert(0, dmx_path)
+            from src.effects_engine import DynamicEffectsRunner
+            runner = DynamicEffectsRunner(target_ip="192.168.1.10", universe=0)
+            if not on:
+                runner.blackout()
+                return {"ok": True, "domain": "dmx", "service": "blackout", "entity_id": name, "data": {"action": "blackout"}}
+            
+            # Mapeo de target
+            target = "todas"
+            if "planta" in low:
+                target = "tacho_plantas"
+            elif "escalera" in low:
+                target = "tacho_escalera"
+            elif "peces" in low or "pez" in low:
+                target = "tacho_peces"
+            elif "central" in low or "centro" in low:
+                target = "tacho_central"
+            elif "tacho" in low or "par" in low:
+                target = "tachos"
+            elif "beam" in low:
+                target = "beams"
+            elif "pulpo" in low or "spider" in low:
+                target = "pulpos"
+            elif "bola" in low:
+                target = "bola_disco"
+
+            runner.apply_static_scene(color_name="blanco_calido", brightness=255, target=target)
+            return {"ok": True, "domain": "dmx", "service": "turn_on", "entity_id": target, "data": {"target": target}}
+        except Exception:
+            pass
+    return None
+
+
 def turn_on_light(entity_or_name: str) -> dict[str, Any]:
     eid = _resolve_light_entity(entity_or_name)
     if not eid:
+        dmx_res = _try_dmx_dispatch(entity_or_name, on=True)
+        if dmx_res:
+            return dmx_res
         return {"ok": False, "error": "entity_not_found", "query": entity_or_name}
     domain = eid.split(".", 1)[0]
     return call_service(domain, "turn_on", entity_id=eid)
@@ -348,6 +392,9 @@ def turn_on_light(entity_or_name: str) -> dict[str, Any]:
 def turn_off_light(entity_or_name: str) -> dict[str, Any]:
     eid = _resolve_light_entity(entity_or_name)
     if not eid:
+        dmx_res = _try_dmx_dispatch(entity_or_name, on=False)
+        if dmx_res:
+            return dmx_res
         return {"ok": False, "error": "entity_not_found", "query": entity_or_name}
     domain = eid.split(".", 1)[0]
     return call_service(domain, "turn_off", entity_id=eid)
