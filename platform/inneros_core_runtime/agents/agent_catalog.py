@@ -66,7 +66,7 @@ AGENT_CATALOG: dict[str, dict[str, Any]] = {
     "AG-29": _entry("Log Ops", "Logs servicios peer ops", domain="ops", entry_tool="invoke_agent", intent_keywords=["logs", "journal"]),
     "AG-30": _entry("WhatsApp Agent", "WhatsApp Evolution", domain="whatsapp", entry_tool="invoke_agent", intent_keywords=["whatsapp", "wsp", "enviar mensaje"]),
     "AG-31": _entry("Service Recovery", "Recuperación servicios", domain="ops", entry_tool="invoke_agent", intent_keywords=["health watch", "recuperar servicio", "caído"]),
-    "AG-32": _entry("Home Assistant", "Casa inteligente", domain="home", entry_tool="invoke_agent", intent_keywords=["casa", "luz", "home assistant"]),
+    "AG-32": _entry("Home Assistant", "Orquestador maestro multi-protocolo para casa inteligente", domain="home", entry_tool="invoke_agent", intent_keywords=["casa", "luz", "home assistant", "hubitat", "broadlink"]),
     "AG-33": _entry("Sync Sentinel", "Sincronización docs", domain="coordination", entry_tool="invoke_agent"),
     "AG-34": _entry("KB Ingest", "Ingesta conocimiento", domain="memory", entry_tool="invoke_agent"),
     "AG-35": _entry("Ecosystem Pulse", "Pulso ecosistema / flota MCP", domain="ops", entry_tool="invoke_agent"),
@@ -91,6 +91,15 @@ AGENT_CATALOG: dict[str, dict[str, Any]] = {
     "AG-54": _entry("Funding Credits", "Créditos y grants", domain="funding", entry_tool="invoke_agent", task_kind="credits", mcp_profile="hackathon_funding", aliases=["créditos", "credits", "grants"], intent_keywords=["crédito", "credit", "grant", "funding", "aws activate", "google cloud credits", "no desperdiciar créditos", "bright data"]),
     "AG-55": _entry("Browser Ops", "Navegador local Playwright", domain="platform", entry_tool="invoke_agent", task_kind="browser", mcp_profile="ralfia_hub", aliases=["browser", "navegador", "playwright", "formulario"], intent_keywords=["navegador", "browser", "llenar formulario", "publicar web", "screenshot pagina", "playwright", "automatizar web"]),
     "AG-56": _entry("Sandbox Fleet", "Modelos uncensored + WebUI sandbox", domain="research", entry_tool="invoke_agent", task_kind="sandbox", mcp_profile="local_fleet", aliases=["sandbox", "uncensored", "research sandbox"], intent_keywords=["sandbox", "uncensored", "modelo local", "instalar modelo", "ollama sandbox", "3004", "research"]),
+    # AG-57 is reserved by Backlog Steward and AG-58 by Agent Activity Report.
+    "AG-59": _entry(
+        "DMX Orchestrator",
+        "Iluminación física Art-Net/DMX segura, subordinada a AG-32",
+        domain="home",
+        entry_tool="invoke_agent",
+        aliases=["dmx", "artnet", "art-net", "luces dmx"],
+        intent_keywords=["dmx", "artnet", "art-net", "frenzy", "rainbow", "blackout dmx", "morado uv", "rojo sangre"],
+    ),
 }
 
 

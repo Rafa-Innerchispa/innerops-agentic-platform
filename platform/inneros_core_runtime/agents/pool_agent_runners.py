@@ -422,6 +422,8 @@ POOL_RUNNERS: dict[str, Runner] = {
 def get_runner_registry() -> dict[str, Runner]:
     reg = dict(POOL_RUNNERS)
     reg.update(_import_dedicated())
+    from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+    reg["AG-59"] = lambda message="", dry_run=True, **kw: _merge("AG-59", "dmx", ag59.run_dmx_orchestrator(message, dry_run=dry_run))
     return reg
 
 

@@ -3245,6 +3245,30 @@ def run_home_ops_cycle() -> dict[str, Any]:
     return home_ops_daemon.run_cycle()
 
 
+@mcp.tool
+def dmx_status() -> dict[str, Any]:
+    """AG-59: estado saneado del motor DMX local, sin IP, universo ni topología LAN."""
+    from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+    return ag59.dmx_status()
+
+
+@mcp.tool
+def dmx_set_scene(scene: str) -> dict[str, Any]:
+    """AG-59: aplica solo una escena DMX allowlisted; no acepta canales/universos raw."""
+    from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+    return ag59.dmx_set_scene(scene)
+
+
+@mcp.tool
+def dmx_blackout() -> dict[str, Any]:
+    """AG-59: blackout total acotado mediante el motor DMX local."""
+    from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+    return ag59.dmx_blackout()
+
+
 # --- MOD-AUTODEV (SRE Autonomous Development and Project Approval) ---
 
 @mcp.tool
