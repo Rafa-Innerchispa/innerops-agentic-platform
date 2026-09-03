@@ -686,3 +686,169 @@ def external_repair_agent_run_task(
         chargeable=False,
         evidence={"approval_id": approval_id, "note": "MCP admission succeeded; execution adapter must run inside isolated worktree worker."},
     )
+
+
+# Standing owner authorization for development providers, 2026-09-02.
+# Development in owner-approved repositories must not require a fresh approval
+# token or be blocked by usage counters. Cloud/high-impact mutations keep their
+# provider-specific per-run approval gates.
+PROVIDER_POLICY_STATE_KEY = "external_provider_execution_policy"
+
+
+def _provider_execution_policy() -> dict[str, Any]:
+    state = mongo_store.get_coordination_state(PROVIDER_POLICY_STATE_KEY)
+    cfg = dict((state.get("state") or {}) if state.get("ok") else {})
+    cfg.setdefault("enabled", True)
+    cfg.setdefault("standing_owner_authorized_providers", sorted(LOCAL_CLI_PROVIDERS))
+    cfg.setdefault("development_counter_enforcement", "observe_only")
+    cfg.setdefault("require_repo_policy", True)
+    cfg.setdefault("require_evidence", True)
+    cfg.setdefault("cloud_mutations_require_per_run_approval", True)
+    cfg.setdefault("updated_at", _now())
+    return cfg
+
+
+def external_provider_execution_policy_status() -> dict[str, Any]:
+    return {"ok": True, "policy": _provider_execution_policy()}
+
+
+def external_provider_execution_policy_set(
+    *,
+    enabled: bool = True,
+    providers: list[str] | None = None,
+    actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    requested = [str(p).strip().lower() for p in (providers or sorted(LOCAL_CLI_PROVIDERS))]
+    invalid = sorted({p for p in requested if p not in LOCAL_CLI_PROVIDERS})
+    if invalid:
+        return {"ok": False, "error": "development_provider_not_supported", "invalid": invalid}
+    cfg = {
+        "enabled": bool(enabled),
+        "standing_owner_authorized_providers": sorted(set(requested)),
+        "development_counter_enforcement": "observe_only",
+        "require_repo_policy": True,
+        "require_evidence": True,
+        "cloud_mutations_require_per_run_approval": True,
+        "updated_at": _now(),
+        "updated_by": (actor or "RAFAEL").strip() or "RAFAEL",
+    }
+    mongo_store.upsert_coordination_state(key=PROVIDER_POLICY_STATE_KEY, data=cfg)
+    return {"ok": True, "policy": cfg}
+
+
+def _budget_allows(provider: str) -> dict[str, Any]:
+    status = external_credit_status(provider)
+    row = (status.get("providers") or [{}])[0]
+    if provider in LOCAL_CLI_PROVIDERS:
+        return {
+            "ok": True,
+            "credit": row,
+            "enforcement": "observe_only",
+            "threshold_exceeded": bool(row.get("hard_blocked")),
+        }
+    if row.get("hard_blocked"):
+        return {"ok": False, "error": "blocked_by_budget", "credit": row}
+    return {"ok": True, "credit": row}
+
+
+def _task_execution_binding(task_id: str) -> dict[str, Any]:
+    task = _db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
+    if not task:
+        return {"ok": False, "error": "task_not_found", "task_id": task_id}
+    repo = str(task.get("repo") or "").strip()
+    related = str(task.get("related_project") or "").strip()
+    if not repo and "/" in related:
+        repo = related
+    if not repo:
+        return {"ok": False, "error": "verified_repo_binding_required", "task_id": task_id}
+    try:
+        from raphiia_openai import local_execution_plane
+
+        policy = local_execution_plane.repo_policy_status(repo=repo)
+    except Exception as exc:
+        return {"ok": False, "error": "repo_policy_lookup_failed", "detail": str(exc)[:300], "repo": repo}
+    if not policy.get("ok"):
+        return {"ok": False, "error": "repo_not_allowlisted", "repo": repo, "policy": policy}
+    write_scope = str((policy.get("policy") or {}).get("write_scope") or "worktree").strip().lower()
+    if write_scope in {"read-only", "readonly", "none", "disabled"}:
+        return {"ok": False, "error": "repo_write_scope_not_authorized", "repo": repo, "write_scope": write_scope}
+    return {"ok": True, "repo": repo, "task": task, "policy": policy}
+
+
+def _standing_owner_authorization(provider: str, task_id: str) -> dict[str, Any]:
+    policy = _provider_execution_policy()
+    if not policy.get("enabled"):
+        return {"ok": False, "error": "standing_owner_authorization_disabled", "policy": policy}
+    allowed = {str(p).strip().lower() for p in policy.get("standing_owner_authorized_providers") or []}
+    if provider not in allowed:
+        return {"ok": False, "error": "provider_not_standing_authorized", "provider": provider, "policy": policy}
+    binding = _task_execution_binding(task_id)
+    if not binding.get("ok"):
+        return binding
+    return {
+        "ok": True,
+        "authorization_mode": "standing_owner",
+        "provider": provider,
+        "repo": binding.get("repo"),
+        "require_evidence": bool(policy.get("require_evidence", True)),
+        "policy": policy,
+    }
+
+
+def external_repair_agent_run_task(
+    provider: str,
+    task_id: str,
+    *,
+    dry_run: bool = True,
+    allow_external_spend: bool = False,
+    approval_id: str = "",
+) -> dict[str, Any]:
+    provider = (provider or "").strip().lower()
+    capability = detect_provider(provider)
+    budget = _budget_allows(provider)
+    if dry_run:
+        authorization = _standing_owner_authorization(provider, task_id) if provider in LOCAL_CLI_PROVIDERS else None
+        return {
+            "ok": True,
+            "dry_run": True,
+            "provider": provider,
+            "task_id": task_id,
+            "capability": capability,
+            "budget": budget,
+            "authorization": authorization,
+        }
+    if provider == "digitalocean-amd-cloud":
+        if not allow_external_spend or not approval_id.strip():
+            return {"ok": False, "error": "external_spend_approval_required", "provider": provider, "task_id": task_id}
+        if capability.get("status") != "ready":
+            return {"ok": False, "error": "provider_not_ready", "capability": capability}
+        if not budget.get("ok"):
+            return {"ok": False, **budget}
+        return record_external_repair_run(
+            provider=provider,
+            task_id=task_id,
+            outcome="admitted_cloud_burst_not_created_by_repair_agent",
+            chargeable=False,
+            evidence={
+                "approval_id": approval_id,
+                "note": "Admission succeeded. Use digitalocean_create_gpu_droplet with the same approval_id plus active apply window to create the ephemeral node.",
+            },
+        )
+    authorization = _standing_owner_authorization(provider, task_id)
+    if not authorization.get("ok"):
+        return {"ok": False, **authorization, "provider": provider, "task_id": task_id}
+    if capability.get("status") != "ready":
+        return {"ok": False, "error": "provider_not_ready", "capability": capability}
+    return record_external_repair_run(
+        provider=provider,
+        task_id=task_id,
+        outcome="admitted_not_executed_by_mcp",
+        chargeable=False,
+        evidence={
+            "authorization_mode": "standing_owner",
+            "repo": authorization.get("repo"),
+            "counter_enforcement": budget.get("enforcement", "observe_only"),
+            "threshold_exceeded": bool(budget.get("threshold_exceeded")),
+            "note": "Owner-authorized development admission succeeded; execution must stay inside an isolated allowlisted worktree and return evidence.",
+        },
+    )

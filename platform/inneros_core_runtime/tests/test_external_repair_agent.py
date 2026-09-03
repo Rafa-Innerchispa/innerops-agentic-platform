@@ -1,5 +1,12 @@
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
+PLATFORM_ROOT = Path(__file__).resolve().parents[2]
+if str(PLATFORM_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLATFORM_ROOT))
+sys.modules.pop("inneros_core_runtime.external_repair_agent", None)
 
 from inneros_core_runtime import external_repair_agent as ext
 from inneros_core_runtime import coordination_live
@@ -174,7 +181,7 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertEqual(result["status"], "unavailable")
         self.assertEqual(result["unavailable_reason"], "cli_not_installed")
 
-    def test_budget_hard_limit_blocks_execution(self):
+    def test_budget_threshold_is_observe_only_for_development_provider(self):
         with patch.object(ext, "external_credit_status", return_value={
             "ok": True,
             "providers": [{
@@ -187,12 +194,22 @@ class ExternalRepairAgentTests(unittest.TestCase):
             }],
         }):
             result = ext._budget_allows("codex")
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["error"], "blocked_by_budget")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["enforcement"], "observe_only")
+        self.assertTrue(result["threshold_exceeded"])
 
-    def test_run_requires_explicit_spend_approval(self):
-        with patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}):
+    def test_owner_repo_codex_run_uses_standing_authorization(self):
+        with patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "codex", "status": "ready"}), \
+            patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}, "enforcement": "observe_only", "threshold_exceeded": False}), \
+            patch.object(ext, "_standing_owner_authorization", return_value={"ok": True, "authorization_mode": "standing_owner", "repo": "Rafa-Innerchispa/inneros-webmcp"}), \
+            patch.object(ext, "record_external_repair_run", return_value={"ok": True, "run": {"outcome": "admitted_not_executed_by_mcp"}}):
             result = ext.external_repair_agent_run_task("codex", "ops_fixture", dry_run=False)
+        self.assertTrue(result["ok"])
+
+    def test_cloud_run_still_requires_explicit_spend_approval(self):
+        with patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}), \
+            patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "digitalocean-amd-cloud", "status": "ready"}):
+            result = ext.external_repair_agent_run_task("digitalocean-amd-cloud", "ops_fixture", dry_run=False)
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "external_spend_approval_required")
 
