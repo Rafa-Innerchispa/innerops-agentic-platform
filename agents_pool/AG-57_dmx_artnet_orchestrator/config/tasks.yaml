@@ -1,0 +1,8 @@
+stage_scene_execution:
+  description: >
+    Interpretar la solicitud de escena o ambiente del usuario (ej. arcoíris, fiesta, morado UV,
+    fuego, relax), mapear los parámetros a canales DMX de los 9 equipos y transmitir el stream
+    Art-Net al nodo Pknight CR011R (192.168.1.10).
+  expected_output: >
+    Confirmación de la trama DMX transmitida, valores de canal y estado de los motores de Pan/Tilt.
+  agent: dmx_stage_orchestrator
