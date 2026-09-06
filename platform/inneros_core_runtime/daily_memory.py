@@ -104,6 +104,10 @@ def _fingerprint(*, owner_id: str, privacy_scope: str, kind: str, body: str, pro
     return _hash("|".join([owner_id.lower(), privacy_scope, kind, project or "", _normalized_text(body)]))
 
 
+def _pending_fingerprint(*, owner_id: str, privacy_scope: str, text: str, project: str | None) -> str:
+    return _hash("|".join([owner_id.lower(), privacy_scope, "pending", project or "", _normalized_text(text)]))
+
+
 def _privacy(value: str | None) -> str:
     aliases = {"PRIVATE": "PRIVATE_PERSONAL", "INTERNAL": "INTERNAL_WORK", "TEAM": "PROJECT"}
     scope = aliases.get((value or "").strip().upper(), (value or "").strip().upper())
@@ -126,6 +130,51 @@ def _allowed(actor: str, requested: list[str] | None = None) -> set[str]:
         return set(PRIVACY_SCOPES if requested is None else (_privacy(value) for value in requested))
     requested_set = set(SAFE_DEFAULT_READ if requested is None else (_privacy(value) for value in requested))
     return requested_set & set(SAFE_DEFAULT_READ)
+
+
+def _publish_memory_event(event_type: str, *, actor: str, conversation_id: str, status: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Emit durable memory lifecycle evidence without making memory writes depend on NATS/Temporal."""
+    try:
+        from raphiia_openai import durable_coordination_spine
+
+        return durable_coordination_spine.publish_event(
+            event_type,
+            actor=(actor or "system").strip().lower(),
+            task_id=str(payload.get("task_id") or ""),
+            correlation_id=str(payload.get("correlation_id") or ""),
+            repo=str(payload.get("repo") or ""),
+            status=status,
+            payload={**payload, "conversation_id": conversation_id},
+        )
+    except Exception as exc:
+        try:
+            mongo_store.log_sync(
+                "daily_memory_durable_event_failed",
+                event_type=event_type,
+                conversation_id=conversation_id,
+                error=str(exc)[:500],
+            )
+        except Exception:
+            pass
+        return None
+
+
+def _scope_for_analysis_item(
+    item: dict[str, Any],
+    *,
+    conversation_scope: str,
+    actor: str,
+    allow_private_scope_promotion: bool,
+) -> str:
+    requested = _privacy(str(item.get("privacy_scope") or conversation_scope))
+    text = str(item.get("text") or item.get("body") or "")
+    if conversation_scope in PRIVATE_SCOPES and requested != conversation_scope:
+        if (actor or "").strip().upper() == "RAFAEL" and allow_private_scope_promotion:
+            _privacy_guard(text, requested)
+            return requested
+        return conversation_scope
+    _privacy_guard(text, requested)
+    return requested
 
 
 def _clamp_confidence(value: Any, default: float) -> float:
@@ -180,6 +229,7 @@ def ensure_indexes() -> dict[str, Any]:
     db[CURRENT_STATE].create_index([("owner_id", 1), ("state_key", 1)], unique=True)
     db[ENTITIES].create_index([("owner_id", 1), ("entity_type", 1), ("normalized_name", 1)], unique=True)
     db[PENDING].create_index("pending_id", unique=True)
+    db[PENDING].create_index("fingerprint", unique=True, sparse=True)
     db[TIMELINE].create_index([("owner_id", 1), ("occurred_at", -1)])
     return {"ok": True, "collections": [CONVERSATIONS, MESSAGES, MEMORIES, VERSIONS, CURRENT_STATE, ENTITIES, PENDING, TIMELINE, AUDIT]}
 
@@ -199,6 +249,10 @@ def save_conversation_batch(payload: dict[str, Any]) -> dict[str, Any]:
     owner_id = str(payload.get("owner_id") or "RAFAEL").strip().upper()
     actor = str(payload.get("actor") or "CHATGPT").strip().upper()
     scope = _privacy(str(payload.get("privacy_scope") or "PRIVATE_PERSONAL"))
+    session_id = str(payload.get("session_id") or "").strip() or None
+    provenance = str(payload.get("provenance") or payload.get("source") or "chatgpt_mcp").strip()
+    batch_source_message_id = str(payload.get("source_message_id") or "").strip() or None
+    batch_idempotency_key = str(payload.get("idempotency_key") or "").strip() or None
     messages = payload.get("messages") or []
     if not isinstance(messages, list) or not messages:
         return {"ok": False, "error": "messages_required"}
@@ -214,6 +268,9 @@ def save_conversation_batch(payload: dict[str, Any]) -> dict[str, Any]:
             return {"ok": False, "error": "invalid_message_fields", "index": index}
         _privacy_guard(content, scope)
         message_id = str(raw.get("message_id") or "").strip() or f"dlm_{_hash(f'{conversation_id}|{index}|{role}|{content}')[:20]}"
+        source_message_id = str(raw.get("source_message_id") or "").strip() or batch_source_message_id or message_id
+        turn_index = raw.get("turn_index", index)
+        content_hash = _hash(content)
         doc = {
             "message_id": message_id,
             "conversation_id": conversation_id,
@@ -222,6 +279,12 @@ def save_conversation_batch(payload: dict[str, Any]) -> dict[str, Any]:
             "privacy_scope": scope,
             "owner_id": owner_id,
             "source": str(raw.get("source") or payload.get("source") or "chatgpt_mcp"),
+            "source_message_id": source_message_id,
+            "provenance": str(raw.get("provenance") or provenance),
+            "session_id": session_id,
+            "turn_index": turn_index,
+            "content_hash": content_hash,
+            "idempotency_key": str(raw.get("idempotency_key") or "").strip() or batch_idempotency_key,
             "source_timestamp": raw.get("timestamp"),
             "metadata": raw.get("metadata") or {},
             "created_at": now,
@@ -248,6 +311,9 @@ def save_conversation_batch(payload: dict[str, Any]) -> dict[str, Any]:
                     if isinstance(participant, dict)
                 ],
                 "metadata": payload.get("metadata") or {},
+                "session_id": session_id,
+                "provenance": provenance,
+                "source_message_id": batch_source_message_id,
                 "updated_at": now,
             },
             "$setOnInsert": {"created_at": now, "status": "open"},
@@ -255,7 +321,25 @@ def save_conversation_batch(payload: dict[str, Any]) -> dict[str, Any]:
         upsert=True,
     )
     _audit("conversation_batch_saved", actor=actor, subject_id=conversation_id, metadata={"inserted": inserted, "received": len(messages)})
-    return {"ok": True, "conversation_id": conversation_id, "received": len(messages), "inserted": inserted, "message_ids": ids, "privacy_scope": scope}
+    event = _publish_memory_event(
+        "memory.checkpointed",
+        actor=actor,
+        conversation_id=conversation_id,
+        status="saved",
+        payload={
+            "owner_id": owner_id,
+            "privacy_scope": scope,
+            "received": len(messages),
+            "inserted": inserted,
+            "message_ids": ids,
+            "session_id": session_id,
+            "provenance": provenance,
+            "task_id": payload.get("task_id") or "",
+            "correlation_id": payload.get("correlation_id") or "",
+            "repo": payload.get("repo") or "",
+        },
+    )
+    return {"ok": True, "conversation_id": conversation_id, "received": len(messages), "inserted": inserted, "message_ids": ids, "privacy_scope": scope, "event_id": (event or {}).get("event_id")}
 
 
 def _sentences(messages: list[dict[str, Any]]) -> list[tuple[str, str]]:
@@ -674,6 +758,7 @@ def finalize_conversation(payload: dict[str, Any]) -> dict[str, Any]:
     owner_id = str(conversation.get("owner_id") or payload.get("owner_id") or "RAFAEL").upper()
     project = str(payload.get("project") or conversation.get("project") or "").strip() or None
     participants = [item for item in (conversation.get("participants") or []) if isinstance(item, dict)]
+    allow_scope_promotion = bool(payload.get("allow_private_scope_promotion"))
     entity_refs = _upsert_entities(owner_id, [*(analysis.get("entities") or []), *participants], scope, conversation_id)
     relationship_context = [
         {
@@ -699,13 +784,19 @@ def finalize_conversation(payload: dict[str, Any]) -> dict[str, Any]:
         items = _analysis_items(analysis, key, fallback_ids)
         counts[key] = len(items)
         for item in items:
+            item_scope = _scope_for_analysis_item(
+                item,
+                conversation_scope=scope,
+                actor=actor,
+                allow_private_scope_promotion=allow_scope_promotion,
+            )
             saved = save_memory(
                 {
                     "owner_id": owner_id,
                     "kind": kind,
                     "title": item.get("title"),
                     "body": item["text"],
-                    "privacy_scope": item.get("privacy_scope") or scope,
+                    "privacy_scope": item_scope,
                     "project": project,
                     "entities": item.get("entities") or entity_refs,
                     "conversation_id": conversation_id,
@@ -728,12 +819,18 @@ def finalize_conversation(payload: dict[str, Any]) -> dict[str, Any]:
     emotion_items = _analysis_items(analysis, "emotions", fallback_ids)
     counts["emotions"] = len(emotion_items)
     for item in emotion_items:
+        item_scope = _scope_for_analysis_item(
+            item,
+            conversation_scope=scope,
+            actor=actor,
+            allow_private_scope_promotion=allow_scope_promotion,
+        )
         saved = save_memory(
             {
                 "owner_id": owner_id,
                 "kind": "emotion",
                 "body": item["text"],
-                "privacy_scope": scope,
+                "privacy_scope": item_scope,
                 "project": project,
                 "entities": item.get("entities") or entity_refs,
                 "conversation_id": conversation_id,
@@ -754,22 +851,45 @@ def finalize_conversation(payload: dict[str, Any]) -> dict[str, Any]:
 
     pending_ids: list[str] = []
     for item in _analysis_items(analysis, "pending", fallback_ids):
-        pending_id = _id("pending")
-        db[PENDING].insert_one(
-            {
+        item_scope = _scope_for_analysis_item(
+            item,
+            conversation_scope=scope,
+            actor=actor,
+            allow_private_scope_promotion=allow_scope_promotion,
+        )
+        fingerprint = _pending_fingerprint(owner_id=owner_id, privacy_scope=item_scope, text=item["text"], project=project)
+        existing_pending = db[PENDING].find_one({"fingerprint": fingerprint, "status": "open"})
+        if existing_pending:
+            pending_id = str(existing_pending.get("pending_id") or "")
+            db[PENDING].update_one(
+                {"_id": existing_pending["_id"]},
+                {
+                    "$addToSet": {
+                        "source_message_ids": {"$each": item.get("source_message_ids") or fallback_ids},
+                        "source_conversation_ids": conversation_id,
+                    },
+                    "$set": {"updated_at": _now(), "last_seen_at": _now()},
+                },
+            )
+        else:
+            pending_id = _id("pending")
+            db[PENDING].insert_one(
+                {
                 "pending_id": pending_id,
                 "owner_id": owner_id,
                 "text": item["text"],
                 "status": "open",
-                "privacy_scope": item.get("privacy_scope") or scope,
+                "privacy_scope": item_scope,
                 "project": project,
                 "entity_refs": item.get("entities") or entity_refs,
                 "source_conversation_id": conversation_id,
+                "source_conversation_ids": [conversation_id],
                 "source_message_ids": item.get("source_message_ids") or fallback_ids,
+                "fingerprint": fingerprint,
                 "created_at": _now(),
                 "updated_at": _now(),
             }
-        )
+            )
         pending_ids.append(pending_id)
     counts["pending"] = len(pending_ids)
     summary = str(analysis.get("summary") or "").strip()
@@ -822,7 +942,25 @@ def finalize_conversation(payload: dict[str, Any]) -> dict[str, Any]:
         {"$set": {"status": "finalized", "finalized_at": _now(), "finalized_by": actor, "finalized_digest": digest, "finalization_result": result, "updated_at": _now()}},
     )
     _audit("conversation_finalized", actor=actor, subject_id=conversation_id, metadata={"counts": counts, "memory_count": len(set(memory_ids))})
-    return {"ok": True, "idempotent": False, "conversation_id": conversation_id, "result": result}
+    event = _publish_memory_event(
+        "memory.finalized",
+        actor=actor,
+        conversation_id=conversation_id,
+        status="finalized",
+        payload={
+            "owner_id": owner_id,
+            "privacy_scope": scope,
+            "project": project,
+            "counts": counts,
+            "memory_ids": sorted(set(memory_ids)),
+            "pending_ids": pending_ids,
+            "timeline_id": timeline_id,
+            "task_id": payload.get("task_id") or "",
+            "correlation_id": payload.get("correlation_id") or "",
+            "repo": payload.get("repo") or "",
+        },
+    )
+    return {"ok": True, "idempotent": False, "conversation_id": conversation_id, "result": result, "event_id": (event or {}).get("event_id")}
 
 
 def search_memory(payload: dict[str, Any]) -> dict[str, Any]:

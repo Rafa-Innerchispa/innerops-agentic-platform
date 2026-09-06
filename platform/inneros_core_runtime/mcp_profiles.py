@@ -7,10 +7,24 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.1"
+PROFILES_VERSION = "1.4.2"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
+
+    "owner_vault": {
+        "label": "Owner Vault secure secret bridge",
+        "model_minimum": "medium",
+        "max_tools": 6,
+        "tools": [
+            "mcp_version",
+            "diagnose_mcp_session",
+            "owner_vault_store_secret",
+            "owner_vault_secret_status",
+            "owner_vault_materialize_project_env",
+            "create_agent_message",
+        ],
+    },
     "contifico_analytics": {
         "label": "Contífico analítico (piloto RO)",
         "model_minimum": "small",
@@ -204,6 +218,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             "generate_supervisor_report",
             "run_service_guardian",
             "list_ops_tasks",
+            "coordination_backlog_hygiene",
             "get_operational_runbooks",
             "get_whatsapp_status",
             "create_agent_message",
@@ -212,7 +227,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "home": {
         "label": "Casa / voz local segura",
         "model_minimum": "small",
-        "max_tools": 10,
+        "max_tools": 18,
         "tools": [
             "bootstrap_context",
             "route_mcp_tools",
@@ -229,9 +244,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "summarize_productivity_events",
             "ha_turn_on_light",
             "ha_turn_off_light",
-            "get_server_status",
-            "dispatch_local_agent",
-            "create_agent_message",
+            "dmx_status",
+            "dmx_set_scene",
+            "dmx_blackout",
         ],
     },
     "browser_ops": {
@@ -253,10 +268,11 @@ PROFILES: dict[str, dict[str, Any]] = {
     "external_repair": {
         "label": "External repair agents + credit governor",
         "model_minimum": "small",
-        "max_tools": 12,
+        "max_tools": 13,
         "tools": [
             "get_coordination_live",
             "list_ops_tasks",
+            "coordination_backlog_hygiene",
             "heartbeat_ops_task",
             "external_repair_agent_status",
             "external_repair_agent_claim_next",
@@ -317,6 +333,21 @@ PROFILES: dict[str, dict[str, Any]] = {
             "contifico_get_party_360",
         ],
     },
+    "ide_task_bridge": {
+        "label": "IDE/agent bridge compacto",
+        "model_minimum": "small",
+        "max_tools": 8,
+        "tools": [
+            "ide_task_bridge_status",
+            "provider_execution_fabric_status",
+            "execute_provider_task",
+            "ide_dispatch_task",
+            "ide_task_status",
+            "ide_claim_task",
+            "ide_mark_task_running",
+            "ide_complete_task",
+        ],
+    },
     "a2a": {
         "label": "A2A multiagent transport",
         "model_minimum": "small",
@@ -331,7 +362,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "coordination": {
         "label": "RACB coordinación multiagente",
         "model_minimum": "small",
-        "max_tools": 24,
+        "max_tools": 25,
         "tools": [
             "a2a_status",
             "a2a_agent_cards",
@@ -420,7 +451,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "owner_dev": {
         "label": "Owner development local seguro",
         "model_minimum": "medium",
-        "max_tools": 160,
+        "max_tools": 171,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -485,6 +516,8 @@ PROFILES: dict[str, dict[str, Any]] = {
             "peer_package_remove",
             "peer_hardware_discovery",
             "peer_python_runtime",
+            "local_exec_host_approval_issue",
+            "local_exec_host_approval_validate",
             "peer_user_service",
             "peer_node_capability_matrix",
             "peer_host_ops_policy",
@@ -615,7 +648,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_self_repair": {
         "label": "Autoreparación local controlada",
         "model_minimum": "medium",
-        "max_tools": 40,
+        "max_tools": 45,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -667,9 +700,10 @@ PROFILES: dict[str, dict[str, Any]] = {
     "server_ops": {
         "label": "Ops local servidor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 14,
+        "max_tools": 26,
         "tools": [
             "get_coordination_live",
+            "identify_agent_session",
             "poll_agent_inbox",
             "create_agent_message",
             "ack_agent_message",
@@ -683,12 +717,22 @@ PROFILES: dict[str, dict[str, Any]] = {
             "manage_coordination_lock",
             "local_model_health",
             "route_ai_task",
+            "summarize_self_heal_incidents",
+            "list_self_heal_incidents",
+            "list_self_heal_baselines",
+            "save_self_heal_baseline",
+            "get_disk_steward_status",
+            "disk_steward_inventory",
+            "disk_steward_plan_migration",
+            "disk_steward_execute_migration",
+            "disk_steward_verify_migration",
+            "disk_steward_update_backup_policy",
         ],
     },
     "peer_ops": {
         "label": "Peer ops — status/restart/logs .4/.5",
         "model_minimum": "small",
-        "max_tools": 32,
+        "max_tools": 34,
         "tools": [
             "get_development_roadmap",
             "reconcile_runtime_state",
@@ -710,6 +754,8 @@ PROFILES: dict[str, dict[str, Any]] = {
             "peer_package_remove",
             "peer_hardware_discovery",
             "peer_python_runtime",
+            "local_exec_host_approval_issue",
+            "local_exec_host_approval_validate",
             "peer_user_service",
             "peer_node_capability_matrix",
             "peer_host_ops_policy",
@@ -742,7 +788,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "cloud_ops": {
         "label": "Cloud deploy ops multi-provider (dry-run safe)",
         "model_minimum": "medium",
-        "max_tools": 96,
+        "max_tools": 105,
         "tools": [
             "get_development_roadmap",
             "cloud_deploy_status",
@@ -854,7 +900,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet": {
         "label": "Flota local PC Doctor — cero créditos cloud",
         "model_minimum": "small",
-        "max_tools": 39,
+        "max_tools": 44,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -922,7 +968,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet_full": {
         "label": "Flota local completa — ChatGPT/Codex",
         "model_minimum": "medium",
-        "max_tools": 124,
+        "max_tools": 135,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -945,6 +991,8 @@ PROFILES: dict[str, dict[str, Any]] = {
             "peer_package_remove",
             "peer_hardware_discovery",
             "peer_python_runtime",
+            "local_exec_host_approval_issue",
+            "local_exec_host_approval_validate",
             "peer_user_service",
             "peer_node_capability_matrix",
             "peer_host_ops_policy",
@@ -1082,7 +1130,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "daily_companion": {
         "label": "Compañero día a día — brief, memoria, conversación local",
         "model_minimum": "small",
-        "max_tools": 16,
+        "max_tools": 18,
         "tools": [
             "route_agent_request",
             "resolve_agent",
@@ -1124,7 +1172,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "iskcon_ops": {
         "label": "Operaciones ISKCON — ent_iskcon, FFL, festivales, templo",
         "model_minimum": "small",
-        "max_tools": 16,
+        "max_tools": 19,
         "tools": [
             "agent_iskcon_capabilities",
             "agent_iskcon_status",
@@ -1133,6 +1181,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "agent_iskcon_ffl_timeline",
             "agent_iskcon_contacts_summary",
             "agent_iskcon_dispatch",
+            "agent_iskcon_sources",
+            "agent_iskcon_yoga_campaign",
+            "agent_iskcon_class_update",
             "create_ops_task",
             "list_ops_tasks",
             "save_memory",
@@ -1141,6 +1192,35 @@ PROFILES: dict[str, dict[str, Any]] = {
             "list_funding_programs",
             "dispatch_local_agent",
             "create_agent_message",
+        ],
+    },
+    "judge_console": {
+        "label": "Judge Console — workflows, Live Trace, Resource Fabric y acciones demo seguras",
+        "model_minimum": "small",
+        "max_tools": 24,
+        "tools": [
+            "judge_workflow_start",
+            "judge_workflow_continue",
+            "judge_workflow_execute",
+            "judge_workflow_get",
+            "judge_workflow_list",
+            "judge_trace_current",
+            "judge_trace_history",
+            "judge_trace_detail",
+            "judge_trace_kpis",
+            "judge_resource_telemetry",
+            "judge_safe_trigger",
+            "judge_console_content_get",
+            "judge_model_routing_policy",
+            "judge_mi325x_deploy",
+            "a2a_status",
+            "a2a_agent_cards",
+            "get_unified_stack_status",
+            "get_mcp_fleet_status",
+            "resource_fabric_status",
+            "resource_fabric_route",
+            "agent_iskcon_dispatch",
+            "run_service_guardian",
         ],
     },
     "hackathon_funding": {
@@ -1329,5 +1409,3 @@ def get_profile(name: str) -> dict[str, Any]:
     if not conf:
         return {"ok": False, "error": "unknown_profile", "available": sorted(PROFILES)}
     return {"ok": True, "profile": name, **conf, "catalog_pin": allp["catalog_pin"], "profiles_version": PROFILES_VERSION}
-
-

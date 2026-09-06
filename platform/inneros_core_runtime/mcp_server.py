@@ -128,6 +128,65 @@ def a2a_task_status(a2a_task_id: str) -> dict[str, Any]:
 
     return a2a_bridge.task_status(a2a_task_id)
 
+@mcp.tool
+def durable_coordination_spine_status() -> dict[str, Any]:
+    """Estado del spine durable MCP/A2A: Mongo, NATS/JetStream, Temporal y OTel."""
+    from raphiia_openai import durable_coordination_spine
+
+    return durable_coordination_spine.status()
+
+
+@mcp.tool
+def durable_coordination_temporal_status(
+    address: str = "",
+    namespace: str = "default",
+    timeout_sec: float = 2.0,
+) -> dict[str, Any]:
+    """Prueba conectividad Temporal local sin iniciar workflows ni ejecutar codigo externo."""
+    from raphiia_openai import durable_coordination_spine
+
+    return durable_coordination_spine.temporal_connection_status(
+        address=address,
+        namespace=namespace,
+        timeout_sec=timeout_sec,
+    )
+
+
+@mcp.tool
+def durable_coordination_publish_event(
+    event_type: str,
+    actor: str,
+    task_id: str = "",
+    correlation_id: str = "",
+    repo: str = "",
+    a2a_task_id: str = "",
+    provider: str = "",
+    model: str = "",
+    status: str = "",
+    payload: dict[str, Any] | None = None,
+    traceparent: str = "",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Publica o previsualiza un evento durable de coordinación con traceparent."""
+    from raphiia_openai import durable_coordination_spine
+
+    sink = durable_coordination_spine.MemoryEventSink([]) if dry_run else None
+    return durable_coordination_spine.publish_event(
+        event_type,
+        actor=actor,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        repo=repo,
+        a2a_task_id=a2a_task_id,
+        provider=provider,
+        model=model,
+        status=status,
+        payload=payload,
+        traceparent=traceparent,
+        sink=sink,
+        live_mode="NON-LIVE" if dry_run else "LIVE",
+    )
+
 @mcp.resource("resource://RalfIA_MCP", name=MCP_DISPLAY_NAME, mime_type="application/json")
 async def ralfia_mcp_manifest() -> dict[str, Any]:
     """Manifiesto vivo de herramientas y recursos expuestos por este servidor MCP."""
@@ -527,6 +586,56 @@ def peer_user_service(
 
 
 @mcp.tool
+def local_exec_host_approval_issue(
+    tool: str,
+    action: str,
+    node: str = "primary",
+    repo: str = "",
+    project_id: str = "",
+    ttl_seconds: int = 300,
+    reason: str = "",
+    actor: str = "owner_dev",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Emite approval_id acotado para host/peer ops; TTL maximo 10 minutos."""
+    from raphiia_openai import local_execution_plane
+
+    scoped_action = f"{tool}:{action}" if tool else action
+    return local_execution_plane.issue_host_approval(
+        actor=actor,
+        action=scoped_action,
+        node=node,
+        repo=repo,
+        project_id=project_id,
+        ttl_minutes=max(1, int(ttl_seconds or 60) // 60),
+        reason=reason,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
+def local_exec_host_approval_validate(
+    approval_id: str,
+    tool: str,
+    action: str,
+    node: str = "primary",
+    repo: str = "",
+    project_id: str = "",
+) -> dict[str, Any]:
+    """Valida approval_id acotado antes de ejecutar una mutacion host/peer."""
+    from raphiia_openai import local_execution_plane
+
+    scoped_action = f"{tool}:{action}" if tool else action
+    return local_execution_plane.validate_host_approval(
+        approval_id=approval_id,
+        action=scoped_action,
+        node=node,
+        repo=repo,
+        project_id=project_id,
+    )
+
+
+@mcp.tool
 def peer_node_capability_matrix() -> dict[str, Any]:
     """AG-41: matriz simétrica de capacidades .4/.5 y excepciones físicas."""
     from raphiia_openai.agents import ag41_peer_ops_executor as ag41
@@ -601,9 +710,9 @@ def project_runtime_status(project_id: str = "", repo: str = "", node: str = "pr
 
 
 @mcp.tool
-def project_runtime_bootstrap(node: str = "primary", project_id: str = "", repo: str = "", remote_url: str = "", actor: str = "chatgpt", task_id: str = "", correlation_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+def project_runtime_bootstrap(node: str = "primary", project_id: str = "", repo: str = "", remote_url: str = "", base_ref: str = "", expected_sha: str = "", actor: str = "chatgpt", task_id: str = "", correlation_id: str = "", dry_run: bool = True) -> dict[str, Any]:
     """Project Runtime Registry: crea/hidrata path seguro para un proyecto en un nodo."""
-    return project_runtime_registry.bootstrap_runtime(node=node, project_id=project_id, repo=repo, remote_url=remote_url, actor=actor, task_id=task_id, correlation_id=correlation_id, dry_run=dry_run)
+    return project_runtime_registry.bootstrap_runtime(node=node, project_id=project_id, repo=repo, remote_url=remote_url, base_ref=base_ref, expected_sha=expected_sha, actor=actor, task_id=task_id, correlation_id=correlation_id, dry_run=dry_run)
 
 
 @mcp.tool
@@ -3276,7 +3385,7 @@ def list_pending_projects() -> dict[str, Any]:
     """Lista todos los proyectos y hackatones pendientes de revisión y aprobación."""
     from pymongo import MongoClient
     import os
-    
+
     mongo_uri = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
     client = None
     try:
@@ -3302,7 +3411,7 @@ def get_project_reuse_analysis(project_id: str) -> dict[str, Any]:
     from pymongo import MongoClient
     from bson import ObjectId
     import os
-    
+
     mongo_uri = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
     client = None
     try:
@@ -3311,12 +3420,12 @@ def get_project_reuse_analysis(project_id: str) -> dict[str, Any]:
         p = db.pending_approvals.find_one({"_id": ObjectId(project_id)})
         if not p:
             return {"ok": False, "error": "Proyecto no encontrado"}
-            
+
         p["id"] = str(p["_id"])
         del p["_id"]
         if "created_at" in p and p["created_at"]:
             p["created_at"] = p["created_at"].isoformat()
-            
+
         return {"ok": True, "analysis": p}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -6342,3 +6451,121 @@ def owner_vault_materialize_project_env(namespace: str, bindings: dict[str, str]
     """Owner Vault: materializa refs en runtime.env chmod 0600 sin devolver secretos."""
     from raphiia_openai import owner_vault_bridge
     return owner_vault_bridge.materialize_project_env(namespace=namespace, bindings=bindings, static_values=static_values, actor=actor)
+
+
+@mcp.tool
+def ide_task_bridge_status() -> dict[str, Any]:
+    """IDE/A2A bridge status; delivery is not execution."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.bridge_status()
+
+
+@mcp.tool
+def provider_execution_fabric_status() -> dict[str, Any]:
+    """Provider execution fabric contract and truthful provider capability states."""
+    from inneros_core_runtime import provider_execution_fabric
+
+    return provider_execution_fabric.fabric_status()
+
+
+@mcp.tool
+def execute_provider_task(
+    provider: str,
+    title: str,
+    body: str,
+    repo: str = "",
+    branch: str = "",
+    worktree: str = "",
+    correlation_id: str = "",
+    priority: str = "p0",
+    from_agent: str = "CHATGPT_A",
+    dry_run: bool = True,
+    require_evidence: bool = True,
+    idempotency_key: str = "",
+    allow_provider_smoke_completion: bool = False,
+) -> dict[str, Any]:
+    """Dispatch governed provider work; smoke/version checks cannot complete real tasks."""
+    from inneros_core_runtime import provider_execution_fabric
+
+    return provider_execution_fabric.execute_provider_task(
+        provider=provider,
+        title=title,
+        body=body,
+        repo=repo,
+        branch=branch,
+        worktree=worktree,
+        correlation_id=correlation_id,
+        priority=priority,
+        from_agent=from_agent,
+        dry_run=dry_run,
+        require_evidence=require_evidence,
+        idempotency_key=idempotency_key,
+        allow_provider_smoke_completion=allow_provider_smoke_completion,
+    )
+
+
+@mcp.tool
+def ide_dispatch_task(
+    ide: str,
+    title: str,
+    body: str,
+    repo: str = "",
+    branch: str = "",
+    worktree: str = "",
+    correlation_id: str = "",
+    priority: str = "p0",
+    from_agent: str = "CHATGPT_A",
+    require_evidence: bool = True,
+    approval_required: bool = False,
+    idempotency_key: str = "",
+) -> dict[str, Any]:
+    """Deliver a task to an IDE/A2A inbox without claiming execution."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.dispatch_task(
+        ide=ide,
+        title=title,
+        body=body,
+        repo=repo,
+        branch=branch,
+        worktree=worktree,
+        correlation_id=correlation_id,
+        priority=priority,
+        from_agent=from_agent,
+        require_evidence=require_evidence,
+        approval_required=approval_required,
+        idempotency_key=idempotency_key,
+    )
+
+
+@mcp.tool
+def ide_task_status(dispatch_id: str) -> dict[str, Any]:
+    """Return durable status for an IDE/A2A dispatch."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.task_status(dispatch_id)
+
+
+@mcp.tool
+def ide_claim_task(dispatch_id: str, ide: str) -> dict[str, Any]:
+    """Mark a dispatch claimed by the intended IDE/provider."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.claim_task(dispatch_id, ide)
+
+
+@mcp.tool
+def ide_mark_task_running(dispatch_id: str, ide: str, execution_proof: dict[str, Any]) -> dict[str, Any]:
+    """Mark a dispatch running only with process/session/local-model proof."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.mark_running(dispatch_id, ide, execution_proof=execution_proof)
+
+
+@mcp.tool
+def ide_complete_task(dispatch_id: str, ide: str, result: str = "completed", evidence: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Complete an IDE/A2A dispatch only with explicit evidence."""
+    from inneros_core_runtime import ide_task_bridge
+
+    return ide_task_bridge.complete_task(dispatch_id, ide, result=result, evidence=evidence or {})

@@ -26,6 +26,59 @@ MANDATORY_READS: tuple[str, ...] = (
 ASSIGNEES = frozenset({"cursor", "codex", "antigravity", "chatgpt", "gemini", "notion", "ralfia", "rafael"})
 
 
+def _status_event_type(status: str) -> str:
+    normalized = (status or "").strip().lower()
+    return {
+        "proposed": "task.admitted",
+        "accepted": "task.claimed",
+        "in_progress": "task.started",
+        "blocked": "task.blocked",
+        "verification": "task.verification_started",
+        "completed": "task.completed",
+        "partial": "task.completed",
+        "failed": "task.failed",
+        "cancelled": "task.cancelled",
+        "superseded": "task.superseded",
+    }.get(normalized, "task.heartbeat")
+
+
+def _publish_task_event(
+    event_type: str,
+    task: dict[str, Any],
+    *,
+    actor: str,
+    status: str = "",
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Emit durable lifecycle evidence without making RACB depend on it."""
+    try:
+        from raphiia_openai import durable_coordination_spine
+
+        return durable_coordination_spine.publish_event(
+            event_type,
+            actor=(actor or "system").strip().lower(),
+            task_id=str(task.get("task_id") or ""),
+            correlation_id=str(task.get("correlation_id") or ""),
+            repo=str(task.get("repo") or task.get("related_project") or ""),
+            provider=str(task.get("preferred_provider") or task.get("provider_transport") or ""),
+            model=str(task.get("preferred_model") or ""),
+            status=status or str(task.get("status") or ""),
+            payload=payload or {},
+        )
+    except Exception as exc:
+        try:
+            mongo_store.log_sync(
+                "durable_coordination_event_failed",
+                task_id=task.get("task_id"),
+                correlation_id=task.get("correlation_id"),
+                event_type=event_type,
+                error=str(exc)[:500],
+            )
+        except Exception:
+            pass
+        return None
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -287,6 +340,13 @@ def create_ops_task(
     # PyMongo mutates the inserted mapping by adding ``_id``. Keep the public
     # tool response JSON-safe so MCP can return structuredContent reliably.
     db[OPS_TASKS_COL].insert_one(dict(doc))
+    _publish_task_event(
+        "task.admitted",
+        doc,
+        actor=from_agent,
+        status="proposed",
+        payload={"assignee": assignee_l, "priority": doc["priority"], "source_message_id": doc["source_message_id"]},
+    )
 
     body = (
         f"**Orden ops:** `{tid}` · correlation `{cid}`\n\n"
@@ -364,12 +424,22 @@ def heartbeat_ops_task(
         {"task_id": task_id, "status": task.get("status")},
         {"$set": patch, "$push": {"heartbeat_history": {"$each": [history], "$slice": -100}}},
     )
+    event_result = None
+    if result.modified_count == 1:
+        event_result = _publish_task_event(
+            "task.heartbeat",
+            {**task, **patch},
+            actor=actor_n,
+            status=str(task.get("status") or ""),
+            payload={"next_action": patch.get("next_action"), "blocker": patch.get("blocker"), "files_touched": patch.get("files_touched")},
+        )
     return {
         "ok": result.modified_count == 1,
         "task_id": task_id,
         "status": task.get("status"),
         "last_heartbeat_at": now,
         "owner": task.get("owner") or actor_n,
+        "event_id": (event_result or {}).get("event_id"),
     }
 
 
@@ -412,6 +482,50 @@ def update_ops_task_state(
     if not transition.get("ok"):
         return {**transition, "task_id": task_id}
     if transition.get("idempotent"):
+        if evidence:
+            now = _now()
+            next_revision = current_revision + 1
+            evidence_patch = {
+                "evidence": evidence,
+                "last_evidence_at": now,
+                "updated_at": now,
+                "updated_by": (actor or "system").strip().lower(),
+                "revision": next_revision,
+            }
+            evidence_history = {
+                "at": now,
+                "actor": (actor or "system").strip().lower(),
+                "status": racb_protocol.normalize_status(status),
+                "evidence": evidence,
+                "revision": next_revision,
+                "reason": "idempotent_state_evidence_update",
+            }
+            result = db[OPS_TASKS_COL].update_one(
+                {"task_id": task_id, "status": task.get("status"), "revision": current_revision},
+                {
+                    "$set": evidence_patch,
+                    "$push": {"evidence_history": {"$each": [evidence_history], "$slice": -50}},
+                },
+            )
+            if result.modified_count != 1:
+                return {"ok": False, "error": "concurrent_evidence_update", "task_id": task_id}
+            event_result = _publish_task_event(
+                "task.evidence_recorded",
+                {**task, **evidence_patch},
+                actor=actor,
+                status=racb_protocol.normalize_status(status),
+                payload={"revision": next_revision, "idempotent_state": True},
+            )
+            bump_revision(reason=f"ops_task {task_id} evidence updated", source=actor)
+            return {
+                "ok": True,
+                "idempotent": True,
+                "evidence_updated": True,
+                "task_id": task_id,
+                "status": racb_protocol.normalize_status(status),
+                "revision": next_revision,
+                "event_id": (event_result or {}).get("event_id"),
+            }
         return {
             "ok": True,
             "idempotent": True,
@@ -433,6 +547,13 @@ def update_ops_task_state(
     if result.modified_count != 1:
         return {"ok": False, "error": "concurrent_transition", "task_id": task_id}
 
+    event_result = _publish_task_event(
+        _status_event_type(str(transition["patch"].get("status") or "")),
+        {**task, **transition["patch"]},
+        actor=actor,
+        status=str(transition["patch"].get("status") or ""),
+        payload={"from": task.get("status"), "to": transition["patch"].get("status"), "revision": transition.get("revision")},
+    )
     bump_revision(reason=f"ops_task {task_id} → {transition['patch']['status']}", source=actor)
     return {
         "ok": True,
@@ -441,6 +562,7 @@ def update_ops_task_state(
         "status": transition["patch"]["status"],
         "revision": transition["revision"],
         "owner": transition["patch"].get("owner", task.get("owner")),
+        "event_id": (event_result or {}).get("event_id"),
     }
 
 

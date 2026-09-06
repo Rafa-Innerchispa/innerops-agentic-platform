@@ -10,13 +10,16 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import stat
 import subprocess
 import tempfile
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+from raphiia_openai import execution_policy
 
 CAPABILITY = "local_execution_plane"
 DEFAULT_INNEROS_CORE_ROOT = Path("/home/rlopez/inneros/inneros_core")
@@ -25,6 +28,7 @@ MAX_OUTPUT_BYTES_DEFAULT = 60000
 MAX_TIMEOUT_SECONDS = 1200
 DEV_SWARM_GIT_USER_NAME = "RalfIA Dev Swarm"
 DEV_SWARM_GIT_USER_EMAIL = "dev-swarm@inneros.local"
+HOST_APPROVALS_COL = "ralfia_host_approvals"
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NESTED_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -58,6 +62,10 @@ OWNER_APPROVED_ALLOWED_PATHS = [
     "vite.config.ts",
 ]
 OWNER_APPROVED_REMOTE_POLICIES: dict[str, dict[str, str]] = {
+    "Rafa-Innerchispa/hyperloom-r9700-experimental": {
+        "origin": "https://github.com/Rafa-Innerchispa/hyperloom-r9700-experimental.git",
+        "upstream": "https://github.com/AMD-AGI/Hyperloom.git",
+    },
     "gitlab-community/gitlab-org/gitlab-runner": {
         "origin": "https://gitlab.com/rafagye/gitlab-runner.git",
         "community": "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git",
@@ -134,12 +142,23 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("python", "-m", "pytest"),
         ("python3", "-m", "pytest"),
         ("pytest",),
+        ("python", "-m", "unittest"),
+        ("python3", "-m", "unittest"),
         ("python", "-m", "compileall"),
         ("python3", "-m", "compileall"),
         ("git", "status", "--short", "--branch"),
         ("git", "diff", "--check"),
         ("git", "diff", "--stat"),
         ("git", "diff", "--name-only"),
+        ("agy", "--help"),
+        ("agy", "--status"),
+        ("agy", "--inbox"),
+        ("agy", "--version"),
+        ("scripts/agy", "--help"),
+        ("scripts/agy", "--status"),
+        ("scripts/agy", "--inbox"),
+        ("scripts/agy", "--version"),
+        ("/home/rlopez/.local/bin/agy", "--status"),
     ],
     "node-tests": [
         ("npm", "test"),
@@ -182,15 +201,13 @@ DEFAULT_REPO_PROFILES = {
         "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai",
         "package_roots": ["services/femar-mvp-core"],
         "allowed_paths": [
-            "platform",
-            "infra",
-            "modules",
             "app",
             "components",
             "docs",
             "lib",
             "public",
             "scripts",
+            "services",
             "src",
             "tests",
             "README.md",
@@ -206,7 +223,7 @@ DEFAULT_REPO_PROFILES = {
     "Rafa-Innerchispa/innerops-agentic-platform": {
         "profile": "python-tests",
         "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
-        "package_roots": [".", "platform"],
+        "package_roots": ["platform", "."],
         "allowed_paths": [
             "app",
             "components",
@@ -216,10 +233,15 @@ DEFAULT_REPO_PROFILES = {
             "scripts",
             "src",
             "tests",
+            "platform/inneros_core_runtime",
+            "platform/raphiia_openai",
+            "platform/tests",
+            "platform/pyproject.toml",
             "BASELINE_PROVENANCE.md",
             "AGENT_CONTRACT.md",
             "DEPLOYMENT.md",
             "README.md",
+            "platform/package.json",
             "package.json",
             "package-lock.json",
             "pnpm-lock.yaml",
@@ -229,11 +251,177 @@ DEFAULT_REPO_PROFILES = {
             "vite.config.ts",
         ],
     },
+    "Rafa-Innerchispa/amd-ralfiia-hybrid-ops-copilot": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/amd-ralfiia-hybrid-ops-copilot",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "agent_smart_quoter",
+            "agent_watchdog",
+            "backend",
+            "docs",
+            "scripts",
+            "shared",
+            "src",
+            "tests",
+            "track1_agent",
+            "track2_agent",
+            "ui",
+            "README.md",
+            "docker-compose.yml",
+            "requirements.txt",
+            "pyproject.toml",
+        ],
+    },
+    "Rafa-Innerchispa/hyperloom-r9700-experimental": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/hyperloom-r9700-experimental",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "backend",
+            "docs",
+            "examples",
+            "hyperloom",
+            "scripts",
+            "src",
+            "tests",
+            "README.md",
+            "pyproject.toml",
+            "requirements.txt",
+            "setup.py",
+        ],
+    },
+    "Rafa-Innerchispa/inneros-dmx-engine": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/inneros-dmx-engine",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "src",
+            "tests",
+            "docs",
+            "scripts",
+            "config",
+            "systemd",
+            "README.md",
+            "pyproject.toml",
+            "requirements.txt",
+            "docker-compose.yml",
+        ],
+    },
 }
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_dt(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _safe_scope_text(value: str, *, allow_empty: bool = True) -> str:
+    text = str(value or "").strip()
+    if not text and allow_empty:
+        return ""
+    if not re.fullmatch(r"[A-Za-z0-9_.:/@ -]{1,160}", text):
+        raise ValueError("approval_scope_invalid")
+    return text
+
+
+def issue_host_approval(
+    action: str,
+    repo: str = "",
+    project_id: str = "",
+    node: str = "primary",
+    actor: str = "chatgpt",
+    task_id: str = "",
+    correlation_id: str = "",
+    ttl_minutes: int = 15,
+    reason: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Issue an audited short-lived approval scoped to one host action."""
+    try:
+        _require_metadata(actor, task_id or "manual", correlation_id or "manual")
+        safe_action = _safe_scope_text(action, allow_empty=False)
+        safe_repo = ""
+        if repo:
+            if not (_repo_name_allowed(repo) or NESTED_REPO_PATTERN.match(repo)):
+                raise ValueError("repo_must_be_owner_name")
+            safe_repo = repo
+        safe_project = _safe_scope_text(project_id)
+        safe_node = _safe_scope_text(node or "primary", allow_empty=False)
+        ttl = max(1, min(int(ttl_minutes or 15), 60))
+        now = datetime.now(timezone.utc)
+        approval_id = "hostap_" + secrets.token_urlsafe(18)
+        doc = {
+            "approval_id": approval_id,
+            "status": "active",
+            "action": safe_action,
+            "repo": safe_repo,
+            "project_id": safe_project,
+            "node": safe_node,
+            "actor": actor,
+            "task_id": task_id or "manual",
+            "correlation_id": correlation_id or "manual",
+            "reason": _redact(reason)[:500],
+            "created_at": now.isoformat(),
+            "expires_at": (now + timedelta(minutes=ttl)).isoformat(),
+            "ttl_minutes": ttl,
+        }
+        if dry_run:
+            return {"ok": True, "dry_run": True, "would_issue": {k: v for k, v in doc.items() if k != "approval_id"}}
+        from raphiia_openai import mongo_store
+
+        mongo_store.get_db()[HOST_APPROVALS_COL].insert_one(dict(doc))
+        return {"ok": True, "approval_id": approval_id, "scope": {k: doc[k] for k in ("action", "repo", "project_id", "node", "expires_at")}}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+
+
+def validate_host_approval(
+    approval_id: str,
+    action: str,
+    repo: str = "",
+    project_id: str = "",
+    node: str = "primary",
+) -> dict[str, Any]:
+    """Validate that a host approval is active, unexpired and scope-compatible."""
+    try:
+        if not str(approval_id or "").startswith("hostap_"):
+            return {"ok": False, "error": "approval_id_invalid"}
+        safe_action = _safe_scope_text(action, allow_empty=False)
+        safe_repo = repo or ""
+        safe_project = _safe_scope_text(project_id)
+        safe_node = _safe_scope_text(node or "primary", allow_empty=False)
+        from raphiia_openai import mongo_store
+
+        doc = mongo_store.get_db()[HOST_APPROVALS_COL].find_one({"approval_id": approval_id}, {"_id": 0})
+        if not doc:
+            return {"ok": False, "error": "approval_not_found"}
+        if str(doc.get("status") or "") != "active":
+            return {"ok": False, "error": "approval_not_active"}
+        expires = _parse_dt(doc.get("expires_at"))
+        if not expires or expires <= datetime.now(timezone.utc):
+            return {"ok": False, "error": "approval_expired"}
+        mismatches = []
+        for key, requested in (("action", safe_action), ("repo", safe_repo), ("project_id", safe_project), ("node", safe_node)):
+            approved = str(doc.get(key) or "")
+            if approved and approved != requested:
+                mismatches.append(key)
+        if mismatches:
+            return {"ok": False, "error": "approval_scope_mismatch", "mismatches": mismatches}
+        return {"ok": True, "approval_id": approval_id, "scope": {k: doc.get(k) for k in ("action", "repo", "project_id", "node", "expires_at")}}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
 
 def _redact(value: str) -> str:
@@ -302,7 +490,12 @@ def _repo_name_allowed(repo: str) -> bool:
 def _root() -> Path:
     configured_root = os.getenv("RALFIA_LOCAL_EXEC_ROOT", "").strip()
     if configured_root:
-        return Path(configured_root).expanduser().resolve()
+        resolved = Path(configured_root).expanduser().resolve()
+        legacy = Path("/home/rlopez/projects/inneros-local-execution-worktrees")
+        if resolved == legacy or legacy in resolved.parents:
+            inneros_core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser()
+            return (inneros_core / "var" / "local_execution").resolve()
+        return resolved
     inneros_core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser()
     return (inneros_core / "var" / "local_execution").resolve()
 
@@ -369,7 +562,6 @@ def _repo_config(repo: str) -> dict[str, Any]:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-    # Project Runtime Registry policy must win over bundled defaults.
     if repo in registry:
         conf = dict(registry[repo])
     elif repo in profiles:
@@ -437,12 +629,15 @@ def _resolve_under(base: Path, path: str | Path) -> Path:
 
 def _validate_relative_path(path: str, allowed_paths: list[str]) -> str:
     rel = (path or "").replace("\\", "/").strip("/")
+    while rel.startswith("./"):
+        rel = rel[2:]
     if not rel or rel.startswith("../") or "/../" in rel or rel == "..":
         raise PermissionError("path_traversal_denied")
     parts = {part.lower() for part in rel.split("/") if part}
     if parts & DENIED_PATH_PARTS:
         raise PermissionError("secret_or_generated_path_denied")
     allowed = [p.strip("/").replace("\\", "/") for p in allowed_paths or ["."]]
+    allowed = [p[2:] if p.startswith("./") else p for p in allowed]
     if "." not in allowed and not any(rel == prefix or rel.startswith(prefix + "/") for prefix in allowed):
         raise PermissionError("path_not_allowed_for_repo_profile")
     return rel
@@ -473,6 +668,7 @@ def _require_metadata(actor: str, task_id: str, correlation_id: str, idempotency
 def _execution_env() -> dict[str, str]:
     env = dict(os.environ)
     path_parts = [
+        "/home/rlopez/inneros/inneros_core/platform/venv/bin",
         "/home/rlopez/inneros/inneros_core/tools/go/bin",
         "/home/rlopez/.local/opt",
         "/home/rlopez/.local/bin",
@@ -613,37 +809,71 @@ def _clean_package_root(root: str) -> str:
     return rel
 
 
-def _node_package_command_allowed(command: list[str], conf: dict[str, Any]) -> bool:
+def _package_roots_with_manifest(base: Path, roots: list[str]) -> set[str]:
+    """Return configured package roots that have a package.json under *base*."""
+    valid: set[str] = set()
+    for root in roots:
+        try:
+            rel = _clean_package_root(root)
+        except PermissionError:
+            continue
+        pkg_dir = base if rel == "." else base / rel
+        if (pkg_dir / "package.json").is_file():
+            valid.add(rel)
+    return valid
+
+
+def _node_package_command_allowed(command: list[str], conf: dict[str, Any], *, base: Path | None = None) -> bool:
     if not command or command[0] != "npm":
         return False
     if any(re.search(r"[;&|`$<>]", part) for part in command):
         return False
     try:
-        package_roots = {_clean_package_root(root) for root in (conf.get("package_roots") or [])}
+        configured = [_clean_package_root(root) for root in (conf.get("package_roots") or [])]
     except PermissionError:
         return False
+    if base is not None:
+        package_roots = _package_roots_with_manifest(base, list(conf.get("package_roots") or []))
+    else:
+        package_roots = set(configured)
     if not package_roots:
         return False
-    safe_actions = {"ci", "install"}
+    safe_actions = {"ci", "install", "test"}
+    safe_run_scripts = {"test", "lint", "build"}
     package_root = "."
-    action = ""
-    if len(command) == 2 and command[1] in safe_actions:
-        action = command[1]
-    elif len(command) == 4 and command[1] == "--prefix" and command[3] in safe_actions:
+    idx = 1
+
+    if len(command) > idx + 1 and command[idx] == "--prefix":
         try:
-            package_root = _clean_package_root(command[2])
+            package_root = _clean_package_root(command[idx + 1])
         except PermissionError:
             return False
-        action = command[3]
-    elif len(command) == 4 and command[1] in safe_actions and command[2] == "--prefix":
-        action = command[1]
+        idx += 2
+    elif len(command) > idx + 2 and command[idx] in safe_actions and command[idx + 1] == "--prefix":
+        action = command[idx]
         try:
-            package_root = _clean_package_root(command[3])
+            package_root = _clean_package_root(command[idx + 2])
         except PermissionError:
             return False
-    else:
+        return action in safe_actions and package_root in package_roots
+
+    if idx >= len(command):
         return False
-    return bool(action and package_root in package_roots)
+
+    token = command[idx]
+    if token in safe_actions:
+        if token == "test" and idx + 1 < len(command):
+            if command[idx + 1] != "--":
+                return False
+            for arg in command[idx + 2 :]:
+                if not re.fullmatch(r"[-A-Za-z0-9]+", arg):
+                    return False
+        return package_root in package_roots
+
+    if token == "run" and idx + 1 < len(command) and command[idx + 1] in safe_run_scripts:
+        return package_root in package_roots
+
+    return False
 
 def _worktree_path(repo: str, work_branch: str, conf: dict[str, Any]) -> Path:
     branch_slug = re.sub(r"[^A-Za-z0-9_.-]+", "__", work_branch)
@@ -984,11 +1214,12 @@ def run_command_allowlisted(
         _validate_branch(work_branch, require_work_branch=True)
         conf = _repo_config(repo)
         profile = str(conf.get("profile") or "python-tests")
-        if not (_command_allowed(command, profile) or (profile == "node-tests" and _node_package_command_allowed(command, conf))):
-            return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command, "command_run_id": command_run_id}
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
             return {"ok": False, "error": "worktree_missing", "worktree": str(worktree), "command_run_id": command_run_id}
+        npm_allowed = _node_package_command_allowed(command, conf, base=worktree)
+        if not (_command_allowed(command, profile) or npm_allowed):
+            return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command, "command_run_id": command_run_id}
         _record_command_run(
             command_run_id,
             {
@@ -1280,6 +1511,90 @@ def push_branch(
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
 
+_push_branch_without_lease = push_branch
+
+
+def push_branch(
+    repo: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    remote: str = "origin",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Push normally, with exact force-with-lease only for GitLab owner fork retries."""
+    result = _push_branch_without_lease(
+        repo=repo,
+        work_branch=work_branch,
+        actor=actor,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        remote=remote,
+        dry_run=dry_run,
+    )
+    if dry_run or result.get("ok"):
+        return result
+
+    remote_name = (remote or "origin").strip()
+    failure = result.get("push") or {}
+    failure_text = f"{failure.get('stdout') or ''}\n{failure.get('stderr') or ''}".lower()
+    lease_retry_allowed = (
+        repo == "gitlab-community/gitlab-org/gitlab-runner"
+        and remote_name == "origin"
+        and any(marker in failure_text for marker in ("non-fast-forward", "fetch first"))
+    )
+    if not lease_retry_allowed:
+        return result
+
+    conf = _repo_config(repo)
+    worktree = _worktree_path(repo, work_branch, conf)
+    remote_validation = _validate_remote_for_push(repo, worktree, remote_name)
+    if not remote_validation.get("ok"):
+        return {**result, "force_with_lease_used": False, "lease_error": "remote_validation_failed"}
+
+    remote_ref = f"refs/heads/{work_branch}"
+    with _gitlab_push_auth_env(str(remote_validation.get("url") or "")) as git_env:
+        remote_head = _run_with_env(
+            ["git", "ls-remote", "--heads", remote_name, remote_ref],
+            worktree,
+            git_env,
+            timeout_seconds=60,
+        )
+        first_line = (remote_head.get("stdout") or "").strip().splitlines()[:1]
+        first_value = first_line[0].split()[0] if first_line and first_line[0].split() else ""
+        if not (remote_head.get("ok") and re.fullmatch(r"[0-9a-fA-F]{40}", first_value)):
+            return {
+                **result,
+                "force_with_lease_used": False,
+                "lease_error": "remote_head_unavailable",
+                "remote_head": remote_head,
+            }
+        expected_sha = first_value.lower()
+        lease_command = [
+            "git",
+            "push",
+            f"--force-with-lease={remote_ref}:{expected_sha}",
+            remote_name,
+            f"HEAD:{remote_ref}",
+        ]
+        lease_push = _run_with_env(lease_command, worktree, git_env, timeout_seconds=300)
+
+    head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
+    return {
+        "ok": bool(lease_push.get("ok")),
+        "push": lease_push,
+        "head": (head.get("stdout") or "").strip(),
+        "remote": remote_name,
+        "remote_validation": remote_validation,
+        "branch": work_branch,
+        "force_with_lease_used": bool(lease_push.get("ok")),
+        "remote_head_before": expected_sha,
+    }
+
+
 def report_evidence(
     repo: str,
     work_branch: str,
@@ -1378,24 +1693,67 @@ def dev_swarm_launch_task(
 ) -> dict[str, Any]:
     """Prepare the safe local development lane for a repo without ralfia:admin."""
     try:
-        _require_metadata(actor, task_id, correlation_id, idempotency_key)
-        if not (objective or "").strip():
+        actor = (actor or "chatgpt").strip().lower()
+        objective_text = (objective or "").strip()
+        correlation_id = (correlation_id or "").strip()
+        task_id = (task_id or "").strip()
+        if not objective_text:
             raise ValueError("objective_required")
+        route = execution_policy.route_metadata(task_class="coding")
+        generated_task: dict[str, Any] | None = None
+        if not task_id:
+            if not correlation_id:
+                digest = hashlib.sha256(f"{repo}|{objective_text}|{actor}".encode("utf-8")).hexdigest()[:12]
+                correlation_id = f"dev-swarm-{digest}"
+            from raphiia_openai import coordination_live
+
+            generated = coordination_live.create_ops_task(
+                assignee="dev_swarm",
+                title=f"Dev Swarm local execution: {repo}",
+                checklist=[objective_text],
+                evidence_required=["task_id", "worktree", "provider/model", "tests/evidence"],
+                priority="p0",
+                from_agent=actor,
+                correlation_id=correlation_id,
+                related_project=repo,
+                project_id=repo.rsplit("/", 1)[1] if "/" in repo else repo,
+                repo=repo,
+                base_ref=base_branch,
+                work_branch=work_branch.strip() or f"{actor}/{re.sub(r'[^A-Za-z0-9_.-]+', '-', correlation_id)[:48]}",
+                task_class="coding",
+                execution_lane="local_dev_swarm",
+                provider_transport=route.get("provider_transport") or "local_execution_plane",
+                runtime_profile=route.get("runtime_profile") or "dev_swarm",
+                execution_policy=route.get("execution_policy") or "local_first",
+                preferred_provider=route.get("preferred_provider") or "local-amd-5",
+                preferred_model=route.get("preferred_model") or "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            )
+            if not generated.get("ok"):
+                return {"ok": False, "stage": "create_ops_task", "error": generated.get("error"), "generated_task": generated}
+            generated_task = generated.get("task") or {}
+            task_id = str(generated.get("task_id") or generated_task.get("task_id") or "").strip()
+        if not idempotency_key:
+            raw = f"dev_swarm_launch_task|{repo}|{task_id}|{correlation_id}|{objective_text}"
+            idempotency_key = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+        _require_metadata(actor, task_id, correlation_id, idempotency_key)
         conf = _repo_config(repo)
         branch = work_branch.strip() or f"{actor}/{re.sub(r'[^A-Za-z0-9_.-]+', '-', task_id)[:48]}"
         _validate_branch(base_branch, allow_protected=True)
         _validate_branch(branch, require_work_branch=True)
         plan = {
             "repo": repo,
-            "objective": objective,
+            "objective": objective_text,
             "base_branch": base_branch,
             "work_branch": branch,
             "actor": actor,
             "task_id": task_id,
             "correlation_id": correlation_id,
+            "idempotency_key": idempotency_key,
             "profile": conf.get("profile"),
             "allowed_paths": conf.get("allowed_paths"),
             "source_path": conf.get("source_path"),
+            "generated_task_id": task_id if generated_task else None,
+            **route,
             "admin_scope_required": False,
             "required_scope": "ralfia:agents",
             "checkout_or_pull": False,
@@ -1418,19 +1776,53 @@ def dev_swarm_launch_task(
         }
         if not prepared["ok"]:
             return {"ok": False, "stage": "source_repo_required", "plan": plan, "prepared": prepared}
+        preflight_binding = _bind_existing_ops_task_for_dev_swarm(
+            repo=repo,
+            objective=objective_text,
+            base_branch=base_branch,
+            work_branch=branch,
+            actor=actor,
+            task_id=task_id,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+            launch_ok=False,
+            binding_stage="preflight",
+        )
         lock = acquire_lock(repo, actor, task_id, correlation_id, ttl_seconds=3600)
         if not lock.get("ok"):
-            return {"ok": False, "stage": "acquire_lock", "plan": plan, "prepared": prepared, "lock": lock}
+            return {
+                "ok": False,
+                "stage": "acquire_lock",
+                "plan": plan,
+                "prepared": prepared,
+                "lock": lock,
+                "task_binding": preflight_binding,
+            }
         worktree = create_worktree(repo, base_branch, branch, actor, task_id, correlation_id, idempotency_key)
         evidence = {
             "launcher": "dev_swarm_launch_task",
-            "objective": objective,
+            "objective": objective_text,
             "prepared_ok": bool(prepared.get("ok")),
             "lock_ok": bool(lock.get("ok")),
             "worktree_ok": bool(worktree.get("ok")),
             "work_branch": branch,
             "source_path": conf.get("source_path"),
+            "preflight_task_binding": preflight_binding,
+            **route,
         }
+        binding = _bind_existing_ops_task_for_dev_swarm(
+            repo=repo,
+            objective=objective_text,
+            base_branch=base_branch,
+            work_branch=branch,
+            actor=actor,
+            task_id=task_id,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+            launch_ok=bool(worktree.get("ok")),
+            binding_stage="launch",
+        )
+        evidence["task_binding"] = binding
         report = report_evidence(repo, branch, actor, task_id, correlation_id, "launched" if worktree.get("ok") else "launch_failed", evidence)
         return {
             "ok": bool(worktree.get("ok")),
@@ -1439,10 +1831,94 @@ def dev_swarm_launch_task(
             "prepared": prepared,
             "lock": lock,
             "worktree": worktree,
+            "task_binding": binding,
             "evidence": report,
         }
     except Exception as exc:
         return {"ok": False, "capability": "dev_swarm_scope", "error": str(exc)}
+
+
+def _bind_existing_ops_task_for_dev_swarm(
+    *,
+    repo: str,
+    objective: str,
+    base_branch: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    launch_ok: bool,
+    binding_stage: str = "launch",
+) -> dict[str, Any]:
+    """Persist the structured task envelope after a safe launch prepares a worktree."""
+    try:
+        from raphiia_openai import coordination_live, mongo_store
+
+        if not task_id:
+            return {"ok": False, "skipped": "task_id_required"}
+        now = _now_iso()
+        route = execution_policy.route_metadata(task_class="coding")
+        update = {
+            "repo": repo,
+            "related_project": repo,
+            "project_id": repo.rsplit("/", 1)[1] if "/" in repo else repo,
+            "base_ref": base_branch,
+            "work_branch": work_branch,
+            "task_class": "coding",
+            "execution_lane": "local_dev_swarm",
+            "provider_transport": route.get("provider_transport") or "local_execution_plane",
+            "runtime_profile": route.get("runtime_profile") or "dev_swarm",
+            "execution_policy": route.get("execution_policy") or "local_first",
+            "preferred_provider": route.get("preferred_provider") or "local-amd-5",
+            "preferred_model": route.get("preferred_model") or "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "idempotency_key": idempotency_key,
+            "dev_swarm_last_binding_at": now,
+            "dev_swarm_last_binding_actor": actor,
+            "dev_swarm_last_binding_source": "dev_swarm_launch_task",
+            "dev_swarm_last_binding_stage": binding_stage,
+            "dev_swarm_last_binding_ok": bool(launch_ok),
+            "cleanup_bucket": None,
+            "coordination_bucket": None,
+            "dev_swarm_last_skip_reason": None,
+            "dev_swarm_last_skip_repo": None,
+        }
+        if launch_ok:
+            update.update(
+                {
+                    "dev_swarm_retry_requested": True,
+                }
+            )
+        db = mongo_store.get_db()
+        result = db[coordination_live.OPS_TASKS_COL].update_one(
+            {"task_id": task_id},
+            {
+                "$set": update,
+                "$push": {
+                    "state_history": {
+                        "actor": actor,
+                        "at": now,
+                        "event": "task_envelope_bound",
+                        "repo": repo,
+                        "work_branch": work_branch,
+                        "source": "dev_swarm_launch_task",
+                        "stage": binding_stage,
+                    }
+                },
+            },
+        )
+        return {
+            "ok": True,
+            "matched": int(result.matched_count),
+            "modified": int(result.modified_count),
+            "task_id": task_id,
+            "repo": repo,
+            "work_branch": work_branch,
+            "launch_ok": bool(launch_ok),
+            "binding_stage": binding_stage,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "task_id": task_id}
 
 
 # Aliases MCP / AG-45 (nombres expuestos en catálogo)
@@ -1506,164 +1982,3 @@ def prepare_repo(
 
 local_exec_prepare_repo = prepare_repo
 local_exec_hydrate_repo = prepare_repo
-
-
-# Runtime policy precedence hotfix, 2026-08-26.
-# Explicit Project Runtime Registry policy is authoritative over bundled defaults
-# and file-presence heuristics. This block intentionally overrides the helpers
-# above so older deployed source can be repaired without rewriting the module.
-for _prefix in (("python", "-m", "unittest"), ("python3", "-m", "unittest")):
-    if _prefix not in ALLOWLISTED_COMMANDS["python-tests"]:
-        ALLOWLISTED_COMMANDS["python-tests"].append(_prefix)
-
-
-def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
-    try:
-        from raphiia_openai import project_runtime_registry as prr
-
-        data = prr._load()
-    except Exception:
-        return {}
-    profiles: dict[str, dict[str, Any]] = {}
-    for entry in (data.get("projects") or {}).values():
-        repo = str(entry.get("repo") or "")
-        if not _repo_name_allowed(repo):
-            continue
-        path = (entry.get("paths") or {}).get("primary") or ""
-        try:
-            safe = prr._safe_path(path)
-        except Exception:
-            continue
-        detected_profile = "node-tests" if (safe / "package.json").exists() else "python-tests"
-        registered_profile = str(entry.get("allowed_commands_profile") or "").strip()
-        profile = registered_profile if registered_profile in ALLOWLISTED_COMMANDS else detected_profile
-        profiles[repo] = {
-            "profile": profile,
-            "source_path": str(safe),
-            "allowed_paths": entry.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS,
-            "package_roots": entry.get("package_roots") or ["."],
-            "worktrees_path": str(_root() / "worktrees" / _slug(repo)),
-            "project_id": entry.get("project_id"),
-            "registry_backed": True,
-        }
-    return profiles
-
-
-def _repo_config(repo: str) -> dict[str, Any]:
-    if not _repo_name_allowed(repo or ""):
-        raise ValueError("repo_must_be_owner_name")
-    saved_env = {key: os.environ.get(key) for key in ("INNEROS_CORE_ROOT", "RALFIA_LOCAL_EXEC_ROOT")}
-    owner_auto = _owner_approved_repo_config(repo)
-    profiles = _load_repo_profiles()
-    try:
-        registry = _registry_repo_profiles()
-    finally:
-        for key, value in saved_env.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
-    if repo in registry:
-        conf = dict(registry[repo])
-    elif repo in profiles:
-        conf = dict(profiles[repo])
-    else:
-        conf = owner_auto
-        if not conf:
-            raise PermissionError("repo_not_allowlisted")
-    root = _root()
-    conf.setdefault("profile", "python-tests")
-    conf.setdefault("allowed_paths", ["."])
-    conf.setdefault("package_roots", [])
-    conf.setdefault("source_path", str(root / "repos" / _slug(repo)))
-    conf.setdefault("worktrees_path", str(root / "worktrees" / _slug(repo)))
-    return conf
-
-
-# GitLab ContributorOps: safe history-rewrite fallback for owner-fork work branches.
-# Normal pushes remain unchanged. A non-fast-forward retry is allowed only against
-# rafagye/gitlab-runner origin and is guarded by an exact --force-with-lease SHA.
-_push_branch_without_lease = push_branch
-
-
-def push_branch(
-    repo: str,
-    work_branch: str,
-    actor: str,
-    task_id: str,
-    correlation_id: str,
-    idempotency_key: str,
-    remote: str = "origin",
-    dry_run: bool = True,
-) -> dict[str, Any]:
-    result = _push_branch_without_lease(
-        repo=repo,
-        work_branch=work_branch,
-        actor=actor,
-        task_id=task_id,
-        correlation_id=correlation_id,
-        idempotency_key=idempotency_key,
-        remote=remote,
-        dry_run=dry_run,
-    )
-    if dry_run or result.get("ok"):
-        return result
-
-    remote_name = (remote or "origin").strip()
-    failure = result.get("push") or {}
-    failure_text = f"{failure.get('stdout') or ''}\n{failure.get('stderr') or ''}".lower()
-    lease_retry_allowed = (
-        repo == "gitlab-community/gitlab-org/gitlab-runner"
-        and remote_name == "origin"
-        and any(marker in failure_text for marker in ("non-fast-forward", "fetch first"))
-    )
-    if not lease_retry_allowed:
-        return result
-
-    conf = _repo_config(repo)
-    worktree = _worktree_path(repo, work_branch, conf)
-    remote_validation = _validate_remote_for_push(repo, worktree, remote_name)
-    if not remote_validation.get("ok"):
-        return {**result, "force_with_lease_used": False, "lease_error": "remote_validation_failed"}
-
-    remote_ref = f"refs/heads/{work_branch}"
-    with _gitlab_push_auth_env(str(remote_validation.get("url") or "")) as git_env:
-        remote_head = _run_with_env(
-            ["git", "ls-remote", "--heads", remote_name, remote_ref],
-            worktree,
-            git_env,
-            timeout_seconds=60,
-        )
-        first_line = (remote_head.get("stdout") or "").strip().splitlines()[:1]
-        first_value = first_line[0].split()[0] if first_line and first_line[0].split() else ""
-        if not (remote_head.get("ok") and re.fullmatch(r"[0-9a-fA-F]{40}", first_value)):
-            return {
-                **result,
-                "force_with_lease_used": False,
-                "lease_error": "remote_head_unavailable",
-                "remote_head": remote_head,
-            }
-        expected_sha = first_value.lower()
-        lease_command = [
-            "git",
-            "push",
-            f"--force-with-lease={remote_ref}:{expected_sha}",
-            remote_name,
-            f"HEAD:{remote_ref}",
-        ]
-        lease_push = _run_with_env(lease_command, worktree, git_env, timeout_seconds=300)
-
-    head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
-    return {
-        "ok": bool(lease_push.get("ok")),
-        "push": lease_push,
-        "head": (head.get("stdout") or "").strip(),
-        "remote": remote_name,
-        "remote_validation": remote_validation,
-        "branch": work_branch,
-        "force_with_lease_used": bool(lease_push.get("ok")),
-        "remote_head_before": expected_sha,
-    }
-
-
-local_exec_push_branch = push_branch

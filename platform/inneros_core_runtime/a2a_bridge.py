@@ -11,11 +11,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
+from raphiia_openai import coordination_live, durable_coordination_spine, mongo_store
 from raphiia_openai.a2a_agent_registry import merged_agent_cards, normalize_agent_key
 
 A2A_TASKS_COL = "ralfia_a2a_tasks"
 A2A_PROTOCOL_VERSION = "1.0"
-BRIDGE_VERSION = "1.1.0"
+BRIDGE_VERSION = "1.2.0"
 A2A_TERMINAL_STATES = frozenset({"completed", "failed", "canceled", "rejected"})
 OPS_TO_A2A_STATE = {
     "proposed": "submitted", "pending": "submitted", "accepted": "working",
@@ -170,6 +171,7 @@ class A2ABridge:
         record = {
             "a2a_task_id": a2a_task_id, "context_id": context_id,
             "correlation_id": ops_correlation_id, "agent_id": canonical_agent_id,
+            "assignee": assignee,
             "ops_task_id": ops_task_id, "state": "submitted", "transport": "a2a",
             "created_at": _now(), "updated_at": _now(), "artifacts": [],
             "bridge_version": BRIDGE_VERSION,
@@ -177,7 +179,28 @@ class A2ABridge:
             "traceparent": (tracking or {}).get("traceparent") or traceparent or "",
         }
         self.store.put(record)
-        return {**planned, "dry_run": False, "ops_task_id": ops_task_id, "created": bool(created.get("created", True))}
+        spine_event = durable_coordination_spine.publish_event(
+            "a2a.dispatched",
+            actor="A2A",
+            task_id=ops_task_id,
+            a2a_task_id=a2a_task_id,
+            correlation_id=ops_correlation_id,
+            repo=str(related_project or tracking.get("repo") or ""),
+            provider=str(tracking.get("provider") or "inneros-a2a"),
+            model=str(tracking.get("model") or ""),
+            status="submitted",
+            payload={"agent_id": canonical_agent_id, "assignee": assignee, "bridge_version": BRIDGE_VERSION},
+            envelope=tracking or None,
+            traceparent=traceparent,
+        )
+        return {
+            **planned,
+            "dry_run": False,
+            "ops_task_id": ops_task_id,
+            "created": bool(created.get("created", True)),
+            "event_id": spine_event.get("event_id"),
+            "task": record,
+        }
 
     def task_status(self, a2a_task_id: str) -> dict[str, Any]:
         record = self.store.get((a2a_task_id or "").strip())
@@ -207,6 +230,21 @@ class A2ABridge:
             result["integrity_error"] = integrity_error
         if ops_task.get("blocker"):
             result["status"]["message"] = str(ops_task.get("blocker"))
+        spine_event = durable_coordination_spine.publish_event(
+            "a2a.status_projected",
+            actor="A2A",
+            task_id=ops_task_id,
+            a2a_task_id=str(record.get("a2a_task_id") or ""),
+            correlation_id=str(record.get("correlation_id") or ""),
+            repo=str((record.get("envelope") or {}).get("repo") or ops_task.get("repo") or ""),
+            provider=str((record.get("envelope") or {}).get("provider") or "inneros-a2a"),
+            model=str((record.get("envelope") or {}).get("model") or ""),
+            status=state,
+            payload={"ops_status": ops_status, "terminal": result["terminal"], "integrity_error": integrity_error},
+            envelope=record.get("envelope") if isinstance(record.get("envelope"), dict) else None,
+            traceparent=str(record.get("traceparent") or ""),
+        )
+        result["event_id"] = spine_event.get("event_id")
         return result
 
 
@@ -217,7 +255,13 @@ def get_bridge() -> A2ABridge:
 def agent_cards() -> dict[str, Any]:
     cards = _all_cards()
     root = cards.get("AG-25")
-    return {"ok": True, "count": len(cards), "root_orchestrator": root, "cards": list(cards.values())}
+    return {
+        "ok": True,
+        "count": len(cards),
+        "root_orchestrator": root,
+        "cards": cards,
+        "card_list": list(cards.values()),
+    }
 
 
 def status() -> dict[str, Any]:
@@ -226,7 +270,8 @@ def status() -> dict[str, Any]:
         "ok": True, "service": "inneros-a2a-bridge", "bridge_version": BRIDGE_VERSION,
         "protocol_version": A2A_PROTOCOL_VERSION,
         "sdk": {"package": "a2a-sdk", "version": sdk, "available": bool(sdk)},
-        "source_of_truth": "ralfia_ops_tasks/RACB/MongoDB",
+        "source_of_truth": "ralfia_ops_tasks/RACB/MongoDB + ralfia_coordination_events",
+        "durable_spine": durable_coordination_spine.status(),
         "durable_transport_store": A2A_TASKS_COL,
         "agent_count": len(cards), "agents": sorted(cards), "root_orchestrator": "AG-25",
     }

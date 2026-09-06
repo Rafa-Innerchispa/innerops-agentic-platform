@@ -229,7 +229,6 @@ def bootstrap_project(
                 source="local_project_bootstrap",
             )
         except Exception as exc:
-            result["ok"] = False
             result["partial"] = True
             result["runtime_registry"] = {"ok": False, "error": str(exc)}
         return result

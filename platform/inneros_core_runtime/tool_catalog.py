@@ -407,6 +407,8 @@ ALL_MCP_TOOL_NAMES = [
     "local_exec_repo_policy_status",
     "local_exec_repo_authorize",
     "local_exec_repo_revoke",
+    "local_exec_host_approval_issue",
+    "local_exec_host_approval_validate",
     "dev_swarm_scope_status",
     "dev_swarm_launch_task",
     "external_repair_agent_status",
@@ -3149,6 +3151,46 @@ for _name in (
         "example_payload": {"repo": "Rafa-Innerchispa/ralphiia-ecosystem-core", "actor": "chatgpt", "task_id": "ops_...", "correlation_id": "corr_..."},
     }
 
+TOOL_DEFINITIONS.update(
+    {
+        "local_exec_host_approval_issue": {
+            "description": "Local Execution Plane: emite un approval_id temporal y acotado para host/peer ops por repo/project_id, nodo, accion y TTL; dry_run por defecto.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_host_approvals", "ralfia_coordination_log"],
+            "input_schema": {
+                "tool": "str",
+                "action": "str",
+                "node": "primary|amd",
+                "repo": "str",
+                "project_id": "str",
+                "ttl_seconds": "int<=600",
+                "reason": "str",
+                "actor": "str",
+                "dry_run": "bool",
+            },
+            "output_schema": {"ok": "bool", "approval_id": "str", "scope": "dict", "expires_at": "iso8601"},
+            "example_payload": {"tool": "peer_python_runtime", "action": "venv", "node": "amd", "repo": "Rafa-Innerchispa/hyperloom-r9700-anthropic-bridge", "ttl_seconds": 300, "dry_run": False},
+        },
+        "local_exec_host_approval_validate": {
+            "description": "Local Execution Plane: valida un approval_id scoped antes de una mutacion host/peer sin consumirlo ni ampliar permisos.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "low",
+            "writes_to": [],
+            "input_schema": {
+                "approval_id": "str",
+                "tool": "str",
+                "action": "str",
+                "node": "primary|amd",
+                "repo": "str",
+                "project_id": "str",
+            },
+            "output_schema": {"ok": "bool", "scope": "dict", "expires_at": "iso8601"},
+            "example_payload": {"approval_id": "hostappr_...", "tool": "peer_python_runtime", "action": "venv", "node": "amd", "repo": "Rafa-Innerchispa/hyperloom-r9700-anthropic-bridge"},
+        },
+    }
+)
+
 TOOL_DEFINITIONS["dev_swarm_scope_status"].update(
     {
         "description": "Dev Swarm: contrato seguro para que ChatGPT/Ralphi lance desarrollo local en repos owner-approved sin ralfia:admin.",
@@ -3710,9 +3752,9 @@ for _name in (
         "risk_level": "medium" if _name in _PROJECT_RUNTIME_WRITES else "low",
         "writes_to": ["project_runtime_registry", "trusted_project_root"] if _name in _PROJECT_RUNTIME_WRITES else [],
         "reads_from": ["project_runtime_registry", "trusted_project_root"],
-        "input_schema": {"project_id": "string|null", "repo": "owner/name|null", "node": "primary|amd|null", "dry_run": "bool|null"},
+        "input_schema": {"project_id": "string|null", "repo": "owner/name|null", "node": "primary|amd|null", "remote_url": "string|null", "base_ref": "git ref|null", "expected_sha": "git sha|null", "dry_run": "bool|null"},
         "output_schema": {"ok": "bool", "capability": "project_runtime_registry"},
-        "example_payload": {"project_id": "cozmo-alive", "node": "amd", "dry_run": True},
+        "example_payload": {"project_id": "cozmo-alive", "node": "amd", "base_ref": "main", "expected_sha": "", "dry_run": True},
     }
 
 TOOL_DEFINITIONS["project_runtime_reconcile"].update(
@@ -4240,3 +4282,181 @@ TOOL_DEFINITIONS.update(
 TOOL_DEFINITIONS["owner_vault_store_secret"].update({"required_scopes": ["ralfia:admin", "ralfia:private_memory"], "risk_level": "high"})
 TOOL_DEFINITIONS["owner_vault_secret_status"].update({"required_scopes": ["ralfia:read", "ralfia:private_memory"], "risk_level": "medium"})
 TOOL_DEFINITIONS["owner_vault_materialize_project_env"].update({"required_scopes": ["ralfia:admin", "ralfia:private_memory"], "risk_level": "high", "writes_to": ["local_env_file"]})
+
+
+# --- IDE / provider execution bridge ---
+_IDE_BRIDGE_TOOL_NAMES = [
+    "ide_task_bridge_status",
+    "provider_execution_fabric_status",
+    "execute_provider_task",
+    "ide_dispatch_task",
+    "ide_task_status",
+    "ide_claim_task",
+    "ide_mark_task_running",
+    "ide_complete_task",
+    "a2a_status",
+    "a2a_agent_cards",
+    "a2a_dispatch",
+    "a2a_task_status",
+    "durable_coordination_spine_status",
+    "durable_coordination_temporal_status",
+    "durable_coordination_publish_event",
+]
+for _ide_bridge_tool_name in _IDE_BRIDGE_TOOL_NAMES:
+    if _ide_bridge_tool_name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_ide_bridge_tool_name)
+
+TOOL_DEFINITIONS.update(
+    {
+        "ide_task_bridge_status": {
+            "description": "Reporta el contrato del puente IDE/A2A y separa entrega, claim, ejecución y cierre.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "bridge": "object"},
+            "example_payload": {},
+        },
+        "provider_execution_fabric_status": {
+            "description": "Reporta providers disponibles y contrato de ejecución con evidencia; delivery no equivale a completado.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["provider_runtime", "local_model_router"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "providers": "array", "contract": "object"},
+            "example_payload": {},
+        },
+        "execute_provider_task": {
+            "description": "Despacha una tarea a un provider gobernado; solo puede pasar a running/completed con prueba real y evidencia.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_ide_task_dispatches", "local_execution_worktree"],
+            "reads_from": ["provider_runtime", "local_model_router"],
+            "input_schema": {"provider": "string", "title": "string", "body": "string", "repo": "string|null", "branch": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "execution_state": "string", "evidence": "object|null"},
+            "example_payload": {"provider": "local_qwen", "title": "Bounded repair", "body": "Add regression test and fix.", "repo": "Rafa-Innerchispa/innerops-agentic-platform", "dry_run": True},
+        },
+        "ide_dispatch_task": {
+            "description": "Entrega una tarea a la bandeja IDE/A2A sin marcarla como ejecutada.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_ide_task_dispatches"],
+            "reads_from": ["provider_runtime"],
+            "input_schema": {"ide": "string", "title": "string", "body": "string", "repo": "string|null", "branch": "string|null"},
+            "output_schema": {"ok": "bool", "delivery_state": "string", "execution_state": "string"},
+            "example_payload": {"ide": "cursor", "title": "Review task", "body": "Claim before editing.", "repo": "Rafa-Innerchispa/innerops-agentic-platform"},
+        },
+        "ide_task_status": {
+            "description": "Consulta estado durable de una entrega IDE/A2A.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "input_schema": {"dispatch_id": "string"},
+            "output_schema": {"ok": "bool", "execution_state": "string"},
+            "example_payload": {"dispatch_id": "ide_abc123"},
+        },
+        "ide_claim_task": {
+            "description": "Marca una tarea IDE/A2A como aceptada por el provider correcto.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "reads_from": ["ralfia_ide_task_dispatches"],
+            "input_schema": {"dispatch_id": "string", "ide": "string"},
+            "output_schema": {"ok": "bool", "execution_state": "string"},
+            "example_payload": {"dispatch_id": "ide_abc123", "ide": "cursor"},
+        },
+        "ide_mark_task_running": {
+            "description": "Marca running solo con prueba de proceso, sesión remota o modelo local.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "reads_from": ["ralfia_ide_task_dispatches"],
+            "input_schema": {"dispatch_id": "string", "ide": "string", "execution_proof": "object"},
+            "output_schema": {"ok": "bool", "execution_state": "string"},
+            "example_payload": {"dispatch_id": "ide_abc123", "ide": "cursor", "execution_proof": {"proof_type": "remote_session", "session_id": "sess-1", "transport": "a2a"}},
+        },
+        "ide_complete_task": {
+            "description": "Cierra una tarea IDE/A2A sólo con evidencia explícita de resultado.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "reads_from": ["ralfia_ide_task_dispatches"],
+            "input_schema": {"dispatch_id": "string", "ide": "string", "result": "string|null", "evidence": "object"},
+            "output_schema": {"ok": "bool", "execution_state": "string", "terminal": "bool"},
+            "example_payload": {"dispatch_id": "ide_abc123", "ide": "cursor", "result": "completed", "evidence": {"tests": "PASS", "commit": "abc123"}},
+        },
+        "a2a_status": {
+            "description": "Estado del transporte A2A de InnerOS y sus agentes publicados.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_a2a_tasks", "agent_cards"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "agents": "array"},
+            "example_payload": {},
+        },
+        "a2a_agent_cards": {
+            "description": "Lista las Agent Cards canónicas disponibles para comunicación A2A.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["agent_cards"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "agent_cards": "array"},
+            "example_payload": {},
+        },
+        "a2a_dispatch": {
+            "description": "Envía trabajo durable por A2A manteniendo RACB/ops_tasks como fuente de verdad.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_a2a_tasks"],
+            "reads_from": ["agent_cards"],
+            "input_schema": {"agent_id": "string", "title": "string", "body": "string", "correlation_id": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "task_id": "string|null", "a2a_task_id": "string|null"},
+            "example_payload": {"agent_id": "cursor", "title": "Bounded repair", "body": "Use RACB and report evidence.", "dry_run": True},
+        },
+        "a2a_task_status": {
+            "description": "Consulta el estado A2A proyectado desde una tarea RACB.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_ops_tasks", "ralfia_a2a_tasks"],
+            "input_schema": {"a2a_task_id": "string"},
+            "output_schema": {"ok": "bool", "state": "string", "evidence": "object|null"},
+            "example_payload": {"a2a_task_id": "ops_abc123"},
+        },
+        "durable_coordination_spine_status": {
+            "description": "Expone el estado del spine durable MCP/A2A y sus backends Mongo, NATS/JetStream, Temporal y OTel.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_coordination_events"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "contracts": "object", "dependencies": "object"},
+            "example_payload": {},
+        },
+        "durable_coordination_temporal_status": {
+            "description": "Prueba conectividad Temporal local para el spine durable sin iniciar workflows ni ejecutar codigo externo.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": [],
+            "input_schema": {"address": "string|null", "namespace": "string|null", "timeout_sec": "number|null"},
+            "output_schema": {"ok": "bool", "ready": "bool", "address": "string", "namespace": "string", "reason": "string|null"},
+            "example_payload": {"address": "127.0.0.1:7233", "namespace": "default", "timeout_sec": 2.0},
+        },
+        "durable_coordination_publish_event": {
+            "description": "Publica un evento durable de coordinacion con envelope y traceparent; dry_run usa memoria y no Mongo.",
+            "required_scopes": ["ralfia:write"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_coordination_events"],
+            "reads_from": [],
+            "input_schema": {"event_type": "string", "actor": "string", "task_id": "string|null", "correlation_id": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "event_id": "string", "event": "object"},
+            "example_payload": {"event_type": "task.heartbeat", "actor": "codex", "task_id": "ops_abc123", "dry_run": True},
+        },
+    }
+)

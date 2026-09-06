@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, local_execution_plane, local_model_router, mongo_store
+from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, durable_coordination_spine, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -28,18 +28,30 @@ executor_version = EXECUTOR_VERSION
 DEFAULT_MAX_CONCURRENT = 4
 STALE_WORKER_SECONDS = 3600
 STALE_PROGRESS_SECONDS = 1800
+STALE_OPS_TASK_SECONDS = 6 * 3600
 MAX_STALE_RECLAIMS = 2
+MAX_MODEL_OUTPUT_ATTEMPTS = 2
+MAX_AUTONOMOUS_DELETIONS_PER_FILE = 800
+MAX_AUTONOMOUS_DELETION_RATIO = 3.0
+MAX_FIXTURE_CONTROL_PLANE_DELETIONS = 50
 CAPACITY_STATE_KEY = "dev_swarm_capacity_governor"
 ELIGIBLE_STATUSES = ("proposed",)
+OPS_TERMINAL_STATUSES = frozenset({"blocked", "completed", "cancelled", "failed"})
 PRIORITY_ORDER = {"critical": 0, "p0": 1, "p1": 2, "normal": 3, "p2": 4, "low": 5}
 SAFE_INNEROS_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
-ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini"}
+ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini", "dev_swarm"}
 TERMINAL_EXECUTOR_STATUSES = {"executed", "needs_implementation", "failed", "blocked"}
 LEGACY_SAFE_TASK_IDS = {
     "ops_e7cacfc4a525",
     "ops_ca2281d54189",
     "ops_4afe0b330d8a",
     "ops_f61caab418a2",
+}
+CRITICAL_CONTROL_PLANE_PATHS = {
+    "platform/inneros_core_runtime/dev_swarm_scheduler.py",
+    "platform/inneros_core_runtime/local_execution_plane.py",
+    "platform/inneros_core_runtime/coordination_live.py",
+    "platform/inneros_core_runtime/durable_coordination_spine.py",
 }
 
 
@@ -64,11 +76,50 @@ def _db():
     return mongo_store.get_db()
 
 
-def _record_watchdog_anomaly_safe(anomaly: dict[str, Any], repair_task_id: str = "ops_e85143bd8ffc") -> None:
+def _record_watchdog_anomaly_safe(anomaly: dict[str, Any], repair_task_id: str = "ops_e85143bd8ffc", db: Any | None = None) -> None:
     try:
-        dev_swarm_watchdog.record_anomaly(anomaly, repair_task_id=repair_task_id, actor="dev_swarm_reconciler")
+        dev_swarm_watchdog.record_anomaly(anomaly, repair_task_id=repair_task_id, actor="dev_swarm_reconciler", db=db)
     except Exception:
         pass
+
+
+def _publish_dev_swarm_event(
+    event_type: str,
+    *,
+    task: dict[str, Any] | None = None,
+    worker: dict[str, Any] | None = None,
+    task_id: str = "",
+    repo: str = "",
+    status: str = "",
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Emit durable scheduler evidence without making scheduling depend on it."""
+    task = task or {}
+    worker = worker or {}
+    try:
+        return durable_coordination_spine.publish_event(
+            event_type,
+            actor="dev_swarm",
+            task_id=str(task_id or task.get("task_id") or worker.get("task_id") or ""),
+            correlation_id=str(task.get("correlation_id") or ((worker.get("launch") or {}).get("plan") or {}).get("correlation_id") or ""),
+            repo=str(repo or task.get("repo") or worker.get("repo") or task.get("related_project") or ""),
+            provider=str(task.get("preferred_provider") or "local-amd-5"),
+            model=str(task.get("preferred_model") or ""),
+            status=status or str(task.get("status") or worker.get("status") or ""),
+            payload=payload or {},
+        )
+    except Exception as exc:
+        try:
+            mongo_store.log_sync(
+                "dev_swarm_durable_event_failed",
+                event_type=event_type,
+                task_id=task_id or task.get("task_id") or worker.get("task_id"),
+                repo=repo or task.get("repo") or worker.get("repo"),
+                error=str(exc)[:500],
+            )
+        except Exception:
+            pass
+        return None
 
 
 def _state() -> dict[str, Any]:
@@ -246,16 +297,93 @@ CANONICAL_REPO_HINTS = {
 }
 
 
-def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
-    candidates: list[str] = []
-    for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo"):
-        value = str(task.get(key) or "").strip()
+WRITE_TASK_CLASSES = {"coding", "code_review", "refactor", "tests", "build", "deployment"}
+LOCAL_DEV_SWARM_LANE = "local_dev_swarm"
+
+
+def _registry_resolve_repo(project_id: str = "", repo: str = "") -> str | None:
+    try:
+        resolved = project_runtime_registry.resolve_project(project_id=project_id or "", repo=repo or "")
+    except Exception:
+        return None
+    if not resolved.get("ok"):
+        return None
+    project = resolved.get("project") if isinstance(resolved.get("project"), dict) else {}
+    value = str((project or {}).get("repo") or resolved.get("repo") or "").strip()
+    return value or None
+
+
+def _structured_repo_binding(task: dict[str, Any]) -> str | None:
+    repo = str(task.get("repo") or task.get("repository") or "").strip()
+    project_id = str(task.get("project_id") or "").strip()
+    if repo:
+        return repo
+    if project_id:
+        return _registry_resolve_repo(project_id=project_id)
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if payload:
+        repo = str(payload.get("repo") or payload.get("repository") or "").strip()
+        project_id = str(payload.get("project_id") or "").strip()
+        if repo:
+            return repo
+        if project_id:
+            return _registry_resolve_repo(project_id=project_id)
+    return None
+
+
+def _requires_structured_binding(task: dict[str, Any], text: str) -> bool:
+    if _is_non_dev_ops_task(task, text):
+        return False
+    if str(task.get("task_class") or "").lower() in WRITE_TASK_CLASSES:
+        return True
+    if any(marker in text for marker in ("write", "create files", "crear archivos", "implement", "implementar", "repair", "reparar", "npm ci", "tests", "worktree", "deploy", "activar runtime")):
+        return True
+    if any(marker in text for marker in ("workforce", "femar", "xprize", "devpost", "cloudflare", "alpaca")):
+        return True
+    return False
+
+
+def _execution_lane_for_task(task: dict[str, Any]) -> str:
+    tags = {str(item).lower() for item in task.get("tags") or []}
+    if "dev_swarm_fixture" in tags:
+        return LOCAL_DEV_SWARM_LANE
+    value = str(task.get("execution_lane") or "").strip().lower()
+    if value:
+        return value
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if payload:
+        value = str(payload.get("execution_lane") or "").strip().lower()
         if value:
-            candidates.append(value)
+            return value
+    assignee = str(task.get("assignee") or "").strip().lower()
+    if assignee == "dev_swarm":
+        return LOCAL_DEV_SWARM_LANE
+    return ""
+
+
+def _repo_from_related_project(task: dict[str, Any]) -> str | None:
+    value = str(task.get("related_project") or "").strip()
+    if value.startswith("Rafa-Innerchispa/"):
+        return value
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    value = str((payload or {}).get("related_project") or "").strip()
+    if value.startswith("Rafa-Innerchispa/"):
+        return value
+    return None
+
+
+def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
+    structured = _structured_repo_binding(task)
+    if structured:
+        return structured
+    related = _repo_from_related_project(task)
+    if related:
+        return related
+    candidates: list[str] = []
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
     for obj in (payload, metadata):
-        for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo", "project", "related_project"):
+        for key in ("repo_full_name", "canonical_repo", "target_repo"):
             value = str((obj or {}).get(key) or "").strip()
             if value:
                 candidates.append(value)
@@ -266,38 +394,15 @@ def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
         for marker, repo in CANONICAL_REPO_HINTS.items():
             if marker in lowered:
                 return repo
-
-    # Human-authored ops tasks frequently carry the canonical repository in
-    # the checklist instead of a structured ``repo`` field. A labelled repo is
-    # authoritative and must win before keyword heuristics. Otherwise a phrase
-    # such as "Repo explícito: <platform>; no tocar Workforce" can be routed to
-    # Workforce merely because the negative sentence contains that product
-    # name.
-    raw_parts = [
-        str(task.get("title") or ""),
-        *[str(item) for item in task.get("checklist") or []],
-    ]
-    raw_text = " ".join(raw_parts)
-    labelled = re.search(
-        r"\b(?:repo|repository|repositorio)\s+(?:expl[ií]cito|explicit)\s*[:=]\s*(Rafa-Innerchispa/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)",
-        raw_text,
-        flags=re.IGNORECASE,
-    )
-    if labelled:
-        repo_name = labelled.group(1).split("/", 1)[1]
-        for marker, repo in CANONICAL_REPO_HINTS.items():
-            if marker == repo_name.lower():
-                return repo
-        return f"Rafa-Innerchispa/{repo_name}"
-
-    if "services/femar-mvp-core" in text:
-        return "Rafa-Innerchispa/innerspark-workforce-ai"
-    if "innerspark-workforce-ai" in text:
-        return "Rafa-Innerchispa/innerspark-workforce-ai"
-    workforce_dev = "workforce" in text and any(marker in text for marker in ("dev swarm", "implementation", "implementacion", "implementar", "tests", "jest", "package_root", "package roots", "femar", "node_modules", "npm ci", "worktree", "base_ref"))
-    hostname_only = "workforce.pcdoctor.ai" in text and not any(marker in text for marker in ("innerspark-workforce-ai", "services/femar-mvp-core", "dev swarm", "npm ci", "worktree"))
-    if workforce_dev and not hostname_only:
-        return "Rafa-Innerchispa/innerspark-workforce-ai"
+    for match in re.findall(r"\b(?:rafa-innerchispa|Rafa-Innerchispa)/[A-Za-z0-9_.-]+\b", text, flags=re.IGNORECASE):
+        owner, name = match.split("/", 1)
+        if owner.lower() == "rafa-innerchispa":
+            name = name.rstrip(".,;:)")
+            lowered_name = name.lower()
+            for marker, repo in CANONICAL_REPO_HINTS.items():
+                if marker == lowered_name:
+                    return repo
+            return f"Rafa-Innerchispa/{name}"
     return None
 
 
@@ -410,6 +515,151 @@ def _is_non_dev_ops_task(task: dict[str, Any], text: str | None = None) -> bool:
     return any(marker in haystack for marker in non_dev_markers) and not any(marker in haystack for marker in ("inneros", "dev swarm", "scheduler", "runtime", "mcp"))
 
 
+def _has_meaningful_evidence(task: dict[str, Any]) -> bool:
+    evidence = task.get("evidence")
+    return isinstance(evidence, dict) and bool(evidence)
+
+
+def _is_webmcp_readonly_noise(task: dict[str, Any], text: str | None = None) -> bool:
+    """Identify obsolete WebMCP/A2A smoke pings that should not stay P0."""
+    haystack = text if text is not None else _task_search_text(task)
+    status = str(task.get("status") or "").lower()
+    if status not in {"proposed", "blocked"}:
+        return False
+    if _has_meaningful_evidence(task):
+        return False
+    assignee = str(task.get("assignee") or "").lower()
+    from_agent = str(task.get("from_agent") or "").lower()
+    if from_agent != "a2a" and assignee != "ralfia":
+        return False
+    correlation_id = str(task.get("correlation_id") or "").lower()
+    title = str(task.get("title") or "").lower()
+    if not (correlation_id.startswith("wmcp_") or "webmcp" in title or "inneros-webmcp" in haystack):
+        return False
+    read_only_markers = ("read-only", "read only", "smoke", "ping", "responde ok", "ack desde panel", "inspect the project status")
+    implementation_markers = ("implement", "patch", "fix", "deploy", "restart", "auth", "provider", "dmx", "chrome", "bridge")
+    return any(marker in haystack for marker in read_only_markers) and not any(marker in haystack for marker in implementation_markers)
+
+
+def _ready_for_integration_guardian(task: dict[str, Any]) -> bool:
+    status = str(task.get("status") or "").lower()
+    if status not in {"blocked", "in_progress"}:
+        return False
+    if str(task.get("owner") or "").lower() != "dev_swarm":
+        return False
+    snippets = [str(task.get("next_action") or "")]
+    for item in task.get("heartbeat_history") or []:
+        if isinstance(item, dict):
+            snippets.append(str(item.get("next_action") or ""))
+    return "pass: ready for integration guardian" in " ".join(snippets).lower()
+
+
+def classify_coordination_backlog_task(task: dict[str, Any]) -> str | None:
+    """Return a durable cleanup bucket for stale/non-dev coordination noise."""
+    text = _task_search_text(task)
+    status = str(task.get("status") or "").lower()
+    if _is_webmcp_readonly_noise(task, text):
+        return "closed_watchdog_noise"
+    if _is_non_dev_ops_task(task, text):
+        return "email_ops_backlog"
+    if _ready_for_integration_guardian(task):
+        return "ready_for_integration_guardian"
+    if status == "proposed":
+        ok, reason, _repo = _eligible_reason(task)
+        if not ok and reason in {"blocked_missing_task_binding", "repo_not_inferred"}:
+            return "needs_repo_metadata"
+        has_repo_contract = bool(
+            _structured_repo_binding(task)
+            or _repo_from_related_project(task)
+            or str(task.get("task_class") or "").lower() in WRITE_TASK_CLASSES
+        )
+        if not ok and reason.startswith("execution_lane_") and has_repo_contract:
+            return "needs_execution_lane"
+    return None
+
+
+def reconcile_coordination_backlog_hygiene(limit: int = 200, dry_run: bool = True) -> dict[str, Any]:
+    """Classify stale ops_tasks so old noise stops blocking live planning.
+
+    The reconciliation is conservative: it never deletes records, never touches
+    source code, and only terminal-cancels read-only WebMCP smoke pings that
+    have no evidence. Other stale/non-dev rows receive a cleanup bucket that
+    scheduler_tick already filters.
+    """
+    db = _db()
+    now = _now()
+    statuses = ["proposed", "accepted", "in_progress", "blocked", "awaiting_approval", "verification", "partial"]
+    rows = list(
+        db[coordination_live.OPS_TASKS_COL]
+        .find({"status": {"$in": statuses}}, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(max(1, min(int(limit or 200), 500)))
+    )
+    actions: list[dict[str, Any]] = []
+    counts: dict[str, int] = {}
+    for task in rows:
+        task_id = str(task.get("task_id") or "")
+        if not task_id:
+            continue
+        bucket = classify_coordination_backlog_task(task)
+        if not bucket:
+            continue
+        counts[bucket] = counts.get(bucket, 0) + 1
+        action: dict[str, Any] = {"task_id": task_id, "bucket": bucket, "status": task.get("status")}
+        if bucket == "closed_watchdog_noise":
+            action["target_status"] = "cancelled"
+            action["reason"] = "obsolete_read_only_webmcp_smoke_without_evidence"
+            if not dry_run:
+                db[coordination_live.OPS_TASKS_COL].update_one(
+                    {"task_id": task_id, "status": {"$in": ["proposed", "blocked"]}},
+                    {
+                        "$set": {
+                            "status": "cancelled",
+                            "cleanup_bucket": bucket,
+                            "coordination_bucket": bucket,
+                            "completed_at": now,
+                            "updated_at": now,
+                            "updated_by": "coordination_backlog_hygiene",
+                            "dev_swarm_retry_requested": False,
+                            "dev_swarm_last_skip_reason": bucket,
+                            "dev_swarm_last_skip_at": now,
+                        },
+                        "$push": {
+                            "state_history": {
+                                "from": task.get("status"),
+                                "to": "cancelled",
+                                "actor": "coordination_backlog_hygiene",
+                                "at": now,
+                                "reason": "obsolete read-only WebMCP smoke task without evidence",
+                            }
+                        },
+                    },
+                )
+        else:
+            patch: dict[str, Any] = {
+                "cleanup_bucket": bucket,
+                "coordination_bucket": bucket,
+                "cleanup_reviewed_at": now,
+                "updated_at": now,
+                "updated_by": "coordination_backlog_hygiene",
+                "dev_swarm_last_skip_reason": bucket,
+                "dev_swarm_last_skip_at": now,
+                "dev_swarm_last_skip_repo": None,
+            }
+            if bucket == "email_ops_backlog":
+                patch.update({"task_class": "operational", "execution_lane": "agent_ops", "dev_swarm_retry_requested": False})
+            elif bucket == "ready_for_integration_guardian":
+                patch.update({"dev_swarm_retry_requested": False})
+            elif bucket == "needs_execution_lane":
+                patch.update({"dev_swarm_retry_requested": False})
+            if not dry_run:
+                db[coordination_live.OPS_TASKS_COL].update_one({"task_id": task_id}, {"$set": patch})
+        actions.append(action)
+    if not dry_run and actions:
+        _save_state({"last_backlog_hygiene_at": now, "last_backlog_hygiene_counts": counts})
+    return {"ok": True, "dry_run": dry_run, "reviewed": len(rows), "action_count": len(actions), "counts": counts, "actions": actions[:100]}
+
+
 def _active_worker_query() -> dict[str, Any]:
     return {
         "status": {"$in": ["starting", "running"]},
@@ -422,7 +672,6 @@ def _active_worker_query() -> dict[str, Any]:
 
 def _worker_progress_time(worker: dict[str, Any]) -> datetime | None:
     executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-    # Heartbeat proves process liveness, not useful progress.
     candidates = [
         executor.get("last_progress_at"),
         worker.get("started_at"),
@@ -433,13 +682,6 @@ def _worker_progress_time(worker: dict[str, Any]) -> datetime | None:
     return max(parsed) if parsed else None
 
 
-def _worker_needs_executor_upgrade(worker: dict[str, Any]) -> bool:
-    """Detect an active durable worker created by an older executor."""
-    executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-    version = str(executor.get("version") or "").strip()
-    return bool(version and version != EXECUTOR_VERSION)
-
-
 def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso: str, reason: str) -> dict[str, int]:
     retriable = 0
     exhausted = 0
@@ -448,11 +690,7 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
         if not task_id:
             continue
         executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-        task = _task_doc(task_id) or {}
-        reclaim_count = max(
-            int(executor.get("stale_reclaim_count") or 0),
-            int(task.get("dev_swarm_retry_count") or 0),
-        ) + 1
+        reclaim_count = int(executor.get("stale_reclaim_count") or 0) + 1
         retryable = reclaim_count <= MAX_STALE_RECLAIMS
         executor_status = "failed_retryable" if retryable else "blocked"
         blocker = "stale_worker_reclaimed_for_retry" if retryable else "stale_worker_retry_budget_exhausted"
@@ -483,7 +721,6 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
                     "dev_swarm_last_skip_reason": blocker,
                     "dev_swarm_last_skip_at": now_iso,
                     "dev_swarm_retry_requested": retryable,
-                    "dev_swarm_retry_count": reclaim_count,
                     "updated_at": now_iso,
                 }
             },
@@ -501,12 +738,127 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
                 "severity": "high",
                 "evidence": {"reason": reason, "reclaim_count": reclaim_count, "retryable": retryable},
             }
-        )
+        , db=db)
         if retryable:
             retriable += 1
         else:
             exhausted += 1
     return {"retriable": retriable, "exhausted": exhausted}
+
+
+def _has_recent_task_activity(db: Any, task_id: str, now: datetime) -> bool:
+    if not task_id:
+        return False
+    cutoff = now.timestamp() - STALE_PROGRESS_SECONDS
+    worker = db[WORKERS_COL].find_one({"task_id": task_id}, {"_id": 0}) if hasattr(db[WORKERS_COL], "find_one") else None
+    if worker and str(worker.get("status") or "").lower() in {"starting", "running", "verification"}:
+        progress = _worker_progress_time(worker)
+        if progress and progress.timestamp() >= cutoff:
+            return True
+    task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) if hasattr(db[coordination_live.OPS_TASKS_COL], "find_one") else None
+    if task and str(task.get("status") or "").lower() in {"accepted", "in_progress", "verification", "awaiting_approval"}:
+        activity = _task_activity_time(task)
+        if activity and activity.timestamp() >= cutoff:
+            return True
+    return False
+
+
+def _task_activity_time(task: dict[str, Any]) -> datetime | None:
+    """Return the latest non-terminal activity timestamp for an ops task."""
+    candidates: list[datetime] = []
+    for key in (
+        "last_heartbeat_at",
+        "last_evidence_at",
+        "checkpoint_at",
+        "verification_started_at",
+        "updated_at",
+        "started_at",
+    ):
+        parsed = _parse_dt(task.get(key))
+        if parsed:
+            candidates.append(parsed)
+    evidence_history = task.get("evidence_history")
+    if isinstance(evidence_history, list):
+        for item in evidence_history[-5:]:
+            if isinstance(item, dict):
+                parsed = _parse_dt(item.get("at"))
+                if parsed:
+                    candidates.append(parsed)
+    return max(candidates) if candidates else None
+
+
+def _expire_inactive_locks(db: Any, now: datetime, now_iso: str) -> dict[str, int]:
+    expired = 0
+    preserved = 0
+    locks = db["ralfia_coordination_locks"].find({"status": "active", "expires_at": {"$lt": now_iso}}, {"_id": 0})
+    for lock in locks:
+        task_id = str(lock.get("task_id") or "")
+        if _has_recent_task_activity(db, task_id, now):
+            preserved += 1
+            continue
+        result = db["ralfia_coordination_locks"].update_one(
+            {"resource_id": lock.get("resource_id"), "status": "active"},
+            {"$set": {"status": "expired", "expired_at": now_iso, "updated_at": now_iso, "expired_by": "dev_swarm_reconciler"}},
+        )
+        expired += int(getattr(result, "modified_count", 0) or 0)
+    return {"expired": expired, "preserved_active": preserved}
+
+
+def _reconcile_stale_ops_tasks(db: Any, now: datetime, now_iso: str, reason: str) -> int:
+    """Block active-looking ops tasks that have no live worker and no recent activity."""
+    stale_before = now.timestamp() - STALE_OPS_TASK_SECONDS
+    statuses = ["accepted", "in_progress", "verification", "awaiting_approval"]
+    reconciled = 0
+    rows = db[coordination_live.OPS_TASKS_COL].find({"status": {"$in": statuses}}, {"_id": 0}).limit(200)
+    for task in rows:
+        task_id = str(task.get("task_id") or "")
+        if not task_id:
+            continue
+        activity = _task_activity_time(task)
+        if not activity or activity.timestamp() >= stale_before:
+            continue
+        if _has_recent_task_activity(db, task_id, now):
+            continue
+        previous_status = str(task.get("status") or "")
+        blocker = "stale_ops_task_timeout"
+        result = db[coordination_live.OPS_TASKS_COL].update_one(
+            {"task_id": task_id, "status": {"$in": statuses}},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "blocker": blocker,
+                    "stale_task_timeout_at": now_iso,
+                    "stale_previous_status": previous_status,
+                    "dev_swarm_retry_requested": False,
+                    "dev_swarm_last_skip_reason": blocker,
+                    "dev_swarm_last_skip_at": now_iso,
+                    "updated_at": now_iso,
+                    "updated_by": "dev_swarm_reconciler",
+                },
+                "$push": {
+                    "state_history": {
+                        "from": previous_status,
+                        "to": "blocked",
+                        "actor": "dev_swarm_reconciler",
+                        "at": now_iso,
+                        "reason": blocker,
+                        "reconcile_reason": reason,
+                    }
+                },
+            },
+        )
+        changed = int(getattr(result, "modified_count", 0) or 0)
+        reconciled += changed
+        if changed:
+            _publish_dev_swarm_event(
+                "task.blocked",
+                task=task,
+                task_id=task_id,
+                repo=str(task.get("repo") or task.get("related_project") or ""),
+                status="blocked",
+                payload={"reason": blocker, "previous_status": previous_status, "reconcile_reason": reason},
+            )
+    return reconciled
 
 
 def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
@@ -529,50 +881,6 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     )
     terminal_modified = executed_res.modified_count + failed_res.modified_count + blocked_res.modified_count
 
-    # A service restart kills the in-memory execution that owned old-version
-    # workers, but their Mongo rows can still say "running". Never relabel such
-    # ghosts as current. Reclaim them and let the scheduler relaunch the same
-    # durable task under the current executor from the canonical base.
-    version_mismatch_count = 0
-    for worker in db[WORKERS_COL].find(_active_worker_query(), {"_id": 0}):
-        if not _worker_needs_executor_upgrade(worker):
-            continue
-        task_id = str(worker.get("task_id") or "")
-        if not task_id:
-            continue
-        executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
-        previous_version = str(executor.get("version") or "unknown")
-        blocker = "executor_version_mismatch_reclaimed"
-        db[WORKERS_COL].update_one(
-            {"task_id": task_id},
-            {"$set": {
-                "owner": "dev_swarm",
-                "status": "blocked",
-                "blocker": blocker,
-                "slot_reclaimed_at": now_iso,
-                "capacity_reconciled_at": now_iso,
-                "capacity_reconcile_reason": reason,
-                "executor.status": "failed_retryable",
-                "executor.phase": "version_mismatch",
-                "executor.blocker": blocker,
-                "executor.previous_version": previous_version,
-                "executor.target_version": EXECUTOR_VERSION,
-                "executor.updated_at": now_iso,
-            }},
-        )
-        db[coordination_live.OPS_TASKS_COL].update_one(
-            {"task_id": task_id},
-            {"$set": {
-                "owner": "dev_swarm",
-                "status": "blocked",
-                "dev_swarm_last_skip_reason": blocker,
-                "dev_swarm_last_skip_at": now_iso,
-                "dev_swarm_retry_requested": True,
-                "updated_at": now_iso,
-            }},
-        )
-        version_mismatch_count += 1
-
     invalid_route_count = 0
     for worker in db[WORKERS_COL].find(
         {
@@ -589,6 +897,10 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         else:
             ok, invalid_reason, expected_repo = _eligible_reason(task)
             worker_repo = _worker_repo(worker)
+            ops_status = str(task.get("status") or "").lower()
+            if ops_status in OPS_TERMINAL_STATUSES and not _ops_auto_retry_allowed(task):
+                invalid_reason = f"ops_status_{ops_status}_no_auto_retry"
+                ok = False
             if ok:
                 continue
             if invalid_reason == "repo_not_inferred" and worker_repo:
@@ -643,7 +955,7 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
                 "severity": "high",
                 "evidence": {"reason": invalid_reason, "reconcile_reason": reason},
             }
-        )
+        , db=db)
         invalid_route_count += 1
 
     stale_workers = []
@@ -661,10 +973,8 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         if heartbeat_expired or progress_expired:
             stale_workers.append(worker)
     stale_reclaim = _reclaim_stale_workers(db, stale_workers, now_iso, reason) if stale_workers else {"retriable": 0, "exhausted": 0}
-    lock_res = db["ralfia_coordination_locks"].update_many(
-        {"status": "active", "expires_at": {"$lt": now_iso}},
-        {"$set": {"status": "expired", "expired_at": now_iso, "updated_at": now_iso, "expired_by": "dev_swarm_reconciler"}},
-    )
+    lock_res = _expire_inactive_locks(db, now, now_iso)
+    stale_ops_reconciled = _reconcile_stale_ops_tasks(db, now, now_iso, reason)
     active = db[WORKERS_COL].count_documents(_active_worker_query())
     return {
         "ok": True,
@@ -674,19 +984,29 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         "stale_workers_reconciled": stale_reclaim["retriable"] + stale_reclaim["exhausted"],
         "stale_workers_retryable": stale_reclaim["retriable"],
         "stale_workers_exhausted": stale_reclaim["exhausted"],
-        "expired_locks": lock_res.modified_count,
+        "stale_ops_tasks_reconciled": stale_ops_reconciled,
+        "expired_locks": lock_res["expired"],
+        "preserved_active_locks": lock_res["preserved_active"],
         "active_worker_count": active,
     }
 
 
+def _ops_auto_retry_allowed(task: dict[str, Any]) -> bool:
+    """Only explicit retry flag may relaunch blocked/in_progress ops owned by dev_swarm."""
+    if not task.get("dev_swarm_retry_requested"):
+        return False
+    owner = str(task.get("owner") or "").lower()
+    return owner == "dev_swarm"
+
+
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     status = str(task.get("status") or "").lower()
-    retryable_existing = (
-        status in {"accepted", "in_progress", "blocked"}
-        and task.get("owner") == "dev_swarm"
-        and task.get("dev_swarm_retry_requested") is True
-    )
-    if status not in ELIGIBLE_STATUSES and not retryable_existing:
+    retry_allowed = status == "blocked" and _ops_auto_retry_allowed(task)
+    if status in OPS_TERMINAL_STATUSES and not retry_allowed:
+        return False, "status_not_proposed", None
+    if status not in ELIGIBLE_STATUSES and not retry_allowed and not (
+        status in {"accepted", "in_progress"} and str(task.get("owner") or "").lower() == "dev_swarm"
+    ):
         return False, "status_not_proposed", None
     assignee = str(task.get("assignee") or "").lower()
     if assignee not in ALLOWED_ASSIGNEES:
@@ -694,9 +1014,35 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     text = _task_search_text(task)
     if _is_non_dev_ops_task(task, text):
         return False, "non_development_ops_filtered", None
-    repo = _infer_repo(task)
+
+    lane = _execution_lane_for_task(task)
+    binding_repo = _structured_repo_binding(task) or _repo_from_related_project(task)
+    inferred_repo = _infer_repo(task)
+    repo = binding_repo or inferred_repo
+
+    product_binding_markers = (
+        "inneros-alpha-alpaca",
+        "inneros-webmcp",
+        "innerspark-workforce-ai",
+        "workforce",
+        "femar",
+        "xprize",
+        "devpost",
+        "cloudflare",
+    )
+    if _requires_structured_binding(task, text) and not binding_repo:
+        platform_context = any(marker in text for marker in ("innerops", "all things agentic", "agentic platform"))
+        product_context = any(marker in text for marker in product_binding_markers)
+        if product_context and not (repo == SAFE_INNEROS_REPO and platform_context):
+            return False, "blocked_missing_task_binding", None
+        if not (repo == SAFE_INNEROS_REPO and platform_context) and not (lane == LOCAL_DEV_SWARM_LANE and repo == SAFE_INNEROS_REPO):
+            return False, "blocked_missing_task_binding", None
+    if lane and lane != LOCAL_DEV_SWARM_LANE:
+        return False, f"execution_lane_not_local_dev_swarm:{lane}", None
+    if assignee in {"codex", "cursor", "antigravity"} and not retry_allowed and lane != LOCAL_DEV_SWARM_LANE:
+        return False, "execution_lane_required_for_dev_swarm", None
     if not repo:
-        return False, "repo_not_inferred", None
+        return False, "blocked_missing_task_binding", None
     policy = local_execution_plane.repo_policy_status(repo)
     if not policy.get("ok"):
         return False, f"repo_policy_denied:{policy.get('error')}", repo
@@ -923,7 +1269,6 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     if include_fixtures:
         retry_query = {
             "status": "blocked",
-            "executor.status": "failed_retryable",
             "$or": [
                 {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
                 {"tags": "dev_swarm_fixture"},
@@ -932,8 +1277,10 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     else:
         retry_query = {
             "status": "blocked",
-            "executor.status": "failed_retryable",
-            "owner": "dev_swarm",
+            "$or": [
+                {"task_id": {"$in": list(LEGACY_SAFE_TASK_IDS)}},
+                {"owner": "dev_swarm"},
+            ],
         }
     retry_ids = [
         row["task_id"]
@@ -942,15 +1289,31 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         .limit(max(1, min(limit, 25)))
         if row.get("task_id")
     ]
+    if not include_fixtures:
+        ops_retry_ids = [
+            row["task_id"]
+            for row in db[coordination_live.OPS_TASKS_COL]
+            .find(
+                {"status": "blocked", "owner": "dev_swarm", "dev_swarm_retry_requested": True},
+                {"_id": 0, "task_id": 1},
+            )
+            .limit(max(1, min(limit, 25)))
+            if row.get("task_id")
+        ]
+        retry_ids.extend(tid for tid in ops_retry_ids if tid not in retry_ids)
+    # Only retry when ops explicitly requests it; blocked workers alone must not relaunch.
+    if retry_ids:
+        retry_ids = [
+            tid
+            for tid in retry_ids
+            if (doc := db[coordination_live.OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "dev_swarm_retry_requested": 1, "status": 1}))
+            and doc.get("dev_swarm_retry_requested")
+            and str(doc.get("status") or "").lower() in {"accepted", "in_progress", "blocked"}
+        ]
     if retry_ids:
         seen = {task.get("task_id") for task in tasks}
         retry_tasks = db[coordination_live.OPS_TASKS_COL].find(
-            {
-                "task_id": {"$in": retry_ids},
-                "owner": "dev_swarm",
-                "status": {"$in": ["accepted", "in_progress", "blocked"]},
-                "dev_swarm_retry_requested": True,
-            },
+            {"task_id": {"$in": retry_ids}, "owner": "dev_swarm", "status": {"$in": ["accepted", "in_progress", "blocked"]}},
             {"_id": 0},
         )
         tasks.extend(task for task in retry_tasks if task.get("task_id") not in seen)
@@ -959,11 +1322,29 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     skipped: list[dict[str, Any]] = []
     filtered: list[dict[str, Any]] = []
     for task in tasks:
+        bucket = str(task.get("coordination_bucket") or task.get("cleanup_bucket") or "").strip()
+        if bucket in {
+            "email_ops_backlog",
+            "needs_repo_metadata",
+            "closed_watchdog_noise",
+            "cancelled_stale_duplicate_shadow",
+            "ready_for_integration_guardian",
+            "needs_execution_lane",
+        }:
+            filtered.append({"task_id": task.get("task_id"), "reason": bucket})
+            continue
         text = _task_search_text(task)
         if _is_non_dev_ops_task(task, text):
             reason = "non_development_ops_filtered"
             filtered.append({"task_id": task.get("task_id"), "reason": reason})
             if not dry_run:
+                _publish_dev_swarm_event(
+                    "scheduler.skipped",
+                    task=task,
+                    task_id=str(task.get("task_id") or ""),
+                    status="skipped",
+                    payload={"reason": reason, "queue": "development"},
+                )
                 db[coordination_live.OPS_TASKS_COL].update_one(
                     {"task_id": task.get("task_id")},
                     {"$set": {"dev_swarm_last_skip_reason": reason, "dev_swarm_last_skip_at": _now(), "dev_swarm_last_skip_repo": None}},
@@ -976,13 +1357,34 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
         if not ok:
             skipped.append({"task_id": task.get("task_id"), "reason": reason, "repo": repo})
             if not dry_run:
+                _publish_dev_swarm_event(
+                    "scheduler.skipped",
+                    task=task,
+                    task_id=str(task.get("task_id") or ""),
+                    repo=str(repo or ""),
+                    status="skipped",
+                    payload={"reason": reason, "queue": "development"},
+                )
                 db[coordination_live.OPS_TASKS_COL].update_one(
                     {"task_id": task.get("task_id")},
                     {"$set": {"dev_swarm_last_skip_reason": reason, "dev_swarm_last_skip_at": _now(), "dev_swarm_last_skip_repo": repo}},
                 )
             continue
         task_id = str(task.get("task_id"))
-        selected.append({"task_id": task_id, "repo": repo, "priority": task.get("priority")})
+        selected.append({"task_id": task_id, "repo": repo, "priority": task.get("priority"), "preferred_provider": "local-amd-5"})
+        if not dry_run:
+            _publish_dev_swarm_event(
+                "scheduler.selected",
+                task=task,
+                task_id=task_id,
+                repo=str(repo or ""),
+                status="selected",
+                payload={
+                    "priority": task.get("priority"),
+                    "available_before_selection": available,
+                    "selected_index": len(selected) - 1,
+                },
+            )
         if dry_run:
             continue
     if dry_run:
@@ -1016,20 +1418,40 @@ def _load_scheduler_candidates(db: Any, base_query: dict[str, Any], scan_limit: 
     priorities = ["critical", "p0", "p1", "normal", "p2", "low"]
     selected: list[dict[str, Any]] = []
     seen: set[str] = set()
+
+    def is_latest(row: dict[str, Any]) -> bool:
+        task_id = str(row.get("task_id") or "")
+        if not task_id:
+            return False
+        latest = (
+            db[coordination_live.OPS_TASKS_COL]
+            .find({"task_id": task_id}, {"_id": 0, "task_id": 1, "status": 1, "updated_at": 1, "created_at": 1, "revision": 1})
+            .sort([("updated_at", -1), ("created_at", -1), ("revision", -1)])
+            .limit(1)
+        )
+        latest_row = next(iter(latest), None)
+        if not latest_row:
+            return True
+        return (
+            str(latest_row.get("status") or "") == str(row.get("status") or "")
+            and str(latest_row.get("updated_at") or "") == str(row.get("updated_at") or "")
+            and int(latest_row.get("revision") or row.get("revision") or 1) == int(row.get("revision") or latest_row.get("revision") or 1)
+        )
+
     per_bucket = max(5, min(scan_limit, 100))
     for priority in priorities:
         query = {**base_query, "priority": priority}
         rows = db[coordination_live.OPS_TASKS_COL].find(query, {"_id": 0}).sort("created_at", -1).limit(per_bucket)
         for row in rows:
             task_id = str(row.get("task_id") or "")
-            if task_id and task_id not in seen:
+            if task_id and task_id not in seen and is_latest(row):
                 seen.add(task_id)
                 selected.append(row)
     if len(selected) < scan_limit:
         rows = db[coordination_live.OPS_TASKS_COL].find(base_query, {"_id": 0}).sort("created_at", -1).limit(scan_limit)
         for row in rows:
             task_id = str(row.get("task_id") or "")
-            if task_id and task_id not in seen:
+            if task_id and task_id not in seen and is_latest(row):
                 seen.add(task_id)
                 selected.append(row)
     return selected
@@ -1215,13 +1637,17 @@ DEV_TASK_TERMS = (
 )
 DOCS_TASK_TERMS = ("docs-only", "documentation only", "documentacion", "documentación", "readme", "runbook")
 PRODUCT_PREFIXES = (
-    "src/", "modules/", "app/", "lib/", "components/", "infra/", "commands/",
-    "inneros_core_runtime/", "platform/inneros_core_runtime/",
+    "src/", "modules/", "app/", "lib/", "components/", "infra/", "commands/", "backend/",
+    "inneros_core_runtime/", "raphiia_openai/", "platform/src/", "platform/modules/",
+    "platform/app/", "platform/lib/", "platform/components/", "platform/infra/",
+    "platform/commands/", "platform/backend/", "platform/inneros_core_runtime/",
+    "platform/raphiia_openai/",
 )
 DIAGNOSTIC_PATH_PARTS = ("/inneros_dev_swarm/", "/__dev_swarm_contracts/", "/diagnostics/", "/dev_swarm_frontend_status")
 NODE_PROJECT_FILES = ("package.json", "tsconfig.json", "vite.config.js", "vite.config.ts")
 TEST_PREFIXES = ("tests/", "__tests__/", "test/")
-WRITABLE_PREFIXES = PRODUCT_PREFIXES + TEST_PREFIXES + NODE_PROJECT_FILES
+DOC_PREFIXES = ("docs/",)
+WRITABLE_PREFIXES = PRODUCT_PREFIXES + TEST_PREFIXES + DOC_PREFIXES + NODE_PROJECT_FILES
 NODE_BUILTINS = {
     "assert", "buffer", "child_process", "crypto", "events", "fs", "http", "https",
     "net", "os", "path", "process", "querystring", "stream", "timers", "url", "util",
@@ -1262,12 +1688,17 @@ def _product_roots_for_repo(repo: str, worktree: Path) -> list[str]:
         conf = local_execution_plane._repo_config(repo)
     except Exception:
         conf = {}
-    roots = []
-    for root in conf.get("package_roots") or []:
-        rel = str(root).strip("/").replace("\\", "/")
-        if rel in {".", "/"}:
+    configured = list(conf.get("package_roots") or [])
+    if not configured:
+        return []
+    valid = local_execution_plane._package_roots_with_manifest(worktree, configured)
+    roots: list[str] = []
+    for root in configured:
+        try:
+            rel = local_execution_plane._clean_package_root(root)
+        except PermissionError:
             continue
-        if rel and (worktree / rel).exists():
+        if rel in valid and rel not in roots:
             roots.append(rel)
     return roots
 
@@ -1641,6 +2072,117 @@ def _content_dependency_violations(worktree: Path, product_root: str, path: str,
     return sorted(set(violations))
 
 
+def _normalize_generated_content(content: str) -> str:
+    """Remove deterministic whitespace hazards from model-generated files."""
+    normalized = "\n".join(line.rstrip() for line in (content or "").splitlines())
+    return normalized + ("\n" if content.endswith("\n") or normalized else "")
+
+
+def _quality_gate_guidance(
+    *,
+    repo: str,
+    product_root: str,
+    rejected_files: list[dict[str, Any]] | None = None,
+    write_classes: dict[str, list[str]] | None = None,
+    failed_checks: list[dict[str, Any]] | None = None,
+    diff_risks: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Return compact, actionable feedback for the next local-model repair pass."""
+    reasons = sorted({
+        str(item.get("reason") or item.get("error") or "unknown_rejection")
+        for item in rejected_files or []
+        if isinstance(item, dict)
+    })
+    product_writes = list((write_classes or {}).get("product") or [])
+    diagnostic_writes = list((write_classes or {}).get("diagnostic") or [])
+    failed_commands = [list(item.get("command") or []) for item in failed_checks or [] if isinstance(item, dict)]
+    diff_risk_reasons = sorted({str(item.get("reason") or "diff_risk") for item in diff_risks or [] if isinstance(item, dict)})
+    reasons = sorted(set(reasons + diff_risk_reasons))
+    instructions: list[str] = []
+    if "missing_files_array" in reasons or "json_parse_failed_or_missing_json_object" in reasons:
+        instructions.append("Return only a single JSON object with summary and files; do not wrap it in Markdown.")
+    if any(reason in reasons for reason in ("path_not_allowed_for_repo_profile", "path_outside_product_root", "path_traversal_denied")):
+        if product_root:
+            instructions.append(f"Use paths under {product_root}/src, {product_root}/app, {product_root}/lib, {product_root}/components, {product_root}/infra, or {product_root}/tests.")
+        else:
+            instructions.append("Use repo-relative paths under src, app, lib, components, infra, modules, or tests.")
+    if "undeclared_imports_denied" in reasons:
+        instructions.append("Do not add imports for packages that are absent from the existing package manifests.")
+    if not product_writes:
+        instructions.append("Include at least one real product-code write outside diagnostics and test-only files.")
+    if diagnostic_writes and not product_writes:
+        instructions.append("Do not satisfy a product task with inneros_dev_swarm or diagnostic-only scaffolding.")
+    if failed_commands:
+        instructions.append("Fix the failing command output from the previous attempt before adding new files.")
+    if diff_risk_reasons:
+        instructions.append("Keep the implementation diff small and additive; avoid replacing critical control-plane files or deleting large sections.")
+    if not instructions:
+        instructions.append("Keep the next change smaller and align it to the existing repository architecture.")
+    return {
+        "version": "dev_swarm_quality_gate_v1",
+        "repo": repo,
+        "product_root": product_root,
+        "reasons": reasons,
+        "product_writes": product_writes,
+        "diagnostic_writes": diagnostic_writes,
+        "failed_commands": failed_commands,
+        "diff_risks": diff_risks or [],
+        "repair_instructions": instructions,
+    }
+
+
+def _quality_gate_failure_text(gate: dict[str, Any]) -> str:
+    instructions = "; ".join(str(item) for item in gate.get("repair_instructions") or [])
+    reasons = ",".join(str(item) for item in gate.get("reasons") or []) or "quality_gate"
+    return f"dev_swarm_quality_gate:{reasons}: {instructions}"[:4000]
+
+
+def _objective_is_fixture(objective: str) -> bool:
+    text = (objective or "").lower()
+    return any(term in text for term in ("fixture", "smoke", "verify scheduler can accept", "contract probe"))
+
+
+def _diff_numstat_risks(numstat: str, objective: str) -> list[dict[str, Any]]:
+    risks: list[dict[str, Any]] = []
+    fixture = _objective_is_fixture(objective)
+    for line in (numstat or "").splitlines():
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        added_raw, deleted_raw, path = parts[0], parts[1], parts[-1].replace("\\", "/").strip("/")
+        if added_raw == "-" or deleted_raw == "-":
+            continue
+        try:
+            added = int(added_raw)
+            deleted = int(deleted_raw)
+        except ValueError:
+            continue
+        if deleted >= MAX_AUTONOMOUS_DELETIONS_PER_FILE:
+            risks.append({"path": path, "reason": "autonomous_diff_deletes_too_many_lines", "added": added, "deleted": deleted})
+        if deleted >= 200 and deleted > max(added, 1) * MAX_AUTONOMOUS_DELETION_RATIO:
+            risks.append({"path": path, "reason": "autonomous_diff_deletion_ratio_too_high", "added": added, "deleted": deleted})
+        if fixture and path in CRITICAL_CONTROL_PLANE_PATHS and deleted > MAX_FIXTURE_CONTROL_PLANE_DELETIONS:
+            risks.append({"path": path, "reason": "fixture_control_plane_diff_too_large", "added": added, "deleted": deleted})
+    return risks
+
+
+def _diff_risk_gate(worktree: Path, files_touched: list[str], objective: str) -> dict[str, Any]:
+    if not files_touched:
+        return {"ok": True, "risks": []}
+    command = ["git", "-C", str(worktree), "diff", "--numstat", "--", *sorted(set(files_touched))]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+    except Exception as exc:
+        return {"ok": False, "risks": [{"reason": "diff_risk_probe_failed", "error": str(exc)[:500]}]}
+    if result.returncode != 0:
+        return {
+            "ok": False,
+            "risks": [{"reason": "diff_numstat_failed", "returncode": result.returncode, "stderr": (result.stderr or "")[:500]}],
+        }
+    risks = _diff_numstat_risks(result.stdout or "", objective)
+    return {"ok": not risks, "risks": risks}
+
+
 def _objective_requests_node_frontend(objective: str, files: list[dict[str, str]] | None = None) -> bool:
     text = (objective or "").lower()
     node_terms = (
@@ -1768,7 +2310,7 @@ def _safe_generated_files(
                         "undeclared_imports": violations,
                     })
                     continue
-                files.append({"path": normalized_path, "content": content})
+                files.append({"path": normalized_path, "content": _normalize_generated_content(content)})
             else:
                 rejected.append(normalized)
     if files:
@@ -1829,7 +2371,15 @@ def _test_commands_for_policy(repo: str, worktree: Path, files_touched: list[str
     if has_python and py_roots:
         commands.append(["python3", "-m", "compileall", "-q", *py_roots])
     if (worktree / "tests").exists() and any(path.is_file() and path.suffix == ".py" for path in (worktree / "tests").rglob("*")):
-        commands.append(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"])
+        pyproject = ""
+        try:
+            pyproject = (worktree / "pyproject.toml").read_text(encoding="utf-8", errors="ignore").lower()
+        except Exception:
+            pyproject = ""
+        if "pytest" in pyproject:
+            commands.append(["python3", "-m", "pytest", "tests", "-q"])
+        else:
+            commands.append(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"])
     if len(commands) == 1 and (worktree / "pyproject.toml").exists():
         commands.append(["python3", "-m", "compileall", "-q", "."])
     return commands
@@ -1847,6 +2397,13 @@ def _set_worker_phase(task_id: str, phase: str, **extra: Any) -> None:
             continue
         patch[f"executor.{key}"] = value
     _db()[WORKERS_COL].update_one({"task_id": task_id}, {"$set": patch})
+    _publish_dev_swarm_event(
+        "task.heartbeat",
+        worker={"task_id": task_id},
+        task_id=task_id,
+        status=phase,
+        payload={"executor_phase": phase, **{k: v for k, v in extra.items() if k in {"attempt_count", "command", "reason"}}},
+    )
 
 
 def _fail_worker_early(task_id: str, error: str, outcome: str = "FAIL") -> dict[str, Any]:
@@ -1862,6 +2419,12 @@ def _fail_worker_early(task_id: str, error: str, outcome: str = "FAIL") -> dict[
         "last_heartbeat_at": now,
     }
     _db()[WORKERS_COL].update_one({"task_id": task_id}, {"$set": patch})
+    _publish_dev_swarm_event(
+        "task.blocked",
+        task_id=task_id,
+        status="blocked",
+        payload={"outcome": outcome, "error": error, "executor_version": EXECUTOR_VERSION},
+    )
     try:
         coordination_live.update_ops_task_state(
             task_id,
@@ -1893,6 +2456,15 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         "updated_at": _now(),
         "last_heartbeat_at": _now(),
     }})
+    _publish_dev_swarm_event(
+        "provider.execution_started",
+        task=task,
+        worker=worker,
+        task_id=task_id,
+        repo=repo,
+        status="running",
+        payload={"branch": branch, "executor_version": EXECUTOR_VERSION, "phase": "inference"},
+    )
     if _is_docs_only_task(objective):
         return _fail_worker_early(task_id, "docs_only_tasks_must_use_docs_executor")
     if not _requires_product_writes(objective):
@@ -1913,10 +2485,11 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         if product_root
         else "Return repo-relative file paths under src/, modules/, app/, lib/, components/, infra/ or tests/. Absolute paths and traversal are denied."
     )
-    for attempt in range(1, 4):
+    for attempt in range(1, MAX_MODEL_OUTPUT_ATTEMPTS + 1):
         _set_worker_phase(task_id, "inference", attempt_count=attempt, blocker=None)
         prompt = (
             "You are an autonomous LOCAL software implementation worker. IMPLEMENT the task now. "
+            "For Python tests, prefer unittest-compatible tests unless pytest is declared by the repository. "
             "Return ONLY valid JSON with this shape: "
             "{\"summary\":\"...\",\"files\":[{\"path\":\"relative/path\",\"content\":\"FULL file content\"}]}. "
             f"{path_contract} "
@@ -1943,16 +2516,27 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         files, rejected_files = _safe_generated_files(payload, objective, task_id, repo, worktree, model_text=model_text)
         files = _merge_node_scaffold(objective=objective, task_id=task_id, worktree=worktree, files=files, repo=repo)
         if not files:
-            failures = "model did not produce valid bounded files"
-            attempts.append({
+            gate = _quality_gate_guidance(repo=repo, product_root=product_root, rejected_files=rejected_files)
+            failures = _quality_gate_failure_text(gate)
+            diagnostic = {
                 "attempt": attempt,
                 "phase": "inference",
                 "model_ok": bool(model.get("ok")),
-                "error": failures,
+                "error": "model did not produce valid bounded files",
+                "quality_gate": gate,
                 "path_contract": {"product_root": product_root, "allowed_paths": [product_root] if product_root else list(local_execution_plane._repo_config(repo).get("allowed_paths") or [])},
                 "rejected_files": rejected_files,
                 "model_text_preview": model_text[:1200],
-            })
+            }
+            attempts.append(diagnostic)
+            _set_worker_phase(
+                task_id,
+                "model_output_invalid",
+                attempt_count=attempt,
+                blocker=failures,
+                model_output_diagnostics=attempts,
+                raw_model_output_sanitized=local_execution_plane._redact(model_text)[:4000],
+            )
             continue
 
         _set_worker_phase(task_id, "write", files_touched=files_touched)
@@ -1982,20 +2566,45 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         write_classes = write_validation["classes"]
         product_task_requires_real_write = _requires_product_writes(objective) and not _is_platform_regression_task(objective)
         if write_validation.get("invalid_files"):
-            failures = "reported_write_validation_failed: " + str(write_validation.get("invalid_files"))[:2500]
-            attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "write_validation": write_validation, "rejected_files": rejected_files, "error": failures})
+            gate = _quality_gate_guidance(repo=repo, product_root=product_root, rejected_files=list(write_validation.get("invalid_files") or rejected_files), write_classes=write_classes)
+            failures = "reported_write_validation_failed: " + _quality_gate_failure_text(gate)
+            attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "write_validation": write_validation, "rejected_files": rejected_files, "quality_gate": gate, "error": failures})
             continue
         if product_task_requires_real_write and not write_classes["product"]:
+            gate = _quality_gate_guidance(repo=repo, product_root=product_root, rejected_files=rejected_files, write_classes=write_classes)
             failures = (
                 "product_task_contract_only_not_pass: product tasks require at least one real implementation write outside "
                 "inneros_dev_swarm/diagnostic namespaces. "
-                + str({"writes": writes, "write_classes": write_classes})[:2500]
+                + _quality_gate_failure_text(gate)
             )
-            attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "rejected_files": rejected_files, "error": failures})
+            attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "rejected_files": rejected_files, "quality_gate": gate, "error": failures})
             continue
         if (product_task_requires_real_write and product_count < 1) or not writes or not all(x["ok"] for x in writes):
-            failures = "At least one product-code write is required and every write must succeed. " + str(writes)[:2500]
-            attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "rejected_files": rejected_files, "error": failures})
+            gate = _quality_gate_guidance(repo=repo, product_root=product_root, rejected_files=rejected_files, write_classes=write_classes)
+            failures = "At least one product-code write is required and every write must succeed. " + _quality_gate_failure_text(gate)
+            attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "rejected_files": rejected_files, "quality_gate": gate, "error": failures})
+            continue
+        diff_gate = _diff_risk_gate(worktree, files_touched, objective)
+        if not diff_gate.get("ok"):
+            gate = _quality_gate_guidance(
+                repo=repo,
+                product_root=product_root,
+                rejected_files=rejected_files,
+                write_classes=write_classes,
+                diff_risks=list(diff_gate.get("risks") or []),
+            )
+            failures = _quality_gate_failure_text(gate)
+            attempts.append(
+                {
+                    "attempt": attempt,
+                    "phase": "diff_risk",
+                    "writes": writes,
+                    "write_classes": write_classes,
+                    "rejected_files": rejected_files,
+                    "quality_gate": gate,
+                    "error": failures,
+                }
+            )
             continue
 
         _cleanup_generated_python_artifacts(worktree)
@@ -2018,9 +2627,17 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         attempts.append({"attempt": attempt, "phase": "test", "writes": writes, "rejected_files": rejected_files, "checks": checks})
         final_checks = checks
         if failed:
-            failures = "\n".join(str(check)[:4000] for check in failed)
+            gate = _quality_gate_guidance(repo=repo, product_root=product_root, rejected_files=rejected_files, write_classes=write_classes, failed_checks=failed)
+            failures = _quality_gate_failure_text(gate) + "\n" + "\n".join(str(check)[:4000] for check in failed)
+            attempts[-1]["quality_gate"] = gate
             if any(((check.get("result") or {}).get("error") == "command_not_allowlisted") for check in failed):
                 _set_worker_phase(task_id, "failed", test_status="failed", blocker="command_not_allowlisted_non_retryable")
+                coordination_live.update_ops_task_state(
+                    task_id,
+                    "blocked",
+                    actor="dev_swarm",
+                    evidence={"blocker": "command_not_allowlisted_non_retryable", "source": EXECUTOR_VERSION},
+                )
                 break
             _set_worker_phase(task_id, "retry", test_status="failed", blocker="tests_failed_retrying")
             continue
@@ -2075,12 +2692,41 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             },
         }})
         coordination_live.heartbeat_ops_task(task_id, "dev_swarm", next_action="PASS: ready for Integration Guardian", blocker=None, files_touched=sorted(set(files_touched)))
+        _publish_dev_swarm_event(
+            "provider.evidence_recorded",
+            task=task,
+            worker=worker,
+            task_id=task_id,
+            repo=repo,
+            status="PASS",
+            payload={
+                "outcome": "PASS",
+                "branch": branch,
+                "files_touched": sorted(set(files_touched)),
+                "commit_head": (commit or {}).get("head"),
+                "evidence_ok": bool(report.get("ok")) if isinstance(report, dict) else bool(report),
+            },
+        )
+        try:
+            from raphiia_openai.notifications.ops_task_alerts import notify_dev_swarm_outcome
+
+            notify_dev_swarm_outcome(
+                task_id=task_id,
+                repo=repo,
+                branch=branch,
+                outcome="PASS",
+                files_touched=sorted(set(files_touched)),
+                commit_head=str(commit.get("head") or ""),
+            )
+        except Exception:
+            pass
         return {"ok": True, "task_id": task_id, "repo": repo, "branch": branch, "outcome": "PASS", "attempts": attempt, "implementation_writes": sorted(set(files_touched)), "implementation_writes_product": _implementation_write_classes(repo, worktree, files_touched)["product"], "files_touched": sorted(set(files_touched)), "commit_head": commit.get("head"), "commands_ok": True, "local_model_ok": local_model_ok, "model_route": last_model_route}
 
     evidence = {
         "executor": EXECUTOR_VERSION,
         "outcome": "FAIL",
         "attempts": attempts,
+        "max_model_output_attempts": MAX_MODEL_OUTPUT_ATTEMPTS,
         "implementation_writes": sorted(set(files_touched)),
         "implementation_writes_product": _implementation_write_classes(repo, worktree, files_touched)["product"],
         "implementation_writes_diagnostic": _implementation_write_classes(repo, worktree, files_touched)["diagnostic"],
@@ -2112,6 +2758,29 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         },
     }})
     coordination_live.heartbeat_ops_task(task_id, "dev_swarm", next_action="Escalate after retry budget", blocker=failures[:1000] or f"{EXECUTOR_VERSION}_failed", files_touched=sorted(set(files_touched)))
+    _publish_dev_swarm_event(
+        "provider.evidence_recorded",
+        task=task,
+        worker=worker,
+        task_id=task_id,
+        repo=repo,
+        status="FAIL",
+        payload={
+            "outcome": "FAIL",
+            "branch": branch,
+            "attempts": len(attempts),
+            "files_touched": sorted(set(files_touched)),
+            "error": failures[:1000],
+            "evidence_ok": bool(report.get("ok")) if isinstance(report, dict) else bool(report),
+        },
+    )
+    if str((_task_doc(task_id) or {}).get("status") or "").lower() == "in_progress":
+        coordination_live.update_ops_task_state(
+            task_id,
+            "blocked",
+            actor="dev_swarm",
+            evidence={"blocker": (failures[:1000] or f"{EXECUTOR_VERSION}_failed"), "source": EXECUTOR_VERSION},
+        )
     return {"ok": False, "task_id": task_id, "repo": repo, "branch": branch, "outcome": "FAIL", "attempts": len(attempts), "implementation_writes": sorted(set(files_touched)), "implementation_writes_product": _implementation_write_classes(repo, worktree, files_touched)["product"], "files_touched": sorted(set(files_touched)), "error": failures[:2000], "commands_ok": False, "local_model_ok": local_model_ok, "model_route": last_model_route}
 
 
@@ -2150,9 +2819,6 @@ def _resolve_base_ref(source: Path, requested_base_ref: str) -> dict[str, Any]:
     candidates: list[str] = []
     if re.fullmatch(r"[a-fA-F0-9]{7,40}", requested):
         candidates.extend([requested])
-    # GitHub main is canonical. After fetch, prefer the refreshed remote ref
-    # over a potentially stale local main. Explicit non-main repair branches
-    # keep their exact branch semantics.
     if requested in {"main", "origin/main"}:
         candidates.extend(["origin/main", "main"])
     else:
@@ -2191,10 +2857,8 @@ def _fanout_base_snapshot(repo: str, base_ref: str = "") -> dict[str, Any]:
         )
         if not prepared.get("ok"):
             return {"ok": False, "error": "source_repo_prepare_failed", "source_path": str(source), "prepare": prepared}
-    # Project Runtime Registry is authoritative. Auto-detect only when a
-    # repository has no explicit execution profile.
-    if not str(conf.get("profile") or "").strip():
-        conf["profile"] = "node-tests" if (source / "package.json").exists() else "python-tests"
+    if (source / "package.json").exists():
+        conf["profile"] = "node-tests"
     resolved = _resolve_base_ref(source, base_ref)
     if not resolved.get("ok"):
         return {"ok": False, "error": "base_ref_failed", "repo": repo, "source_path": str(source), "base_ref": base_ref or "main", "base_resolution": resolved}
@@ -2319,6 +2983,32 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
     task = _task_doc(task_id)
     if not task:
         return {"ok": False, "task_id": task_id, "error": "task_not_found"}
+    ops_status = str(task.get("status") or "").lower()
+    if ops_status in OPS_TERMINAL_STATUSES and not _ops_auto_retry_allowed(task):
+        blocker = str(task.get("blocker") or task.get("dev_swarm_last_skip_reason") or ops_status)
+        db = _db()
+        db[WORKERS_COL].update_one(
+            {"task_id": task_id, "status": {"$in": ["starting", "running", "verification"]}},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "blocker": f"ops_{ops_status}:{blocker[:200]}",
+                    "slot_reclaimed_at": _now(),
+                    "executor.status": "blocked",
+                    "executor.phase": "ops_not_runnable",
+                    "executor.blocker": blocker[:200],
+                    "executor.updated_at": _now(),
+                    "updated_at": _now(),
+                }
+            },
+        )
+        return {
+            "ok": False,
+            "task_id": task_id,
+            "outcome": "SKIPPED",
+            "error": f"ops_status_{ops_status}_no_auto_retry",
+            "blocker": blocker,
+        }
     objective = f"{task.get('title') or task_id}\n\n" + "\n".join(str(x) for x in task.get("checklist") or [])
     correlation_id = str(task.get("correlation_id") or f"fanout-{task_id}")
     branch = f"local-agent/{task_id}-{secrets.token_hex(3)}"
@@ -2366,6 +3056,15 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
     }
     db = _db()
     db[WORKERS_COL].update_one({"task_id": task_id}, {"$set": worker}, upsert=True)
+    _publish_dev_swarm_event(
+        "provider.dispatched",
+        task=task,
+        worker=worker,
+        task_id=task_id,
+        repo=repo,
+        status="running",
+        payload={"branch": branch, "worktree": worktree_raw, "node": "amd", "executor_version": EXECUTOR_VERSION},
+    )
     return _execute_existing_worker_generic(worker, run_tests=True)
 
 
@@ -2437,6 +3136,14 @@ def execute_ad_hoc_objective(
         "executor": {"version": EXECUTOR_VERSION, "status": "running", "phase": "queued", "last_progress_at": _now()},
     }
     _db()[WORKERS_COL].update_one({"task_id": task_id}, {"$set": worker}, upsert=True)
+    _publish_dev_swarm_event(
+        "provider.dispatched",
+        worker=worker,
+        task_id=task_id,
+        repo=repo,
+        status="running",
+        payload={"branch": branch, "entrypoint": entrypoint, "node": "amd", "executor_version": EXECUTOR_VERSION},
+    )
     executor = _execute_existing_worker_generic(worker, run_tests=True)
     saved_worker = _db()[WORKERS_COL].find_one({"task_id": task_id}, {"_id": 0})
     return {
