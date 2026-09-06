@@ -601,9 +601,9 @@ def project_runtime_status(project_id: str = "", repo: str = "", node: str = "pr
 
 
 @mcp.tool
-def project_runtime_bootstrap(node: str = "primary", project_id: str = "", repo: str = "", remote_url: str = "", actor: str = "chatgpt", task_id: str = "", correlation_id: str = "", dry_run: bool = True) -> dict[str, Any]:
-    """Project Runtime Registry: crea/hidrata path seguro para un proyecto en un nodo."""
-    return project_runtime_registry.bootstrap_runtime(node=node, project_id=project_id, repo=repo, remote_url=remote_url, actor=actor, task_id=task_id, correlation_id=correlation_id, dry_run=dry_run)
+def project_runtime_bootstrap(node: str = "primary", project_id: str = "", repo: str = "", remote_url: str = "", base_ref: str = "", expected_sha: str = "", actor: str = "chatgpt", task_id: str = "", correlation_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Project Runtime Registry: materializa un ref seguro y verifica el SHA esperado en el nodo."""
+    return project_runtime_registry.bootstrap_runtime(node=node, project_id=project_id, repo=repo, remote_url=remote_url, base_ref=base_ref, expected_sha=expected_sha, actor=actor, task_id=task_id, correlation_id=correlation_id, dry_run=dry_run)
 
 
 @mcp.tool

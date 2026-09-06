@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from raphiia_openai import project_runtime_registry
+
 MCP_VERSION = "2.68.0"
 
 ALL_MCP_TOOL_NAMES = [
@@ -3718,6 +3720,14 @@ for _name in (
         "output_schema": {"ok": "bool", "capability": "project_runtime_registry"},
         "example_payload": {"project_id": "cozmo-alive", "node": "amd", "dry_run": True},
     }
+
+TOOL_DEFINITIONS["project_runtime_bootstrap"].update(
+    {
+        "description": "Project Runtime Registry: materializa un ref Git en un nodo y verifica el SHA esperado.",
+        "input_schema": dict(project_runtime_registry.BOOTSTRAP_INPUT_SCHEMA),
+        "example_payload": {"project_id": "cozmo-alive", "node": "amd", "base_ref": "main", "expected_sha": "", "dry_run": True},
+    }
+)
 
 TOOL_DEFINITIONS["project_runtime_reconcile"].update(
     {
