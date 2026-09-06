@@ -2940,6 +2940,8 @@ def route_mcp_tools(
     granted_scopes: list[str] | None = None,
     max_risk: str = "medium",
     tenant_id: str | None = None,
+    for_model: str | None = None,
+    max_tools: int | None = None,
 ) -> dict[str, Any]:
     """Select a bounded MCP tool profile after scope and risk filtering."""
     from raphiia_openai import capability_router
@@ -2951,6 +2953,8 @@ def route_mcp_tools(
         granted_scopes=granted_scopes,
         max_risk=max_risk,
         tenant_id=tenant_id,
+        for_model=for_model,
+        max_tools=max_tools,
     )
 
 

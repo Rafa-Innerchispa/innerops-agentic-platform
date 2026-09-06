@@ -7,10 +7,30 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.2"
+PROFILES_VERSION = "1.4.3"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
+
+    "chatgpt_compact": {
+        "label": "ChatGPT bootstrap compacto — descubrir, coordinar y enrutar",
+        "model_minimum": "small",
+        "max_tools": 12,
+        "tools": [
+            "mcp_version",
+            "diagnose_mcp_session",
+            "list_mcp_tool_profiles",
+            "route_mcp_tools",
+            "bootstrap_context",
+            "get_coordination_live",
+            "poll_agent_inbox",
+            "list_ops_tasks",
+            "create_agent_message",
+            "a2a_status",
+            "a2a_agent_cards",
+            "get_agent_catalog",
+        ],
+    },
 
     "owner_vault": {
         "label": "Owner Vault secure secret bridge",

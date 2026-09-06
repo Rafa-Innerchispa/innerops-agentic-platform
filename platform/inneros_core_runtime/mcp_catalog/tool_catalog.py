@@ -2819,12 +2819,21 @@ FUNDING_TOOL_DEFINITIONS = {
             "granted_scopes": "array<string>|null",
             "max_risk": "string|null",
             "tenant_id": "string|null",
+            "for_model": "string|null",
+            "max_tools": "integer|null",
         },
-        "output_schema": {"ok": "bool", "profile": "string", "tools": "array", "excluded": "array"},
+        "output_schema": {
+            "ok": "bool",
+            "profile": "string",
+            "tools": "array",
+            "excluded": "array",
+            "recommended_next_call": "object",
+        },
         "example_payload": {
             "title": "Crear cotización FEMAR",
             "granted_scopes": ["ralfia:read", "ralfia:write"],
             "max_risk": "medium",
+            "for_model": "small",
         },
     },
     "update_ops_task_state": {

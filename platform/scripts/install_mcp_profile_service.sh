@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${RALFIA_ROOT:-/home/rlopez/projects/raphiia-openai}"
-PROFILE="${1:-quoteops}"
-PORT="${2:-8110}"
+ROOT="${RALFIA_ROOT:-/home/rlopez/inneros/inneros_core/platform}"
+PROFILE="${1:-chatgpt_compact}"
+PORT="${2:-8112}"
 MODE="${3:---plan}"
 UNIT_SOURCE="$ROOT/deploy/systemd/ralfia-mcp-profile@.service"
 UNIT_TARGET="$HOME/.config/systemd/user/ralfia-mcp-profile@.service"
@@ -26,7 +26,7 @@ fi
 (
   cd "$ROOT"
   PYTHONPATH="$ROOT" "$ROOT/venv/bin/python" -c \
-    "from raphiia_openai.mcp_profiles import get_profile; p=get_profile('$PROFILE'); assert p.get('ok'), p"
+    "from inneros_core_runtime.mcp_profiles import get_profile; p=get_profile('$PROFILE'); assert p.get('ok'), p"
 )
 
 echo "Profile: $PROFILE"
@@ -42,7 +42,7 @@ if [[ "$MODE" != "--apply" ]]; then
 fi
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-backup="$HOME/backups/raphiia-openai/mcp-profile-$PROFILE-$timestamp"
+backup="$HOME/backups/inneros/mcp-profile-$PROFILE-$timestamp"
 mkdir -p "$backup" "$(dirname "$UNIT_TARGET")" "$ENV_DIR"
 [[ -f "$UNIT_TARGET" ]] && cp -p "$UNIT_TARGET" "$backup/" || true
 [[ -f "$ENV_TARGET" ]] && cp -p "$ENV_TARGET" "$backup/" || true
@@ -51,6 +51,10 @@ install -m 0644 "$UNIT_SOURCE" "$UNIT_TARGET"
 {
   printf 'MCP_TOOL_PROFILE=%s\n' "$PROFILE"
   printf 'MCP_PORT=%s\n' "$PORT"
+  printf 'MCP_HOST=0.0.0.0\n'
+  printf 'INNEROS_CORE_ROOT=/home/rlopez/inneros/inneros_core\n'
+  printf 'RAPHIIA_ROOT=%s\n' "$ROOT"
+  printf 'PYTHONPATH=%s\n' "$ROOT"
   printf 'MCP_DISPLAY_NAME=RalfIA MCP - %s\n' "$PROFILE"
 } > "$ENV_TARGET"
 chmod 0600 "$ENV_TARGET"

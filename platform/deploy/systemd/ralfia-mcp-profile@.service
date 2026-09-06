@@ -8,7 +8,8 @@ Type=simple
 WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
 EnvironmentFile=/home/rlopez/inneros/inneros_core/platform/.env
 EnvironmentFile=-/home/rlopez/.config/ralphiia/mcp-profiles/%i.env
-ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m raphiia_openai.mcp_server
+ExecStartPre=/bin/bash /home/rlopez/inneros/inneros_core/platform/scripts/free_port.sh ${MCP_PORT}
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m inneros_core_runtime.mcp_server
 Restart=on-failure
 RestartSec=5
 
