@@ -54,7 +54,8 @@ class CapacityGovernorVNextTests(unittest.TestCase):
         )
 
     def test_scheduler_no_longer_uses_safe_id_query_gate(self):
-        source = Path("inneros_core_runtime/dev_swarm_scheduler.py").read_text(encoding="utf-8")
+        scheduler_path = Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "dev_swarm_scheduler.py"
+        source = scheduler_path.read_text(encoding="utf-8")
         self.assertNotIn('"task_id": {"$in": list(CURRENT_SAFE_TASK_IDS)}', source)
         self.assertIn('"admission_policy": "repo_policy_priority_capacity"', source)
 

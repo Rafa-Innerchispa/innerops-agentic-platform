@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from raphiia_openai import project_runtime_registry
+
 MCP_VERSION = "2.68.0"
 
 ALL_MCP_TOOL_NAMES = [
@@ -3752,7 +3754,7 @@ for _name in (
         "risk_level": "medium" if _name in _PROJECT_RUNTIME_WRITES else "low",
         "writes_to": ["project_runtime_registry", "trusted_project_root"] if _name in _PROJECT_RUNTIME_WRITES else [],
         "reads_from": ["project_runtime_registry", "trusted_project_root"],
-        "input_schema": {"project_id": "string|null", "repo": "owner/name|null", "node": "primary|amd|null", "remote_url": "string|null", "base_ref": "git ref|null", "expected_sha": "git sha|null", "dry_run": "bool|null"},
+        "input_schema": project_runtime_registry.BOOTSTRAP_INPUT_SCHEMA if _name == "project_runtime_bootstrap" else {"project_id": "string|null", "repo": "owner/name|null", "node": "primary|amd|null", "dry_run": "bool|null"},
         "output_schema": {"ok": "bool", "capability": "project_runtime_registry"},
         "example_payload": {"project_id": "cozmo-alive", "node": "amd", "base_ref": "main", "expected_sha": "", "dry_run": True},
     }
