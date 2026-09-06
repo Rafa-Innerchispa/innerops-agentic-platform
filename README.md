@@ -11,7 +11,6 @@
 **Start here:** [`JUDGES_START_HERE.md`](JUDGES_START_HERE.md)  
 **Live Judge Console:** https://inneros.creatorcore.ai/app/judge  
 **Devpost:** https://devpost.com/software/innerops-aria-enterprise-agent-fleet
-**Control-plane continuity:** [`platform/docs/CONTROL_PLANE_CONTINUITY_2026-09-06.md`](platform/docs/CONTROL_PLANE_CONTINUITY_2026-09-06.md)
 
 This public repository is the **single canonical hackathon source of truth**. Existing products such as Workforce are real integration targets and operational proof, but judges do not need a second repository to evaluate InnerOS.
 
