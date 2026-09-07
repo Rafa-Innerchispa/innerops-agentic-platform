@@ -2508,6 +2508,8 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             f"at most {MODEL_OUTPUT_MAX_FILES} files and about {MODEL_OUTPUT_MAX_TOTAL_CHARS} total content characters. "
             "Return one product module plus one focused test when possible. "
             "Keep each content string under 1600 characters; oversized answers will be rejected. "
+            "Prefer self-contained product code with zero imports; tests may only import generated modules by relative path. "
+            "Do not import packages, aliases, clients or framework modules that are absent from the repository snapshot. "
             "Use concise code. Prefer the smallest working vertical slice over trying to implement the entire product in one response. "
             f"{path_contract} "
             "At least one file must be product code under src/, modules/, app/, lib/, components/ or infra/ inside the product scope. "
