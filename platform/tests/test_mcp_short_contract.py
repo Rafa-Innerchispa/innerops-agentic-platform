@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from inneros_core_runtime import mcp_diagnostics, project_runtime_registry
+from inneros_core_runtime import coordination_docs, mcp_diagnostics, project_runtime_registry
 from inneros_core_runtime.mcp_catalog import tool_catalog
 
 
@@ -95,3 +95,20 @@ def test_project_runtime_bootstrap_helper_mismatch_fails_closed(monkeypatch, tmp
 
     assert result["ok"] is False
     assert result["result"]["error"] == "expected_sha_mismatch"
+
+
+def test_bootstrap_context_uses_live_runtime_banner_and_filters_stale_lines(monkeypatch) -> None:
+    monkeypatch.setattr(
+        coordination_docs,
+        "_bootstrap_context_legacy",
+        lambda: {"ok": True, "content": "- Runtime vivo: 2.23.0 / 117 tools.\n- Keep useful context."},
+    )
+    monkeypatch.setattr(coordination_docs, "read_coordination_file", lambda *args, **kwargs: {"content": ""})
+    monkeypatch.setattr(coordination_docs, "get_operational_runbooks", lambda: {"runbooks": []})
+
+    result = coordination_docs.bootstrap_context()
+
+    assert result["ok"] is True
+    assert "Runtime vivo: server" in result["content"]
+    assert "2.23.0 / 117 tools" not in result["content"]
+    assert "Keep useful context." in result["content"]

@@ -213,6 +213,25 @@ def _fresh_chat_sequence() -> list[str]:
     ]
 
 
+_STALE_RUNTIME_LINE_RE = re.compile(
+    r"(Runtime vivo:\s*2\.23\.0\s*/\s*117 tools|Ralphi-IA-MCP quedó en\s*2\.23\.0\s*/\s*117 tools)",
+    re.IGNORECASE,
+)
+
+
+def _remove_stale_runtime_lines(content: str) -> str:
+    lines = []
+    for line in (content or "").splitlines():
+        if _STALE_RUNTIME_LINE_RE.search(line):
+            lines.append(
+                "- Runtime vivo: ver `mcp_version()` / `list_mcp_tool_profiles()`; "
+                "se omitio una linea historica obsoleta."
+            )
+            continue
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def _coordination_protocol() -> dict[str, Any]:
     return {
         "root": str(COORD_ROOT),
@@ -692,14 +711,19 @@ def list_agent_messages(
 
 
 def bootstrap_context() -> dict[str, Any]:
-    from raphiia_openai import coordination_live
+    from raphiia_openai import coordination_live, mcp_diagnostics, mcp_profiles
 
     live = coordination_live.get_coordination_live()
+    runtime = mcp_diagnostics.mcp_version()
+    profiles = mcp_profiles.list_profiles()
     base = _bootstrap_context_legacy()
     runbook = read_coordination_file("HUB/RUNBOOK_COTIZACION_WHATSAPP.md", max_chars=8000)
     runbook_excerpt = (runbook.get("content") or "")[:7500]
     prefix = (
         f"# COORDINATION LIVE — revision {live.get('revision')}\n"
+        f"Runtime vivo: server {runtime.get('server_version')} · catalog {runtime.get('catalog_version')} · "
+        f"global_tools {runtime.get('runtime_tool_count')} · profiles {profiles.get('profiles_version')} · "
+        f"profiles_validation_ok {profiles.get('validation', {}).get('ok')}\n"
         f"OBLIGATORIO: leer {', '.join(live.get('mandatory_reads', [])[:4])} …\n"
         f"Órdenes ops abiertas: {live.get('open_ops_count', 0)}\n"
         f"Mensajes open: {live.get('unread_messages', {})}\n"
@@ -709,7 +733,7 @@ def bootstrap_context() -> dict[str, Any]:
         f"Al cerrar sesión: ack_coordination_revision(agent, {live.get('revision')})\n\n"
         f"## RUNBOOK COT + WhatsApp (extracto)\n{runbook_excerpt}\n\n"
     )
-    content = prefix + base.get("content", "")
+    content = prefix + _remove_stale_runtime_lines(base.get("content", ""))
     if len(content) > 18000:
         content = content[:18000] + "\n[truncated]"
     return {
