@@ -765,6 +765,42 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertIsNotNone(payload)
         self.assertEqual(payload["summary"], "ok")
 
+    def test_safe_generated_files_accepts_single_file_alias_through_same_gates(self) -> None:
+        worktree = Path("/tmp/inneros-dev-swarm-test")
+        payload = {
+            "summary": "ok",
+            "file": {"path": "src/service_operations.py", "content": "def ok():\n    return True\n"},
+        }
+
+        files, rejected = scheduler._safe_generated_files(
+            payload,
+            "Implement one focused service operation module",
+            "ops_test",
+            scheduler.SAFE_INNEROS_REPO,
+            worktree,
+        )
+
+        self.assertEqual(files, [{"path": "src/service_operations.py", "content": "def ok():\n    return True\n"}])
+        self.assertEqual(rejected, [])
+
+    def test_safe_generated_files_still_rejects_alias_outside_safe_paths(self) -> None:
+        worktree = Path("/tmp/inneros-dev-swarm-test")
+        payload = {
+            "summary": "bad",
+            "changes": [{"path": "../escape.py", "content": "print('no')\n"}],
+        }
+
+        files, rejected = scheduler._safe_generated_files(
+            payload,
+            "Implement one focused service operation module",
+            "ops_test",
+            scheduler.SAFE_INNEROS_REPO,
+            worktree,
+        )
+
+        self.assertEqual(files, [])
+        self.assertTrue(any(item.get("reason") == "path_traversal_denied" for item in rejected))
+
     def test_diff_numstat_blocks_massive_control_plane_fixture_rewrite(self) -> None:
         risks = scheduler._diff_numstat_risks(
             "228\t2581\tplatform/inneros_core_runtime/dev_swarm_scheduler.py\n",

@@ -23,7 +23,7 @@ from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
-EXECUTOR_VERSION = "autonomous_impl_v10_a2a_liveness"
+EXECUTOR_VERSION = "autonomous_impl_v11_strict_output_recovery"
 executor_version = EXECUTOR_VERSION
 DEFAULT_MAX_CONCURRENT = 4
 STALE_WORKER_SECONDS = 3600
@@ -1615,6 +1615,26 @@ def _fanout_parse_model_json(text: str) -> dict[str, Any] | None:
     return None
 
 
+def _normalize_fanout_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Accept common local-model JSON aliases, then let path/content gates decide."""
+    if not isinstance(payload, dict):
+        return payload
+    if isinstance(payload.get("files"), list):
+        return payload
+    normalized = dict(payload)
+    for key in ("file", "change", "artifact"):
+        value = normalized.get(key)
+        if isinstance(value, dict) and ("path" in value or "content" in value):
+            normalized["files"] = [value]
+            return normalized
+    for key in ("changes", "artifacts", "writes", "patches"):
+        value = normalized.get(key)
+        if isinstance(value, list):
+            normalized["files"] = value
+            return normalized
+    return normalized
+
+
 def _fanout_repo_snapshot(worktree: Path, max_chars: int = 16000) -> str:
     deny = {".git", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"}
     suffixes = {".py", ".js", ".ts", ".tsx", ".jsx", ".json", ".toml", ".yaml", ".yml", ".md"}
@@ -2283,6 +2303,7 @@ def _safe_generated_files(
     worktree: Path,
     model_text: str = "",
 ) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    payload = _normalize_fanout_payload(payload)
     proposed = payload.get("files") if isinstance(payload, dict) else None
     files: list[dict[str, str]] = []
     rejected: list[dict[str, Any]] = []
@@ -2502,9 +2523,11 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         prompt = (
             "You are an autonomous LOCAL software implementation worker. IMPLEMENT the task now. "
             "For Python tests, prefer unittest-compatible tests unless pytest is declared by the repository. "
-            "Return ONLY valid JSON with this shape: "
-            "{\"summary\":\"...\",\"files\":[{\"path\":\"relative/path\",\"content\":\"FULL file content\"}]}. "
-            "Do not wrap JSON in Markdown fences. Keep the implementation increment small and complete: "
+            "Return EXACTLY ONE valid JSON object, starting with { and ending with }. "
+            "Required shape: {\"summary\":\"...\",\"files\":[{\"path\":\"relative/path\",\"content\":\"FULL file content\"}]}. "
+            "The files array must be non-empty; its first item must be product code, not a test, README, package.json, "
+            "inneros_dev_swarm contract, diagnostic, or status stub. Do not wrap JSON in Markdown fences. "
+            "Keep the implementation increment small and complete: "
             f"at most {MODEL_OUTPUT_MAX_FILES} files and about {MODEL_OUTPUT_MAX_TOTAL_CHARS} total content characters. "
             "Return one product module plus one focused test when possible. "
             "Keep each content string under 1600 characters; oversized answers will be rejected. "
