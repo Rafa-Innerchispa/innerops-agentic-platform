@@ -48,7 +48,8 @@ VLLM_MAX_TOKENS = int(os.getenv("VLLM_MAX_TOKENS", "512"))
 VLLM_CONTEXT_CHARS = int(os.getenv("VLLM_CONTEXT_CHARS", "2500"))
 VLLM_HISTORY_LIMIT = int(os.getenv("VLLM_HISTORY_LIMIT", "8"))
 VOICE_LOCAL_FIRST = os.getenv("VOICE_LOCAL_FIRST", "1").strip().lower() in ("1", "true", "yes")
-VOICE_CHAT_BACKEND = os.getenv("VOICE_CHAT_BACKEND", "auto").strip().lower()
+VOICE_ALLOW_CLOUD_FALLBACK = os.getenv("VOICE_ALLOW_CLOUD_FALLBACK", "0").strip().lower() in ("1", "true", "yes")
+VOICE_CHAT_BACKEND = os.getenv("VOICE_CHAT_BACKEND", "vllm").strip().lower()
 GEMINI_TEXT_MODEL = os.getenv("GEMINI_TEXT_MODEL", "gemini-2.5-flash")
 VOICE_HISTORY_LIMIT = int(os.getenv("VOICE_HISTORY_LIMIT", "40"))
 VOICE_FLUID_MODEL = os.getenv("VOICE_FLUID_MODEL", "qwen2.5:7b-instruct-q4_K_M")
@@ -67,6 +68,18 @@ _BUSINESS_KEYWORDS = (
     "tuya", "domótica", "domotica", "correo", "email",
 )
 WHISPER = WHISPER_URL.rstrip("/")
+WHISPER_FALLBACK_URLS = [
+    u.strip().rstrip("/")
+    for u in (
+        os.getenv("WHISPER_FALLBACK_URLS")
+        or os.getenv("WHISPER_URL_AMD")
+        or ""
+    ).split(",")
+    if u.strip()
+]
+LEMONADE_URL = os.getenv("LEMONADE_URL", "http://192.168.1.5:13305").rstrip("/")
+LEMONADE_IMAGE_MODEL = os.getenv("LEMONADE_IMAGE_MODEL", "SD-1.5")
+VOICE_IMAGE_PROVIDER = os.getenv("VOICE_IMAGE_PROVIDER", "").strip().lower()
 VOICE_PUBLIC_URL_FILE = Path(
     os.getenv("VOICE_PUBLIC_URL_FILE", "/home/rlopez/data/ralfia/voice_public_url.txt")
 )
@@ -2066,28 +2079,49 @@ def _mime_to_voice_ext(mime: str) -> str:
     return ".webm"
 
 
+def _whisper_urls() -> list[str]:
+    seen: set[str] = set()
+    urls: list[str] = []
+    for base in (WHISPER, *WHISPER_FALLBACK_URLS):
+        if base and base not in seen:
+            seen.add(base)
+            urls.append(base)
+    return urls
+
+
 def _whisper_transcribe(raw: bytes, *, mime: str = "audio/webm") -> dict[str, Any]:
     import httpx
 
-    url = f"{WHISPER}/asr"
     params = {"task": "transcribe", "language": "es", "output": "json"}
     ext = _mime_to_voice_ext(mime)
     files = {"audio_file": (f"voice{ext}", raw, mime)}
-    try:
-        r = httpx.post(url, params=params, files=files, timeout=120.0)
-        r.raise_for_status()
-        ctype = r.headers.get("content-type", "")
-        raw_text = r.text if not ctype.startswith("application/json") else ""
-        if raw_text.strip().lower().startswith("<!doctype") or raw_text.strip().lower().startswith("<html"):
-            return {"ok": False, "error": "whisper_unavailable_html_response"}
-        if ctype.startswith("application/json"):
-            data = r.json()
-        else:
-            data = {"text": r.text}
-        text = _extract_whisper_text(data)
-        return {"ok": bool(text), "text": text, "raw": data if isinstance(data, dict) else {"text": str(data)}}
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+    last_err = "whisper_unavailable"
+    for base in _whisper_urls():
+        url = f"{base}/asr"
+        try:
+            r = httpx.post(url, params=params, files=files, timeout=120.0)
+            r.raise_for_status()
+            ctype = r.headers.get("content-type", "")
+            raw_text = r.text if not ctype.startswith("application/json") else ""
+            if raw_text.strip().lower().startswith("<!doctype") or raw_text.strip().lower().startswith("<html"):
+                last_err = "whisper_unavailable_html_response"
+                continue
+            if ctype.startswith("application/json"):
+                data = r.json()
+            else:
+                data = {"text": r.text}
+            text = _extract_whisper_text(data)
+            if text:
+                return {
+                    "ok": True,
+                    "text": text,
+                    "whisper_url": base,
+                    "raw": data if isinstance(data, dict) else {"text": str(data)},
+                }
+            last_err = "whisper_empty_transcript"
+        except Exception as exc:
+            last_err = str(exc)
+    return {"ok": False, "error": last_err}
 
 
 def _voice_username(user: dict[str, Any]) -> str:
@@ -2286,6 +2320,8 @@ def _resolve_chat_backend() -> str:
                 return "vllm"
             if _ollama_reachable():
                 return "ollama"
+        if not VOICE_ALLOW_CLOUD_FALLBACK:
+            return "vllm" if USE_VLLM else "ollama"
         if config_store.get_google_api_key() or GOOGLE_API_KEY:
             return "gemini"
         if USE_VLLM:
@@ -2304,8 +2340,18 @@ def _vllm_ok() -> bool:
         return False
 
 
-def _ollama_reachable() -> bool:
+def _ollama_bases() -> list[str]:
+    seen: set[str] = set()
+    bases: list[str] = []
     for base in (OLLAMA_DIRECT, OLLAMA_CHAT):
+        if base and base not in seen:
+            seen.add(base)
+            bases.append(base)
+    return bases
+
+
+def _ollama_reachable() -> bool:
+    for base in _ollama_bases():
         try:
             if base.endswith(":11435") or "/11435" in base:
                 _http_json(f"{base}/health", timeout=3.0)
@@ -2315,6 +2361,19 @@ def _ollama_reachable() -> bool:
         except Exception:
             continue
     return False
+
+
+def _ollama_post_chat(body: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+    last_exc: Exception | None = None
+    for base in _ollama_bases():
+        try:
+            return _http_json(f"{base}/api/chat", method="POST", body=body, timeout=timeout)
+        except Exception as exc:
+            last_exc = exc
+            continue
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("ollama_unavailable")
 
 
 def _pick_ollama_model(user_text: str, *, heavy: bool = False) -> str:
@@ -2491,7 +2550,7 @@ def _ollama_reply(
     body = {"model": _pick_ollama_model(query or user_text, heavy=False), "messages": ollama_msgs, "stream": False}
     timeout = 300.0 if VOICE_HEAVY_MODEL in body["model"] else 180.0
     try:
-        data = _http_json(f"{OLLAMA_CHAT}/api/chat", method="POST", body=body, timeout=timeout)
+        data = _ollama_post_chat(body, timeout=timeout)
         reply = (data.get("message") or {}).get("content") or ""
         if reply.strip():
             result: dict[str, Any] = {
@@ -2530,7 +2589,7 @@ def _chat_reply(
         result = _ollama_reply(user_text, user=user, entity_id=entity_id, history=history, with_context=with_context, speaker_hint=speaker_hint)
         if result.get("ok"):
             return result
-        if VOICE_LOCAL_FIRST and (GOOGLE_API_KEY or backend != "gemini"):
+        if VOICE_ALLOW_CLOUD_FALLBACK and VOICE_LOCAL_FIRST:
             from raphiia_openai import config_store
 
             if config_store.get_google_api_key() or GOOGLE_API_KEY:
@@ -2616,7 +2675,7 @@ def _fluid_ollama_reply(
     }
     timeout = 90.0
     try:
-        data = _http_json(f"{OLLAMA_CHAT}/api/chat", method="POST", body=body, timeout=timeout)
+        data = _ollama_post_chat(body, timeout=timeout)
         reply = (data.get("message") or {}).get("content") or ""
         if reply.strip():
             return {"ok": True, "reply": reply.strip(), "model": model, "backend": "ollama_fluid"}
@@ -2633,11 +2692,37 @@ def _fluid_chat_reply(
     history: list[dict[str, str]] | None = None,
     speaker_hint: str | None = None,
 ) -> dict[str, Any]:
-    if VOICE_FLUID_FAST and _ollama_reachable():
-        result = _fluid_ollama_reply(user_text, user=user, entity_id=entity_id, history=history, speaker_hint=speaker_hint)
-        if result.get("ok"):
-            return result
-    return _chat_reply(user_text, user=user, entity_id=entity_id, history=history, with_context=not _is_short_conversational(user_text), speaker_hint=speaker_hint)
+    if VOICE_FLUID_FAST:
+        if USE_VLLM and _vllm_ok():
+            with_context = not _is_short_conversational(user_text)
+            system, msgs, _query = _build_chat_messages(
+                user=user,
+                user_text=user_text,
+                history=history,
+                entity_id=entity_id,
+                with_context=with_context,
+                speaker_hint=speaker_hint,
+            )
+            ollama_msgs: list[dict[str, str]] = [{"role": "system", "content": system}]
+            ollama_msgs.extend(msgs)
+            vllm = _vllm_reply(ollama_msgs, model=VLLM_MODEL)
+            if vllm.get("ok"):
+                vllm["backend"] = "vllm_fluid"
+                return vllm
+        if _ollama_reachable():
+            result = _fluid_ollama_reply(
+                user_text, user=user, entity_id=entity_id, history=history, speaker_hint=speaker_hint
+            )
+            if result.get("ok"):
+                return result
+    return _chat_reply(
+        user_text,
+        user=user,
+        entity_id=entity_id,
+        history=history,
+        with_context=not _is_short_conversational(user_text),
+        speaker_hint=speaker_hint,
+    )
 
 
 def _process_voice_turn(
@@ -2789,15 +2874,24 @@ async def _stream_chat_tokens(
 
     body = {"model": model, "messages": ollama_msgs, "stream": True}
     async with httpx.AsyncClient(timeout=300.0) as client:
-        async with client.stream("POST", f"{OLLAMA_CHAT}/api/chat", json=body) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if not line:
-                    continue
-                data = json.loads(line)
-                chunk = (data.get("message") or {}).get("content") or ""
-                if chunk:
-                    yield chunk
+        last_exc: Exception | None = None
+        for base in _ollama_bases():
+            try:
+                async with client.stream("POST", f"{base}/api/chat", json=body) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line:
+                            continue
+                        data = json.loads(line)
+                        chunk = (data.get("message") or {}).get("content") or ""
+                        if chunk:
+                            yield chunk
+                    return
+            except Exception as exc:
+                last_exc = exc
+                continue
+        if last_exc:
+            raise last_exc
 
 
 def _wants_image(text: str) -> bool:
@@ -2885,14 +2979,88 @@ def _comfy_ui_up() -> bool:
     return portal_bridge._tcp_open(port, host=host)
 
 
+def _lemonade_up() -> bool:
+    if not LEMONADE_URL:
+        return False
+    for path in ("/v1/models", "/api/v1/models?show_all=true"):
+        try:
+            data = _http_json(f"{LEMONADE_URL}{path}", timeout=4.0)
+            if isinstance(data, dict):
+                items = data.get("data") or data.get("models") or []
+                if items or path.endswith("show_all=true"):
+                    return True
+            elif isinstance(data, list) and data:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _lemonade_generate_image(prompt: str, media: Path) -> dict[str, Any]:
+    if not LEMONADE_URL:
+        return {"ok": False, "error": "lemonade_not_configured"}
+    body = {
+        "model": LEMONADE_IMAGE_MODEL,
+        "prompt": prompt[:1800],
+        "size": "512x512",
+        "n": 1,
+        "response_format": "b64_json",
+    }
+    try:
+        data = _http_json(
+            f"{LEMONADE_URL}/v1/images/generations",
+            method="POST",
+            body=body,
+            timeout=VOICE_IMAGE_TIMEOUT,
+        )
+        items = data.get("data") or []
+        if not items:
+            return {"ok": False, "error": "lemonade_empty_response", "warnings": [str(data)[:200]]}
+        item = items[0]
+        b64 = item.get("b64_json") or ""
+        if not b64 and item.get("url"):
+            with urllib.request.urlopen(item["url"], timeout=VOICE_IMAGE_TIMEOUT) as resp:
+                media.write_bytes(resp.read())
+            return {
+                "ok": True,
+                "media_path": str(media),
+                "provider": "lemonade",
+                "model": LEMONADE_IMAGE_MODEL,
+            }
+        import base64
+
+        media.write_bytes(base64.b64decode(b64))
+        return {
+            "ok": True,
+            "media_path": str(media),
+            "provider": "lemonade",
+            "model": LEMONADE_IMAGE_MODEL,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": "lemonade_image_failed", "warnings": [str(exc)[:300]]}
+
+
 def _resolve_voice_image_provider() -> str:
     from raphiia_openai import config_store
     from raphiia_openai.settings import IMAGE_GEN_PROVIDER
 
-    provider = (IMAGE_GEN_PROVIDER or "google").strip().lower()
+    if VOICE_IMAGE_PROVIDER:
+        provider = VOICE_IMAGE_PROVIDER
+    else:
+        provider = (IMAGE_GEN_PROVIDER or "google").strip().lower()
+    if provider in {"lemonade", "local_amd_lemonade"} and _lemonade_up():
+        return "lemonade"
     if provider == "google" and not (config_store.get_google_api_key() or GOOGLE_API_KEY):
+        if _lemonade_up():
+            return "lemonade"
         if _comfy_ui_up():
             return "local_comfy"
+    if provider == "google" and not VOICE_ALLOW_CLOUD_FALLBACK:
+        if _lemonade_up():
+            return "lemonade"
+        if _comfy_ui_up():
+            return "local_comfy"
+        return "lemonade"
     return provider
 
 
@@ -2905,6 +3073,9 @@ def _voice_image_error_message(err: str, detail: str = "") -> str:
         "image_file_missing": "La imagen no se guardó en el servidor.",
         "comfyui_unreachable": "ComfyUI no responde en :8188 — ¿está activo ralfia-comfyui?",
         "comfyui_timeout": "ComfyUI tardó demasiado — la GPU puede estar ocupada con vLLM.",
+        "lemonade_not_configured": "Lemonade no está configurado (LEMONADE_URL).",
+        "lemonade_image_failed": "Lemonade no pudo generar la imagen (SD-1.5 en AMD).",
+        "lemonade_empty_response": "Lemonade respondió sin imagen.",
     }
     msg = known.get(err, err.replace("_", " "))
     if detail and detail not in msg:
@@ -2936,6 +3107,10 @@ def _generate_voice_image(user: dict[str, Any], text: str) -> dict[str, Any]:
     result: dict[str, Any] = {"ok": False, "error": "image_generation_failed"}
     tried: list[str] = []
 
+    def _try_lemonade() -> dict[str, Any]:
+        tried.append("lemonade")
+        return _lemonade_generate_image(visual, media)
+
     def _try_comfy() -> dict[str, Any]:
         tried.append("local_comfy")
         return local_image_runtime.generate(visual, media)
@@ -2951,7 +3126,13 @@ def _generate_voice_image(user: dict[str, Any], text: str) -> dict[str, Any]:
             include_ai_text=True,
         )
 
-    if provider in {"local_comfy", "comfyui"}:
+    if provider in {"lemonade", "local_amd_lemonade"}:
+        result = _try_lemonade()
+        if not result.get("ok") and _comfy_ui_up():
+            result = _try_comfy()
+        if not result.get("ok") and (config_store.get_google_api_key() or GOOGLE_API_KEY):
+            result = _try_google()
+    elif provider in {"local_comfy", "comfyui"}:
         result = _try_comfy()
         if not result.get("ok") and (config_store.get_google_api_key() or GOOGLE_API_KEY):
             result = _try_google()
@@ -3184,11 +3365,22 @@ def voice_health():
         "qdrant_points": qh.get("points_count"),
         "tts": tts.tts_health(),
         "comfyui": {"ok": _comfy_ui_up(), "url": os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")},
+        "lemonade": {
+            "ok": _lemonade_up(),
+            "url": LEMONADE_URL,
+            "model": LEMONADE_IMAGE_MODEL,
+        },
+        "whisper_fallbacks": WHISPER_FALLBACK_URLS,
         "public_urls": _public_https_urls(),
         "auth_required": voice_auth.AUTH_REQUIRED,
         "google_oauth": voice_auth.google_oauth_configured(),
         "chat_backend": backend,
         "chat_model": chat_model,
+        "mcp": voice_mcp_executor.mcp_policy_summary(
+            {"username": "rlopez", "email": "rlopez@innerchispa.us", "is_admin": True},
+            include_tools=False,
+        ),
+        "cloud_fallback": VOICE_ALLOW_CLOUD_FALLBACK,
         "fluid_model": VOICE_FLUID_MODEL,
         "fluid_fast": VOICE_FLUID_FAST,
         "gpu_policy": {
@@ -3973,4 +4165,3 @@ def voice_pwa_fallback(legacy_path: str):
     if legacy_path and legacy_path.startswith(blocked_prefixes):
         return JSONResponse({"detail": "Not Found"}, status_code=404)
     return voice_pwa()
-
