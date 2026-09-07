@@ -4433,6 +4433,133 @@ for _name in (
         }
     )
 
+TOOL_DEFINITIONS.update(
+    {
+        "disk_steward_cleanup_verified": {
+            "description": "Disk Steward verified-cleanup compatibility surface; verifies executed move records and finalizes metadata without deleting files.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_disk_steward_proposals"],
+            "reads_from": ["ralfia_disk_steward_proposals", "filesystem_metadata"],
+            "input_schema": {"proposal_id": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "verified": "array"},
+            "example_payload": {"dry_run": True},
+        },
+        "disk_steward_update_backup_policy": {
+            "description": "Disk Steward backup policy compatibility surface; validates and optionally persists policy without moving files.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["disk_steward_state"],
+            "reads_from": ["disk_steward_state"],
+            "input_schema": {"policy": "object|null", "actor": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "policy_preview": "object|null"},
+            "example_payload": {"policy": {"archive_root": "/home/rlopez/data/archive/disk_steward"}, "dry_run": True},
+        },
+        "inneros_dual_deployment_status": {
+            "description": "Dual-node deployment status compatibility surface backed by MCP fleet status.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["mcp_fleet"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "fleet": "object"},
+            "example_payload": {},
+        },
+        "inneros_dual_queue_operation": {
+            "description": "Dual-node queue compatibility surface backed by durable coordination events; dry_run uses in-memory sink.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_coordination_events"],
+            "reads_from": ["durable_coordination_spine"],
+            "input_schema": {"operation": "string|null", "payload": "object|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "event": "object"},
+            "example_payload": {"operation": "probe", "dry_run": True},
+        },
+        "inneros_dual_reconcile_operations": {
+            "description": "Dual-node reconcile compatibility surface backed by AG-40 runtime reconciler.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["runtime_reconciler", "mcp_fleet"],
+            "input_schema": {"dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string"},
+            "example_payload": {"dry_run": True},
+        },
+        "inneros_dual_deployment_drill": {
+            "description": "Dual-node drill compatibility surface backed by AG-43 failover dry-run script.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["ag43_platform_sync_agent", "failover_dry_run"],
+            "input_schema": {"dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "output_tail": "string|null"},
+            "example_payload": {"dry_run": True},
+        },
+        "judge_mi325x_deploy": {
+            "description": "Judge MI325X deploy compatibility surface backed by DigitalOcean preflight/approval-gated dry-run create path; no cloud spend by default.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["digitalocean_amd_provider", "cloud_approval_gate"],
+            "input_schema": {"action": "string|null", "params": "object|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "cloud_spend": "bool"},
+            "example_payload": {"action": "preflight"},
+        },
+    }
+)
+
+CAPABILITY_STATE_OVERRIDES = {
+    "disk_steward_cleanup_verified": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "verified_metadata_cleanup_no_file_delete",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "disk_steward_update_backup_policy": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "safe_policy_validation_or_persist",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "inneros_dual_deployment_status": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "fleet_status_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "inneros_dual_queue_operation": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "durable_event_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "inneros_dual_reconcile_operations": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "runtime_reconciler_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "inneros_dual_deployment_drill": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "failover_dry_run_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "judge_mi325x_deploy": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "digitalocean_preflight_plan_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+}
+
 
 def describe_tool(name: str) -> dict[str, Any]:
     key = (name or "").strip()
@@ -4460,6 +4587,40 @@ def describe_tool(name: str) -> dict[str, Any]:
         "risk_level": meta.get("risk_level") or "low",
         "writes_to": meta.get("writes_to") or [],
         "reads_from": meta.get("reads_from") or [],
+    }
+
+
+def capability_state(name: str) -> dict[str, Any]:
+    details = describe_tool(name)
+    state = dict(CAPABILITY_STATE_OVERRIDES.get((name or "").strip()) or {})
+    output_schema = details.get("output_schema") if isinstance(details.get("output_schema"), dict) else {}
+    nominally_not_ready = output_schema.get("status") == "NOT_READY_BACKEND_REMOVED"
+    available = bool(details.get("ok")) and not nominally_not_ready
+    return {
+        "tool": (name or "").strip(),
+        "tool_name_present": bool(details.get("ok")),
+        "capability_available": state.get("capability_available", available),
+        "availability": state.get("availability", "available" if available else "backend_unavailable"),
+        "compatibility_mode": state.get("compatibility_mode", "native" if available else "not_ready_backend_removed"),
+        "replacement_verified": state.get("replacement_verified", available),
+        "owner_approval_required": state.get("owner_approval_required", not available),
+        "output_status": output_schema.get("status"),
+        "risk_level": details.get("risk_level"),
+        "required_scopes": details.get("required_scopes") or [],
+    }
+
+
+def capability_states(tool_names: list[str] | None = None) -> dict[str, Any]:
+    names = list(dict.fromkeys(tool_names or ALL_MCP_TOOL_NAMES))
+    states = [capability_state(name) for name in sorted(names)]
+    unavailable = [s["tool"] for s in states if not s.get("capability_available")]
+    needs_owner = [s["tool"] for s in states if s.get("owner_approval_required")]
+    return {
+        "ok": not unavailable,
+        "tool_count": len(states),
+        "states": states,
+        "backend_unavailable_tools": unavailable,
+        "owner_approval_required_tools": needs_owner,
     }
 
 

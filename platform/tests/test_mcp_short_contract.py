@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from inneros_core_runtime import coordination_docs, local_model_manager, mcp_diagnostics, project_runtime_registry, self_heal_metrics
+from inneros_core_runtime import (
+    coordination_docs,
+    disk_steward,
+    local_model_manager,
+    mcp_diagnostics,
+    project_runtime_registry,
+    self_heal_metrics,
+)
 from inneros_core_runtime.agents import ag52_iskcon_ops_agent
 from inneros_core_runtime.mcp_catalog import tool_catalog
 from inneros_core_runtime import mcp_profiles
@@ -74,6 +81,16 @@ def test_mcp_diagnostics_survive_partial_catalog_metadata(monkeypatch) -> None:
     assert described["writes_to"] == []
 
 
+def test_mcp_version_reports_raw_unique_and_duplicate_tool_counts() -> None:
+    version = mcp_diagnostics.mcp_version(session_id="test-counts")
+    details = version["tool_name_count_details"]
+
+    assert version["runtime_tool_count_basis"] == "unique_tool_names"
+    assert details["raw_tool_name_count"] >= details["unique_tool_name_count"]
+    assert version["runtime_tool_count"] == details["unique_tool_name_count"]
+    assert details["duplicate_tool_name_count"] == len(details["duplicate_tool_names"])
+
+
 def test_project_runtime_bootstrap_schema_exposes_ref_and_sha() -> None:
     schema = tool_catalog.describe_tool("project_runtime_bootstrap")["input_schema"]
 
@@ -137,17 +154,160 @@ def test_catalog_guard_preserves_645_historical_tool_names() -> None:
 
     assert guard["removed_tools"] == []
     assert guard["tool_loss_detected"] is False
+    assert guard["capability_guard"]["backend_unavailable_tools"] == []
+    assert guard["capability_guard"]["needs_owner_approval"] is False
     for name in REMOVED_645_TO_609_TOOLS:
         assert name in tool_catalog.ALL_MCP_TOOL_NAMES
         assert tool_catalog.describe_tool(name)["ok"] is True
 
 
-def test_removed_backend_compatibility_tools_are_not_silent_success() -> None:
-    meta = tool_catalog.describe_tool("inneros_dual_queue_operation")
+RESTORED_COMPATIBILITY_TOOLS = {
+    "disk_steward_cleanup_verified",
+    "disk_steward_update_backup_policy",
+    "inneros_dual_deployment_drill",
+    "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "judge_mi325x_deploy",
+}
 
-    assert meta["ok"] is True
-    assert meta["output_schema"]["status"] == "NOT_READY_BACKEND_REMOVED"
-    assert "fail-closed" in meta["description"]
+
+def test_restored_equivalent_capability_tools_are_semantically_available() -> None:
+    for name in RESTORED_COMPATIBILITY_TOOLS:
+        meta = tool_catalog.describe_tool(name)
+        state = tool_catalog.capability_state(name)
+
+        assert meta["ok"] is True
+        assert meta["output_schema"].get("status") != "NOT_READY_BACKEND_REMOVED"
+        assert state["tool_name_present"] is True
+        assert state["capability_available"] is True
+        assert state["replacement_verified"] is True
+        assert state["owner_approval_required"] is False
+
+
+def test_catalog_guard_accepts_verified_replacement_capabilities() -> None:
+    previous = {
+        "tool_names": sorted(set(tool_catalog.ALL_MCP_TOOL_NAMES) | RESTORED_COMPATIBILITY_TOOLS),
+        "tool_names_hash": "baseline-test",
+    }
+
+    guard = mcp_diagnostics._catalog_guard(previous)
+
+    assert guard["capability_guard"]["backend_unavailable_tools"] == []
+    assert guard["capability_guard"]["needs_owner_approval"] is False
+    assert guard["needs_owner_approval"] is False
+
+
+def test_capability_guard_flags_present_name_with_unavailable_backend(monkeypatch) -> None:
+    name = "inneros_dual_queue_operation"
+    catalog = mcp_diagnostics.tool_catalog
+    original = dict(catalog.TOOL_DEFINITIONS[name])
+    degraded = dict(original)
+    degraded["output_schema"] = {"ok": "bool", "status": "NOT_READY_BACKEND_REMOVED", "replacement": "string|null"}
+    overrides = dict(catalog.CAPABILITY_STATE_OVERRIDES)
+    overrides.pop(name, None)
+    monkeypatch.setitem(catalog.TOOL_DEFINITIONS, name, degraded)
+    monkeypatch.setattr(catalog, "CAPABILITY_STATE_OVERRIDES", overrides)
+
+    previous = {
+        "tool_names": sorted(catalog.ALL_MCP_TOOL_NAMES),
+        "tool_names_hash": "baseline-test",
+    }
+
+    guard = mcp_diagnostics._catalog_guard(previous)
+
+    assert guard["status"] == "capability_loss_detected"
+    assert name in guard["capability_guard"]["backend_unavailable_tools"]
+    assert guard["needs_owner_approval"] is True
+
+
+def test_capability_guard_accepts_owner_approved_capability_retirement(monkeypatch) -> None:
+    name = "inneros_dual_queue_operation"
+    catalog = mcp_diagnostics.tool_catalog
+    original = dict(catalog.TOOL_DEFINITIONS[name])
+    degraded = dict(original)
+    degraded["output_schema"] = {"ok": "bool", "status": "NOT_READY_BACKEND_REMOVED", "replacement": "string|null"}
+    overrides = dict(catalog.CAPABILITY_STATE_OVERRIDES)
+    overrides.pop(name, None)
+    monkeypatch.setitem(catalog.TOOL_DEFINITIONS, name, degraded)
+    monkeypatch.setattr(catalog, "CAPABILITY_STATE_OVERRIDES", overrides)
+
+    previous = {
+        "tool_names": sorted(catalog.ALL_MCP_TOOL_NAMES),
+        "tool_names_hash": "baseline-test",
+        "approved_capability_retirements": [{"tool": name, "approved_by": "RAFAEL"}],
+    }
+
+    guard = mcp_diagnostics._catalog_guard(previous)
+
+    assert guard["status"] == "catalog_stable"
+    assert name not in guard["capability_guard"]["backend_unavailable_tools"]
+    assert guard["needs_owner_approval"] is False
+
+
+def test_disk_steward_backup_policy_dry_run_validates_without_writing(tmp_path) -> None:
+    result = disk_steward.update_backup_policy({"archive_root": str(tmp_path)}, dry_run=True)
+
+    assert result["ok"] is True
+    assert result["capability_available"] is True
+    assert result["compatibility_mode"] == "safe_policy_validation"
+    assert result["executed"] is False
+    assert result["policy_preview"]["archive_root"] == str(tmp_path)
+
+
+def test_disk_steward_backup_policy_rejects_protected_archive_root(monkeypatch, tmp_path) -> None:
+    protected = tmp_path / "inneros"
+    monkeypatch.setattr(disk_steward, "PROTECTED_PREFIXES", (str(protected),))
+
+    result = disk_steward.update_backup_policy({"archive_root": str(protected / "archive")}, dry_run=True)
+
+    assert result["ok"] is False
+    assert result["status"] == "policy_invalid"
+    assert "archive_root_is_protected" in result["errors"]
+    assert result["capability_available"] is True
+
+
+def test_disk_steward_cleanup_verified_dry_run_uses_metadata_only(monkeypatch, tmp_path) -> None:
+    class _Cursor:
+        def __iter__(self):
+            return iter(
+                [
+                    {
+                        "proposal_id": "proposal-test",
+                        "status": "executed",
+                        "actions": [
+                            {
+                                "src": str(tmp_path / "old-backup.tar"),
+                                "dest": str(tmp_path / "archive" / "old-backup.tar"),
+                            }
+                        ],
+                    }
+                ]
+            )
+
+        def limit(self, *args):
+            return self
+
+    class _Collection:
+        def find(self, *args):
+            return _Cursor()
+
+    class _Db:
+        def __getitem__(self, name):
+            assert name == "ralfia_disk_steward_proposals"
+            return _Collection()
+
+    archive = tmp_path / "archive"
+    archive.mkdir()
+    (archive / "old-backup.tar").write_text("ok", encoding="utf-8")
+    monkeypatch.setattr(disk_steward.mongo_store, "get_db", lambda: _Db())
+
+    result = disk_steward.cleanup_verified(dry_run=True)
+
+    assert result["ok"] is True
+    assert result["capability_available"] is True
+    assert result["compatibility_mode"] == "verified_metadata_cleanup_no_file_delete"
+    assert result["verified"][0]["verified"] is True
 
 
 def test_restored_backend_symbols_exist_without_live_side_effects() -> None:

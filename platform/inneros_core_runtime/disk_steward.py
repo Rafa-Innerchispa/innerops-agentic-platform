@@ -205,6 +205,158 @@ def build_status(*, include_candidates: bool = True) -> dict[str, Any]:
     return status
 
 
+def _load_state() -> dict[str, Any]:
+    try:
+        if STATE_FILE.is_file():
+            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {}
+
+
+def _write_state(state: dict[str, Any]) -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = STATE_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    tmp.replace(STATE_FILE)
+
+
+def backup_policy_status() -> dict[str, Any]:
+    state = _load_state()
+    policy = state.get("backup_policy") if isinstance(state.get("backup_policy"), dict) else {}
+    return {
+        "ok": True,
+        "schema": "ralfia.disk_steward.backup_policy.v1",
+        "policy": {
+            "archive_root": policy.get("archive_root") or str(ARCHIVE_ROOT),
+            "critical_free_pct": float(policy.get("critical_free_pct", CRITICAL_FREE_PCT)),
+            "warn_free_pct": float(policy.get("warn_free_pct", WARN_FREE_PCT)),
+            "primary_mounts": policy.get("primary_mounts") or list(PRIMARY_MOUNTS),
+            "backup_scan_dirs": policy.get("backup_scan_dirs") or list(BACKUP_SCAN_DIRS),
+            "retention_days": policy.get("retention_days") or {"snapshot": 4, "disaster_recovery": 14},
+            "execution_mode": policy.get("execution_mode") or "proposal_then_owner_approval",
+        },
+        "updated_at": state.get("backup_policy_updated_at"),
+        "updated_by": state.get("backup_policy_updated_by"),
+    }
+
+
+def update_backup_policy(policy: dict[str, Any] | None = None, *, actor: str = "mcp", dry_run: bool = True) -> dict[str, Any]:
+    """Validate and optionally persist Disk Steward policy without moving files."""
+    incoming = dict(policy or {})
+    current = backup_policy_status()["policy"]
+    merged = {**current, **incoming}
+    errors: list[str] = []
+    try:
+        critical = float(merged.get("critical_free_pct", CRITICAL_FREE_PCT))
+        warn = float(merged.get("warn_free_pct", WARN_FREE_PCT))
+    except (TypeError, ValueError):
+        critical = CRITICAL_FREE_PCT
+        warn = WARN_FREE_PCT
+        errors.append("thresholds_must_be_numeric")
+    if critical <= 0 or critical >= 50:
+        errors.append("critical_free_pct_out_of_range")
+    if warn <= critical or warn > 80:
+        errors.append("warn_free_pct_out_of_range")
+    archive_root = Path(str(merged.get("archive_root") or ARCHIVE_ROOT)).expanduser()
+    if not archive_root.is_absolute():
+        errors.append("archive_root_must_be_absolute")
+    if any(str(archive_root).startswith(prefix) for prefix in PROTECTED_PREFIXES):
+        errors.append("archive_root_is_protected")
+    if errors:
+        return {
+            "ok": False,
+            "status": "policy_invalid",
+            "capability_available": True,
+            "compatibility_mode": "safe_policy_validation",
+            "errors": errors,
+            "policy_preview": merged,
+        }
+
+    merged.update(
+        {
+            "critical_free_pct": critical,
+            "warn_free_pct": warn,
+            "archive_root": str(archive_root),
+            "execution_mode": "proposal_then_owner_approval",
+        }
+    )
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "capability_available": True,
+            "compatibility_mode": "safe_policy_validation",
+            "executed": False,
+            "policy_preview": merged,
+        }
+    state = _load_state()
+    state["backup_policy"] = merged
+    state["backup_policy_updated_at"] = _now()
+    state["backup_policy_updated_by"] = actor
+    _write_state(state)
+    _log(f"POLICY_UPDATED actor={actor}")
+    return {
+        "ok": True,
+        "dry_run": False,
+        "capability_available": True,
+        "compatibility_mode": "policy_persisted_no_file_moves",
+        "executed": True,
+        "policy": merged,
+    }
+
+
+def cleanup_verified(*, proposal_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Finalize already executed move proposals after verifying destination files.
+
+    This compatibility backend intentionally does not delete files. It only
+    verifies executed move records and can mark them as verified-cleaned.
+    """
+    query: dict[str, Any] = {"status": "executed"}
+    if proposal_id:
+        query["proposal_id"] = proposal_id
+    try:
+        col = mongo_store.get_db()[COLLECTION]
+        proposals = list(col.find(query, {"_id": 0}).limit(50))
+    except Exception as exc:
+        return {"ok": False, "error": "proposal_lookup_failed", "detail": str(exc)[:300]}
+    verified: list[dict[str, Any]] = []
+    for doc in proposals:
+        actions = doc.get("actions") or []
+        results = doc.get("results") or []
+        by_src = {str(item.get("src") or ""): item for item in results if isinstance(item, dict)}
+        checks: list[dict[str, Any]] = []
+        for action in actions:
+            src = str(action.get("src") or "")
+            dest = str((by_src.get(src) or {}).get("dest") or action.get("dest") or "")
+            dest_exists = bool(dest and Path(dest).is_file())
+            src_absent = bool(src and not Path(src).exists())
+            checks.append({"src": src, "dest": dest, "dest_exists": dest_exists, "src_absent": src_absent, "verified": dest_exists and src_absent})
+        verified.append(
+            {
+                "proposal_id": doc.get("proposal_id"),
+                "verified": bool(checks) and all(item["verified"] for item in checks),
+                "checks": checks,
+            }
+        )
+    if not dry_run:
+        for item in verified:
+            if item.get("verified") and item.get("proposal_id"):
+                col.update_one(
+                    {"proposal_id": item["proposal_id"], "status": "executed"},
+                    {"$set": {"status": "verified_cleaned", "verified_cleaned_at": _now(), "cleanup_mode": "metadata_finalize_no_file_delete"}},
+                )
+    return {
+        "ok": True,
+        "dry_run": dry_run,
+        "capability_available": True,
+        "compatibility_mode": "verified_metadata_cleanup_no_file_delete",
+        "matched": len(proposals),
+        "verified": verified,
+        "executed": not dry_run,
+    }
+
+
 def _proposal_id() -> str:
     return f"dm_{secrets.token_hex(3)}"
 

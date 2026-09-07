@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
@@ -50,6 +51,18 @@ def _tool_names() -> list[str]:
     return sorted(dict.fromkeys(tool_catalog.ALL_MCP_TOOL_NAMES))
 
 
+def _tool_name_count_details() -> dict[str, Any]:
+    raw_names = list(tool_catalog.ALL_MCP_TOOL_NAMES)
+    counts = Counter(raw_names)
+    duplicates = sorted(name for name, count in counts.items() if count > 1)
+    return {
+        "raw_tool_name_count": len(raw_names),
+        "unique_tool_name_count": len(counts),
+        "duplicate_tool_names": duplicates,
+        "duplicate_tool_name_count": len(duplicates),
+    }
+
+
 def _tool_names_hash(tool_names: list[str]) -> str:
     raw = json.dumps(tool_names, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
@@ -66,6 +79,7 @@ def _catalog_snapshot() -> dict[str, Any]:
         "tool_names_hash": _tool_names_hash(tool_names),
         "tool_count": manifest["tool_count"],
         "manifest_hash": manifest["manifest_hash"],
+        "count_details": _tool_name_count_details(),
     }
 
 
@@ -93,8 +107,31 @@ def _catalog_guard(previous_runtime: dict[str, Any] | None = None) -> dict[str, 
         and str(item.get("tool") or "").strip()
     }
     unapproved_removed = [name for name in removed if name not in approved_retirements]
+    semantic = tool_catalog.capability_states(
+        sorted(
+            set(current["tool_names"])
+            & (
+                set(getattr(tool_catalog, "_COMPATIBILITY_RESTORED_TOOL_NAMES", set()))
+                | set(getattr(tool_catalog, "CAPABILITY_STATE_OVERRIDES", {}).keys())
+            )
+        )
+    )
+    approved_capability_retirements = {
+        str(item.get("tool"))
+        for item in (prev_runtime.get("approved_capability_retirements") or [])
+        if isinstance(item, dict)
+        and str(item.get("approved_by") or "").strip().upper() in {"RAFAEL", "OWNER"}
+        and str(item.get("tool") or "").strip()
+    }
+    backend_unavailable = [
+        name
+        for name in semantic.get("backend_unavailable_tools", [])
+        if name not in approved_capability_retirements
+    ]
     if removed:
         status = "tool_loss_detected"
+    elif backend_unavailable:
+        status = "capability_loss_detected"
     elif added:
         status = "catalog_expanded"
     elif prev_tools:
@@ -107,13 +144,20 @@ def _catalog_guard(previous_runtime: dict[str, Any] | None = None) -> dict[str, 
         "removed_tools": removed,
         "approved_tool_retirements": sorted(approved_retirements),
         "unapproved_removed_tools": unapproved_removed,
-        "needs_owner_approval": bool(unapproved_removed),
+        "approved_capability_retirements": sorted(approved_capability_retirements),
+        "needs_owner_approval": bool(unapproved_removed or backend_unavailable),
         "added_tools": added,
         "current_tool_count": current["tool_count"],
         "previous_tool_count": len(prev_tools),
         "current_tool_names_hash": current["tool_names_hash"],
         "previous_tool_names_hash": prev_runtime.get("tool_names_hash"),
         "baseline_key": "documentary_sync",
+        "capability_guard": {
+            **semantic,
+            "backend_unavailable_tools": backend_unavailable,
+            "needs_owner_approval": bool(backend_unavailable),
+            "guard_policy": "tool_name_present_with_unavailable_backend_is_regression",
+        },
     }
 
 
@@ -139,6 +183,8 @@ def mcp_version(session_id: str | None = None) -> dict[str, Any]:
         "catalog_version": CATALOG_VERSION,
         "catalog_tool_count": manifest["tool_count"],
         "runtime_tool_count": runtime_tool_count,
+        "runtime_tool_count_basis": "unique_tool_names",
+        "tool_name_count_details": _tool_name_count_details(),
         "manifest_hash": manifest["manifest_hash"],
         "tool_names": _tool_names(),
         "tool_names_hash": _tool_names_hash(_tool_names()),

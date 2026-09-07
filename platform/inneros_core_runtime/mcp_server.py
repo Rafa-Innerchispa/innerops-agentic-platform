@@ -3770,30 +3770,19 @@ def disk_steward_verify_migration(include_candidates: bool = True) -> dict[str, 
 
 
 @mcp.tool
-def disk_steward_update_backup_policy(policy: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
-    """Disk Steward: wrapper fail-closed para política de backups aún no reimplementada."""
-    return {
-        "ok": False,
-        "status": "NOT_READY_BACKEND_REMOVED",
-        "tool": "disk_steward_update_backup_policy",
-        "replacement": "disk_steward_plan_migration",
-        "dry_run": dry_run,
-        "policy_preview": policy or {},
-        "reason": "El backend actual no persiste cambios de politica; no se simula escritura.",
-    }
+def disk_steward_update_backup_policy(policy: dict[str, Any] | None = None, actor: str = "mcp", dry_run: bool = True) -> dict[str, Any]:
+    """Disk Steward: valida/persiste política de backups sin mover archivos."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.update_backup_policy(policy or {}, actor=actor, dry_run=dry_run)
 
 
 @mcp.tool
-def disk_steward_cleanup_verified(dry_run: bool = True) -> dict[str, Any]:
-    """Disk Steward: wrapper fail-closed para limpieza automática no reactivada."""
-    return {
-        "ok": False,
-        "status": "NOT_READY_BACKEND_REMOVED",
-        "tool": "disk_steward_cleanup_verified",
-        "replacement": "disk_steward_verify_migration",
-        "dry_run": dry_run,
-        "reason": "La limpieza automatica queda bloqueada hasta politica explicita y evidencia de backup externo.",
-    }
+def disk_steward_cleanup_verified(proposal_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Disk Steward: verifica y finaliza metadata; no borra archivos."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.cleanup_verified(proposal_id=proposal_id, dry_run=dry_run)
 
 
 @mcp.tool
@@ -3916,22 +3905,71 @@ def inneros_agent_fabric_status() -> dict[str, Any]:
 
 @mcp.tool
 def inneros_dual_deployment_status() -> dict[str, Any]:
-    return _compat_not_ready("inneros_dual_deployment_status", replacement="get_mcp_fleet_status")
+    from raphiia_openai import mcp_fleet
+
+    status = mcp_fleet.fleet_status(force_probe=True)
+    return {
+        "ok": bool(status.get("ok")),
+        "status": "COMPATIBLE_RESTORED",
+        "capability_available": True,
+        "compatibility_mode": "fleet_status_alias",
+        "replacement": "get_mcp_fleet_status",
+        "fleet": status,
+    }
 
 
 @mcp.tool
 def inneros_dual_queue_operation(operation: str = "", payload: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
-    return _compat_not_ready("inneros_dual_queue_operation", replacement="durable_coordination_publish_event", operation=operation, payload=payload or {}, dry_run=dry_run)
+    from raphiia_openai import durable_coordination_spine
+
+    event_type = "a2a.dispatched" if operation else "scheduler.selected"
+    result = durable_coordination_spine.publish_event(
+        event_type,
+        actor="inneros_dual_queue_operation",
+        correlation_id=str((payload or {}).get("correlation_id") or "dual-queue-operation"),
+        status=operation or "queued",
+        payload={"operation": operation, "payload": payload or {}},
+        sink=durable_coordination_spine.MemoryEventSink([]) if dry_run else None,
+        live_mode="NON-LIVE" if dry_run else "LIVE",
+    )
+    return {
+        **result,
+        "status": "COMPATIBLE_RESTORED",
+        "capability_available": True,
+        "compatibility_mode": "durable_event_alias",
+        "dry_run": dry_run,
+        "replacement": "durable_coordination_publish_event",
+    }
 
 
 @mcp.tool
 def inneros_dual_reconcile_operations(dry_run: bool = True) -> dict[str, Any]:
-    return _compat_not_ready("inneros_dual_reconcile_operations", replacement="reconcile_runtime_state", dry_run=dry_run)
+    from raphiia_openai.agents import ag40_runtime_reconciler
+
+    result = ag40_runtime_reconciler.reconcile_runtime_state(dry_run=dry_run)
+    return {
+        **result,
+        "status": "COMPATIBLE_RESTORED",
+        "capability_available": True,
+        "compatibility_mode": "runtime_reconciler_alias",
+        "replacement": "reconcile_runtime_state",
+    }
 
 
 @mcp.tool
 def inneros_dual_deployment_drill(dry_run: bool = True) -> dict[str, Any]:
-    return _compat_not_ready("inneros_dual_deployment_drill", replacement="run_failover_dry_run", dry_run=dry_run)
+    from raphiia_openai.agents import ag43_platform_sync_agent as ag43
+
+    result = ag43.run_failover_dry_run()
+    return {
+        **result,
+        "status": "COMPATIBLE_RESTORED",
+        "capability_available": True,
+        "compatibility_mode": "failover_dry_run_alias",
+        "dry_run": True,
+        "requested_dry_run": dry_run,
+        "replacement": "run_failover_dry_run",
+    }
 
 
 @mcp.tool
@@ -4136,7 +4174,48 @@ def judge_model_routing_policy(task_class: str = "", project_id: str = "") -> di
 
 @mcp.tool
 def judge_mi325x_deploy(action: str = "preflight", params: dict[str, Any] | None = None) -> dict[str, Any]:
-    return _compat_not_ready("judge_mi325x_deploy", replacement="digitalocean_preflight", action=action, params=params or {})
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    safe_params = dict(params or {})
+    if action in {"status", "preflight", "plan", "dry_run", ""}:
+        return {
+            "ok": True,
+            "status": "COMPATIBLE_RESTORED",
+            "capability_available": True,
+            "compatibility_mode": "digitalocean_preflight_plan_alias",
+            "replacement": "digitalocean_preflight",
+            "action": action or "preflight",
+            "provider_status": do.preflight(),
+            "executed": False,
+            "cloud_spend": False,
+        }
+    if action == "create_gpu_droplet":
+        return {
+            **do.create_gpu_droplet(
+                name=str(safe_params.get("name") or "inneros-judge-mi325x-dry-run"),
+                region=str(safe_params.get("region") or ""),
+                size=str(safe_params.get("size") or ""),
+                image=str(safe_params.get("image") or ""),
+                ssh_key_ids=list(safe_params.get("ssh_key_ids") or []),
+                project_id=str(safe_params.get("project_id") or "judge-console"),
+                task_id=str(safe_params.get("task_id") or ""),
+                approval_id=str(safe_params.get("approval_id") or ""),
+                dry_run=True,
+            ),
+            "status": "COMPATIBLE_RESTORED",
+            "capability_available": True,
+            "compatibility_mode": "approval_gated_dry_run_create_alias",
+            "replacement": "digitalocean_create_gpu_droplet",
+            "cloud_spend": False,
+        }
+    return {
+        "ok": False,
+        "status": "unsupported_action",
+        "capability_available": True,
+        "supported_actions": ["status", "preflight", "plan", "dry_run", "create_gpu_droplet"],
+        "action": action,
+        "cloud_spend": False,
+    }
 
 
 @mcp.tool
