@@ -186,6 +186,7 @@ def issue_access_token(code_doc: dict[str, Any]) -> dict[str, Any]:
     refresh_token = secrets.token_urlsafe(44)
     expires_at = now_utc() + timedelta(seconds=OAUTH_TOKEN_TTL_SECONDS)
     refresh_expires_at = now_utc() + timedelta(seconds=OAUTH_REFRESH_TTL_SECONDS)
+    mcp_profile = code_doc.get("mcp_profile") or code_doc.get("tool_profile")
     doc = {
         "access_token": token,
         "token_type": "Bearer",
@@ -197,19 +198,22 @@ def issue_access_token(code_doc: dict[str, Any]) -> dict[str, Any]:
         "expires_at": expires_at,
         "revoked": False,
     }
+    if mcp_profile:
+        doc["mcp_profile"] = str(mcp_profile)
     get_db()[COL_OAUTH_TOKENS].insert_one(doc)
-    get_db()[COL_OAUTH_REFRESH_TOKENS].insert_one(
-        {
-            "refresh_token": refresh_token,
-            "client_id": code_doc["client_id"],
-            "username": code_doc["username"],
-            "scope": doc["scope"],
-            "resource": code_doc.get("resource"),
-            "created_at": now_utc(),
-            "expires_at": refresh_expires_at,
-            "revoked": False,
-        }
-    )
+    refresh_doc = {
+        "refresh_token": refresh_token,
+        "client_id": code_doc["client_id"],
+        "username": code_doc["username"],
+        "scope": doc["scope"],
+        "resource": code_doc.get("resource"),
+        "created_at": now_utc(),
+        "expires_at": refresh_expires_at,
+        "revoked": False,
+    }
+    if mcp_profile:
+        refresh_doc["mcp_profile"] = str(mcp_profile)
+    get_db()[COL_OAUTH_REFRESH_TOKENS].insert_one(refresh_doc)
     return {
         "access_token": token,
         "token_type": "Bearer",
@@ -244,6 +248,8 @@ def exchange_refresh_token(*, refresh_token: str, client_id: str) -> dict[str, A
         "expires_at": access_expires_at,
         "revoked": False,
     }
+    if doc.get("mcp_profile"):
+        access_doc["mcp_profile"] = str(doc["mcp_profile"])
     db[COL_OAUTH_TOKENS].insert_one(access_doc)
     return {
         "access_token": access_token,
