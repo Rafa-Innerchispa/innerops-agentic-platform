@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InnerOS Development Provider Instance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "provider_instance_id",
+    "host",
+    "provider",
+    "installed",
+    "authenticated",
+    "headless_ready",
+    "inneros_dispatchable",
+    "account_profile",
+    "usage_available",
+    "last_heartbeat",
+    "current_task",
+    "repo_lock",
+    "model_runtime",
+    "auth_mode",
+    "reason_codes"
+  ],
+  "properties": {
+    "provider_instance_id": {"type": "string"},
+    "host": {"type": "string"},
+    "provider": {"type": "string"},
+    "installed": {"type": ["boolean", "string"]},
+    "authenticated": {"type": ["boolean", "string"]},
+    "headless_ready": {"type": ["boolean", "string"]},
+    "inneros_dispatchable": {"type": "boolean"},
+    "account_profile": {"type": "string"},
+    "usage_available": {"type": "object"},
+    "last_heartbeat": {"type": ["string", "null"]},
+    "current_task": {"type": ["string", "null"]},
+    "repo_lock": {"type": ["string", "null"]},
+    "model_runtime": {"type": "string"},
+    "auth_mode": {"type": "string"},
+    "reason_codes": {"type": "array", "items": {"type": "string"}}
+  }
+}
