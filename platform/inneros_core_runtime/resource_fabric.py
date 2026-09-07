@@ -18,6 +18,182 @@ from raphiia_openai import local_gitlab_plane
 COL_PROVIDERS = "inneros_resource_providers"
 COL_MODEL_REGISTRY = "inneros_model_registry"
 COL_RESOURCE_LINKS = "inneros_resource_project_links"
+COL_PROVIDER_INSTANCES = "inneros_provider_instances"
+
+PROVIDER_ROUTING_REASON_CODES = [
+    "local_first",
+    "capacity_available",
+    "provider_required",
+    "host_affinity",
+    "repo_locality",
+    "quality_gate",
+    "fallback",
+    "manual_session_required",
+]
+
+
+def provider_instance_schema() -> dict[str, Any]:
+    return {
+        "provider_instance_id": "provider.host alias, for example codex.amd5",
+        "host": "intel4|amd5",
+        "provider": "codex|cursor|antigravity|qwen|local",
+        "installed": "bool|UNKNOWN",
+        "authenticated": "bool|UNKNOWN|not_required",
+        "headless_ready": "bool|UNKNOWN",
+        "inneros_dispatchable": "bool",
+        "account_profile": "primary|secondary|service|not_applicable|UNKNOWN",
+        "usage_available": "object with status UNKNOWN when unsupported",
+        "last_heartbeat": "ISO-8601|null",
+        "current_task": "task_id|null",
+        "repo_lock": "lock_id|null",
+        "model_runtime": "runtime/model description without secrets",
+        "auth_mode": "chatgpt_account|api_key|local_runtime|none|UNKNOWN",
+        "reason_codes": "list[str]",
+    }
+
+
+def canonical_development_provider_instances() -> list[dict[str, Any]]:
+    unknown_usage = {"status": "UNKNOWN", "reason": "no_supported_read_api"}
+    manual = ["manual_session_required"]
+    local = ["local_first", "capacity_available"]
+    return [
+        {
+            "provider_instance_id": "codex.amd5",
+            "host": "amd5",
+            "provider": "codex",
+            "installed": "UNKNOWN",
+            "authenticated": "UNKNOWN",
+            "headless_ready": "UNKNOWN",
+            "inneros_dispatchable": False,
+            "account_profile": "secondary",
+            "usage_available": unknown_usage,
+            "last_heartbeat": None,
+            "current_task": None,
+            "repo_lock": None,
+            "model_runtime": "Codex CLI/session on AMD host when manually available",
+            "auth_mode": "chatgpt_account",
+            "reason_codes": manual,
+        },
+        {
+            "provider_instance_id": "codex.intel4",
+            "host": "intel4",
+            "provider": "codex",
+            "installed": True,
+            "authenticated": "UNKNOWN",
+            "headless_ready": "UNKNOWN",
+            "inneros_dispatchable": False,
+            "account_profile": "primary",
+            "usage_available": unknown_usage,
+            "last_heartbeat": None,
+            "current_task": None,
+            "repo_lock": None,
+            "model_runtime": "codex-cli; manual session unless supported headless dispatcher proves readiness",
+            "auth_mode": "chatgpt_account",
+            "reason_codes": manual,
+        },
+        {
+            "provider_instance_id": "cursor.amd5",
+            "host": "amd5",
+            "provider": "cursor",
+            "installed": "UNKNOWN",
+            "authenticated": "UNKNOWN",
+            "headless_ready": "UNKNOWN",
+            "inneros_dispatchable": False,
+            "account_profile": "UNKNOWN",
+            "usage_available": unknown_usage,
+            "last_heartbeat": None,
+            "current_task": None,
+            "repo_lock": None,
+            "model_runtime": "Cursor IDE/CLI if present; manual session required until headless contract exists",
+            "auth_mode": "chatgpt_account",
+            "reason_codes": manual,
+        },
+        {
+            "provider_instance_id": "cursor.intel4",
+            "host": "intel4",
+            "provider": "cursor",
+            "installed": "UNKNOWN",
+            "authenticated": "UNKNOWN",
+            "headless_ready": "UNKNOWN",
+            "inneros_dispatchable": False,
+            "account_profile": "UNKNOWN",
+            "usage_available": unknown_usage,
+            "last_heartbeat": None,
+            "current_task": None,
+            "repo_lock": None,
+            "model_runtime": "Cursor IDE/CLI if present; manual session required until headless contract exists",
+            "auth_mode": "chatgpt_account",
+            "reason_codes": manual,
+        },
+        {
+            "provider_instance_id": "antigravity.amd5",
+            "host": "amd5",
+            "provider": "antigravity",
+            "installed": "UNKNOWN",
+            "authenticated": "UNKNOWN",
+            "headless_ready": "UNKNOWN",
+            "inneros_dispatchable": False,
+            "account_profile": "UNKNOWN",
+            "usage_available": unknown_usage,
+            "last_heartbeat": None,
+            "current_task": None,
+            "repo_lock": None,
+            "model_runtime": "Antigravity IDE/CLI if present; manual session required until headless contract exists",
+            "auth_mode": "chatgpt_account",
+            "reason_codes": manual,
+        },
+        {
+            "provider_instance_id": "antigravity.intel4",
+            "host": "intel4",
+            "provider": "antigravity",
+            "installed": "UNKNOWN",
+            "authenticated": "UNKNOWN",
+            "headless_ready": "UNKNOWN",
+            "inneros_dispatchable": False,
+            "account_profile": "UNKNOWN",
+            "usage_available": unknown_usage,
+            "last_heartbeat": None,
+            "current_task": None,
+            "repo_lock": None,
+            "model_runtime": "Antigravity IDE/CLI if present; manual session required until headless contract exists",
+            "auth_mode": "chatgpt_account",
+            "reason_codes": manual,
+        },
+        {
+            "provider_instance_id": "qwen.amd5",
+            "host": "amd5",
+            "provider": "qwen",
+            "installed": True,
+            "authenticated": "not_required",
+            "headless_ready": True,
+            "inneros_dispatchable": True,
+            "account_profile": "not_applicable",
+            "usage_available": {"status": "UNMETERED_LOCAL"},
+            "last_heartbeat": None,
+            "current_task": None,
+            "repo_lock": None,
+            "model_runtime": "vLLM ROCm10, QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "auth_mode": "local_runtime",
+            "reason_codes": local,
+        },
+        {
+            "provider_instance_id": "local.intel4",
+            "host": "intel4",
+            "provider": "local",
+            "installed": True,
+            "authenticated": "not_required",
+            "headless_ready": True,
+            "inneros_dispatchable": True,
+            "account_profile": "not_applicable",
+            "usage_available": {"status": "UNMETERED_LOCAL"},
+            "last_heartbeat": None,
+            "current_task": None,
+            "repo_lock": None,
+            "model_runtime": "Local Execution Plane for git/tests/build orchestration",
+            "auth_mode": "local_runtime",
+            "reason_codes": local,
+        },
+    ]
 
 
 def _now() -> str:
@@ -68,8 +244,17 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
         digitalocean_amd_provider.model_provider_document(),
         local_gitlab_plane.model_provider_document(),
     ]
+    provider_instances = canonical_development_provider_instances()
     if dry_run:
-        return {"ok": True, "dry_run": True, "providers": providers, "models": models, "funding": funding_registry.get_funding_registry_summary(limit=5)}
+        return {
+            "ok": True,
+            "dry_run": True,
+            "providers": providers,
+            "models": models,
+            "provider_instance_schema": provider_instance_schema(),
+            "provider_instances": provider_instances,
+            "funding": funding_registry.get_funding_registry_summary(limit=5),
+        }
     db = mongo_store.get_db()
     now = _now()
     for doc in providers:
@@ -78,18 +263,39 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
     for doc in models:
         doc = {**doc, "updated_at": now, "registry_version": "model_registry_v1"}
         db[COL_MODEL_REGISTRY].update_one({"model_provider": doc["model_provider"]}, {"$set": doc, "$setOnInsert": {"created_at": now}}, upsert=True)
-    return {"ok": True, "providers_count": len(providers), "models_count": len(models), "providers": providers, "models": models}
+    for doc in provider_instances:
+        doc = {**doc, "updated_at": now, "registry_version": "provider_instance_v1"}
+        db[COL_PROVIDER_INSTANCES].update_one(
+            {"provider_instance_id": doc["provider_instance_id"]},
+            {"$set": doc, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
+    return {
+        "ok": True,
+        "providers_count": len(providers),
+        "models_count": len(models),
+        "provider_instances_count": len(provider_instances),
+        "providers": providers,
+        "models": models,
+        "provider_instances": provider_instances,
+    }
 
 
 def resource_fabric_status(limit: int = 20) -> dict[str, Any]:
     db = mongo_store.get_db()
+    instances = list(db[COL_PROVIDER_INSTANCES].find({}, {"_id": 0}).sort("provider_instance_id", 1).limit(limit))
+    if not instances:
+        instances = canonical_development_provider_instances()[:limit]
     return {
         "ok": True,
         "providers": list(db[COL_PROVIDERS].find({}, {"_id": 0}).sort("provider_id", 1).limit(limit)),
         "models": list(db[COL_MODEL_REGISTRY].find({}, {"_id": 0}).sort("priority", 1).limit(limit)),
+        "provider_instance_schema": provider_instance_schema(),
+        "provider_instances": instances,
         "links": list(db[COL_RESOURCE_LINKS].find({}, {"_id": 0}).sort("updated_at", -1).limit(limit)),
         "funding": funding_registry.get_funding_registry_summary(limit=5),
-        "routing_policy": "local-first; cloud burst only when explicit capability/policy and approval gates are satisfied",
+        "routing_policy": "local-first; host-specific provider instances; cloud burst only when explicit capability/policy and approval gates are satisfied",
+        "reason_codes": PROVIDER_ROUTING_REASON_CODES,
     }
 
 
@@ -132,4 +338,56 @@ def route_resource_request(project_id: str, task_class: str, prefer_cloud: bool 
     if prefer_cloud:
         candidates.sort(key=lambda row: 0 if (row.get("model") or {}).get("cost_policy") == "explicit_burst_only" else 1)
     selected = candidates[0] if candidates else None
-    return {"ok": bool(selected), "project_id": project_id, "task_class": task_class, "selected": selected, "candidates": candidates}
+    reason_codes = ["provider_required"] if prefer_cloud else ["local_first"]
+    if selected:
+        reason_codes.append("capacity_available")
+    else:
+        reason_codes.append("fallback")
+    return {
+        "ok": bool(selected),
+        "project_id": project_id,
+        "task_class": task_class,
+        "selected": selected,
+        "candidates": candidates,
+        "reason_codes": reason_codes,
+    }
+
+
+def route_development_provider(
+    project_id: str,
+    task_class: str = "coding",
+    preferred_instance: str = "",
+    host_affinity: str = "",
+) -> dict[str, Any]:
+    instances = canonical_development_provider_instances()
+    if preferred_instance:
+        instances = [item for item in instances if item["provider_instance_id"] == preferred_instance]
+    if host_affinity:
+        instances = [item for item in instances if item["host"] == host_affinity]
+    candidates = []
+    for item in instances:
+        reason_codes = list(item.get("reason_codes") or [])
+        if preferred_instance:
+            reason_codes.append("provider_required")
+        if host_affinity:
+            reason_codes.append("host_affinity")
+        if item.get("inneros_dispatchable") is not True:
+            if "manual_session_required" not in reason_codes:
+                reason_codes.append("manual_session_required")
+            candidates.append({**item, "eligible": False, "reason_codes": reason_codes})
+            continue
+        candidates.append({**item, "eligible": True, "reason_codes": reason_codes})
+    eligible = [item for item in candidates if item.get("eligible")]
+    priority = {"qwen.amd5": 0, "local.intel4": 1}
+    eligible.sort(key=lambda item: priority.get(str(item.get("provider_instance_id")), 50))
+    selected = eligible[0] if eligible else None
+    route_codes = list(selected.get("reason_codes") if selected else ["fallback", "manual_session_required"])
+    return {
+        "ok": bool(selected),
+        "project_id": (project_id or "").strip(),
+        "task_class": (task_class or "coding").strip(),
+        "selected": selected,
+        "candidates": candidates,
+        "reason_codes": route_codes,
+        "truth_boundary": "Installed/authenticated/headless states remain UNKNOWN unless verified by a supported host probe; no secrets are stored.",
+    }

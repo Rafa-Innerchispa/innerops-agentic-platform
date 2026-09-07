@@ -1377,6 +1377,24 @@ def resource_fabric_route(project_id: str, task_class: str, prefer_cloud: bool =
 
 
 @mcp.tool
+def resource_fabric_route_development_provider(
+    project_id: str,
+    task_class: str = "coding",
+    preferred_instance: str = "",
+    host_affinity: str = "",
+) -> dict[str, Any]:
+    """Resource Fabric: selecciona instancia de desarrollo por host sin secretos."""
+    from raphiia_openai import resource_fabric
+
+    return resource_fabric.route_development_provider(
+        project_id=project_id,
+        task_class=task_class,
+        preferred_instance=preferred_instance,
+        host_affinity=host_affinity,
+    )
+
+
+@mcp.tool
 def resource_fabric_link_project_capability(project_id: str, capability: str, provider_id: str = "", task_id: str = "", dry_run: bool = False) -> dict[str, Any]:
     """Resource Fabric: vincula proyecto/tarea a una capability sin mover funding ni proveedor al proyecto."""
     from raphiia_openai import resource_fabric
@@ -4409,6 +4427,18 @@ def create_ops_task(
     priority: str = "normal",
     from_agent: str = "RAFAEL",
     correlation_id: str | None = None,
+    project_id: str | None = None,
+    repo: str | None = None,
+    base_ref: str | None = None,
+    work_branch: str | None = None,
+    task_class: str | None = None,
+    execution_lane: str | None = None,
+    provider_transport: str | None = None,
+    runtime_profile: str | None = None,
+    execution_policy: str | None = None,
+    preferred_provider: str | None = None,
+    preferred_model: str | None = None,
+    idempotency_key: str | None = None,
 ) -> OpsTaskToolResult:
     """Orden formal con checklist + evidencia → Mongo ops_tasks + INBOX assignee."""
     from raphiia_openai import coordination_live
@@ -4421,6 +4451,18 @@ def create_ops_task(
         priority=priority,
         from_agent=from_agent,
         correlation_id=correlation_id,
+        project_id=project_id,
+        repo=repo,
+        base_ref=base_ref,
+        work_branch=work_branch,
+        task_class=task_class,
+        execution_lane=execution_lane,
+        provider_transport=provider_transport,
+        runtime_profile=runtime_profile,
+        execution_policy=execution_policy,
+        preferred_provider=preferred_provider,
+        preferred_model=preferred_model,
+        idempotency_key=idempotency_key,
     )
 
 

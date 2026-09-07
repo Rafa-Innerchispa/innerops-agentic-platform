@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.4"
+PROFILES_VERSION = "1.4.5"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -15,7 +15,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "chatgpt_compact": {
         "label": "ChatGPT bootstrap compacto — descubrir, coordinar y enrutar",
         "model_minimum": "small",
-        "max_tools": 12,
+        "max_tools": 15,
         "tools": [
             "mcp_version",
             "diagnose_mcp_session",
@@ -29,6 +29,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "a2a_status",
             "a2a_agent_cards",
             "project_runtime_bootstrap",
+            "dev_swarm_scope_status",
+            "dev_swarm_launch_task",
+            "dev_swarm_scheduler_status",
         ],
     },
 

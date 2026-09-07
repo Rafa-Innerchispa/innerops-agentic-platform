@@ -12,7 +12,7 @@ def test_default_route_is_compact_bootstrap_for_chatgpt() -> None:
 
     assert result["ok"] is True
     assert result["profile"] == "chatgpt_compact"
-    assert result["tool_count"] <= 12
+    assert result["tool_count"] <= 15
     assert result["recommended_next_call"]["tool"] == "route_mcp_tools"
     assert "route_mcp_tools" in result["tools"]
     assert "get_coordination_live" in result["tools"]
@@ -106,7 +106,17 @@ def test_compact_profile_keeps_project_runtime_bootstrap_visible() -> None:
     schema = mcp_profiles.tool_catalog.describe_tool("project_runtime_bootstrap")["input_schema"]
 
     assert profile["ok"] is True
-    assert len(profile["tools"]) == 12
+    assert len(profile["tools"]) == 15
     assert "project_runtime_bootstrap" in profile["tools"]
     assert "base_ref" in schema
     assert "expected_sha" in schema
+
+
+def test_compact_profile_exposes_minimal_dev_swarm_last_mile() -> None:
+    profile = mcp_profiles.get_profile("chatgpt_compact")
+    tools = set(profile["tools"])
+
+    assert profile["ok"] is True
+    assert {"dev_swarm_scope_status", "dev_swarm_launch_task", "dev_swarm_scheduler_status"}.issubset(tools)
+    assert "local_exec_run_command_allowlisted" not in tools
+    assert len(tools) == 15
