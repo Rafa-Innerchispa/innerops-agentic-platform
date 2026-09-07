@@ -219,6 +219,12 @@ def _http_json(url: str, *, method: str = "GET", body: dict[str, Any] | None = N
             except json.JSONDecodeError:
                 parsed = {"raw": raw}
             return {"ok": True, "status": getattr(resp, "status", 200), "data": parsed}
+    except urllib.error.HTTPError as exc:
+        try:
+            body_text = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            body_text = ""
+        return {"ok": False, "status": getattr(exc, "code", None), "error": str(exc), "body_preview": body_text[:1000]}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
@@ -369,6 +375,7 @@ def _vllm_chat(
     endpoint: str | None = None,
 ) -> dict[str, Any]:
     vllm_url = (endpoint or VLLM_URL).rstrip("/")
+    wants_json = "return only valid json" in prompt.lower() or "return json only" in prompt.lower()
     payload = {
         "model": model,
         "messages": [
@@ -379,13 +386,32 @@ def _vllm_chat(
         "temperature": temperature,
         "max_tokens": int(max_tokens or 3200),
     }
+    if wants_json:
+        payload["response_format"] = {"type": "json_object"}
     result = _http_json(f"{vllm_url}/v1/chat/completions", method="POST", body=payload, timeout=180)
+    retried_without_json_mode = False
+    if wants_json and not result.get("ok"):
+        fallback_payload = dict(payload)
+        fallback_payload.pop("response_format", None)
+        retry = _http_json(f"{vllm_url}/v1/chat/completions", method="POST", body=fallback_payload, timeout=180)
+        if retry.get("ok"):
+            result = retry
+            retried_without_json_mode = True
     if not result.get("ok"):
         return {"ok": False, "error": "vllm_unavailable", "endpoint": vllm_url, "model": model, "raw": result}
     data = result.get("data", {})
     choices = data.get("choices") or []
     content = (((choices[0] or {}).get("message") or {}).get("content") if choices else "") or ""
-    return {"ok": True, "backend": "vllm", "endpoint": vllm_url, "model": model, "response": content, "raw": data}
+    return {
+        "ok": True,
+        "backend": "vllm",
+        "endpoint": vllm_url,
+        "model": model,
+        "response": content,
+        "raw": data,
+        "json_mode_requested": wants_json,
+        "retried_without_json_mode": retried_without_json_mode,
+    }
 
 
 def _normalize_task(task_type: str | None, text: str) -> str:
