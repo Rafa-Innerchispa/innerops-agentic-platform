@@ -196,6 +196,65 @@ def agent_iskcon_contacts_summary(limit: int = 10) -> dict[str, Any]:
     }
 
 
+def agent_iskcon_sources() -> dict[str, Any]:
+    caps = capabilities_summary()
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        "entity_id": ENTITY_ID,
+        "sources": {
+            "domains": caps["domains"],
+            "memory": "ralfia_memory_items filtered by entity ent_iskcon/project iskcon",
+            "contacts": "whatsapp_contacts + ops_contacts filtered by entity ent_iskcon",
+            "web": ["https://www.iskconguayaquil.org", "https://iskconguayaquil.org"],
+            "notion": "Notion references are read through the shared Document Vault/coordination layer when configured.",
+        },
+        "replacement_for": "agent_iskcon_sources",
+    }
+
+
+def agent_iskcon_yoga_campaign(message: str = "", days: int = 7, dry_run: bool = True) -> dict[str, Any]:
+    day_count = max(1, min(int(days or 7), 30))
+    theme = (message or "yoga aplicado a la vida diaria desde cultura vaishnava").strip()
+    drafts = []
+    for day in range(1, day_count + 1):
+        drafts.append(
+            {
+                "day": day,
+                "morning": f"Dia {day}: {theme}. Practica breve: respira, canta mentalmente y elige una accion consciente antes de empezar.",
+                "evening": f"Dia {day}: cierre vaishnava. Agradece, observa una reaccion que pudiste transformar y prepara una intencion para manana.",
+            }
+        )
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        "dry_run": True,
+        "requested_send": not dry_run,
+        "send_status": "approval_required_not_sent",
+        "days": day_count,
+        "drafts": drafts,
+        "notes": "Compatibility wrapper: genera borradores seguros; el envio real debe pasar por aprobacion/WhatsApp plane.",
+    }
+
+
+def agent_iskcon_class_update(message: str = "", dry_run: bool = True) -> dict[str, Any]:
+    text = (message or "Actualizacion de clases/eventos ISKCON pendiente de completar.").strip()
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        "dry_run": True,
+        "requested_send": not dry_run,
+        "send_status": "approval_required_not_sent",
+        "draft": {
+            "title": "Actualizacion de clases ISKCON",
+            "message": text,
+            "channels": ["whatsapp_draft", "web_content_draft"],
+            "entity_id": ENTITY_ID,
+            "project": PROJECT,
+        },
+    }
+
+
 def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = True) -> dict[str, Any]:
     action = (action or "status").strip().lower()
     if action == "status":

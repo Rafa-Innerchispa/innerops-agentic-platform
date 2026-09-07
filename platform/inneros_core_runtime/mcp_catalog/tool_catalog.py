@@ -4216,6 +4216,224 @@ TOOL_DEFINITIONS.update(
 )
 
 
+_COMPATIBILITY_RESTORED_TOOL_NAMES = (
+    "agent_iskcon_sources",
+    "agent_iskcon_yoga_campaign",
+    "agent_iskcon_class_update",
+    "agent_iskcon_module_manifest",
+    "agent_iskcon_action",
+    "agent_iskcon_artifact_download",
+    "digitalocean_mi325x_deploy_plan",
+    "editorial_image_providers",
+    "disk_steward_inventory",
+    "disk_steward_plan_migration",
+    "disk_steward_execute_migration",
+    "disk_steward_verify_migration",
+    "disk_steward_update_backup_policy",
+    "disk_steward_cleanup_verified",
+    "get_disk_steward_status",
+    "identify_agent_session",
+    "inneros_agent_fabric_status",
+    "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "inneros_dual_deployment_drill",
+    "inneros_ingest_drop_status",
+    "inneros_ingest_drop_run",
+    "judge_workflow_start",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_trace_record",
+    "judge_trace_current",
+    "judge_trace_history",
+    "judge_trace_detail",
+    "judge_trace_kpis",
+    "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+    "judge_mi325x_deploy",
+    "list_self_heal_baselines",
+    "list_self_heal_incidents",
+    "save_self_heal_baseline",
+    "summarize_self_heal_incidents",
+    "module_manifest",
+    "module_action",
+    "module_artifact_download",
+)
+for _compat_tool_name in _COMPATIBILITY_RESTORED_TOOL_NAMES:
+    if _compat_tool_name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_compat_tool_name)
+
+for _name in (
+    "agent_iskcon_sources",
+    "agent_iskcon_yoga_campaign",
+    "agent_iskcon_class_update",
+    "agent_iskcon_module_manifest",
+    "agent_iskcon_action",
+    "agent_iskcon_artifact_download",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"Compatibility-restored AG-52 ISKCON tool: {_name}. Safe drafts/actions only; sends remain approval-gated.",
+        "required_scopes": ["ralfia:write"] if _name in {"agent_iskcon_yoga_campaign", "agent_iskcon_class_update", "agent_iskcon_action"} else ["ralfia:read"],
+        "risk_level": "medium" if _name in {"agent_iskcon_yoga_campaign", "agent_iskcon_class_update", "agent_iskcon_action"} else "low",
+        "writes_to": ["drafts_or_memory"] if _name == "agent_iskcon_action" else [],
+        "reads_from": ["iskcon_capabilities", "daily_memory", "contacts"],
+        "input_schema": {"message": "string|null", "days": "integer|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "agent_id": "string", "drafts": "array|null", "status": "string|null"},
+        "example_payload": {"message": "yoga y cultura vaishnava", "days": 7, "dry_run": True},
+    }
+
+for _name in (
+    "get_disk_steward_status",
+    "disk_steward_inventory",
+    "disk_steward_plan_migration",
+    "disk_steward_execute_migration",
+    "disk_steward_verify_migration",
+    "disk_steward_update_backup_policy",
+    "disk_steward_cleanup_verified",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"Compatibility-restored Disk Steward tool: {_name}. Mutations are dry-run or approval-gated.",
+        "required_scopes": ["ralfia:agents"] if _name in {"disk_steward_execute_migration", "disk_steward_plan_migration"} else ["ralfia:read"],
+        "risk_level": "medium" if _name in {"disk_steward_execute_migration", "disk_steward_plan_migration"} else "low",
+        "writes_to": ["disk_steward_proposals"] if _name == "disk_steward_plan_migration" else [],
+        "reads_from": ["filesystem_inventory", "disk_steward_state"],
+        "input_schema": {"include_candidates": "bool|null", "dry_run": "bool|null", "proposal_id": "string|null"},
+        "output_schema": {"ok": "bool", "status": "object|null", "dry_run": "bool|null"},
+        "example_payload": {"include_candidates": True, "dry_run": True},
+    }
+
+for _name in (
+    "list_self_heal_baselines",
+    "list_self_heal_incidents",
+    "save_self_heal_baseline",
+    "summarize_self_heal_incidents",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"Compatibility-restored Self Heal KPI ledger tool: {_name}.",
+        "required_scopes": ["ralfia:write"] if _name == "save_self_heal_baseline" else ["ralfia:read"],
+        "risk_level": "medium" if _name == "save_self_heal_baseline" else "low",
+        "writes_to": ["self_heal_baselines"] if _name == "save_self_heal_baseline" else [],
+        "reads_from": ["self_heal_incidents", "self_heal_baselines"],
+        "input_schema": {"limit": "integer|null", "service_id": "string|null", "payload": "object|null"},
+        "output_schema": {"ok": "bool"},
+        "example_payload": {"limit": 50},
+    }
+
+TOOL_DEFINITIONS.update(
+    {
+        "identify_agent_session": {
+            "description": "Normaliza cuenta/instancia de agente a mailbox, actor_id, host y lane para coordinación multi-IDE/multi-cuenta.",
+            "required_scopes": ["ralfia:read", "ralfia:agents"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["agent_identity"],
+            "input_schema": {"agent": "string", "account": "string|null", "host": "string|null", "lane": "string|null", "role": "string|null"},
+            "output_schema": {"ok": "bool", "identity": "object"},
+            "example_payload": {"agent": "chatgpt", "account": "rlopez@innerchispa.us", "host": "chatgpt", "lane": "workforce"},
+        },
+        "digitalocean_mi325x_deploy_plan": {
+            "description": "Compatibility-restored MI325X plan surface; dry-run/preflight only unless routed through current DigitalOcean approval tools.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["digitalocean_provider_status"],
+            "input_schema": {"project_id": "string|null", "task_id": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "provider_status": "object", "execute_status": "string"},
+            "example_payload": {"project_id": "judge-console", "dry_run": True},
+        },
+        "inneros_agent_fabric_status": {
+            "description": "Compatibility alias for the modern A2A/Provider Fabric/Resource Fabric status split.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["a2a", "provider_execution_fabric", "resource_fabric"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "replacements": "array"},
+            "example_payload": {},
+        },
+        "editorial_image_providers": {
+            "description": "Editorial image provider inventory; read-only compatibility-restored surface.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["editorial_store", "image_gen_settings"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "providers": "array", "default_provider": "string|null"},
+            "example_payload": {},
+        },
+    }
+)
+
+for _name in (
+    "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "inneros_dual_deployment_drill",
+    "inneros_ingest_drop_status",
+    "inneros_ingest_drop_run",
+    "module_manifest",
+    "module_action",
+    "module_artifact_download",
+    "judge_workflow_start",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_trace_record",
+    "judge_trace_current",
+    "judge_trace_history",
+    "judge_trace_detail",
+    "judge_trace_kpis",
+    "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+    "judge_mi325x_deploy",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"Compatibility wrapper for removed backend surface {_name}; fail-closed with replacement guidance.",
+        "required_scopes": ["ralfia:agents"] if any(part in _name for part in ("start", "continue", "execute", "record", "trigger", "deploy", "action", "queue", "run", "drill")) else ["ralfia:read"],
+        "risk_level": "medium" if any(part in _name for part in ("start", "continue", "execute", "record", "trigger", "deploy", "action", "queue", "run", "drill")) else "low",
+        "writes_to": [],
+        "reads_from": ["capability_registry", "durable_coordination_spine"],
+        "input_schema": {"payload": "object|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "status": "NOT_READY_BACKEND_REMOVED", "replacement": "string|null"},
+        "example_payload": {"dry_run": True},
+    }
+
+for _name in (
+    "inneros_ingest_drop_status",
+    "inneros_ingest_drop_run",
+    "module_manifest",
+    "module_action",
+    "module_artifact_download",
+    "judge_workflow_start",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_trace_record",
+    "judge_trace_current",
+    "judge_trace_history",
+    "judge_trace_detail",
+    "judge_trace_kpis",
+    "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+):
+    TOOL_DEFINITIONS[_name].update(
+        {
+            "description": f"Compatibility-restored tool {_name}; calls the live backend when present and fails closed if unavailable.",
+            "output_schema": {"ok": "bool", "status": "string|null", "replacement": "string|null"},
+        }
+    )
+
+
 def describe_tool(name: str) -> dict[str, Any]:
     key = (name or "").strip()
     meta = TOOL_DEFINITIONS.get(key)

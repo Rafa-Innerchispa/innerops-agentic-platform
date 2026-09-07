@@ -19,7 +19,7 @@ and request a domain profile through `route_mcp_tools`.
 
 ## Compact Profile
 
-`chatgpt_compact` publishes 12 tools:
+`chatgpt_compact` publishes 15 tools:
 
 - `mcp_version`
 - `diagnose_mcp_session`
@@ -33,11 +33,19 @@ and request a domain profile through `route_mcp_tools`.
 - `a2a_status`
 - `a2a_agent_cards`
 - `project_runtime_bootstrap`
+- `dev_swarm_scope_status`
+- `dev_swarm_launch_task`
+- `dev_swarm_scheduler_status`
 
 `project_runtime_bootstrap` is intentionally exposed in the compact profile so
 ChatGPT can materialize owner-approved project roots with explicit
 `base_ref`/`expected_sha` verification without switching to the full/admin
 catalog.
+
+The three `dev_swarm_*` tools are intentionally exposed as the compact
+last-mile development control surface. They let ChatGPT inspect scope, launch an
+owner-approved local dev swarm task, and verify scheduler status without
+exposing raw local command execution.
 
 ## Usage Policy
 
@@ -51,11 +59,13 @@ catalog.
 
 ## Verification
 
-2026-09-06 live verification:
+2026-09-06 live verification, superseded by the 2026-09-07 compact last-mile
+update:
 
-- Intel `:8112` MCP `tools/list`: 12 tools.
-- AMD `:8112` MCP `tools/list`: 12 tools.
-- Public `https://mcp-chatgpt.creatorcore.ai/mcp` MCP `tools/list`: 12 tools.
+- Intel `:8112` MCP `tools/list`: 15 tools.
+- AMD `:8112` MCP `tools/list`: 15 tools.
+- Public `https://mcp-chatgpt.creatorcore.ai/mcp` MCP `tools/list`: should
+  match the 15-tool profile after the client/connector refreshes its manifest.
 - Public `route_mcp_tools` without auth: rejected with `Unauthorized`.
 - Public `route_mcp_tools` with server-side API key: returns `owner_dev` with
   bounded `tool_count=18`.

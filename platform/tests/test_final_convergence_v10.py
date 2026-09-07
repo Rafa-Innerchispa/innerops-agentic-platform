@@ -75,7 +75,7 @@ class FinalConvergenceV10Tests(unittest.TestCase):
 
         self.assertEqual(order, ["a2a", "scheduler", "executor", "guardian", "liveness"])
         self.assertTrue(result["ok"])
-        self.assertEqual(result["executor_version"], "autonomous_impl_v10_a2a_liveness")
+        self.assertEqual(result["executor_version"], "autonomous_impl_v11_strict_output_recovery")
 
     def test_guardian_verifies_committed_head_while_worktree_exists(self):
         expected = "c" * 40

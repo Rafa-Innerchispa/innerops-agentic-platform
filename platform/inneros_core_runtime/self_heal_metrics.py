@@ -69,6 +69,10 @@ def save_service_baseline(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "baseline": row}
 
 
+def save_self_heal_baseline(payload: dict[str, Any]) -> dict[str, Any]:
+    return save_service_baseline(payload)
+
+
 def record_self_heal_incident(payload: dict[str, Any]) -> dict[str, Any]:
     service_id = str(payload.get("service_id") or "unknown").strip().lower()
     incident_id = str(payload.get("incident_id") or f"heal_{uuid4().hex[:12]}")
@@ -181,3 +185,31 @@ def summarize_self_heal_incidents(limit: int = 500) -> dict[str, Any]:
         "verified_human_hours_returned": round(verified_saved / 60.0, 4),
         "incidents_without_baseline": sum(1 for row in rows if row.get("manual_baseline_minutes") is None),
     }
+
+
+def list_self_heal_incidents(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    query: dict[str, Any] = {}
+    service = str(service_id or "").strip().lower()
+    if service:
+        query["service_id"] = service
+    rows = list(
+        mongo_store.get_db()[INCIDENT_COLLECTION]
+        .find(query, {"_id": 0})
+        .sort("created_at", -1)
+        .limit(max(1, min(int(limit or 50), 500)))
+    )
+    return {"ok": True, "count": len(rows), "incidents": rows}
+
+
+def list_self_heal_baselines(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    query: dict[str, Any] = {}
+    service = str(service_id or "").strip().lower()
+    if service:
+        query["service_id"] = service
+    rows = list(
+        mongo_store.get_db()[BASELINE_COLLECTION]
+        .find(query, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(max(1, min(int(limit or 50), 500)))
+    )
+    return {"ok": True, "count": len(rows), "baselines": rows}

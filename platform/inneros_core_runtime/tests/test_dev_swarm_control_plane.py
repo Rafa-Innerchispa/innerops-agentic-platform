@@ -1,4 +1,5 @@
 import ast
+import importlib.util
 import json
 import tempfile
 import unittest
@@ -12,7 +13,10 @@ if not (ROOT / "dev_swarm_scheduler.py").exists():
 
 
 def _source(name: str) -> str:
-    return (ROOT / name).read_text(encoding="utf-8")
+    path = ROOT / name
+    if not path.exists():
+        path = ROOT / "agents" / name
+    return path.read_text(encoding="utf-8")
 
 
 def _function_source(path: str, func_name: str) -> str:
@@ -42,9 +46,9 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
 
     def test_ag45_fanout_has_no_per_lane_legacy_launcher(self):
         body = _function_source("pool_agent_runners.py", "run_ag45")
-        self.assertIn("fanout_execute(", body)
         self.assertNotIn("ThreadPoolExecutor", body)
         self.assertNotIn("dev_swarm_launch_task(", body)
+        self.assertIn("local_exec_inspect_repo(", body)
 
     def test_legacy_launcher_no_checkout_pull_prepare_repo(self):
         body = _function_source("local_execution_plane.py", "dev_swarm_launch_task")
@@ -108,9 +112,9 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
             self.assertEqual(commands, [["git", "diff", "--check"]])
             self.assertFalse(any(command[:3] == ["python3", "-m", "unittest"] for command in commands))
 
-    def test_executor_records_use_single_v10_version(self):
+    def test_executor_records_use_single_v11_version(self):
         source = _source("dev_swarm_scheduler.py")
-        self.assertIn('EXECUTOR_VERSION = "autonomous_impl_v10_a2a_liveness"', source)
+        self.assertIn('EXECUTOR_VERSION = "autonomous_impl_v11_strict_output_recovery"', source)
         self.assertNotIn("autonomous_impl_v4", source)
         self.assertIn("command_not_allowlisted_non_retryable", source)
 
@@ -123,6 +127,8 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
         self.assertEqual(result["error"], "project_not_registered")
 
     def test_approve_project_resolves_workforce_and_other_project(self):
+        if importlib.util.find_spec("fastmcp") is None:
+            self.skipTest("fastmcp not installed in this local test runtime")
         from inneros_core_runtime import dev_swarm_scheduler as scheduler
         from inneros_core_runtime import mcp_server
 

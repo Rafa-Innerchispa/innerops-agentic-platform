@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from raphiia_openai import mongo_store, ralfia_time
+from raphiia_openai import mcp_profiles
 from raphiia_openai.settings import MCP_API_KEY, MCP_DISPLAY_NAME, MCP_PUBLIC_URL, MCP_SERVER_VERSION, OAUTH_ISSUER
 from raphiia_openai.mcp_catalog import tool_catalog
 
@@ -46,7 +47,7 @@ def _manifest_payload() -> dict[str, Any]:
 
 
 def _tool_names() -> list[str]:
-    return sorted(tool_catalog.ALL_MCP_TOOL_NAMES)
+    return sorted(dict.fromkeys(tool_catalog.ALL_MCP_TOOL_NAMES))
 
 
 def _tool_names_hash(tool_names: list[str]) -> str:
@@ -84,6 +85,14 @@ def _catalog_guard(previous_runtime: dict[str, Any] | None = None) -> dict[str, 
     prev_tools = sorted(prev_runtime.get("tool_names") or [])
     removed = sorted(set(prev_tools) - set(current["tool_names"]))
     added = sorted(set(current["tool_names"]) - set(prev_tools))
+    approved_retirements = {
+        str(item.get("tool"))
+        for item in (prev_runtime.get("approved_tool_retirements") or [])
+        if isinstance(item, dict)
+        and str(item.get("approved_by") or "").strip().upper() in {"RAFAEL", "OWNER"}
+        and str(item.get("tool") or "").strip()
+    }
+    unapproved_removed = [name for name in removed if name not in approved_retirements]
     if removed:
         status = "tool_loss_detected"
     elif added:
@@ -96,6 +105,9 @@ def _catalog_guard(previous_runtime: dict[str, Any] | None = None) -> dict[str, 
         "status": status,
         "tool_loss_detected": bool(removed),
         "removed_tools": removed,
+        "approved_tool_retirements": sorted(approved_retirements),
+        "unapproved_removed_tools": unapproved_removed,
+        "needs_owner_approval": bool(unapproved_removed),
         "added_tools": added,
         "current_tool_count": current["tool_count"],
         "previous_tool_count": len(prev_tools),
@@ -117,7 +129,7 @@ def mcp_version(session_id: str | None = None) -> dict[str, Any]:
     guard = _catalog_guard()
     auth_status = "api_key+oauth" if MCP_API_KEY else "oauth_only"
     oauth_scopes = AUTH_SCOPES_AVAILABLE
-    runtime_tool_count = len(tool_catalog.ALL_MCP_TOOL_NAMES)
+    runtime_tool_count = len(_tool_names())
     return {
         "ok": True,
         "timestamp": _now_iso(),
@@ -146,7 +158,7 @@ def list_mcp_capabilities() -> dict[str, Any]:
     resources = ["resource://RalfIA_MCP"]
     schemas: dict[str, Any] = {}
     tools: list[dict[str, Any]] = []
-    for name in sorted(tool_catalog.ALL_MCP_TOOL_NAMES):
+    for name in _tool_names():
         details = tool_catalog.describe_tool(name)
         if not details.get("ok"):
             continue
@@ -170,7 +182,7 @@ def list_mcp_capabilities() -> dict[str, Any]:
         "version": manifest["catalog_version"],
         "updated_at": ralfia_time.now_utc_iso(),
         "catalog_tool_count": manifest["tool_count"],
-        "runtime_tool_count": len(tool_catalog.ALL_MCP_TOOL_NAMES),
+        "runtime_tool_count": len(_tool_names()),
         "manifest_hash": manifest["manifest_hash"],
         "resources": resources,
         "schemas": schemas,
@@ -222,7 +234,7 @@ def system_debug() -> dict[str, Any]:
             "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
             "internal_url": f"http://127.0.0.1:8102/mcp",
             "catalog_tool_count": manifest["tool_count"],
-            "runtime_tool_count": len(tool_catalog.ALL_MCP_TOOL_NAMES),
+            "runtime_tool_count": len(_tool_names()),
             "catalog_version": CATALOG_VERSION,
             "manifest_hash": manifest["manifest_hash"],
             "tool_names_hash": _tool_names_hash(_tool_names()),
@@ -252,24 +264,31 @@ def diagnose_mcp_session(
     client_tool_count: int | None = None,
     client_catalog_version: str | None = None,
     client_seen_tools: list[str] | None = None,
+    profile: str | None = None,
     session_id: str | None = None,
     user_agent: str | None = None,
 ) -> dict[str, Any]:
     manifest = _manifest_payload()
     current_guard = _catalog_guard()
-    expected_tools = sorted(tool_catalog.ALL_MCP_TOOL_NAMES)
+    profile_info = mcp_profiles.get_profile(profile) if profile else {}
+    profile_ok = bool(profile_info.get("ok"))
+    expected_tools = sorted(profile_info.get("tools") or _tool_names())
+    expected_count = len(expected_tools)
+    expected_version = str(profile_info.get("profile_pin") or CATALOG_VERSION)
     seen_tools = sorted(set(client_seen_tools or []))
     stale_catalog = False
     reasons: list[str] = []
 
-    if client_catalog_version and client_catalog_version != CATALOG_VERSION:
+    if client_catalog_version and client_catalog_version not in {CATALOG_VERSION, expected_version}:
         stale_catalog = True
         reasons.append("client_catalog_version_mismatch")
-    if client_tool_count is not None and client_tool_count < manifest["tool_count"]:
+    if client_tool_count is not None and client_tool_count < expected_count:
         stale_catalog = True
         reasons.append("client_tool_count_older_than_server")
     if seen_tools and any(tool not in expected_tools for tool in seen_tools):
         reasons.append("client_reports_unknown_tools")
+        if profile_ok:
+            stale_catalog = True
     if client_tool_count is None and client_catalog_version is None and not seen_tools:
         reasons.append("client_context_not_provided")
 
@@ -296,10 +315,14 @@ def diagnose_mcp_session(
         "this_client_sees_tools": client_tool_count,
         "this_client_catalog_version": client_catalog_version,
         "client_seen_tools": seen_tools,
-        "expected_tool_count": manifest["tool_count"],
-        "expected_catalog_version": CATALOG_VERSION,
+        "expected_tool_count": expected_count,
+        "expected_catalog_version": expected_version,
         "expected_tools": expected_tools,
         "expected_tool_names_hash": _tool_names_hash(expected_tools),
+        "profile": profile if profile_ok else None,
+        "profile_ok": profile_ok,
+        "global_runtime_tool_count": manifest["tool_count"],
+        "global_catalog_version": CATALOG_VERSION,
         "catalog_guard": current_guard,
         "stale_catalog": stale_catalog,
         "likely_issue": likely_issue,

@@ -43,7 +43,7 @@ class AutonomousControllerTests(unittest.TestCase):
     def test_inneros_runtime_is_product_code_prefix(self):
         self.assertIn("inneros_core_runtime/", dev_swarm_scheduler.PRODUCT_PREFIXES)
         self.assertIn("platform/inneros_core_runtime/", dev_swarm_scheduler.PRODUCT_PREFIXES)
-        self.assertEqual(dev_swarm_scheduler.EXECUTOR_VERSION, "autonomous_impl_v10_a2a_liveness")
+        self.assertEqual(dev_swarm_scheduler.EXECUTOR_VERSION, "autonomous_impl_v11_strict_output_recovery")
 
     def test_a2a_runner_timeout_does_not_block_root_controller(self):
         class FakeFuture:
