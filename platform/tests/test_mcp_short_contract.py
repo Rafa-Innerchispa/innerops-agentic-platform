@@ -42,9 +42,11 @@ def test_project_runtime_bootstrap_passes_ref_and_sha_to_node_helper(monkeypatch
         actor="test",
     )
 
+    expected_sha = "a" * 40
+
     def fake_run_node(node, args, *, input_text="", timeout=120):
         captured["payload"] = json.loads(input_text)
-        return SimpleNamespace(returncode=0, stdout=json.dumps({"ok": True, "observed_sha": "abc123"}), stderr="")
+        return SimpleNamespace(returncode=0, stdout=json.dumps({"ok": True, "observed_sha": expected_sha}), stderr="")
 
     monkeypatch.setattr(project_runtime_registry, "_run_node", fake_run_node)
 
@@ -53,13 +55,13 @@ def test_project_runtime_bootstrap_passes_ref_and_sha_to_node_helper(monkeypatch
         project_id="innerops-agentic-platform",
         repo="Rafa-Innerchispa/innerops-agentic-platform",
         base_ref="main",
-        expected_sha="abc123",
+        expected_sha=expected_sha,
         dry_run=False,
     )
 
     assert result["ok"] is True
     assert captured["payload"]["base_ref"] == "main"
-    assert captured["payload"]["expected_sha"] == "abc123"
+    assert captured["payload"]["expected_sha"] == expected_sha
 
 
 def test_project_runtime_bootstrap_helper_mismatch_fails_closed(monkeypatch, tmp_path) -> None:
@@ -71,10 +73,12 @@ def test_project_runtime_bootstrap_helper_mismatch_fails_closed(monkeypatch, tmp
         actor="test",
     )
 
+    expected_sha = "a" * 40
+
     def fake_run_node(node, args, *, input_text="", timeout=120):
         return SimpleNamespace(
             returncode=1,
-            stdout=json.dumps({"ok": False, "error": "expected_sha_mismatch", "observed_sha": "def456"}),
+            stdout=json.dumps({"ok": False, "error": "expected_sha_mismatch", "observed_sha": "b" * 40}),
             stderr="",
         )
 
@@ -85,7 +89,7 @@ def test_project_runtime_bootstrap_helper_mismatch_fails_closed(monkeypatch, tmp
         project_id="innerops-agentic-platform",
         repo="Rafa-Innerchispa/innerops-agentic-platform",
         base_ref="main",
-        expected_sha="abc123",
+        expected_sha=expected_sha,
         dry_run=False,
     )
 

@@ -24,6 +24,8 @@ NODE_HELPER = "/home/rlopez/bin/ralfia-peer-node-helper"
 PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NESTED_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+GIT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,199}$")
+GIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 SAFE_REMOTE_RE = re.compile(r"^(https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?|git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git|https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner(?:\\.git)?)$")
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
 OWNER_APPROVED_NESTED_REPOS = {"gitlab-community/gitlab-org/gitlab-runner"}
@@ -115,6 +117,24 @@ def _safe_path(path: str, node: str = "primary") -> Path:
 
 def _default_path(project_id: str) -> str:
     return str(_core_root() / "workspaces" / project_id)
+
+
+def _git_ref(value: str) -> str:
+    ref = (value or "").strip()
+    if not ref:
+        return ""
+    if not GIT_REF_RE.match(ref) or ".." in ref or "@{" in ref or ref.endswith(".lock") or "\\" in ref:
+        raise ValueError("invalid_git_ref")
+    return ref
+
+
+def _git_sha(value: str) -> str:
+    sha = (value or "").strip()
+    if not sha:
+        return ""
+    if not GIT_SHA_RE.match(sha):
+        raise ValueError("invalid_git_sha")
+    return sha.lower()
 
 
 def register_project(
@@ -251,13 +271,18 @@ def bootstrap_runtime(
     remote = (remote_url or "").strip()
     if remote and not SAFE_REMOTE_RE.match(remote):
         return {"ok": False, "error": "remote_url_not_allowlisted"}
+    try:
+        ref = _git_ref(base_ref)
+        sha = _git_sha(expected_sha)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
     payload = json.dumps(
         {
             "project_path": path,
             "repo": resolved["project"]["repo"],
             "remote_url": remote,
-            "base_ref": (base_ref or "").strip(),
-            "expected_sha": (expected_sha or "").strip().lower(),
+            "base_ref": ref,
+            "expected_sha": sha,
             "dry_run": dry_run,
         }
     )
@@ -267,7 +292,37 @@ def bootstrap_runtime(
     except Exception:
         result = {"ok": False, "stdout": proc.stdout[-2000:], "stderr": proc.stderr[-2000:]}
     ok = bool(result.get("ok")) and proc.returncode == 0
-    return {**resolved, "ok": ok, "dry_run": dry_run, "result": result, "helper_returncode": proc.returncode}
+    observed_sha = str(result.get("observed_sha") or "").lower()
+    if ok and sha:
+        sha_matches = observed_sha == sha if len(sha) in {40, 64} else observed_sha.startswith(sha)
+        if not sha_matches:
+            ok = False
+            result = {**result, "ok": False, "error": "expected_sha_mismatch", "expected_sha": sha, "observed_sha": observed_sha}
+    if ok and observed_sha and not dry_run:
+        data = _load()
+        project = dict(resolved["project"])
+        project["last_bootstrap"] = {
+            "node": resolved["node"],
+            "base_ref": ref,
+            "expected_sha": sha,
+            "observed_sha": observed_sha,
+            "task_id": task_id,
+            "correlation_id": correlation_id,
+            "updated_at": _now(),
+            "updated_by": actor,
+        }
+        data.setdefault("projects", {})[project["project_id"]] = project
+        _save(data)
+    return {
+        **resolved,
+        "ok": ok,
+        "dry_run": dry_run,
+        "base_ref": ref,
+        "expected_sha": sha,
+        "observed_sha": observed_sha,
+        "result": result,
+        "helper_returncode": proc.returncode,
+    }
 
 
 def reconcile(
