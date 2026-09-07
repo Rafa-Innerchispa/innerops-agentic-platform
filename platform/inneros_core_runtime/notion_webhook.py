@@ -177,13 +177,19 @@ def handle_notion_webhook(
             "http_status": 200,
         }
 
+    cfg = mongo_store.get_db()[CONFIG_COL].find_one({"kind": "verification"}) or {}
     secret = (NOTION_WEBHOOK_VERIFICATION_TOKEN or "").strip()
-    if secret:
-        cfg = mongo_store.get_db()[CONFIG_COL].find_one({"kind": "verification"}) or {}
-        if not secret and cfg.get("verification_token"):
-            secret = str(cfg["verification_token"])
-        if not _verify_signature(raw_body, signature, secret):
-            return {"ok": False, "error": "invalid_signature", "http_status": 401}
+    if not secret and cfg.get("verification_token"):
+        secret = str(cfg["verification_token"]).strip()
+    if not secret:
+        return {
+            "ok": False,
+            "error": "webhook_secret_not_configured",
+            "message": "Notion event rejected until NOTION_WEBHOOK_VERIFICATION_TOKEN is configured.",
+            "http_status": 401,
+        }
+    if not _verify_signature(raw_body, signature, secret):
+        return {"ok": False, "error": "invalid_signature", "http_status": 401}
 
     event_type = str(payload.get("type") or payload.get("event") or "")
     _store_event(payload, verified=bool(secret))
