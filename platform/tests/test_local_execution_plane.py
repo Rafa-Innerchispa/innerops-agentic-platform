@@ -397,3 +397,155 @@ def test_project_runtime_registry_policy_overrides_bundled_default(monkeypatch, 
     assert conf["allowed_paths"] == ["platform"]
     assert conf["package_roots"] == [".", "platform"]
     assert conf["registry_backed"] is True
+
+
+def test_innerops_service_ops_uses_safe_default_policy_when_registry_is_sparse(monkeypatch, tmp_path: Path) -> None:
+    from raphiia_openai import project_runtime_registry as prr
+
+    source = tmp_path / "projects" / "innerops-service-ops"
+    source.mkdir(parents=True)
+    (source / ".git").mkdir()
+    repo = "Rafa-Innerchispa/innerops-service-ops"
+
+    monkeypatch.setenv("INNEROS_CORE_ROOT", str(tmp_path / "inneros_core"))
+    monkeypatch.setattr(
+        prr,
+        "_load",
+        lambda: {
+            "version": "1.0.0",
+            "projects": {
+                "innerops-service-ops": {
+                    "project_id": "innerops-service-ops",
+                    "repo": repo,
+                    "paths": {"primary": str(source), "amd": str(source)},
+                }
+            },
+        }
+    )
+    monkeypatch.setattr(prr, "_safe_path", lambda path, node="primary": Path(path).resolve())
+
+    conf = lep._repo_config(repo)
+    assert conf["profile"] == "node-tests"
+    assert conf["package_roots"] == ["."]
+    assert lep._validate_relative_path("./src/service_operations.js", conf["allowed_paths"]) == "src/service_operations.js"
+    assert lep._validate_relative_path("./tests/e2e.test.mjs", conf["allowed_paths"]) == "tests/e2e.test.mjs"
+    assert lep._node_package_command_allowed(["npm", "ci"], conf) is True
+    assert lep._node_package_command_allowed(["npm", "--prefix", ".", "ci"], conf) is True
+    try:
+        lep._validate_relative_path("../outside.js", conf["allowed_paths"])
+    except PermissionError as exc:
+        assert str(exc) == "path_traversal_denied"
+    else:
+        raise AssertionError("service ops policy must still reject traversal")
+
+
+def test_innerops_service_ops_keeps_node_profile_before_scaffold_exists(monkeypatch, tmp_path: Path) -> None:
+    from raphiia_openai import project_runtime_registry as prr
+
+    core = tmp_path / "inneros_core"
+    source = core / "workspaces" / "innerops-service-ops"
+    source.mkdir(parents=True)
+    (source / ".git").mkdir()
+    repo = "Rafa-Innerchispa/innerops-service-ops"
+
+    monkeypatch.setenv("INNEROS_CORE_ROOT", str(core))
+    monkeypatch.setattr(
+        prr,
+        "_load",
+        lambda: {
+            "version": "1.0.0",
+            "projects": {
+                "innerops-service-ops": {
+                    "project_id": "innerops-service-ops",
+                    "repo": repo,
+                    "paths": {"primary": str(source), "amd": str(source)},
+                    "allowed_commands_profile": "node-tests",
+                }
+            },
+        },
+    )
+    monkeypatch.setattr(prr, "_safe_path", lambda path, node="primary": Path(path).resolve())
+
+    conf = lep._repo_config(repo)
+    assert conf["profile"] == "node-tests"
+    assert conf["package_roots"] == ["."]
+
+
+def test_registry_prefers_inneros_workspace_over_legacy_projects_path(monkeypatch, tmp_path: Path) -> None:
+    from raphiia_openai import project_runtime_registry as prr
+
+    core = tmp_path / "inneros_core"
+    legacy = tmp_path / "projects" / "innerops-service-ops"
+    canonical = core / "workspaces" / "innerops-service-ops"
+    legacy.mkdir(parents=True)
+    canonical.mkdir(parents=True)
+    (legacy / ".git").mkdir()
+    (canonical / ".git").mkdir()
+    repo = "Rafa-Innerchispa/innerops-service-ops"
+
+    monkeypatch.setenv("INNEROS_CORE_ROOT", str(core))
+    profiles = dict(lep.DEFAULT_REPO_PROFILES)
+    profiles[repo] = {
+        "profile": "node-tests",
+        "source_path": str(canonical),
+        "allowed_paths": ["src", "tests", "package.json"],
+        "package_roots": ["."],
+    }
+    monkeypatch.setattr(lep, "DEFAULT_REPO_PROFILES", profiles)
+    monkeypatch.setattr(
+        prr,
+        "_load",
+        lambda: {
+                "version": "1.0.0",
+                "projects": {
+                    "innerops-service-ops": {
+                        "project_id": "innerops-service-ops",
+                        "repo": repo,
+                        "paths": {"primary": str(legacy), "amd": str(legacy)},
+                    }
+                },
+            },
+    )
+    monkeypatch.setattr(prr, "_safe_path", lambda path, node="primary": Path(path).resolve())
+
+    conf = lep._repo_config(repo)
+    assert conf["source_path"] == str(canonical.resolve())
+    assert conf["registry_backed"] is True
+
+
+def test_register_project_explicit_path_replaces_stale_legacy_paths(monkeypatch, tmp_path: Path) -> None:
+    from raphiia_openai import project_runtime_registry as prr
+
+    core = tmp_path / "inneros_core"
+    stale = tmp_path / "projects" / "innerops-service-ops"
+    canonical = core / "workspaces" / "innerops-service-ops"
+    stale.mkdir(parents=True)
+    canonical.mkdir(parents=True)
+    monkeypatch.setattr(prr, "_core_root", lambda: core.resolve())
+
+    data = {
+        "version": prr.REGISTRY_VERSION,
+        "projects": {
+            "innerops-service-ops": {
+                "project_id": "innerops-service-ops",
+                "repo": "Rafa-Innerchispa/innerops-service-ops",
+                "paths": {"primary": str(stale), "amd": str(stale)},
+            }
+        },
+    }
+    monkeypatch.setattr(prr, "_load", lambda: data)
+    saved = []
+    monkeypatch.setattr(prr, "_save", lambda payload: saved.append(payload))
+
+    result = prr.register_project(
+        project_id="innerops-service-ops",
+        repo="Rafa-Innerchispa/innerops-service-ops",
+        project_path=str(canonical),
+        actor="codex",
+        source="test",
+    )
+
+    assert result["ok"] is True
+    assert result["project"]["paths"]["primary"] == str(canonical.resolve())
+    assert result["project"]["paths"]["amd"] == str(canonical.resolve())
+    assert saved[-1]["projects"]["innerops-service-ops"]["paths"]["primary"] == str(canonical.resolve())

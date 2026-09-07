@@ -156,8 +156,12 @@ def register_project(
     projects = data.setdefault("projects", {})
     existing = dict(projects.get(pid) or {})
     paths = dict(existing.get("paths") or {})
-    paths.setdefault("primary", path)
-    paths.setdefault("amd", path)
+    if project_path:
+        paths["primary"] = path
+        paths["amd"] = path
+    else:
+        paths.setdefault("primary", path)
+        paths.setdefault("amd", path)
     entry = {
         **existing,
         "project_id": pid,
@@ -383,6 +387,8 @@ def migrate_existing(actor: str = "codex") -> dict[str, Any]:
         ("ralphiia-founderos-openai", "Rafa-Innerchispa/ralphiia-founderos-openai"),
         ("innerspark-workforce-ai", "Rafa-Innerchispa/innerspark-workforce-ai"),
         ("innerops-agentic-platform", "Rafa-Innerchispa/innerops-agentic-platform"),
+        ("innerops-service-ops", "Rafa-Innerchispa/innerops-service-ops"),
+        ("inneros-forensic-replay", "Rafa-Innerchispa/inneros-forensic-replay"),
     ]
     items = []
     for pid, repo in targets:
