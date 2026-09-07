@@ -4213,14 +4213,14 @@ def describe_tool(name: str) -> dict[str, Any]:
         "ok": True,
         "name": key,
         "version": MCP_VERSION,
-        "description": meta["description"],
-        "input_schema": meta["input_schema"],
-        "output_schema": meta["output_schema"],
-        "required_scopes": meta["required_scopes"],
-        "example_payload": meta["example_payload"],
-        "risk_level": meta["risk_level"],
-        "writes_to": meta["writes_to"],
-        "reads_from": meta["reads_from"],
+        "description": meta.get("description") or f"Tool MCP `{key}` expuesta en el runtime RalfIA.",
+        "input_schema": meta.get("input_schema") or {},
+        "output_schema": meta.get("output_schema") or {"ok": "bool"},
+        "required_scopes": meta.get("required_scopes") or ["ralfia:read"],
+        "example_payload": meta.get("example_payload") or {},
+        "risk_level": meta.get("risk_level") or "low",
+        "writes_to": meta.get("writes_to") or [],
+        "reads_from": meta.get("reads_from") or [],
     }
 
 

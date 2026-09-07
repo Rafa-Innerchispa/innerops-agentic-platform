@@ -32,7 +32,12 @@ and request a domain profile through `route_mcp_tools`.
 - `create_agent_message`
 - `a2a_status`
 - `a2a_agent_cards`
-- `get_agent_catalog`
+- `project_runtime_bootstrap`
+
+`project_runtime_bootstrap` is intentionally exposed in the compact profile so
+ChatGPT can materialize owner-approved project roots with explicit
+`base_ref`/`expected_sha` verification without switching to the full/admin
+catalog.
 
 ## Usage Policy
 

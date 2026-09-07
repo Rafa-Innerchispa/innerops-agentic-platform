@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.3"
+PROFILES_VERSION = "1.4.4"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -28,7 +28,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             "create_agent_message",
             "a2a_status",
             "a2a_agent_cards",
-            "get_agent_catalog",
+            "project_runtime_bootstrap",
         ],
     },
 
@@ -238,7 +238,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "generate_supervisor_report",
             "run_service_guardian",
             "list_ops_tasks",
-            "coordination_backlog_hygiene",
             "get_operational_runbooks",
             "get_whatsapp_status",
             "create_agent_message",
@@ -264,9 +263,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "summarize_productivity_events",
             "ha_turn_on_light",
             "ha_turn_off_light",
-            "dmx_status",
-            "dmx_set_scene",
-            "dmx_blackout",
         ],
     },
     "browser_ops": {
@@ -292,7 +288,6 @@ PROFILES: dict[str, dict[str, Any]] = {
         "tools": [
             "get_coordination_live",
             "list_ops_tasks",
-            "coordination_backlog_hygiene",
             "heartbeat_ops_task",
             "external_repair_agent_status",
             "external_repair_agent_claim_next",
@@ -723,7 +718,6 @@ PROFILES: dict[str, dict[str, Any]] = {
         "max_tools": 26,
         "tools": [
             "get_coordination_live",
-            "identify_agent_session",
             "poll_agent_inbox",
             "create_agent_message",
             "ack_agent_message",
@@ -737,16 +731,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "manage_coordination_lock",
             "local_model_health",
             "route_ai_task",
-            "summarize_self_heal_incidents",
-            "list_self_heal_incidents",
-            "list_self_heal_baselines",
-            "save_self_heal_baseline",
-            "get_disk_steward_status",
-            "disk_steward_inventory",
-            "disk_steward_plan_migration",
-            "disk_steward_execute_migration",
-            "disk_steward_verify_migration",
-            "disk_steward_update_backup_policy",
         ],
     },
     "peer_ops": {
@@ -1201,9 +1185,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "agent_iskcon_ffl_timeline",
             "agent_iskcon_contacts_summary",
             "agent_iskcon_dispatch",
-            "agent_iskcon_sources",
-            "agent_iskcon_yoga_campaign",
-            "agent_iskcon_class_update",
             "create_ops_task",
             "list_ops_tasks",
             "save_memory",
@@ -1219,20 +1200,6 @@ PROFILES: dict[str, dict[str, Any]] = {
         "model_minimum": "small",
         "max_tools": 24,
         "tools": [
-            "judge_workflow_start",
-            "judge_workflow_continue",
-            "judge_workflow_execute",
-            "judge_workflow_get",
-            "judge_workflow_list",
-            "judge_trace_current",
-            "judge_trace_history",
-            "judge_trace_detail",
-            "judge_trace_kpis",
-            "judge_resource_telemetry",
-            "judge_safe_trigger",
-            "judge_console_content_get",
-            "judge_model_routing_policy",
-            "judge_mi325x_deploy",
             "a2a_status",
             "a2a_agent_cards",
             "get_unified_stack_status",

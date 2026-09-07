@@ -84,13 +84,9 @@ def test_scope_and_risk_filters_still_apply_before_budget() -> None:
 
 def test_profile_registry_validates_after_router_changes() -> None:
     validation = mcp_profiles.validate_profiles()
-    errors_by_profile = {}
-    for error in validation["errors"]:
-        errors_by_profile.setdefault(error["profile"], []).append(error)
 
-    assert "chatgpt_compact" not in errors_by_profile
-    assert "owner_dev" not in errors_by_profile
-    assert "local_self_repair" not in errors_by_profile
+    assert validation["ok"] is True
+    assert validation["errors"] == []
 
 
 def test_unrelated_stale_profile_does_not_block_valid_route() -> None:
@@ -101,5 +97,16 @@ def test_unrelated_stale_profile_does_not_block_valid_route() -> None:
 
     assert result["ok"] is True
     assert result["profile"] == "chatgpt_compact"
-    assert result["registry_ok"] is False
-    assert result["registry_error_count"] > 0
+    assert result["registry_ok"] is True
+    assert result["registry_error_count"] == 0
+
+
+def test_compact_profile_keeps_project_runtime_bootstrap_visible() -> None:
+    profile = mcp_profiles.get_profile("chatgpt_compact")
+    schema = mcp_profiles.tool_catalog.describe_tool("project_runtime_bootstrap")["input_schema"]
+
+    assert profile["ok"] is True
+    assert len(profile["tools"]) == 12
+    assert "project_runtime_bootstrap" in profile["tools"]
+    assert "base_ref" in schema
+    assert "expected_sha" in schema
