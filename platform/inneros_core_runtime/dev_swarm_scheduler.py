@@ -31,9 +31,9 @@ STALE_PROGRESS_SECONDS = 1800
 STALE_OPS_TASK_SECONDS = 6 * 3600
 MAX_STALE_RECLAIMS = 2
 MAX_MODEL_OUTPUT_ATTEMPTS = 2
-MODEL_OUTPUT_MAX_TOKENS = 4096
-MODEL_OUTPUT_MAX_FILES = 4
-MODEL_OUTPUT_MAX_TOTAL_CHARS = 9_000
+MODEL_OUTPUT_MAX_TOKENS = 2048
+MODEL_OUTPUT_MAX_FILES = 3
+MODEL_OUTPUT_MAX_TOTAL_CHARS = 4_500
 MAX_AUTONOMOUS_DELETIONS_PER_FILE = 800
 MAX_AUTONOMOUS_DELETION_RATIO = 3.0
 MAX_FIXTURE_CONTROL_PLANE_DELETIONS = 50
@@ -2506,14 +2506,14 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             "{\"summary\":\"...\",\"files\":[{\"path\":\"relative/path\",\"content\":\"FULL file content\"}]}. "
             "Do not wrap JSON in Markdown fences. Keep the implementation increment small and complete: "
             f"at most {MODEL_OUTPUT_MAX_FILES} files and about {MODEL_OUTPUT_MAX_TOTAL_CHARS} total content characters. "
-            "Prefer a working vertical slice over trying to implement the entire product in one response. "
+            "Use concise code. Prefer one working vertical slice over trying to implement the entire product in one response. "
             f"{path_contract} "
             "At least one file must be product code under src/, modules/, app/, lib/, components/ or infra/ inside the product scope. "
             "Modify/reuse the existing architecture shown below. Do not invent parallel Express/NestJS/Mongoose routes or undeclared dependencies when the repo is Next.js/Firebase or another stack. "
             "Include tests under tests/ when behavior is testable. No secrets, no cloud apply, no production deploy, no markdown-only result.\n\n"
-            f"TASK:\n{objective[:3000]}\n\nPREVIOUS FAILURES:\n{failures[:1000]}\n\n"
-            f"ARCHITECTURE CONTEXT:\n{_repo_architecture_context(repo, worktree, objective, max_chars=3000)}\n\n"
-            f"REPOSITORY SNAPSHOT:\n{_fanout_repo_snapshot(worktree, max_chars=3500)}"
+            f"TASK:\n{objective[:2200]}\n\nPREVIOUS FAILURES:\n{failures[:800]}\n\n"
+            f"ARCHITECTURE CONTEXT:\n{_repo_architecture_context(repo, worktree, objective, max_chars=2200)}\n\n"
+            f"REPOSITORY SNAPSHOT:\n{_fanout_repo_snapshot(worktree, max_chars=2400)}"
         )
         model = local_model_router.run_local_model(task_type="coding", prompt=prompt, max_tokens=MODEL_OUTPUT_MAX_TOKENS)
         local_model_ok = local_model_ok or bool(model.get("ok"))
