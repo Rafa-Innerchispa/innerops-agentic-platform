@@ -101,7 +101,11 @@ def test_bootstrap_context_uses_live_runtime_banner_and_filters_stale_lines(monk
     monkeypatch.setattr(
         coordination_docs,
         "_bootstrap_context_legacy",
-        lambda: {"ok": True, "content": "- Runtime vivo: 2.23.0 / 117 tools.\n- Keep useful context."},
+        lambda: {
+            "ok": True,
+            "content": "- Runtime vivo: 2.23.0 / 117 tools.\n- Keep useful context.",
+            "project_map": {"central_map": "- Ralphi-IA-MCP quedó en 2.23.0 / 117 tools."},
+        },
     )
     monkeypatch.setattr(coordination_docs, "read_coordination_file", lambda *args, **kwargs: {"content": ""})
     monkeypatch.setattr(coordination_docs, "get_operational_runbooks", lambda: {"runbooks": []})
@@ -111,4 +115,5 @@ def test_bootstrap_context_uses_live_runtime_banner_and_filters_stale_lines(monk
     assert result["ok"] is True
     assert "Runtime vivo: server" in result["content"]
     assert "2.23.0 / 117 tools" not in result["content"]
+    assert "2.23.0 / 117 tools" not in json.dumps(result, ensure_ascii=False)
     assert "Keep useful context." in result["content"]

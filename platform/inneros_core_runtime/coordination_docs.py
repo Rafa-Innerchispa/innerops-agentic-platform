@@ -232,6 +232,16 @@ def _remove_stale_runtime_lines(content: str) -> str:
     return "\n".join(lines)
 
 
+def _remove_stale_runtime_payload(value: Any) -> Any:
+    if isinstance(value, str):
+        return _remove_stale_runtime_lines(value)
+    if isinstance(value, list):
+        return [_remove_stale_runtime_payload(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _remove_stale_runtime_payload(item) for key, item in value.items()}
+    return value
+
+
 def _coordination_protocol() -> dict[str, Any]:
     return {
         "root": str(COORD_ROOT),
@@ -716,7 +726,7 @@ def bootstrap_context() -> dict[str, Any]:
     live = coordination_live.get_coordination_live()
     runtime = mcp_diagnostics.mcp_version()
     profiles = mcp_profiles.list_profiles()
-    base = _bootstrap_context_legacy()
+    base = _remove_stale_runtime_payload(_bootstrap_context_legacy())
     runbook = read_coordination_file("HUB/RUNBOOK_COTIZACION_WHATSAPP.md", max_chars=8000)
     runbook_excerpt = (runbook.get("content") or "")[:7500]
     prefix = (
