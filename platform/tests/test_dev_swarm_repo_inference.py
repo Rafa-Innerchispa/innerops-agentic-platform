@@ -773,13 +773,18 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         }
 
         with tempfile.TemporaryDirectory() as tmp:
-            files, rejected = scheduler._safe_generated_files(
-                payload,
-                "Implement one focused service operation module",
-                "ops_test",
-                scheduler.SAFE_INNEROS_REPO,
-                Path(tmp),
-            )
+            with mock.patch.object(
+                scheduler.local_execution_plane,
+                "_repo_config",
+                return_value={"allowed_paths": ["src", "tests"], "package_roots": []},
+            ):
+                files, rejected = scheduler._safe_generated_files(
+                    payload,
+                    "Implement one focused service operation module",
+                    "ops_test",
+                    scheduler.SAFE_INNEROS_REPO,
+                    Path(tmp),
+                )
 
         self.assertEqual(files, [{"path": "src/service_operations.py", "content": "def ok():\n    return True\n"}])
         self.assertEqual(rejected, [])
@@ -791,13 +796,18 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         }
 
         with tempfile.TemporaryDirectory() as tmp:
-            files, rejected = scheduler._safe_generated_files(
-                payload,
-                "Implement one focused service operation module",
-                "ops_test",
-                scheduler.SAFE_INNEROS_REPO,
-                Path(tmp),
-            )
+            with mock.patch.object(
+                scheduler.local_execution_plane,
+                "_repo_config",
+                return_value={"allowed_paths": ["src", "tests"], "package_roots": []},
+            ):
+                files, rejected = scheduler._safe_generated_files(
+                    payload,
+                    "Implement one focused service operation module",
+                    "ops_test",
+                    scheduler.SAFE_INNEROS_REPO,
+                    Path(tmp),
+                )
 
         self.assertEqual(files, [])
         self.assertTrue(any(item.get("reason") == "path_traversal_denied" for item in rejected))
