@@ -749,6 +749,22 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertTrue(text.startswith("dev_swarm_quality_gate:missing_files_array:"))
         self.assertLessEqual(len(text), 4000)
 
+    def test_fanout_parse_model_json_accepts_markdown_fenced_json(self) -> None:
+        payload = scheduler._fanout_parse_model_json(
+            '```JSON\n{"summary":"ok","files":[{"path":"src/index.js","content":"export const ok = true;\\n"}]}\n```'
+        )
+
+        self.assertIsNotNone(payload)
+        self.assertEqual(payload["files"][0]["path"], "src/index.js")
+
+    def test_fanout_parse_model_json_accepts_json_with_trailing_prose(self) -> None:
+        payload = scheduler._fanout_parse_model_json(
+            '{"summary":"ok","files":[{"path":"src/index.js","content":"export const ok = true;\\n"}]}\nDone.'
+        )
+
+        self.assertIsNotNone(payload)
+        self.assertEqual(payload["summary"], "ok")
+
     def test_diff_numstat_blocks_massive_control_plane_fixture_rewrite(self) -> None:
         risks = scheduler._diff_numstat_risks(
             "228\t2581\tplatform/inneros_core_runtime/dev_swarm_scheduler.py\n",
