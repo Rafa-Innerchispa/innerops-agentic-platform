@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 import unittest
 from unittest import mock
 
@@ -766,37 +767,37 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertEqual(payload["summary"], "ok")
 
     def test_safe_generated_files_accepts_single_file_alias_through_same_gates(self) -> None:
-        worktree = Path("/tmp/inneros-dev-swarm-test")
         payload = {
             "summary": "ok",
             "file": {"path": "src/service_operations.py", "content": "def ok():\n    return True\n"},
         }
 
-        files, rejected = scheduler._safe_generated_files(
-            payload,
-            "Implement one focused service operation module",
-            "ops_test",
-            scheduler.SAFE_INNEROS_REPO,
-            worktree,
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            files, rejected = scheduler._safe_generated_files(
+                payload,
+                "Implement one focused service operation module",
+                "ops_test",
+                scheduler.SAFE_INNEROS_REPO,
+                Path(tmp),
+            )
 
         self.assertEqual(files, [{"path": "src/service_operations.py", "content": "def ok():\n    return True\n"}])
         self.assertEqual(rejected, [])
 
     def test_safe_generated_files_still_rejects_alias_outside_safe_paths(self) -> None:
-        worktree = Path("/tmp/inneros-dev-swarm-test")
         payload = {
             "summary": "bad",
             "changes": [{"path": "../escape.py", "content": "print('no')\n"}],
         }
 
-        files, rejected = scheduler._safe_generated_files(
-            payload,
-            "Implement one focused service operation module",
-            "ops_test",
-            scheduler.SAFE_INNEROS_REPO,
-            worktree,
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            files, rejected = scheduler._safe_generated_files(
+                payload,
+                "Implement one focused service operation module",
+                "ops_test",
+                scheduler.SAFE_INNEROS_REPO,
+                Path(tmp),
+            )
 
         self.assertEqual(files, [])
         self.assertTrue(any(item.get("reason") == "path_traversal_denied" for item in rejected))
