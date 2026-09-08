@@ -7,6 +7,7 @@ cloud burst, or another provider should satisfy the task.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any
 
 from raphiia_openai import funding_registry, mongo_store
@@ -117,7 +118,16 @@ def link_project_capability(project_id: str, capability: str, provider_id: str =
     return {"ok": True, "link": doc}
 
 
-def route_resource_request(project_id: str, task_class: str, prefer_cloud: bool = False) -> dict[str, Any]:
+def route_resource_request(
+    project_id: str,
+    task_class: str,
+    prefer_cloud: bool = False,
+    correlation_id: str = "",
+    tenant_id: str = "",
+    workflow_id: str = "",
+    emit_audit: bool = True,
+) -> dict[str, Any]:
+    started = perf_counter()
     db = mongo_store.get_db()
     models = list(db[COL_MODEL_REGISTRY].find({"task_classes": task_class}, {"_id": 0}).sort("priority", 1))
     if not models:
@@ -132,4 +142,18 @@ def route_resource_request(project_id: str, task_class: str, prefer_cloud: bool 
     if prefer_cloud:
         candidates.sort(key=lambda row: 0 if (row.get("model") or {}).get("cost_policy") == "explicit_burst_only" else 1)
     selected = candidates[0] if candidates else None
-    return {"ok": bool(selected), "project_id": project_id, "task_class": task_class, "selected": selected, "candidates": candidates}
+    result = {"ok": bool(selected), "project_id": project_id, "task_class": task_class, "selected": selected, "candidates": candidates}
+    if emit_audit:
+        try:
+            from raphiia_openai import audit_fabric
+
+            result["audit"] = audit_fabric.emit_route_decision(
+                result,
+                correlation_id=correlation_id,
+                tenant_id=tenant_id,
+                workflow_id=workflow_id,
+                latency_ms=round((perf_counter() - started) * 1000, 3),
+            )
+        except Exception as exc:
+            result["audit"] = {"ok": False, "error": type(exc).__name__, "message": str(exc)[:300]}
+    return result

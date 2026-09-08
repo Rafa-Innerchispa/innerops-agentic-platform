@@ -46,6 +46,12 @@ VALID_EVENT_TYPES = frozenset(
         "scheduler.skipped",
         "memory.checkpointed",
         "memory.finalized",
+        "audit.start",
+        "audit.route",
+        "audit.approval",
+        "audit.action",
+        "audit.result",
+        "audit.quality",
     }
 )
 

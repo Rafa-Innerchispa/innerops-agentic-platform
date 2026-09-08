@@ -1369,11 +1369,95 @@ def resource_fabric_status(limit: int = 20) -> dict[str, Any]:
 
 
 @mcp.tool
-def resource_fabric_route(project_id: str, task_class: str, prefer_cloud: bool = False) -> dict[str, Any]:
-    """Resource Fabric: selecciona recurso por capability/costo/evidencia; local-first."""
+def resource_fabric_route(
+    project_id: str,
+    task_class: str,
+    prefer_cloud: bool = False,
+    correlation_id: str = "",
+    tenant_id: str = "",
+    workflow_id: str = "",
+    emit_audit: bool = True,
+) -> dict[str, Any]:
+    """Resource Fabric: selecciona recurso local-first y emite RoutingEvidence auditable."""
     from raphiia_openai import resource_fabric
 
-    return resource_fabric.route_resource_request(project_id=project_id, task_class=task_class, prefer_cloud=prefer_cloud)
+    return resource_fabric.route_resource_request(
+        project_id=project_id,
+        task_class=task_class,
+        prefer_cloud=prefer_cloud,
+        correlation_id=correlation_id,
+        tenant_id=tenant_id,
+        workflow_id=workflow_id,
+        emit_audit=emit_audit,
+    )
+
+
+@mcp.tool
+def audit_fabric_status() -> dict[str, Any]:
+    """Audit Fabric: contrato vivo de hooks, HTR y backends de evidencia."""
+    from raphiia_openai import audit_fabric
+
+    return audit_fabric.audit_fabric_status()
+
+
+@mcp.tool
+def audit_fabric_emit_hook(
+    stage: str,
+    actor: str,
+    task_id: str = "",
+    correlation_id: str = "",
+    repo: str = "",
+    tenant_id: str = "",
+    workflow_id: str = "",
+    provider: str = "",
+    model: str = "",
+    status: str = "",
+    evidence_level: int = 1,
+    payload: dict[str, Any] | None = None,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Audit Fabric: emite hook start/route/approval/action/result/quality con dry_run por defecto."""
+    from raphiia_openai import audit_fabric
+
+    body = dict(payload or {})
+    return audit_fabric.emit_audit_hook(
+        stage,
+        actor=actor,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        repo=repo,
+        tenant_id=tenant_id,
+        workflow_id=workflow_id,
+        provider=provider,
+        model=model,
+        status=status,
+        evidence_level=evidence_level,
+        routing_evidence=body.get("routing_evidence"),
+        productivity=body.get("productivity"),
+        htr_record=body.get("htr_record"),
+        decision_evidence=body.get("decision_evidence"),
+        evidence_refs=body.get("evidence_refs"),
+        forensic_bundle_ref=str(body.get("forensic_bundle_ref") or ""),
+        approval=body.get("approval"),
+        action=body.get("action"),
+        result=body.get("result"),
+        quality=body.get("quality"),
+        metadata=body.get("metadata"),
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
+def audit_fabric_query_events(
+    correlation_id: str = "",
+    tenant_id: str = "",
+    workflow_id: str = "",
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Audit Fabric: consulta read-only de eventos por correlation/tenant/workflow."""
+    from raphiia_openai import audit_fabric
+
+    return audit_fabric.list_audit_events(correlation_id=correlation_id, tenant_id=tenant_id, workflow_id=workflow_id, limit=limit)
 
 
 @mcp.tool

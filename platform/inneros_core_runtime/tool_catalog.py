@@ -166,6 +166,9 @@ ALL_MCP_TOOL_NAMES = [
     "resource_fabric_status",
     "resource_fabric_route",
     "resource_fabric_link_project_capability",
+    "audit_fabric_status",
+    "audit_fabric_emit_hook",
+    "audit_fabric_query_events",
     "tenant_reconciliation_report",
     "digitalocean_status",
     "digitalocean_preflight",
@@ -979,7 +982,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "output_schema": {"ok": "bool", "text": "string", "services_text": "string"},
         "example_payload": {},
     },
-    
+
     "ha_ping": {
         "description": "Comprueba Home Assistant local (:8123).",
         "required_scopes": ["ralfia:read"],
@@ -3792,7 +3795,6 @@ TOOL_DEFINITIONS["project_runtime_reconcile"].update(
     }
 )
 
-
 TOOL_DEFINITIONS.update(
     {
         "agent_browser_status": {
@@ -4457,6 +4459,41 @@ TOOL_DEFINITIONS.update(
             "input_schema": {"event_type": "string", "actor": "string", "task_id": "string|null", "correlation_id": "string|null", "dry_run": "bool|null"},
             "output_schema": {"ok": "bool", "event_id": "string", "event": "object"},
             "example_payload": {"event_type": "task.heartbeat", "actor": "codex", "task_id": "ops_abc123", "dry_run": True},
+        },
+    }
+)
+
+TOOL_DEFINITIONS.update(
+    {
+        "audit_fabric_status": {
+            "description": "Audit Fabric: estado vivo del contrato universal de hooks, HTR, RoutingEvidence y backends de evidencia.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_coordination_events", "durable_coordination_spine"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "version": "string", "stages": "array", "spine": "object"},
+            "example_payload": {},
+        },
+        "audit_fabric_emit_hook": {
+            "description": "Audit Fabric: emite start/route/approval/action/result/quality con TrackingEnvelope, HTR y evidence refs; dry_run por defecto.",
+            "required_scopes": ["ralfia:write"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_coordination_events"],
+            "reads_from": ["tracking_envelope", "durable_coordination_spine"],
+            "input_schema": {"stage": "string", "actor": "string", "task_id": "string|null", "correlation_id": "string|null", "payload": "object|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "event_id": "string|null", "event": "object|null"},
+            "example_payload": {"stage": "quality", "actor": "chatgpt", "correlation_id": "corr_demo", "dry_run": True},
+        },
+        "audit_fabric_query_events": {
+            "description": "Audit Fabric: consulta read-only de eventos audit.* por correlation_id, tenant_id o workflow_id.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_coordination_events"],
+            "input_schema": {"correlation_id": "string|null", "tenant_id": "string|null", "workflow_id": "string|null", "limit": "int|null"},
+            "output_schema": {"ok": "bool", "count": "int", "events": "array", "read_only": "true"},
+            "example_payload": {"correlation_id": "corr_demo", "limit": 10},
         },
     }
 )

@@ -451,7 +451,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "owner_dev": {
         "label": "Owner development local seguro",
         "model_minimum": "medium",
-        "max_tools": 171,
+        "max_tools": 174,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -589,6 +589,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "resource_fabric_status",
             "resource_fabric_route",
             "resource_fabric_link_project_capability",
+            "audit_fabric_status",
+            "audit_fabric_emit_hook",
+            "audit_fabric_query_events",
             "tenant_reconciliation_report",
             "digitalocean_status",
             "digitalocean_preflight",
@@ -871,6 +874,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "resource_fabric_status",
             "resource_fabric_route",
             "resource_fabric_link_project_capability",
+            "audit_fabric_status",
+            "audit_fabric_emit_hook",
+            "audit_fabric_query_events",
             "tenant_reconciliation_report",
             "digitalocean_status",
             "digitalocean_preflight",
@@ -968,7 +974,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet_full": {
         "label": "Flota local completa — ChatGPT/Codex",
         "model_minimum": "medium",
-        "max_tools": 135,
+        "max_tools": 138,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
