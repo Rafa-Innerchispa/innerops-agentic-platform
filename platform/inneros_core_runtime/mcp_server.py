@@ -15,6 +15,7 @@ from typing import Any, TypedDict
 from datetime import datetime, timezone
 
 from fastmcp import FastMCP
+from starlette.middleware import Middleware as StarletteMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -73,6 +74,30 @@ mcp = FastMCP(
 if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
 
+
+class McpCompatibilityProbeMiddleware:
+    """Return a harmless 200 for bare GET /mcp probes that are not SSE streams."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/mcp":
+            headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers") or []}
+            accept = headers.get("accept", "")
+            if "text/event-stream" not in accept:
+                response = JSONResponse(
+                    {
+                        "ok": True,
+                        "service": MCP_DISPLAY_NAME,
+                        "transport": "streamable-http",
+                        "mcp_endpoint": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
+                        "note": "Compatibility probe only. MCP clients must use POST and SSE GET with Accept: text/event-stream.",
+                    }
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 # --- MOD-A2A (Agent2Agent transport over durable InnerOS control plane) ---
@@ -6474,7 +6499,7 @@ if __name__ == "__main__":
         profile_info = _apply_runtime_tool_profile(runtime_profile)
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
-    mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp")
+    mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp", middleware=[StarletteMiddleware(McpCompatibilityProbeMiddleware)])
 
 
 # --- InnerOS A2A transport bridge ---
