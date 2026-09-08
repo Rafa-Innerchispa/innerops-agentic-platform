@@ -466,7 +466,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "owner_dev": {
         "label": "Owner development local seguro",
         "model_minimum": "medium",
-        "max_tools": 171,
+        "max_tools": 175,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -490,6 +490,10 @@ PROFILES: dict[str, dict[str, Any]] = {
             "local_exec_repo_policy_status",
             "local_exec_repo_authorize",
             "local_exec_repo_revoke",
+            "local_github_professionalization_audit",
+            "local_github_update_repo_profile",
+            "local_github_update_owner_profile",
+            "local_github_pin_repositories",
             "approve_and_develop_project",
             "dev_swarm_scope_status",
             "dev_swarm_launch_task",
@@ -663,7 +667,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_self_repair": {
         "label": "Autoreparación local controlada",
         "model_minimum": "medium",
-        "max_tools": 45,
+        "max_tools": 46,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -677,6 +681,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             "local_fs_write_file",
             "local_git_init_repo",
             "local_github_status",
+            "local_github_professionalization_audit",
             "local_project_bootstrap",
             "local_exec_inspect_repo",
             "local_exec_inspect_remotes",
@@ -972,7 +977,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_fleet_full": {
         "label": "Flota local completa — ChatGPT/Codex",
         "model_minimum": "medium",
-        "max_tools": 135,
+        "max_tools": 139,
         "tools": [
             "get_agent_catalog",
             "resolve_agent",
@@ -1013,6 +1018,10 @@ PROFILES: dict[str, dict[str, Any]] = {
             "local_fs_policy",
             "local_project_bootstrap",
             "local_github_status",
+            "local_github_update_repo_profile",
+            "local_github_update_owner_profile",
+            "local_github_pin_repositories",
+            "local_github_professionalization_audit",
             "local_exec_inspect_repo",
             "local_exec_inspect_remotes",
             "local_exec_verified_git_author_status",

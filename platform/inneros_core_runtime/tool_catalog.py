@@ -440,7 +440,11 @@ ALL_MCP_TOOL_NAMES = [
     "local_fs_move_to_quarantine",
     "local_git_init_repo",
     "local_github_status",
+    "local_github_professionalization_audit",
     "local_github_create_repo",
+    "local_github_update_repo_profile",
+    "local_github_update_owner_profile",
+    "local_github_pin_repositories",
     "local_project_bootstrap",
     "log_coordination_event",
     "log_service_visit",
@@ -3457,7 +3461,11 @@ _LOCAL_GITHUB_WRITES = {
 }
 for _name in (
     "local_github_status",
+    "local_github_professionalization_audit",
     "local_github_create_repo",
+    "local_github_update_repo_profile",
+    "local_github_update_owner_profile",
+    "local_github_pin_repositories",
     "local_project_bootstrap",
 ):
     TOOL_DEFINITIONS[_name] = {

@@ -5462,6 +5462,90 @@ def local_github_create_repo(
 
 
 @mcp.tool
+def local_github_professionalization_audit(owner: str = "Rafa-Innerchispa", limit: int = 100, include_rows: bool = False) -> dict[str, Any]:
+    """Local GitHub Plane: matriz dry-run de metadata/topics/profile/pins sin mutar."""
+    return local_github_plane.audit_github_professionalization(owner=owner, limit=limit, include_rows=include_rows)
+
+
+@mcp.tool
+def local_github_update_repo_profile(
+    owner: str,
+    name: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    description: str | None = None,
+    homepage: str | None = None,
+    topics: list[str] | None = None,
+    dry_run: bool = True,
+    freeze_override: bool = False,
+) -> dict[str, Any]:
+    """Local GitHub Plane: planifica/aplica metadata y topics reversibles con freeze gate."""
+    return local_github_plane.update_repo_professionalization(
+        owner=owner,
+        name=name,
+        actor=actor,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        description=description,
+        homepage=homepage,
+        topics=topics,
+        dry_run=dry_run,
+        freeze_override=freeze_override,
+    )
+
+
+@mcp.tool
+def local_github_update_owner_profile(
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    dry_run: bool = True,
+    name: str | None = None,
+    bio: str | None = None,
+    company: str | None = None,
+    blog: str | None = None,
+    location: str | None = None,
+    hireable: bool | None = None,
+    twitter_username: str | None = None,
+) -> dict[str, Any]:
+    """Local GitHub Plane: planifica/aplica perfil owner; aplica solo con scope user."""
+    return local_github_plane.update_owner_profile(
+        actor=actor,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        dry_run=dry_run,
+        name=name,
+        bio=bio,
+        company=company,
+        blog=blog,
+        location=location,
+        hireable=hireable,
+        twitter_username=twitter_username,
+    )
+
+
+@mcp.tool
+def local_github_pin_repositories(
+    owner: str,
+    repositories: list[str],
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Local GitHub Plane: planifica/aplica pins de repositorios de forma aditiva."""
+    return local_github_plane.pin_repositories(
+        owner=owner,
+        repositories=repositories,
+        actor=actor,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
 def local_project_bootstrap(
     path: str,
     project_name: str,
