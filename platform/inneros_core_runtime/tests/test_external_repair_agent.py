@@ -1,5 +1,10 @@
+import re
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from inneros_core_runtime import external_repair_agent as ext
 from inneros_core_runtime import coordination_live
@@ -37,7 +42,11 @@ def _matches(doc, query):
                 exists = value is not None
                 if bool(expected["$exists"]) != exists:
                     return False
-            if not set(expected).intersection({"$in", "$nin", "$lt", "$gte", "$exists"}):
+            if "$regex" in expected:
+                flags = re.I if "i" in str(expected.get("$options") or "") else 0
+                if re.search(str(expected["$regex"]), str(value or ""), flags) is None:
+                    return False
+            if not set(expected).intersection({"$in", "$nin", "$lt", "$gte", "$exists", "$regex"}):
                 return False
         elif value != expected:
             return False
@@ -363,6 +372,221 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertEqual(result["reason"], "blocked_by_budget")
         task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_budget"})
         self.assertEqual(task["status"], "blocked")
+
+
+    def test_status_exposes_nonterminal_tasks_even_when_active_runs_empty(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_active_no_run",
+            "assignee": "codex",
+            "status": "in_progress",
+            "owner": "codex",
+            "priority": "p0",
+            "revision": 2,
+            "correlation_id": "corr-active",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "created_at": ext._now(),
+            "updated_at": ext._now(),
+            "last_heartbeat_at": ext._now(),
+        })
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "codex", "status": "ready", "auth_ready": True}), \
+            patch.object(ext, "external_credit_status", return_value={"ok": True, "providers": []}):
+            result = ext.external_repair_agent_status("codex")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["active_runs"], [])
+        self.assertEqual(result["pending_nonterminal_count"], 1)
+        self.assertEqual(result["nonterminal_statuses"], {"in_progress": 1})
+        self.assertEqual(result["nonterminal_buckets"], {"ACTIVE_TASK_NO_RUN": 1})
+        self.assertEqual(result["nonterminal_tasks"][0]["action"], "MONITOR_TASK_STATE")
+
+    def test_nonterminal_summary_classifies_partial_blocked_and_proposed(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.extend([
+            {
+                "task_id": "ops_partial_old",
+                "assignee": "codex",
+                "status": "partial",
+                "owner": "codex",
+                "priority": "p0",
+                "revision": 2,
+                "created_at": "2026-08-24T00:00:00+00:00",
+                "updated_at": "2026-08-24T00:10:00+00:00",
+            },
+            {
+                "task_id": "ops_blocked_wait",
+                "assignee": "codex",
+                "status": "blocked",
+                "owner": "codex",
+                "priority": "p1",
+                "revision": 3,
+                "created_at": "2026-08-24T00:00:00+00:00",
+                "updated_at": "2026-08-24T00:10:00+00:00",
+                "blocker": "human_required",
+            },
+            {
+                "task_id": "ops_proposed",
+                "assignee": "codex",
+                "status": "proposed",
+                "owner": None,
+                "priority": "p0",
+                "revision": 1,
+                "created_at": "2026-08-26T00:00:00+00:00",
+                "updated_at": "2026-08-26T00:00:00+00:00",
+            },
+        ])
+        with patch.object(ext, "_db", return_value=db):
+            result = ext.provider_nonterminal_summary("codex", stale_after_seconds=60)
+        buckets = {row["task_id"]: row["bucket"] for row in result["tasks"]}
+        self.assertEqual(buckets["ops_partial_old"], "STALE_RECOVERABLE")
+        self.assertEqual(buckets["ops_blocked_wait"], "BLOCKED")
+        self.assertEqual(buckets["ops_proposed"], "PROPOSED")
+        self.assertEqual(result["pending_nonterminal_count"], 3)
+
+    def test_completed_run_closes_nonterminal_task_without_rerun(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_7fbd43c2f9c9",
+            "assignee": "codex",
+            "status": "blocked",
+            "owner": "codex",
+            "priority": "critical",
+            "revision": 4,
+            "correlation_id": "hyperloom-r9700-master-amd-challenge1-20260907",
+            "created_at": "2026-09-07T23:53:32+00:00",
+            "updated_at": "2026-09-08T00:10:00+00:00",
+            "blocker": "stale_ops_task_timeout",
+        })
+        db[ext.RUNS_COL].docs.append({
+            "run_id": "extrep_hyperloom_done",
+            "provider": "codex",
+            "task_id": "ops_7fbd43c2f9c9",
+            "status": "completed",
+            "result": "PASS",
+            "updated_at": "2026-09-08T01:00:00+00:00",
+            "evidence": {"result": "PASS", "commit_sha": "c201c97507b35f10a1b0189f97ce192f1e10adb8"},
+        })
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db), \
+            patch.object(ext.coordination_live, "bump_revision", return_value={"ok": True}):
+            result = ext.reconcile_completed_runs_to_tasks("codex", dry_run=False)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["closed_count"], 1)
+        task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_7fbd43c2f9c9"})
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["evidence"]["result"], "PASS")
+        self.assertTrue(task["evidence"]["reconciled_from_completed_run"])
+
+
+
+    def test_completed_run_without_success_result_does_not_close_partial_task(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_partial_review",
+            "assignee": "codex",
+            "status": "partial",
+            "owner": "codex",
+            "priority": "critical",
+            "revision": 4,
+            "correlation_id": "corr-partial",
+            "created_at": "2026-09-07T23:53:32+00:00",
+            "updated_at": "2026-09-08T00:10:00+00:00",
+        })
+        db[ext.RUNS_COL].docs.append({
+            "run_id": "extrep_partial_text",
+            "provider": "codex",
+            "task_id": "ops_partial_review",
+            "status": "completed",
+            "result": "partial evidence gathered; owner scope remains",
+            "updated_at": "2026-09-08T01:00:00+00:00",
+            "evidence": {"summary": "dry-run only"},
+        })
+        with patch.object(ext, "_db", return_value=db):
+            result = ext.reconcile_completed_runs_to_tasks("codex", dry_run=False)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["closed_count"], 0)
+        self.assertEqual(result["skipped"][0]["reason"], "completed_run_without_explicit_success_result")
+        task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_partial_review"})
+        self.assertEqual(task["status"], "partial")
+
+    def test_completed_message_closes_hyperloom_without_rerun(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_7fbd43c2f9c9",
+            "assignee": "codex",
+            "status": "blocked",
+            "owner": "codex",
+            "priority": "critical",
+            "revision": 4,
+            "correlation_id": "hyperloom-r9700-master-amd-challenge1-20260907",
+            "created_at": "2026-09-07T23:53:32+00:00",
+            "updated_at": "2026-09-08T00:10:00+00:00",
+            "blocker": "stale_ops_task_timeout",
+        })
+        db[COL_AGENT_MESSAGES].docs.append({
+            "message_id": "msg_7d38c1470c4428c0",
+            "from_agent": "CHATGPT",
+            "target_agent": "codex",
+            "title": "Contexto de cierre: reconciliación no terminal + HyperLoom ya integrado",
+            "body": "ops_7fbd43c2f9c9 HyperLoom NO debe reejecutarse. ChatGPT ya integró el checkpoint técnico en rama canónica, head c201c97507b35f10a1b0189f97ce192f1e10adb8. Reconcílialo/ciérralo con evidencia.",
+            "payload": {"hyperloom_task_id": "ops_7fbd43c2f9c9", "hyperloom_canonical_commit": "c201c97507b35f10a1b0189f97ce192f1e10adb8"},
+            "correlation_id": "ops-state-reconciliation-nonterminal-fix-20260908",
+            "status": "open",
+            "created_at": "2026-09-08T14:15:06+00:00",
+        })
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db), \
+            patch.object(ext.coordination_live, "bump_revision", return_value={"ok": True}):
+            result = ext.reconcile_completed_runs_to_tasks("codex", dry_run=False)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["closed_count"], 1)
+        self.assertEqual(result["closed"][0]["message_id"], "msg_7d38c1470c4428c0")
+        task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_7fbd43c2f9c9"})
+        self.assertEqual(task["status"], "completed")
+        self.assertTrue(task["evidence"]["reconciled_from_agent_message"])
+        self.assertTrue(task["evidence"]["no_rerun"])
+        self.assertEqual(task["evidence"]["commit_sha"], "c201c97507b35f10a1b0189f97ce192f1e10adb8")
+
+    def test_reconcile_records_buckets_and_does_not_duplicate_claims(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.extend([
+            {
+                "task_id": "ops_recent",
+                "assignee": "codex",
+                "status": "in_progress",
+                "owner": "codex",
+                "priority": "p0",
+                "revision": 2,
+                "created_at": ext._now(),
+                "updated_at": ext._now(),
+                "last_heartbeat_at": ext._now(),
+            },
+            {
+                "task_id": "ops_waiting",
+                "assignee": "codex",
+                "status": "proposed",
+                "owner": None,
+                "priority": "p0",
+                "revision": 1,
+                "created_at": "2026-08-26T00:00:00+00:00",
+                "updated_at": "2026-08-26T00:00:00+00:00",
+            },
+        ])
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "_auto_claim_enabled", return_value=True), \
+            patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "codex", "status": "ready", "auth_ready": True}), \
+            patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}), \
+            patch.object(ext, "external_credit_status", return_value={"ok": True, "providers": []}), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db):
+            first = ext.external_repair_agent_reconcile(provider="codex", auto_claim=True, dry_run=False)
+            second = ext.external_repair_agent_reconcile(provider="codex", auto_claim=True, dry_run=False)
+        self.assertTrue(first["ok"])
+        self.assertEqual(first["claim"]["reason"], "provider_has_active_tasks")
+        self.assertTrue(second["ok"])
+        waiting = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_waiting"})
+        self.assertEqual(waiting["status"], "proposed")
+        recent = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_recent"})
+        self.assertEqual(recent["nonterminal_reconcile_bucket"], "ACTIVE_TASK_NO_RUN")
 
 
 if __name__ == "__main__":

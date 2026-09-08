@@ -8,6 +8,7 @@ explicit approval flag to an execution primitive.
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -28,7 +29,11 @@ LOCAL_CLI_PROVIDERS = {"codex", "cursor", "antigravity"}
 CLOUD_BURST_PROVIDERS = {"digitalocean-amd-cloud"}
 PRIORITY_ORDER = {"urgent": 0, "critical": 1, "p0": 2, "high": 3, "p1": 4, "normal": 5, "p2": 6, "low": 7}
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+NONTERMINAL_STATUSES = {"proposed", "accepted", "in_progress", "partial", "verification", "awaiting_approval", "blocked"}
 ACTIVE_STATUSES = {"accepted", "in_progress", "verification", "awaiting_approval", "blocked"}
+SUCCESS_RESULTS = {"PASS", "OK", "COMPLETED"}
+COMMIT_SHA_RE = re.compile(r"\b[0-9a-f]{40}\b", re.IGNORECASE)
+COMPLETION_MARKERS = ("ya integr", "ya fue cerrado", "closed by", "completed", "integrated", "reconcílialo", "ciérralo")
 DEFAULT_DAILY_HARD_LIMIT = {"codex": 3, "cursor": 0, "antigravity": 0, "digitalocean-amd-cloud": 1}
 DEFAULT_MONTHLY_HARD_LIMIT = {"codex": 30, "cursor": 0, "antigravity": 0, "digitalocean-amd-cloud": 6}
 RUN_ACTIVE_STATUSES = {"queued", "running", "checkpointed"}
@@ -212,9 +217,19 @@ def external_repair_agent_status(provider: str = "") -> dict[str, Any]:
     matrix = provider_matrix()
     credit = external_credit_status(provider)
     active_runs = list_active_runs(provider=provider, limit=10)
+    nonterminal = provider_nonterminal_summary(provider=provider, limit=50)
     if provider:
         matrix["providers"] = [p for p in matrix["providers"] if p.get("provider") == provider]
-    return {"ok": True, "matrix": matrix, "credit_governor": credit, "active_runs": active_runs}
+    return {
+        "ok": True,
+        "matrix": matrix,
+        "credit_governor": credit,
+        "active_runs": active_runs,
+        "pending_nonterminal_count": nonterminal.get("pending_nonterminal_count", 0),
+        "nonterminal_buckets": nonterminal.get("buckets", {}),
+        "nonterminal_statuses": nonterminal.get("statuses", {}),
+        "nonterminal_tasks": nonterminal.get("tasks", []),
+    }
 
 
 def list_active_runs(provider: str = "", limit: int = 20) -> list[dict[str, Any]]:
@@ -247,6 +262,314 @@ def list_provider_active_tasks(provider: str = "codex", limit: int = 20, stale_a
         .sort("updated_at", -1)
         .limit(max(1, min(int(limit or 20), 100)))
     )
+
+
+
+def _parse_ts(value: Any) -> datetime | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _latest_task_activity(task: dict[str, Any]) -> datetime | None:
+    candidates = [
+        task.get("last_heartbeat_at"),
+        task.get("last_evidence_at"),
+        task.get("updated_at"),
+        task.get("started_at"),
+        task.get("accepted_at"),
+        task.get("created_at"),
+    ]
+    parsed = [_parse_ts(value) for value in candidates]
+    parsed = [value for value in parsed if value]
+    return max(parsed) if parsed else None
+
+
+def _latest_run(runs: list[dict[str, Any]], statuses: set[str] | None = None) -> dict[str, Any] | None:
+    filtered = [run for run in runs if not statuses or str(run.get("status") or "").lower() in statuses]
+    if not filtered:
+        return None
+    return sorted(filtered, key=lambda run: str(run.get("updated_at") or run.get("ended_at") or run.get("started_at") or ""), reverse=True)[0]
+
+
+def _recoverable_blocked_task(task: dict[str, Any]) -> bool:
+    if bool(task.get("dev_swarm_retry_requested")):
+        return True
+    text = " ".join(str(task.get(k) or "") for k in ("next_action", "blocker", "dev_swarm_last_skip_reason"))
+    if not text.strip():
+        return False
+    retry_markers = ("retry", "resume", "recover", "next", "escalate", "reanudar", "corregir")
+    exhausted_markers = ("no_retry", "do_not_retry", "human_required", "approval_required")
+    text_l = text.lower()
+    return any(marker in text_l for marker in retry_markers) and not any(marker in text_l for marker in exhausted_markers)
+
+
+def _summarize_task(task: dict[str, Any], *, bucket: str, action: str, run: dict[str, Any] | None = None, stale_after_seconds: int = 7200) -> dict[str, Any]:
+    latest_activity = _latest_task_activity(task)
+    now = datetime.now(timezone.utc)
+    age_seconds = int((now - latest_activity).total_seconds()) if latest_activity else None
+    return {
+        "task_id": str(task.get("task_id") or ""),
+        "status": str(task.get("status") or ""),
+        "owner": task.get("owner"),
+        "priority": task.get("priority"),
+        "correlation_id": task.get("correlation_id"),
+        "repo": task.get("repo") or task.get("related_project"),
+        "work_branch": task.get("work_branch"),
+        "bucket": bucket,
+        "action": action,
+        "run_id": (run or {}).get("run_id"),
+        "run_status": (run or {}).get("status"),
+        "latest_activity_at": latest_activity.isoformat() if latest_activity else None,
+        "age_seconds": age_seconds,
+        "stale_after_seconds": int(stale_after_seconds),
+    }
+
+
+def classify_nonterminal_task(task: dict[str, Any], runs: list[dict[str, Any]] | None = None, *, stale_after_seconds: int = 7200) -> dict[str, Any]:
+    """Classify one non-terminal ops_task without deleting or re-running work."""
+    task_runs = list(runs or [])
+    status = str(task.get("status") or "").strip().lower()
+    active_run = _latest_run(task_runs, RUN_ACTIVE_STATUSES)
+    if active_run:
+        return _summarize_task(task, bucket="ACTIVE_RUN", action="MONITOR", run=active_run, stale_after_seconds=stale_after_seconds)
+    terminal_run = _latest_run(task_runs, RUN_TERMINAL_STATUSES)
+    if terminal_run and str(terminal_run.get("status") or "").lower() == "completed":
+        return _summarize_task(task, bucket="TERMINAL_PENDING_EVIDENCE", action="CLOSE_FROM_COMPLETED_RUN", run=terminal_run, stale_after_seconds=stale_after_seconds)
+    if status == "proposed":
+        return _summarize_task(task, bucket="PROPOSED", action="ELIGIBLE_FOR_CLAIM", stale_after_seconds=stale_after_seconds)
+    if status == "blocked" and not _recoverable_blocked_task(task):
+        return _summarize_task(task, bucket="BLOCKED", action="WAIT_FOR_OWNER_OR_NEW_EVIDENCE", stale_after_seconds=stale_after_seconds)
+    latest = _latest_task_activity(task)
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(60, int(stale_after_seconds or 7200)))
+    if not latest or latest < cutoff:
+        return _summarize_task(task, bucket="STALE_RECOVERABLE", action="RESUME_OR_CLOSE_WITH_EVIDENCE", stale_after_seconds=stale_after_seconds)
+    return _summarize_task(task, bucket="ACTIVE_TASK_NO_RUN", action="MONITOR_TASK_STATE", stale_after_seconds=stale_after_seconds)
+
+
+def list_provider_nonterminal_tasks(provider: str = "codex", limit: int = 50) -> list[dict[str, Any]]:
+    provider_n = (provider or "codex").strip().lower()
+    query = {"assignee": provider_n, "status": {"$in": sorted(NONTERMINAL_STATUSES)}}
+    return list(
+        _db()[coordination_live.OPS_TASKS_COL]
+        .find(query, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(max(1, min(int(limit or 50), 200)))
+    )
+
+
+def _runs_by_task(provider: str, task_ids: list[str], limit: int = 200) -> dict[str, list[dict[str, Any]]]:
+    if not task_ids:
+        return {}
+    query: dict[str, Any] = {"task_id": {"$in": task_ids}}
+    provider_n = (provider or "").strip().lower()
+    if provider_n:
+        query["provider"] = provider_n
+    runs = list(_db()[RUNS_COL].find(query, {"_id": 0}).sort("updated_at", -1).limit(max(1, min(int(limit or 200), 500))))
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for run in runs:
+        grouped.setdefault(str(run.get("task_id") or ""), []).append(run)
+    return grouped
+
+
+def provider_nonterminal_summary(provider: str = "codex", limit: int = 50, stale_after_seconds: int = 7200) -> dict[str, Any]:
+    provider_n = (provider or "codex").strip().lower()
+    tasks = list_provider_nonterminal_tasks(provider_n, limit=limit)
+    grouped_runs = _runs_by_task(provider_n, [str(task.get("task_id") or "") for task in tasks], limit=max(limit * 4, 50))
+    rows = [classify_nonterminal_task(task, grouped_runs.get(str(task.get("task_id") or ""), []), stale_after_seconds=stale_after_seconds) for task in tasks]
+    statuses: dict[str, int] = {}
+    buckets: dict[str, int] = {}
+    for row in rows:
+        statuses[row["status"]] = statuses.get(row["status"], 0) + 1
+        buckets[row["bucket"]] = buckets.get(row["bucket"], 0) + 1
+    return {
+        "ok": True,
+        "provider": provider_n,
+        "pending_nonterminal_count": len(rows),
+        "statuses": statuses,
+        "buckets": buckets,
+        "tasks": rows[: max(1, min(int(limit or 50), 100))],
+    }
+
+
+
+
+def _is_success_result(value: Any) -> bool:
+    return str(value or "").strip().upper() in SUCCESS_RESULTS
+
+
+def _normalize_success_evidence(evidence: dict[str, Any], raw_result: Any = "PASS") -> dict[str, Any]:
+    normalized = dict(evidence or {})
+    result = str(normalized.get("result") or raw_result or "PASS")
+    if result.upper() not in SUCCESS_RESULTS:
+        normalized["external_repair_result_text"] = result
+        normalized["result"] = "PASS"
+    else:
+        normalized["result"] = result.upper()
+    return normalized
+
+
+def _close_task_from_terminal_evidence(task: dict[str, Any], evidence: dict[str, Any], *, provider: str, row: dict[str, Any]) -> dict[str, Any]:
+    task_id = str(task.get("task_id") or "")
+    current_status = str(task.get("status") or "").lower()
+    if current_status == "blocked":
+        resumed = coordination_live.update_ops_task_state(
+            task_id,
+            "in_progress",
+            actor=provider,
+            evidence={"result": "OK", "reason": "resume only to close terminal evidence", "run_id": evidence.get("run_id"), "message_id": evidence.get("message_id")},
+            force_handoff=True,
+        )
+        if not resumed.get("ok"):
+            return {**row, "error": resumed.get("error"), "details": resumed}
+        current_status = "in_progress"
+    if current_status != "verification":
+        verifying = coordination_live.update_ops_task_state(
+            task_id,
+            "verification",
+            actor=provider,
+            evidence={"result": "OK", "reason": "terminal evidence pending task closure", "run_id": evidence.get("run_id"), "message_id": evidence.get("message_id")},
+            force_handoff=True,
+        )
+        if not verifying.get("ok"):
+            return {**row, "error": verifying.get("error"), "details": verifying}
+    result = coordination_live.complete_ops_task(task_id, status="completed", evidence=evidence)
+    if result.get("ok"):
+        return {**row, "status": "completed"}
+    return {**row, "error": result.get("error"), "details": result}
+
+
+def _message_completion_evidence(task: dict[str, Any], *, provider: str) -> dict[str, Any] | None:
+    task_id = str(task.get("task_id") or "")
+    correlation_id = str(task.get("correlation_id") or "")
+    if not task_id and not correlation_id:
+        return None
+    clauses: list[dict[str, Any]] = []
+    if task_id:
+        clauses.extend([
+            {"body": {"$regex": re.escape(task_id), "$options": "i"}},
+            {"payload.hyperloom_task_id": task_id},
+            {"payload.completed_task_id": task_id},
+            {"payload.task_id": task_id},
+        ])
+    if correlation_id:
+        clauses.append({"body": {"$regex": re.escape(correlation_id), "$options": "i"}})
+    query: dict[str, Any] = {"$or": clauses}
+    messages = list(_db()[COL_AGENT_MESSAGES].find(query, {"_id": 0}).sort("created_at", -1).limit(25))
+    for msg in messages:
+        payload = msg.get("payload") if isinstance(msg.get("payload"), dict) else {}
+        text = " ".join(str(msg.get(k) or "") for k in ("title", "body"))
+        text_l = text.lower()
+        explicit_payload_match = task_id and task_id in {str(payload.get("hyperloom_task_id") or ""), str(payload.get("completed_task_id") or "")}
+        if not explicit_payload_match:
+            continue
+        commit = str(payload.get("hyperloom_canonical_commit") or payload.get("commit_sha") or "")
+        if not COMMIT_SHA_RE.fullmatch(commit):
+            found = COMMIT_SHA_RE.search(text)
+            commit = found.group(0) if found else ""
+        has_marker = any(marker in text_l for marker in COMPLETION_MARKERS)
+        no_rerun_guard = "no debe reejecutarse" in text_l or "do not rerun" in text_l or "no rerun" in text_l
+        if commit and has_marker and (no_rerun_guard or "canonical" in text_l or "canónica" in text_l):
+            return {
+                "result": "PASS",
+                "reconciled_from_agent_message": True,
+                "message_id": msg.get("message_id"),
+                "commit_sha": commit.lower(),
+                "source_agent": msg.get("from_agent"),
+                "reconcile_policy": "agent_message_terminal_evidence_v1",
+                "no_rerun": bool(no_rerun_guard),
+            }
+    return None
+def reconcile_completed_runs_to_tasks(provider: str = "codex", limit: int = 25, dry_run: bool = False) -> dict[str, Any]:
+    """Close non-terminal ops_tasks whose external repair run is already completed."""
+    provider_n = (provider or "codex").strip().lower()
+    runs = list(
+        _db()[RUNS_COL]
+        .find({"provider": provider_n, "status": "completed"}, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(max(1, min(int(limit or 25), 100)))
+    )
+    closed: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for run in runs:
+        task_id = str(run.get("task_id") or "")
+        if not task_id:
+            continue
+        task = _db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": task_id, "status": {"$in": sorted(NONTERMINAL_STATUSES)}}, {"_id": 0})
+        if not task:
+            continue
+        raw_evidence = dict(run.get("evidence") or {})
+        if not (_is_success_result(raw_evidence.get("result")) or _is_success_result(run.get("result"))):
+            skipped.append({
+                "task_id": task_id,
+                "run_id": run.get("run_id"),
+                "previous_status": task.get("status"),
+                "reason": "completed_run_without_explicit_success_result",
+                "result": raw_evidence.get("result") or run.get("result"),
+            })
+            continue
+        evidence = _normalize_success_evidence(raw_evidence, run.get("result") or "PASS")
+        evidence.setdefault("run_id", run.get("run_id"))
+        evidence.setdefault("reconciled_from_completed_run", True)
+        evidence.setdefault("reconcile_policy", "external_repair_completed_run_to_task_v1")
+        row = {"task_id": task_id, "run_id": run.get("run_id"), "previous_status": task.get("status"), "result": evidence.get("result")}
+        if dry_run:
+            skipped.append({**row, "dry_run": True})
+            continue
+        closed_row = _close_task_from_terminal_evidence(task, evidence, provider=provider_n, row=row)
+        if closed_row.get("status") == "completed":
+            closed.append(closed_row)
+        else:
+            skipped.append(closed_row)
+    already_closed = {row["task_id"] for row in closed}
+    tasks = list_provider_nonterminal_tasks(provider_n, limit=limit)
+    for task in tasks:
+        task_id = str(task.get("task_id") or "")
+        if not task_id or task_id in already_closed:
+            continue
+        evidence = _message_completion_evidence(task, provider=provider_n)
+        if not evidence:
+            continue
+        evidence = _normalize_success_evidence(evidence, evidence.get("result") or "PASS")
+        row = {"task_id": task_id, "run_id": None, "message_id": evidence.get("message_id"), "previous_status": task.get("status"), "result": evidence.get("result")}
+        if dry_run:
+            skipped.append({**row, "dry_run": True})
+            continue
+        closed_row = _close_task_from_terminal_evidence(task, evidence, provider=provider_n, row=row)
+        if closed_row.get("status") == "completed":
+            closed.append(closed_row)
+            already_closed.add(task_id)
+        else:
+            skipped.append(closed_row)
+    return {"ok": True, "dry_run": dry_run, "closed": closed, "skipped": skipped, "closed_count": len(closed), "skipped_count": len(skipped)}
+
+
+def record_nonterminal_reconcile_buckets(provider: str = "codex", limit: int = 50, dry_run: bool = False) -> dict[str, Any]:
+    summary = provider_nonterminal_summary(provider=provider, limit=limit)
+    now = _now()
+    updates: list[dict[str, Any]] = []
+    for row in summary.get("tasks") or []:
+        task_id = str(row.get("task_id") or "")
+        if not task_id:
+            continue
+        updates.append({"task_id": task_id, "bucket": row.get("bucket"), "action": row.get("action")})
+        if not dry_run:
+            _db()[coordination_live.OPS_TASKS_COL].update_one(
+                {"task_id": task_id, "status": {"$in": sorted(NONTERMINAL_STATUSES)}},
+                {"$set": {"nonterminal_reconcile_bucket": row.get("bucket"), "nonterminal_next_action": row.get("action"), "nonterminal_reconciled_at": now, "updated_by": "external_repair_agent"}},
+            )
+    return {"ok": True, "dry_run": dry_run, "summary": summary, "updates": updates}
 
 
 def _task_priority_key(task: dict[str, Any]) -> tuple[int, str]:
@@ -411,11 +734,16 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
     """Reconcile terminal handoffs, stale runs and optionally auto-claim the next eligible task."""
     provider_n = (provider or "codex").strip().lower()
     status_before = external_repair_agent_status(provider_n)
+    completed_runs = reconcile_completed_runs_to_tasks(provider_n, limit=max(limit, 10), dry_run=dry_run)
     handoffs = reconcile_terminal_handoffs(provider_n, limit=max(limit, 10))
     recovered = recover_external_repair_runs(provider=provider_n, mark_stale_after_seconds=3600)
+    bucket_record = record_nonterminal_reconcile_buckets(provider_n, limit=max(limit, 20), dry_run=dry_run)
     status_mid = external_repair_agent_status(provider_n)
     active_runs = status_mid.get("active_runs") or []
-    active_tasks = list_provider_active_tasks(provider_n, limit=10)
+    active_tasks = [
+        task for task in (status_mid.get("nonterminal_tasks") or [])
+        if task.get("bucket") in {"ACTIVE_RUN", "ACTIVE_TASK_NO_RUN"}
+    ]
     capability = ((status_mid.get("matrix") or {}).get("providers") or [{}])[0]
     enabled = _auto_claim_enabled(provider_n)
     claim: dict[str, Any] = {"ok": True, "claimed": False, "reason": "auto_claim_disabled", "enabled": enabled}
@@ -429,12 +757,14 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
         claim = {"ok": True, "claimed": False, "reason": "provider_not_ready", "capability": capability}
     status_after = external_repair_agent_status(provider_n)
     return {
-        "ok": bool(handoffs.get("ok") and recovered.get("ok") and claim.get("ok")),
+        "ok": bool(completed_runs.get("ok") and handoffs.get("ok") and recovered.get("ok") and bucket_record.get("ok") and claim.get("ok")),
         "provider": provider_n,
         "auto_claim_enabled": enabled,
         "status_before": status_before,
+        "completed_runs": completed_runs,
         "handoffs": handoffs,
         "recovered": recovered,
+        "nonterminal_reconcile": bucket_record,
         "active_tasks": active_tasks,
         "claim": claim,
         "status_after": status_after,
