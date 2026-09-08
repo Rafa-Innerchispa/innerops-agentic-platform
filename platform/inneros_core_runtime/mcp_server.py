@@ -78,11 +78,37 @@ if MCP_API_KEY:
 # --- MOD-A2A (Agent2Agent transport over durable InnerOS control plane) ---
 
 @mcp.tool
-def a2a_status() -> dict[str, Any]:
+def a2a_status(verbose: bool = False) -> dict[str, Any]:
     """A2A: estado del bridge, protocolo, SDK y agentes publicados."""
     from raphiia_openai import a2a_bridge
 
-    return a2a_bridge.status()
+    status = a2a_bridge.status()
+    if verbose:
+        return status
+    durable = status.get("durable_spine") or {}
+    dependencies = durable.get("dependencies") or {}
+    flags = durable.get("runtime_flags") or {}
+    return {
+        "ok": status.get("ok"),
+        "service": status.get("service"),
+        "bridge_version": status.get("bridge_version"),
+        "protocol_version": status.get("protocol_version"),
+        "sdk": status.get("sdk"),
+        "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
+        "durable_spine": {
+            "ok": durable.get("ok"),
+            "version": durable.get("version"),
+            "event_store": durable.get("default_event_store"),
+            "nats_available": (dependencies.get("nats") or {}).get("available"),
+            "temporal_available": (dependencies.get("temporal") or {}).get("available"),
+            "otel_available": (dependencies.get("opentelemetry") or {}).get("available"),
+            "nats_enabled": flags.get("INNEROS_NATS_ENABLED"),
+            "temporal_probe_enabled": flags.get("INNEROS_TEMPORAL_PROBE_ON_STATUS"),
+            "otel_enabled": flags.get("INNEROS_OTEL_ENABLED"),
+        },
+        "agent_card_count": len(status.get("agent_cards") or status.get("agents") or []),
+        "note": "Resumen compacto para agentes externos. Usa verbose=true solo para diagnostico completo.",
+    }
 
 
 @mcp.tool
@@ -3692,9 +3718,28 @@ def preview_whatsapp_agent_reply(message: str, sender: str | None = None) -> dic
 
 
 @mcp.tool
-def mcp_version(session_id: str | None = None) -> dict[str, Any]:
-    """Versión viva del bridge, catálogo y manifest."""
-    return mcp_diagnostics.mcp_version(session_id=session_id)
+def mcp_version(session_id: str | None = None, include_tools: bool = False) -> dict[str, Any]:
+    """Version viva del bridge, catalogo y manifest. Por defecto devuelve resumen compacto."""
+    version = mcp_diagnostics.mcp_version(session_id=session_id)
+    if include_tools:
+        return version
+    details = version.get("tool_name_count_details") or {}
+    return {
+        "ok": version.get("ok"),
+        "timestamp": version.get("timestamp"),
+        "server_version": version.get("server_version"),
+        "bridge_version": version.get("bridge_version"),
+        "catalog_version": version.get("catalog_version"),
+        "manifest_version": version.get("manifest_version"),
+        "manifest_hash": version.get("manifest_hash"),
+        "catalog_tool_count": version.get("catalog_tool_count"),
+        "runtime_tool_count": version.get("runtime_tool_count"),
+        "runtime_tool_count_basis": version.get("runtime_tool_count_basis"),
+        "duplicate_tool_name_count": details.get("duplicate_tool_name_count", 0),
+        "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
+        "sample_tools": list(version.get("tool_names") or [])[:12],
+        "note": "Resumen compacto para agentes externos. Usa include_tools=true solo para diagnostico completo.",
+    }
 
 
 @mcp.tool
@@ -6219,7 +6264,7 @@ def _systemctl_status(unit: str) -> dict[str, Any]:
 
 
 @mcp.tool
-def system_health() -> dict[str, Any]:
+def system_health(verbose: bool = False) -> dict[str, Any]:
     """Estado de Mongo, MCP, portal, funding-hub, LinkedIn, Gemini y daemon."""
     mongo = mongo_store.ping_mongo()
     mcp_ok = mongo_store.ping_mongo().get("ok", False)
@@ -6238,7 +6283,7 @@ def system_health() -> dict[str, Any]:
     daemon = _systemctl_status("ralfia-coordination-daemon")
     oauth = _url_ok(f"{OAUTH_ISSUER}/health")
     file_access = coordination_docs.list_coordination_files(path="chatgpt")
-    return {
+    full = {
         "ok": bool(mongo.get("ok")),
         "mongodb": mongo,
         "mcp": {"ok": mcp_ok, "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp"},
@@ -6253,6 +6298,40 @@ def system_health() -> dict[str, Any]:
         "daemon": daemon,
         "oauth": oauth,
         "file_access_tools": {"ok": bool(file_access.get("ok")), "count": file_access.get("count", 0)},
+    }
+    if verbose:
+        return full
+
+    def brief(value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            return {"ok": bool(value)}
+        out = {k: value.get(k) for k in ("ok", "status", "port", "error", "service", "configured", "provider") if k in value}
+        if "preview" in value and not out.get("error"):
+            out["preview_available"] = True
+        return out
+
+    return {
+        "ok": full["ok"],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
+        "mongodb": {
+            "ok": mongo.get("ok"),
+            "db": mongo.get("db"),
+            "mcp_errors": mongo.get("mcp_errors"),
+        },
+        "mcp": full["mcp"],
+        "portal": brief(portal),
+        "ralphia_health": brief(ralphia_health),
+        "funding_hub": brief(funding_hub),
+        "linkedin_connector": brief(linkedin),
+        "gemini_image_api": brief(gemini),
+        "local_model_runtime": brief(local_models),
+        "funding_registry": brief(funding_registry),
+        "watcher": brief(watcher),
+        "daemon": brief(daemon),
+        "oauth": brief(oauth),
+        "file_access_tools": full["file_access_tools"],
+        "note": "Resumen compacto para agentes externos. Usa verbose=true solo para diagnostico completo.",
     }
 
 
@@ -6340,6 +6419,7 @@ async def mcp_well_known_manifest(request: Request) -> JSONResponse:
         }
     )
     return JSONResponse(manifest)
+
 
 
 @mcp.custom_route("/notion/webhook", methods=["POST"])

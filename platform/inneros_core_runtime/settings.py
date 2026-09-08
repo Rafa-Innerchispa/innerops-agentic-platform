@@ -47,7 +47,7 @@ OAUTH_ALLOWED_REDIRECT_HOSTS = tuple(
     host.strip().lower()
     for host in os.getenv(
         "OAUTH_ALLOWED_REDIRECT_HOSTS",
-        "chatgpt.com,localhost,127.0.0.1",
+        "chatgpt.com,localhost,127.0.0.1,notion.so,www.notion.so,app.notion.com,api.notion.com",
     ).split(",")
     if host.strip()
 )
