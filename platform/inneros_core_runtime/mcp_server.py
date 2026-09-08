@@ -6326,6 +6326,22 @@ async def mcp_oauth_protected_resource_path(request: Request) -> JSONResponse:
     return JSONResponse(protected_resource_metadata(request.headers.get("host")))
 
 
+@mcp.custom_route("/.well-known/mcp.json", methods=["GET"])
+async def mcp_well_known_manifest(request: Request) -> JSONResponse:
+    """Compatibility manifest for MCP clients that probe /.well-known/mcp.json."""
+    manifest = await ralfia_mcp_manifest()
+    origin = str(request.base_url).rstrip("/")
+    manifest.update(
+        {
+            "transport": "streamable-http",
+            "mcp_endpoint": f"{origin}/mcp",
+            "oauth_protected_resource": f"{origin}/.well-known/oauth-protected-resource",
+            "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
+        }
+    )
+    return JSONResponse(manifest)
+
+
 @mcp.custom_route("/notion/webhook", methods=["POST"])
 async def notion_webhook_http(request: Request) -> JSONResponse:
     """Endpoint público HTTPS para webhooks Notion (vía ngrok)."""
