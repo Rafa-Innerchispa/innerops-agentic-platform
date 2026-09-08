@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from fastmcp import FastMCP
 from starlette.middleware import Middleware as StarletteMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from raphiia_openai.auth_middleware import ApiKeyMiddleware
 from raphiia_openai import quoteops_mcp_bridge
@@ -82,10 +82,21 @@ class McpCompatibilityProbeMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/mcp":
+        if scope.get("type") == "http" and scope.get("path") == "/mcp":
+            method = scope.get("method")
             headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers") or []}
             accept = headers.get("accept", "")
-            if "text/event-stream" not in accept:
+            if method == "HEAD":
+                response = Response(
+                    status_code=200,
+                    headers={
+                        "x-inneros-mcp-endpoint": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
+                        "x-inneros-mcp-transport": "streamable-http",
+                    },
+                )
+                await response(scope, receive, send)
+                return
+            if method == "GET" and "text/event-stream" not in accept:
                 response = JSONResponse(
                     {
                         "ok": True,
@@ -6434,6 +6445,52 @@ async def mcp_capabilities_http(_request: Request) -> JSONResponse:
             "tool_count": caps.get("tool_count"),
         }
     )
+
+
+def _mcp_oauth_options_response() -> Response:
+    return Response(
+        status_code=204,
+        headers={
+            "access-control-allow-origin": "*",
+            "access-control-allow-methods": "GET,POST,OPTIONS",
+            "access-control-allow-headers": "authorization,content-type,mcp-protocol-version",
+            "access-control-max-age": "600",
+        },
+    )
+
+
+@mcp.custom_route("/.well-known/oauth-authorization-server", methods=["GET"])
+async def mcp_oauth_authorization_server(request: Request) -> JSONResponse:
+    from raphiia_openai.oauth_metadata import authorization_server_metadata
+
+    return JSONResponse(authorization_server_metadata(request.headers.get("host")))
+
+
+@mcp.custom_route("/.well-known/openid-configuration", methods=["GET"])
+async def mcp_openid_configuration(request: Request) -> JSONResponse:
+    from raphiia_openai.oauth_metadata import authorization_server_metadata
+
+    return JSONResponse(authorization_server_metadata(request.headers.get("host")))
+
+
+@mcp.custom_route("/oauth/authorize", methods=["OPTIONS"])
+async def mcp_oauth_authorize_options(_request: Request) -> Response:
+    return _mcp_oauth_options_response()
+
+
+@mcp.custom_route("/oauth/token", methods=["OPTIONS"])
+async def mcp_oauth_token_options(_request: Request) -> Response:
+    return _mcp_oauth_options_response()
+
+
+@mcp.custom_route("/authorize", methods=["OPTIONS"])
+async def mcp_authorize_options(_request: Request) -> Response:
+    return _mcp_oauth_options_response()
+
+
+@mcp.custom_route("/token", methods=["OPTIONS"])
+async def mcp_token_options(_request: Request) -> Response:
+    return _mcp_oauth_options_response()
 
 
 @mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
