@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+import os
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from fastmcp.exceptions import ToolError
@@ -16,6 +21,26 @@ from raphiia_openai.settings import OAUTH_MCP_RESOURCE
 # Cache credenciales por sesión MCP (streamable-http no siempre reenvía headers en tools/call).
 _SESSION_AUTH: dict[str, dict[str, str]] = {}
 _SESSION_AUTH_TS: dict[str, float] = {}
+_SCOPED_API_KEYS: list[dict[str, Any]] | None = None
+_SCOPED_API_KEYS_TS = 0.0
+_SCOPED_API_KEYS_TTL_SEC = 60
+COL_SCOPED_API_KEYS = "ralfia_mcp_scoped_api_keys"
+SCOPED_API_KEYS_ENV = "MCP_SCOPED_API_KEYS_JSON"
+SCOPED_KEY_SECRET_FIELDS = {"secret", "api_key", "key", "token", "plain", "plaintext"}
+SCOPED_KEY_PUBLIC_FIELDS = {
+    "identity",
+    "key_hash",
+    "hash",
+    "sha256",
+    "scopes",
+    "allowed_tools",
+    "allowed_profiles",
+    "tenant_id",
+    "status",
+    "expires_at",
+    "label",
+    "purpose",
+}
 _SESSION_AUTH_TTL_SEC = 24 * 3600
 _SESSION_AUTH_MAX = 500
 
@@ -737,6 +762,172 @@ def _resolve_headers(context: MiddlewareContext) -> dict[str, str]:
     return headers
 
 
+def hash_api_key(api_key: str) -> str:
+    """Return the stable hash stored for scoped MCP API keys."""
+    return "sha256:" + hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+
+def _normalise_scopes(raw: Any) -> list[str]:
+    if isinstance(raw, str):
+        values = raw.replace(",", " ").split()
+    elif isinstance(raw, (list, tuple, set)):
+        values = [str(item).strip() for item in raw]
+    else:
+        values = []
+    return sorted({scope for scope in values if scope})
+
+
+def _normalise_list(raw: Any) -> list[str]:
+    if isinstance(raw, str):
+        values = raw.replace(",", " ").split()
+    elif isinstance(raw, (list, tuple, set)):
+        values = [str(item).strip() for item in raw]
+    else:
+        values = []
+    return sorted({value for value in values if value})
+
+
+def _normalise_key_hash(raw: Any) -> str:
+    value = str(raw or "").strip()
+    if not value:
+        return ""
+    if value.startswith("sha256:"):
+        return value.lower()
+    if len(value) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in value):
+        return f"sha256:{value.lower()}"
+    return ""
+
+
+def make_scoped_api_key_record(
+    *,
+    identity: str,
+    api_key: str,
+    scopes: list[str] | str,
+    allowed_tools: list[str] | str | None = None,
+    allowed_profiles: list[str] | str | None = None,
+    tenant_id: str | None = None,
+    label: str | None = None,
+) -> dict[str, Any]:
+    """Build a hash-only record for Mongo/env storage without returning the raw key."""
+    clean_identity = str(identity or "").strip().lower()
+    if not clean_identity:
+        raise ValueError("identity_required")
+    if not api_key:
+        raise ValueError("api_key_required")
+    return {
+        "identity": clean_identity,
+        "key_hash": hash_api_key(api_key),
+        "scopes": _normalise_scopes(scopes),
+        "allowed_tools": _normalise_list(allowed_tools),
+        "allowed_profiles": _normalise_list(allowed_profiles),
+        "tenant_id": str(tenant_id or "").strip(),
+        "label": label or clean_identity,
+        "status": "active",
+    }
+
+
+def _coerce_scoped_key_doc(raw: Any, identity_hint: str = "") -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    if any(field in raw for field in SCOPED_KEY_SECRET_FIELDS):
+        # Fail closed: scoped-key config must contain hashes only.
+        return None
+    doc = {key: raw.get(key) for key in SCOPED_KEY_PUBLIC_FIELDS if key in raw}
+    identity = str(doc.get("identity") or identity_hint or "").strip().lower()
+    key_hash = _normalise_key_hash(doc.get("key_hash") or doc.get("hash") or doc.get("sha256"))
+    scopes = _normalise_scopes(doc.get("scopes"))
+    if not identity or not key_hash or not scopes:
+        return None
+    return {
+        "identity": identity,
+        "key_hash": key_hash,
+        "scopes": scopes,
+        "allowed_tools": _normalise_list(doc.get("allowed_tools")),
+        "allowed_profiles": _normalise_list(doc.get("allowed_profiles")),
+        "tenant_id": str(doc.get("tenant_id") or "").strip(),
+        "status": str(doc.get("status") or "active").strip().lower(),
+        "expires_at": str(doc.get("expires_at") or "").strip(),
+        "label": str(doc.get("label") or identity).strip(),
+        "purpose": str(doc.get("purpose") or "").strip(),
+    }
+
+
+def _scoped_docs_from_env() -> list[dict[str, Any]]:
+    raw = os.getenv(SCOPED_API_KEYS_ENV, "").strip()
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    candidates: list[tuple[Any, str]] = []
+    if isinstance(data, list):
+        candidates = [(item, "") for item in data]
+    elif isinstance(data, dict):
+        if "keys" in data and isinstance(data["keys"], list):
+            candidates = [(item, "") for item in data["keys"]]
+        else:
+            candidates = [(item, str(identity)) for identity, item in data.items()]
+    docs = [_coerce_scoped_key_doc(item, hint) for item, hint in candidates]
+    return [doc for doc in docs if doc]
+
+
+def _load_scoped_api_key_docs() -> list[dict[str, Any]]:
+    global _SCOPED_API_KEYS, _SCOPED_API_KEYS_TS
+    now = time.time()
+    if _SCOPED_API_KEYS is not None and now - _SCOPED_API_KEYS_TS < _SCOPED_API_KEYS_TTL_SEC:
+        return list(_SCOPED_API_KEYS)
+    docs = _scoped_docs_from_env()
+    try:
+        rows = mongo_store.get_db()[COL_SCOPED_API_KEYS].find({"status": {"$ne": "revoked"}}, {"_id": 0})
+        docs.extend(doc for doc in (_coerce_scoped_key_doc(row) for row in rows) if doc)
+    except Exception:
+        pass
+    _SCOPED_API_KEYS = docs
+    _SCOPED_API_KEYS_TS = now
+    return list(docs)
+
+
+def _expired(expires_at: str) -> bool:
+    if not expires_at:
+        return False
+    try:
+        dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt <= datetime.now(timezone.utc)
+
+
+def validate_scoped_api_key(api_key: str) -> dict[str, Any] | None:
+    if not api_key:
+        return None
+    presented_hash = hash_api_key(api_key)
+    for doc in _load_scoped_api_key_docs():
+        if doc.get("status") not in {"active", "enabled"}:
+            continue
+        if _expired(str(doc.get("expires_at") or "")):
+            continue
+        if hmac.compare_digest(str(doc.get("key_hash") or ""), presented_hash):
+            return doc
+    return None
+
+
+def _scoped_key_allows(scoped_key: dict[str, Any], tool_name: str, required_scopes: list[str]) -> tuple[bool, str]:
+    allowed_profiles = set(scoped_key.get("allowed_profiles") or [])
+    runtime_profile = os.getenv("MCP_TOOL_PROFILE", "").strip().lower()
+    if allowed_profiles and runtime_profile not in allowed_profiles:
+        return False, "key_profile_not_allowed"
+    allowed_tools = set(scoped_key.get("allowed_tools") or [])
+    if allowed_tools and tool_name not in allowed_tools:
+        return False, "key_tool_not_allowed"
+    granted_scopes = set(scoped_key.get("scopes") or [])
+    if set(required_scopes).issubset(granted_scopes) or "ralfia:admin" in granted_scopes:
+        return True, "ok"
+    return False, "missing_scope"
+
+
 class ApiKeyMiddleware(Middleware):
     def __init__(self, valid_key: str) -> None:
         self.valid_key = (valid_key or "").strip()
@@ -759,6 +950,27 @@ class ApiKeyMiddleware(Middleware):
         api_key = headers.get("x-api-key") or headers.get("X-API-Key")
         if self.valid_key and api_key and api_key == self.valid_key:
             return await call_next(context)
+        scoped_key = validate_scoped_api_key(api_key or "")
+        if scoped_key:
+            allowed, reason = _scoped_key_allows(scoped_key, tool_name, required_scopes)
+            if allowed:
+                return await call_next(context)
+            mongo_store.log_mcp_error(
+                error_type=reason,
+                tool=tool_name,
+                session_id=session_id,
+                client=user_agent,
+                message=f"Scoped API key {scoped_key.get('identity')} denied for {tool_name}: {reason}",
+                catalog_version=None,
+                scopes=sorted(scoped_key.get("scopes") or []),
+                metadata={
+                    "identity": scoped_key.get("identity"),
+                    "required_scopes": required_scopes,
+                    "allowed_tools": scoped_key.get("allowed_tools") or [],
+                    "allowed_profiles": scoped_key.get("allowed_profiles") or [],
+                },
+            )
+            raise ToolError(f"{reason}: {tool_name}")
 
         auth = headers.get("authorization") or headers.get("Authorization") or ""
         if auth.lower().startswith("bearer "):

@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.4"
+PROFILES_VERSION = "1.4.5"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -29,6 +29,26 @@ PROFILES: dict[str, dict[str, Any]] = {
             "a2a_status",
             "a2a_agent_cards",
             "project_runtime_bootstrap",
+        ],
+    },
+
+    "notion_mcp_short": {
+        "label": "Notion Custom Agent — lectura segura InnerOS",
+        "model_minimum": "small",
+        "max_tools": 12,
+        "tools": [
+            "mcp_version",
+            "diagnose_mcp_session",
+            "list_mcp_tool_profiles",
+            "get_mcp_profile",
+            "route_mcp_tools",
+            "bootstrap_context",
+            "get_coordination_live",
+            "get_notion_status",
+            "search_notion_pages",
+            "get_notion_coordination_contract",
+            "get_notion_sync_log",
+            "get_notion_webhook_setup",
         ],
     },
 
