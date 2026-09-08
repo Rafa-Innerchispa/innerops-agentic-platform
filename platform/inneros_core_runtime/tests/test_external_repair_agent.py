@@ -190,11 +190,36 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "blocked_by_budget")
 
-    def test_run_requires_explicit_spend_approval(self):
+    def test_cloud_run_requires_explicit_spend_approval(self):
         with patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}):
-            result = ext.external_repair_agent_run_task("codex", "ops_fixture", dry_run=False)
+            result = ext.external_repair_agent_run_task("digitalocean-amd-cloud", "ops_fixture", dry_run=False)
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "external_spend_approval_required")
+
+    def test_local_run_creates_run_id_and_promotes_task(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_fixture",
+            "assignee": "codex",
+            "status": "accepted",
+            "owner": "codex",
+            "priority": "p0",
+            "revision": 2,
+            "created_at": "2026-08-26T00:11:00+00:00",
+        })
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "codex", "status": "ready", "auth_ready": True}), \
+            patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db):
+            result = ext.external_repair_agent_run_task("codex", "ops_fixture", dry_run=False)
+        self.assertTrue(result["ok"])
+        self.assertIn("run_id", result["run"])
+        self.assertEqual(result["run"]["status"], "running")
+        self.assertTrue(result["checkpoint"]["ok"])
+        self.assertTrue(result["task_update"]["ok"])
+        task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_fixture"})
+        self.assertEqual(task["status"], "in_progress")
+        self.assertEqual(result["task_update"]["status"], "in_progress")
 
     def test_start_checkpoint_recover_complete_without_task_update(self):
         db = FakeDb()
@@ -265,8 +290,9 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertEqual(result["handoffs"]["resolved"], ["msg_done_handoff"])
         self.assertTrue(result["claim"]["claimed"])
         claimed = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_next"})
-        self.assertEqual(claimed["status"], "in_progress")
+        self.assertEqual(claimed["status"], "accepted")
         self.assertEqual(claimed["owner"], "codex")
+        self.assertEqual(result["claim"]["truth_boundary"], "claimed_and_accepted_only; not in_progress until a durable run_id exists")
 
     def test_reconcile_does_not_claim_when_provider_has_active_task(self):
         db = FakeDb()
@@ -338,7 +364,7 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["claim"]["claimed"])
         waiting = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_waiting"})
-        self.assertEqual(waiting["status"], "in_progress")
+        self.assertEqual(waiting["status"], "accepted")
 
     def test_claim_blocks_candidate_when_budget_disallows(self):
         db = FakeDb()

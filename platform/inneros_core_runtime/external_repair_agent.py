@@ -353,11 +353,16 @@ def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = Tr
     if not claimed:
         return {"ok": False, "error": "claim_race_lost", "provider": provider, "candidate_task_id": selected["task_id"]}
     coordination_live.bump_revision(reason=f"external_repair_agent claimed {selected['task_id']}", source="external_repair_agent")
-    promoted = coordination_live.update_ops_task_state(claimed["task_id"], "in_progress", actor=provider, expected_revision=int(claimed.get("revision") or 1))
-    if not promoted.get("ok"):
-        return {"ok": False, "error": "claim_promote_failed", "provider": provider, "task": claimed, "promotion": promoted}
     task = _db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": claimed["task_id"]}, {"_id": 0}) or claimed
-    return {"ok": True, "claimed": True, "provider": provider, "task": task, "admission": admission, "promotion": promoted}
+    return {
+        "ok": True,
+        "claimed": True,
+        "provider": provider,
+        "task": task,
+        "admission": admission,
+        "next_action": "external_repair_run_start_or_external_repair_agent_run_task",
+        "truth_boundary": "claimed_and_accepted_only; not in_progress until a durable run_id exists",
+    }
 
 
 def reconcile_terminal_handoffs(provider: str = "codex", limit: int = 25) -> dict[str, Any]:
@@ -509,7 +514,25 @@ def start_external_repair_run(
         "evidence_refs": [],
     }
     _db()[RUNS_COL].insert_one(dict(doc))
-    return {"ok": True, "run": doc}
+    task_update: dict[str, Any] | None = None
+    if not dry_run:
+        task_update = coordination_live.update_ops_task_state(
+            task_id,
+            "in_progress",
+            actor=provider,
+            evidence={
+                "external_repair_run_id": run_id,
+                "provider": provider,
+                "repo": repo,
+                "branch": branch,
+                "worktree": worktree,
+                "dry_run": False,
+                "chargeable": bool(chargeable),
+                "truth_boundary": "in_progress is backed by ralfia_external_repair_runs.run_id",
+            },
+            force_handoff=True,
+        )
+    return {"ok": True, "run": doc, "task_update": task_update}
 
 
 def checkpoint_external_repair_run(
@@ -673,6 +696,38 @@ def external_repair_agent_run_task(
                 "note": "Admission succeeded. Use digitalocean_create_gpu_droplet with the same approval_id plus active apply window to create the ephemeral node.",
             },
         )
+    if provider in LOCAL_CLI_PROVIDERS:
+        if capability.get("status") != "ready":
+            return {"ok": False, "error": "provider_not_ready", "capability": capability}
+        if not budget.get("ok"):
+            return {"ok": False, **budget}
+        started = start_external_repair_run(
+            provider=provider,
+            task_id=task_id,
+            correlation_id="",
+            dry_run=False,
+            chargeable=False,
+            context_bundle={
+                "admission": "local_cli_provider",
+                "capability": capability,
+                "budget": budget,
+                "note": "Durable run admitted. Provider worker must emit checkpoint/output/evidence before terminal completion.",
+            },
+        )
+        if not started.get("ok"):
+            return started
+        run_id = ((started.get("run") or {}).get("run_id") or "").strip()
+        checkpoint = checkpoint_external_repair_run(
+            run_id,
+            phase="admitted_to_provider",
+            evidence={
+                "provider": provider,
+                "task_id": task_id,
+                "chargeable": False,
+                "next_action": "provider_worker_emit_output_and_complete",
+            },
+        ) if run_id else {"ok": False, "error": "missing_run_id_after_start"}
+        return {"ok": bool(checkpoint.get("ok")), "provider": provider, "task_id": task_id, "run": started.get("run"), "task_update": started.get("task_update"), "checkpoint": checkpoint}
     if not allow_external_spend or not approval_id.strip():
         return {"ok": False, "error": "external_spend_approval_required", "provider": provider, "task_id": task_id}
     if capability.get("status") != "ready":
