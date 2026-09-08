@@ -8,7 +8,27 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / ".env")
+
+
+def _load_runtime_env() -> None:
+    candidates = [
+        Path(os.getenv("INNEROS_RUNTIME_ENV", "")),
+        ROOT / ".env",
+        Path("/home/rlopez/inneros/inneros_core/platform/.env"),
+    ]
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if not str(candidate):
+            continue
+        resolved = candidate.expanduser()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if resolved.exists():
+            load_dotenv(resolved, override=False)
+
+
+_load_runtime_env()
 
 # IP LAN del nodo (primary .4, AMD .5, etc.)
 RALFIA_LAN_IP = os.getenv("RALFIA_LAN_IP", os.getenv("NODE_IP", "192.168.1.4"))

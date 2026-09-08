@@ -36,16 +36,33 @@ def notion_webhook_public_url() -> str:
     return f"{base}/notion/webhook" if base else ""
 
 
+def _stored_verification_token() -> str:
+    cfg = mongo_store.get_db()[CONFIG_COL].find_one({"kind": "verification"}) or {}
+    return str(cfg.get("verification_token") or "").strip()
+
+
+def _verification_secret() -> tuple[str, str]:
+    env_token = (NOTION_WEBHOOK_VERIFICATION_TOKEN or "").strip()
+    if env_token:
+        return env_token, "env"
+    stored = _stored_verification_token()
+    if stored:
+        return stored, "mongo_pending"
+    return "", "missing"
+
+
 def get_notion_webhook_setup() -> dict[str, Any]:
     """Instrucciones y URL para configurar webhooks en notion.so/profile/integrations."""
     token_set = bool((NOTION_WEBHOOK_VERIFICATION_TOKEN or "").strip())
-    cfg = mongo_store.get_db()[CONFIG_COL].find_one({"kind": "verification"}) or {}
-    pending = (cfg.get("verification_token") or "").strip()
+    pending = _stored_verification_token()
+    secret, secret_source = _verification_secret()
     watch = [x.strip() for x in (NOTION_WEBHOOK_WATCH_DB_IDS or "").split(",") if x.strip()]
     return {
         "ok": True,
         "webhook_url": notion_webhook_public_url(),
         "verification_token_in_env": token_set,
+        "verification_token_available": bool(secret),
+        "verification_token_source": secret_source,
         "pending_verification_token": pending[:8] + "…" if pending and not token_set else None,
         "watched_database_ids": watch,
         "subscribed_event_types": sorted(WATCHED_EVENTS),
@@ -177,17 +194,21 @@ def handle_notion_webhook(
             "http_status": 200,
         }
 
-    secret = (NOTION_WEBHOOK_VERIFICATION_TOKEN or "").strip()
+    secret, secret_source = _verification_secret()
     if secret:
-        cfg = mongo_store.get_db()[CONFIG_COL].find_one({"kind": "verification"}) or {}
-        if not secret and cfg.get("verification_token"):
-            secret = str(cfg["verification_token"])
         if not _verify_signature(raw_body, signature, secret):
             return {"ok": False, "error": "invalid_signature", "http_status": 401}
 
     event_type = str(payload.get("type") or payload.get("event") or "")
     _store_event(payload, verified=bool(secret))
-    result: dict[str, Any] = {"ok": True, "kind": "event", "event_type": event_type, "http_status": 200}
+    result: dict[str, Any] = {
+        "ok": True,
+        "kind": "event",
+        "event_type": event_type,
+        "http_status": 200,
+        "verified": bool(secret),
+        "verification_token_source": secret_source,
+    }
 
     if event_type in {"page.content_updated", "page.created", "page.properties_updated"}:
         result["page"] = _maybe_process_page_event(payload)

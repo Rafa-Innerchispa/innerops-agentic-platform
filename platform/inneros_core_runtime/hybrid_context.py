@@ -93,6 +93,7 @@ def hybrid_search(
     include_memory: bool = True,
     include_ops: bool = True,
     include_docvault: bool = True,
+    include_notion_api: bool = True,
 ) -> dict[str, Any]:
     """Búsqueda híbrida: memoria personal + Qdrant (Notion/Drive) + Mongo ops."""
     q = (query or "").strip()
@@ -117,11 +118,36 @@ def hybrid_search(
                 }
             )
 
+    qdrant_hits: list[dict[str, Any]] = []
     if include_qdrant:
         qdrant_status = qdrant_health()
         if qdrant_status.get("ok"):
-            for hit in qdrant_search(q, limit=max(4, limit // 2)):
-                results.append(hit)
+            qdrant_hits = qdrant_search(q, limit=max(4, limit // 2))
+            results.extend(qdrant_hits)
+
+    if include_notion_api and not qdrant_hits:
+        try:
+            from raphiia_openai import notion_bridge
+
+            notion = notion_bridge.search_notion_pages(q, limit=max(4, min(limit, 10)))
+            if notion.get("ok"):
+                for idx, page in enumerate(notion.get("pages") or []):
+                    results.append(
+                        {
+                            "source": "notion_api",
+                            "score": 30.0 - (idx * 0.1),
+                            "title": page.get("title") or "Notion page",
+                            "text": page.get("doc_id") or "",
+                            "notion_page_id": page.get("id"),
+                            "url": page.get("url"),
+                            "last_edited_time": page.get("last_edited_time"),
+                            "match_type": "api_fallback_when_qdrant_empty",
+                        }
+                    )
+            else:
+                qdrant_status = {**qdrant_status, "notion_api_fallback": notion}
+        except Exception as exc:
+            qdrant_status = {**qdrant_status, "notion_api_fallback_error": str(exc)[:240]}
 
     if include_docvault:
         try:
