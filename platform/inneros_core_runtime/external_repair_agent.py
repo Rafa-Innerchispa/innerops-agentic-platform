@@ -346,7 +346,10 @@ def classify_nonterminal_task(task: dict[str, Any], runs: list[dict[str, Any]] |
         return _summarize_task(task, bucket="ACTIVE_RUN", action="MONITOR", run=active_run, stale_after_seconds=stale_after_seconds)
     terminal_run = _latest_run(task_runs, RUN_TERMINAL_STATUSES)
     if terminal_run and str(terminal_run.get("status") or "").lower() == "completed":
-        return _summarize_task(task, bucket="TERMINAL_PENDING_EVIDENCE", action="CLOSE_FROM_COMPLETED_RUN", run=terminal_run, stale_after_seconds=stale_after_seconds)
+        run_evidence = terminal_run.get("evidence") if isinstance(terminal_run.get("evidence"), dict) else {}
+        if _is_success_result(run_evidence.get("result")) or _is_success_result(terminal_run.get("result")):
+            return _summarize_task(task, bucket="TERMINAL_PENDING_EVIDENCE", action="CLOSE_FROM_COMPLETED_RUN", run=terminal_run, stale_after_seconds=stale_after_seconds)
+        return _summarize_task(task, bucket="TERMINAL_RUN_REVIEW", action="REVIEW_COMPLETED_RUN_RESULT", run=terminal_run, stale_after_seconds=stale_after_seconds)
     if status == "proposed":
         return _summarize_task(task, bucket="PROPOSED", action="ELIGIBLE_FOR_CLAIM", stale_after_seconds=stale_after_seconds)
     if status == "blocked" and not _recoverable_blocked_task(task):

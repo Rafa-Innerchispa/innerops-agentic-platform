@@ -479,6 +479,34 @@ class ExternalRepairAgentTests(unittest.TestCase):
 
 
 
+
+    def test_completed_run_without_success_result_is_review_not_close_bucket(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_partial_review",
+            "assignee": "codex",
+            "status": "partial",
+            "owner": "codex",
+            "priority": "critical",
+            "revision": 4,
+            "created_at": "2026-09-07T23:53:32+00:00",
+            "updated_at": "2026-09-08T00:10:00+00:00",
+        })
+        db[ext.RUNS_COL].docs.append({
+            "run_id": "extrep_partial_text",
+            "provider": "codex",
+            "task_id": "ops_partial_review",
+            "status": "completed",
+            "result": "PARTIAL",
+            "updated_at": "2026-09-08T01:00:00+00:00",
+            "evidence": {"summary": "dry-run only"},
+        })
+        with patch.object(ext, "_db", return_value=db):
+            result = ext.provider_nonterminal_summary("codex")
+        row = result["tasks"][0]
+        self.assertEqual(row["bucket"], "TERMINAL_RUN_REVIEW")
+        self.assertEqual(row["action"], "REVIEW_COMPLETED_RUN_RESULT")
+
     def test_completed_run_without_success_result_does_not_close_partial_task(self):
         db = FakeDb()
         db[coordination_live.OPS_TASKS_COL].docs.append({
