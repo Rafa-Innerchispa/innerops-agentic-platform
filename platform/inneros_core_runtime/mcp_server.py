@@ -3430,11 +3430,17 @@ def dmx_status() -> dict[str, Any]:
 
 
 @mcp.tool
-def dmx_set_scene(scene: str) -> dict[str, Any]:
+def dmx_set_scene(
+    scene: str = "",
+    color: str = "",
+    target: str = "todas",
+    brightness: int = 255,
+    speed: float = 1.0,
+) -> dict[str, Any]:
     """AG-59: aplica solo una escena DMX allowlisted; no acepta canales/universos raw."""
     from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
 
-    return ag59.dmx_set_scene(scene)
+    return ag59.dmx_set_scene(scene, color=color, target=target, brightness=brightness, speed=speed)
 
 
 @mcp.tool
@@ -5772,6 +5778,12 @@ def dev_swarm_scheduler_stop(reason: str = "", dry_run: bool = False) -> dict[st
 def dev_swarm_scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool = False) -> dict[str, Any]:
     """Ejecuta un ciclo manual del scheduler para proposed ops_tasks elegibles."""
     return dev_swarm_scheduler.scheduler_tick(limit=limit, dry_run=dry_run, include_fixtures=include_fixtures)
+
+
+@mcp.tool
+def coordination_backlog_hygiene(limit: int = 200, dry_run: bool = True) -> dict[str, Any]:
+    """Clasifica y limpia tareas antiguas/duplicadas sin borrar evidencia; dry-run por defecto."""
+    return dev_swarm_scheduler.reconcile_coordination_backlog_hygiene(limit=limit, dry_run=dry_run)
 
 
 @mcp.tool
