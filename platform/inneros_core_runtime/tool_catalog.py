@@ -3449,6 +3449,9 @@ for _name in (
 _LOCAL_GITHUB_WRITES = {
     "local_github_create_repo",
     "local_project_bootstrap",
+    "local_github_update_repo_profile",
+    "local_github_update_owner_profile",
+    "local_github_pin_repositories",
 }
 for _name in (
     "local_github_status",
