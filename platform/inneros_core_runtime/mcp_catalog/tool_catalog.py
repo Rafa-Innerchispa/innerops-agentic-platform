@@ -4464,3 +4464,102 @@ TOOL_DEFINITIONS.update(
         },
     }
 )
+
+
+# Restored capability surface: append-only to avoid reformatting the large legacy catalog.
+_RESTORED_CAPABILITY_TOOL_NAMES = [
+    "mcp_capability_snapshot",
+    "mcp_capability_diff",
+    "mcp_capability_release_gate",
+    "agent_iskcon_class_update",
+    "agent_iskcon_sources",
+    "agent_iskcon_yoga_campaign",
+    "digitalocean_mi325x_deploy_plan",
+    "get_disk_steward_status",
+    "identify_agent_session",
+    "inneros_agent_fabric_status",
+    "inneros_ingest_drop_run",
+    "inneros_ingest_drop_status",
+    "judge_console_content_get",
+    "judge_mi325x_deploy",
+    "judge_model_routing_policy",
+    "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_trace_current",
+    "judge_trace_detail",
+    "judge_trace_history",
+    "judge_trace_kpis",
+    "judge_trace_record",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_workflow_start",
+    "list_self_heal_baselines",
+    "list_self_heal_incidents",
+    "save_self_heal_baseline",
+    "summarize_self_heal_incidents",
+    "agent_iskcon_action",
+    "agent_iskcon_artifact_download",
+    "agent_iskcon_module_manifest",
+    "disk_steward_cleanup_verified",
+    "disk_steward_execute_migration",
+    "disk_steward_inventory",
+    "disk_steward_plan_migration",
+    "disk_steward_update_backup_policy",
+    "disk_steward_verify_migration",
+    "editorial_image_providers",
+    "inneros_dual_deployment_drill",
+    "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "module_action",
+    "module_artifact_download",
+    "module_manifest",
+]
+for _restored_tool_name in _RESTORED_CAPABILITY_TOOL_NAMES:
+    if _restored_tool_name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_restored_tool_name)
+
+_RESTORED_AGENT_TOOLS = {
+    "identify_agent_session", "digitalocean_mi325x_deploy_plan", "judge_mi325x_deploy",
+    "judge_safe_trigger", "judge_workflow_continue", "judge_workflow_execute", "judge_workflow_start",
+    "agent_iskcon_action", "module_action", "disk_steward_execute_migration",
+    "disk_steward_update_backup_policy", "inneros_dual_queue_operation",
+}
+_RESTORED_WRITE_TOOLS = {
+    "agent_iskcon_class_update", "agent_iskcon_yoga_campaign", "inneros_ingest_drop_run",
+    "judge_trace_record", "save_self_heal_baseline",
+}
+for _restored_tool_name in _RESTORED_CAPABILITY_TOOL_NAMES:
+    if _restored_tool_name in TOOL_DEFINITIONS:
+        continue
+    _scopes = ["ralfia:read"]
+    _risk = "low"
+    _writes = []
+    if _restored_tool_name in _RESTORED_AGENT_TOOLS:
+        _scopes = ["ralfia:agents"]
+        _risk = "medium"
+        _writes = ["ralfia_coordination_log"]
+    if _restored_tool_name in _RESTORED_WRITE_TOOLS:
+        _scopes = ["ralfia:write"]
+        _risk = "medium"
+        _writes = ["ralfia_coordination_log"]
+    if _restored_tool_name == "disk_steward_cleanup_verified":
+        _scopes = ["ralfia:admin"]
+        _risk = "high"
+        _writes = ["filesystem"]
+    TOOL_DEFINITIONS[_restored_tool_name] = {
+        "description": "Recovered MCP capability with guarded implementation.",
+        "required_scopes": _scopes,
+        "risk_level": _risk,
+        "writes_to": _writes,
+        "reads_from": ["mcp_capability_forensics"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool"},
+        "example_payload": {},
+    }
+
+for _legacy_tool_name in ("local_exec_host_approval_issue", "local_exec_host_approval_validate"):
+    if _legacy_tool_name in TOOL_DEFINITIONS:
+        TOOL_DEFINITIONS[_legacy_tool_name].setdefault("reads_from", ["ralfia_host_approvals"])

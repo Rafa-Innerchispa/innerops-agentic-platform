@@ -8,6 +8,54 @@ from raphiia_openai.agent_auto_log import record_agent_run
 from raphiia_openai.agents.iskcon_capabilities import ENTITY_ID, ISKCON_DOMAINS, PROJECT, capabilities_summary
 
 AGENT_ID = "AG-52_ISKCON_OPS"
+AGENT_VERSION = "2.1.0"
+FABRIC_AGENT_ID = "AG-52"
+WHATSAPP_YOGA_CHANNEL = "whatsapp_yoga"
+SEND_POLICY = "draft_only_requires_owner_approval"
+
+ISKCON_SOURCE_REFS = [
+    {
+        "source": "notion",
+        "title": "01.6 — Sobre ISKCON Guayaquil",
+        "id": "c1572269-4354-4b74-9c8e-8f97983f85d9",
+        "use": "identity, mission, public contact, local context",
+    },
+    {
+        "source": "notion",
+        "title": "Sistema de Calendarios ISKCON — Guia para Guayaquil",
+        "id": "c5a19358-f395-48cb-887a-285dcbd42ed9",
+        "use": "weekly programs, flexible-event protocol, Vaishnava calendar governance",
+    },
+    {
+        "source": "notion",
+        "title": "Proyecto — Panihati (2025)",
+        "id": "cefb7157-6229-4027-aaa6-135eb1645c83",
+        "use": "festival planning, sponsor/volunteer content boundaries",
+    },
+    {
+        "source": "website",
+        "title": "ISKCON Guayaquil WordPress",
+        "url": "https://www.iskconguayaquil.org/",
+        "use": "public web presence and future publishing target",
+    },
+]
+
+YOGA_DAILY_THEMES = [
+    ("Respirar y recordar", "Empieza el dia con respiracion suave y unas rondas de maha-mantra. La practica es simple: volver la mente a Krishna con paciencia."),
+    ("Gratitud antes de dormir", "Cierra el dia agradeciendo una oportunidad de servir. La gratitud vuelve el yoga algo vivo, no solo una postura."),
+    ("Ahimsa en la mesa", "El yoga tambien se practica al elegir alimento ofrecido con amor. Prasadam educa el corazon en no violencia."),
+    ("Servicio pequeno, cambio real", "Haz hoy un acto de seva: ayudar, ordenar, escuchar, cocinar o compartir. El servicio limpia lo que la mente complica."),
+    ("Mantra para enfocar", "Cuando la mente se disperse, vuelve al sonido sagrado. Repetir con atencion vale mas que correr con ansiedad."),
+    ("Bhagavad-gita aplicado", "Pregunta practica del dia: que accion puedo hacer con mas conciencia y menos ego? Ese tambien es yoga."),
+    ("Kirtan como medicina", "Cantar juntos ordena la energia de la comunidad. Si puedes, comparte un kirtan breve con alguien hoy."),
+    ("Yoga en familia", "Invita a alguien a respirar, escuchar o agradecer contigo. La vida espiritual crece mejor cuando se comparte con ternura."),
+    ("Disciplina amable", "No busques perfeccion. Vuelve a tu practica con constancia: mantra, lectura, prasadam y servicio."),
+    ("Cuerpo al servicio", "Cuida el cuerpo como instrumento de seva. Estirar, respirar y descansar tambien pueden ser ofrenda."),
+    ("Comunidad espiritual", "Acercarse a buenos companeros fortalece la practica. Pregunta por clases, satsang o programas abiertos de la comunidad."),
+    ("Meditacion en accion", "Antes de responder o decidir, haz una pausa. Esa pausa puede convertir una reaccion en conciencia."),
+    ("Food for Life", "Compartir alimento espiritualizado une yoga y compasion. Servir prasadam es una forma directa de amor aplicado."),
+    ("Invitacion semanal", "Los domingos hay programa abierto con kirtan, clase, arati y prasadam. Confirma siempre horarios oficiales antes de asistir."),
+]
 
 PANIHATI_COLLECTIONS = (
     "panihati_sponsors",
@@ -88,6 +136,16 @@ def agent_iskcon_status() -> dict[str, Any]:
         "funding": _funding_iskcon(),
         "domains_ready": list(ISKCON_DOMAINS.keys()),
         "profile_mcp": "iskcon_ops",
+        "agent_version": AGENT_VERSION,
+        "fabric_agent_id": FABRIC_AGENT_ID,
+        "invocation_ready": True,
+        "sources": {"count": len(ISKCON_SOURCE_REFS), "refs": ISKCON_SOURCE_REFS},
+        "whatsapp_yoga": {
+            "channel": WHATSAPP_YOGA_CHANNEL,
+            "frequency": "2_per_day",
+            "send_policy": SEND_POLICY,
+            "configured": "draft_contract_ready",
+        },
     }
 
 
@@ -196,19 +254,142 @@ def agent_iskcon_contacts_summary(limit: int = 10) -> dict[str, Any]:
     }
 
 
+
+
+def agent_iskcon_sources() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        "entity_id": ENTITY_ID,
+        "sources": ISKCON_SOURCE_REFS,
+        "website": {
+            "url": "https://www.iskconguayaquil.org/",
+            "status": "reachable_last_checked_by_codex",
+            "notes": [
+                "WordPress public site is online.",
+                "Public posts/events feeds were empty during last audit, so schedules must be confirmed from Notion/memory before publishing.",
+            ],
+        },
+    }
+
+
+def _message_has(message: str, *needles: str) -> bool:
+    m = (message or "").lower()
+    return any(n in m for n in needles)
+
+
+def _classify_intent(action: str, message: str) -> str:
+    raw_action = (action or "").strip().lower()
+    if raw_action and raw_action not in ("auto", "intent", "message", "route"):
+        return raw_action
+    if not (message or "").strip():
+        return "status"
+    if _message_has(message, "cambio", "cambios", "clase", "clases", "horario", "novedad", "novedades", "avisar"):
+        return "class_update"
+    if _message_has(message, "whatsapp", "canal", "yoga", "vaishnava", "vaishnava", "mensajes diarios", "dos mensajes", "2 mensajes"):
+        return "yoga_whatsapp"
+    if _message_has(message, "food for life", "ffl", "raciones", "prasadam", "prasadam"):
+        return "ffl"
+    if _message_has(message, "panihati", "festival", "ratha yatra", "evento"):
+        return "festival"
+    if _message_has(message, "contacto", "contactos", "donante", "voluntario", "voluntarios"):
+        return "contacts"
+    if _message_has(message, "memoria", "guardar", "recordar", "notion", "fuente"):
+        return "memory"
+    if _message_has(message, "tarea", "ops", "ticket", "asignar"):
+        return "ops"
+    return "capabilities"
+
+
+def agent_iskcon_yoga_campaign(message: str = "", *, days: int = 7, dry_run: bool = True) -> dict[str, Any]:
+    days = max(1, min(int(days or 7), 14))
+    draft_count = days * 2
+    drafts = []
+    for idx in range(draft_count):
+        title, body = YOGA_DAILY_THEMES[idx % len(YOGA_DAILY_THEMES)]
+        drafts.append({
+            "day": idx // 2 + 1,
+            "slot": "morning" if idx % 2 == 0 else "evening",
+            "title": title,
+            "body": body,
+            "channel": WHATSAPP_YOGA_CHANNEL,
+            "status": "draft",
+        })
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        "agent_version": AGENT_VERSION,
+        "action": "yoga_whatsapp_campaign",
+        "dry_run": dry_run,
+        "entity_id": ENTITY_ID,
+        "channel": WHATSAPP_YOGA_CHANNEL,
+        "frequency": "2_per_day",
+        "draft_count": len(drafts),
+        "send_ready": False,
+        "requires_approval": True,
+        "send_policy": SEND_POLICY,
+        "requested_message": message,
+        "sources": ISKCON_SOURCE_REFS,
+        "class_change_template": _class_update_payload(message="", dry_run=True)["draft"],
+        "drafts": drafts,
+        "next_steps": [
+            "Confirm official WhatsApp channel/group id before any scheduler is connected.",
+            "Confirm class calendar source of truth before announcements are sent.",
+            "Use dry_run=false only for saving approved drafts to an internal queue; no direct broadcast is performed by this helper.",
+        ],
+    }
+
+
+def _class_update_payload(message: str, *, dry_run: bool) -> dict[str, Any]:
+    draft = {
+        "title": "Aviso de clase / programa ISKCON Guayaquil",
+        "body": (
+            "Hare Krishna. Aviso para la comunidad: [actividad] tendra un ajuste el [fecha]. "
+            "Nuevo horario/lugar: [hora_lugar]. Motivo: [motivo]. "
+            "Confirmaremos cualquier novedad por este canal. Gracias por su comprension y servicio."
+        ),
+        "fields_needed": ["actividad", "fecha", "hora_lugar", "motivo", "facilitador/opcional"],
+        "protocol": "Cambios de talleres, FFL o programas locales se comunican 3-5 dias antes cuando sea posible; festividades fijas no se mueven sin gobierno devocional.",
+    }
+    if message.strip():
+        draft["source_message"] = message.strip()
+    return {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        "action": "class_update_draft",
+        "dry_run": dry_run,
+        "entity_id": ENTITY_ID,
+        "send_ready": False,
+        "requires_approval": True,
+        "channel": WHATSAPP_YOGA_CHANNEL,
+        "draft": draft,
+        "sources": ISKCON_SOURCE_REFS,
+    }
+
+
+def agent_iskcon_class_update(message: str = "", *, dry_run: bool = True) -> dict[str, Any]:
+    return _class_update_payload(message, dry_run=dry_run)
+
 def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = True) -> dict[str, Any]:
-    action = (action or "status").strip().lower()
+    action = _classify_intent(action, message)
     if action == "status":
         return agent_iskcon_status()
     if action == "capabilities":
         return agent_iskcon_capabilities()
-    if action in ("domain", "ffl", "festival", "temple", "contacts", "funding"):
+    if action in ("sources", "source", "notion", "website"):
+        return agent_iskcon_sources()
+    if action in ("yoga", "yoga_whatsapp", "whatsapp_yoga", "campaign", "campana", "campaña"):
+        return agent_iskcon_yoga_campaign(message, dry_run=dry_run)
+    if action in ("class_update", "classes", "clases", "novedad", "schedule_update"):
+        return agent_iskcon_class_update(message, dry_run=dry_run)
+    if action in ("domain", "ffl", "festival", "temple", "contacts", "funding", "education"):
         domain_map = {
             "ffl": "food_for_life",
             "festival": "festivals_events",
             "temple": "temple_operations",
             "contacts": "community_contacts",
             "funding": "donations_fundraising",
+            "education": "workshops_education",
         }
         if action == "domain" and message.strip():
             return agent_iskcon_domain(message.strip())
@@ -223,7 +404,7 @@ def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = Tru
     if action == "memory" and message.strip():
         from raphiia_openai import daily_memory
         if dry_run:
-            return {"ok": True, "dry_run": True, "would_save": message[:200], "entity": ENTITY_ID}
+            return {"ok": True, "dry_run": True, "would_save": message[:200], "entity": ENTITY_ID, "sources": ISKCON_SOURCE_REFS}
         r = daily_memory.save_memory({
             "type": "summary",
             "kind": "summary",
@@ -239,24 +420,28 @@ def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = Tru
         })
         record_agent_run(AGENT_ID, action="iskcon_memory", summary="saved", project=PROJECT)
         return {"ok": True, "agent_id": AGENT_ID, **r}
-    if action == "ops" and message.strip() and not dry_run:
+    if action == "ops" and message.strip():
+        payload = {
+            "title": f"ISKCON: {message[:80]}",
+            "assignee": "cursor",
+            "priority": "normal",
+            "from_agent": AGENT_ID,
+            "correlation_id": f"iskcon-ops-{ENTITY_ID}",
+            "related_project": PROJECT,
+        }
+        if dry_run:
+            return {"ok": True, "dry_run": True, "agent_id": AGENT_ID, "would_create_ops": payload}
         from raphiia_openai import coordination_live
-        return coordination_live.create_ops_task(
-            title=f"ISKCON: {message[:80]}",
-            assignee="cursor",
-            priority="normal",
-            from_agent=AGENT_ID,
-            correlation_id=f"iskcon-ops-{ENTITY_ID}",
-            related_project=PROJECT,
-        )
+        return coordination_live.create_ops_task(**payload)
     return {
         "ok": True,
         "agent_id": AGENT_ID,
         "action": action,
         "dry_run": dry_run,
         "allowed_actions": [
-            "status", "capabilities", "domain", "ffl", "festival", "temple",
-            "contacts", "funding", "ffl_log", "memory", "ops",
+            "status", "capabilities", "sources", "domain", "ffl", "festival", "temple",
+            "contacts", "funding", "education", "yoga_whatsapp", "class_update",
+            "ffl_log", "memory", "ops", "intent", "auto",
         ],
         "entity_id": ENTITY_ID,
     }

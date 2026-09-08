@@ -363,3 +363,125 @@ def handle_button(button_id: str, sender: str) -> dict[str, Any] | None:
     if m:
         return cancel_move(sender, m.group(1))
     return None
+
+# Compatibility surface restored for MCP capability guard. These wrappers keep
+# migration destructive steps gated and default to dry-run/no-delete behavior.
+def disk_steward_inventory(include_candidates: bool = True) -> dict[str, Any]:
+    status = build_status(include_candidates=include_candidates)
+    return {
+        "ok": True,
+        "status": status,
+        "policy": {
+            "preferred_backup_root": str(ARCHIVE_ROOT),
+            "protected_prefixes": list(PROTECTED_PREFIXES),
+            "cleanup_requires_verified_true": True,
+            "execute_migration_defaults_dry_run": True,
+        },
+        "safety": {"destructive_by_default": False, "owner_approval_required_for_cleanup": True},
+    }
+
+
+def disk_steward_plan_migration(source_path: str = "", destination_root: str = "", reason: str = "", dry_run: bool = True) -> dict[str, Any]:
+    src = Path(str(source_path or "")).expanduser()
+    dest_root = Path(str(destination_root or ARCHIVE_ROOT)).expanduser()
+    if not source_path:
+        proposal = create_move_proposal(reason=reason or "owner/requested backup migration plan")
+        return {"ok": bool(proposal.get("ok")), "mode": "candidate_proposal", **proposal}
+    if any(str(src).startswith(prefix) for prefix in PROTECTED_PREFIXES):
+        return {"ok": False, "error": "source_protected", "source_path": str(src), "protected_prefixes": list(PROTECTED_PREFIXES)}
+    if not src.exists():
+        return {"ok": False, "error": "source_not_found", "source_path": str(src)}
+    if not str(dest_root).startswith((str(ARCHIVE_ROOT), "/mnt/", "/media/", "/home/rlopez/data/archive")):
+        return {"ok": False, "error": "destination_not_allowlisted", "destination_root": str(dest_root)}
+    plan_id = _proposal_id()
+    dest = dest_root / src.name
+    doc = {
+        "proposal_id": plan_id,
+        "plan_id": plan_id,
+        "hostname": os.uname().nodename,
+        "status": "planned_dry_run" if dry_run else "pending_copy",
+        "reason": reason or "manual bounded migration plan",
+        "actions": [{"op": "copy_then_verify", "src": str(src), "dest": str(dest), "size_gb": round(_dir_size_bytes(src, max_depth=3) / 1024**3, 2)}],
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+    mongo_store.get_db()[COLLECTION].insert_one(doc)
+    doc.pop("_id", None)
+    return {"ok": True, "plan": doc, "dry_run": dry_run}
+
+
+def disk_steward_execute_migration(plan_id: str, dry_run: bool = True) -> dict[str, Any]:
+    db = mongo_store.get_db()
+    doc = db[COLLECTION].find_one({"$or": [{"plan_id": plan_id}, {"proposal_id": plan_id}]}, {"_id": 0})
+    if not doc:
+        return {"ok": False, "error": "plan_not_found", "plan_id": plan_id}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "plan_id": plan_id, "planned_actions": doc.get("actions") or []}
+    results = []
+    for act in doc.get("actions") or []:
+        src = Path(str(act.get("src", "")))
+        dest = Path(str(act.get("dest", "")))
+        if any(str(src).startswith(prefix) for prefix in PROTECTED_PREFIXES):
+            results.append({"ok": False, "src": str(src), "error": "source_protected"})
+            continue
+        if not src.exists():
+            results.append({"ok": False, "src": str(src), "error": "source_not_found"})
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if src.is_dir():
+                if dest.exists():
+                    results.append({"ok": False, "src": str(src), "dest": str(dest), "error": "destination_exists"})
+                    continue
+                shutil.copytree(src, dest, symlinks=False)
+            else:
+                shutil.copy2(src, dest)
+            results.append({"ok": True, "src": str(src), "dest": str(dest), "bytes": _dir_size_bytes(dest, max_depth=3)})
+        except Exception as exc:
+            results.append({"ok": False, "src": str(src), "dest": str(dest), "error": str(exc)})
+    ok = all(r.get("ok") for r in results) if results else False
+    db[COLLECTION].update_one({"$or": [{"plan_id": plan_id}, {"proposal_id": plan_id}]}, {"$set": {"status": "copied_pending_verify" if ok else "copy_failed", "copy_results": results, "updated_at": _now()}})
+    return {"ok": ok, "dry_run": False, "plan_id": plan_id, "results": results}
+
+
+def disk_steward_verify_migration(plan_id: str) -> dict[str, Any]:
+    db = mongo_store.get_db()
+    doc = db[COLLECTION].find_one({"$or": [{"plan_id": plan_id}, {"proposal_id": plan_id}]}, {"_id": 0})
+    if not doc:
+        return {"ok": False, "error": "plan_not_found", "plan_id": plan_id}
+    checks = []
+    for act in doc.get("actions") or []:
+        src = Path(str(act.get("src", "")))
+        dest = Path(str(act.get("dest", "")))
+        src_size = _dir_size_bytes(src, max_depth=3)
+        dest_size = _dir_size_bytes(dest, max_depth=3)
+        checks.append({"src": str(src), "dest": str(dest), "src_bytes": src_size, "dest_bytes": dest_size, "match": src_size > 0 and src_size == dest_size})
+    verified = bool(checks) and all(c["match"] for c in checks)
+    db[COLLECTION].update_one({"$or": [{"plan_id": plan_id}, {"proposal_id": plan_id}]}, {"$set": {"verified": verified, "verify_checks": checks, "status": "verified" if verified else "verify_failed", "updated_at": _now()}})
+    return {"ok": verified, "plan_id": plan_id, "verified": verified, "checks": checks}
+
+
+def disk_steward_cleanup_verified(plan_id: str, verified: bool = False) -> dict[str, Any]:
+    if not verified:
+        return {"ok": False, "error": "verified_true_required", "plan_id": plan_id}
+    db = mongo_store.get_db()
+    doc = db[COLLECTION].find_one({"$or": [{"plan_id": plan_id}, {"proposal_id": plan_id}], "verified": True}, {"_id": 0})
+    if not doc:
+        return {"ok": False, "error": "verified_plan_not_found", "plan_id": plan_id}
+    # Final deletion/move cleanup remains owner-gated outside this function.
+    return {"ok": False, "error": "cleanup_requires_explicit_owner_maintenance_window", "plan_id": plan_id, "status": doc.get("status")}
+
+
+def disk_steward_backup_policy(preferred_backup_root: str | None = None, write: bool = False) -> dict[str, Any]:
+    current = {"preferred_backup_root": str(ARCHIVE_ROOT), "scan_dirs": BACKUP_SCAN_DIRS, "primary_mounts": PRIMARY_MOUNTS}
+    if not write:
+        return {"ok": True, "policy": current, "dry_run": True}
+    if not preferred_backup_root:
+        return {"ok": False, "error": "preferred_backup_root_required"}
+    dest = Path(preferred_backup_root).expanduser()
+    if not str(dest).startswith(("/mnt/", "/media/", "/home/rlopez/data/archive")):
+        return {"ok": False, "error": "destination_not_allowlisted", "preferred_backup_root": str(dest)}
+    state = {"preferred_backup_root": str(dest), "updated_at": _now()}
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    return {"ok": True, "policy": {**current, **state}, "dry_run": False}

@@ -4092,6 +4092,392 @@ def get_capability_registry_summary() -> dict[str, Any]:
 
 
 @mcp.tool
+def mcp_capability_snapshot(refs: list[str] | None = None, repo_path: str | None = None) -> dict[str, Any]:
+    """Snapshot forense read-only del catálogo MCP actual e históricos opcionales."""
+    from raphiia_openai import mcp_capability_forensics
+
+    current = mcp_capability_forensics.current_snapshot()
+    history = mcp_capability_forensics.history_union(refs, repo_path=repo_path) if refs else None
+    return {"ok": True, "current": current, "history": history}
+
+
+@mcp.tool
+def mcp_capability_diff(previous_ref: str, current_ref: str = "HEAD", repo_path: str | None = None, owner_approved_removals: list[str] | None = None) -> dict[str, Any]:
+    """Compara dos refs Git y marca pérdida de tools/backends como regresión."""
+    from raphiia_openai import mcp_capability_forensics
+
+    return mcp_capability_forensics.diff_git_refs(
+        previous_ref,
+        current_ref,
+        repo_path=repo_path,
+        owner_approved_removals=owner_approved_removals,
+    )
+
+
+@mcp.tool
+def mcp_capability_release_gate(previous_ref: str | None = None, owner_approved_removals: list[str] | None = None, repo_path: str | None = None) -> dict[str, Any]:
+    """Gate fail-closed antes de promover MCP si desaparecen tools sin aprobación."""
+    from raphiia_openai import mcp_capability_forensics
+
+    return mcp_capability_forensics.release_gate(
+        previous_ref=previous_ref,
+        repo_path=repo_path,
+        owner_approved_removals=owner_approved_removals,
+    )
+
+
+
+# Restored MCP capability wrappers from last-known-good control-plane snapshots.
+@mcp.tool
+def agent_iskcon_class_update(message: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """AG-52: borrador seguro para avisos de cambios de clases/eventos."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_class_update(message, dry_run=dry_run)
+
+@mcp.tool
+def agent_iskcon_sources() -> dict[str, Any]:
+    """AG-52: fuentes curadas ISKCON usadas para planes y borradores."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_sources()
+
+@mcp.tool
+def agent_iskcon_yoga_campaign(message: str = "", days: int = 7, dry_run: bool = True) -> dict[str, Any]:
+    """AG-52: borradores WhatsApp de yoga vaishnava; no envía sin aprobación."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_yoga_campaign(message, days=days, dry_run=dry_run)
+
+@mcp.tool
+def digitalocean_mi325x_deploy_plan(project_id: str = "judge-console", task_id: str = "", model_ref: str = "", region: str = "", image: str = "ubuntu-24-04-x64", approval_id: str = "", owner_confirmed: bool = False, dry_run: bool = True, spend_limit_usd: float = 20.0, idle_minutes: int = 30) -> dict[str, Any]:
+    """DigitalOcean AMD Cloud: owner-gated MI325X/vLLM deploy plan or explicit execution."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    return do.mi325x_deploy_plan(project_id=project_id, task_id=task_id, model_ref=model_ref, region=region, image=image, approval_id=approval_id, owner_confirmed=owner_confirmed, dry_run=dry_run, spend_limit_usd=spend_limit_usd, idle_minutes=idle_minutes)
+
+@mcp.tool
+def identify_agent_session(
+    agent: str,
+    account: str = "",
+    host: str = "",
+    lane: str = "",
+    role: str = "",
+) -> dict[str, Any]:
+    """Devuelve identidad estable para coordinar varias cuentas/IDEs en el mismo MCP."""
+    from raphiia_openai.memory import agent_messages as _am
+
+    return _am.identify_agent_session(agent=agent, account=account or None, host=host or None, lane=lane or None, role=role or None)
+
+@mcp.tool
+def inneros_agent_fabric_status(ops_task_id: str = "") -> dict[str, Any]:
+    """Estado unificado MCP+IDE Bridge+ACP+KPI (inneros_agent_fabric_v1)."""
+    from inneros_core_runtime import inneros_agent_fabric
+
+    return inneros_agent_fabric.fabric_status(ops_task_id=ops_task_id)
+
+@mcp.tool
+def inneros_ingest_drop_run(dry_run: bool = True, limit: int = 20) -> dict[str, Any]:
+    """InnerOS ingest: idempotently ingest files from drop folder into Document Vault."""
+    from raphiia_openai import ingest_drop_folder
+
+    return ingest_drop_folder.run(dry_run=dry_run, limit=limit)
+
+@mcp.tool
+def inneros_ingest_drop_status(limit: int = 20) -> dict[str, Any]:
+    """InnerOS ingest: status of canonical drop folder and downstream Qdrant health."""
+    from raphiia_openai import ingest_drop_folder
+
+    return ingest_drop_folder.status(limit=limit)
+
+@mcp.tool
+def judge_console_content_get(section_id: str = "", refresh: bool = True) -> dict[str, Any]:
+    """Judge Console: persistent narrative/evidence content with source and freshness metadata."""
+    from raphiia_openai import judge_console_content
+
+    return judge_console_content.get_content(section_id=section_id, refresh=refresh)
+
+@mcp.tool
+def judge_mi325x_deploy(action: str = "preflight", params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Judge Console: safe owner-only MI325X action backend; defaults to preflight/dry-run."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    payload = dict(params or {})
+    payload.setdefault("dry_run", True)
+    return do.mi325x_deploy_plan(**payload)
+
+@mcp.tool
+def judge_model_routing_policy(task_class: str = "", project_id: str = "") -> dict[str, Any]:
+    """Judge/ARIA: auditable model routing policy including selected_model/reason/cost boundary."""
+    return local_model_router.model_routing_policy(task_class=task_class, project_id=project_id)
+
+@mcp.tool
+def judge_resource_telemetry() -> dict[str, Any]:
+    """Judge Console: read Resource Fabric, dual deployment and Guardian telemetry."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.resource_telemetry()
+
+@mcp.tool
+def judge_safe_trigger(action: str, prompt: str = "", correlation_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Judge Console: bounded trigger API; paid cloud actions remain approval-gated."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.safe_judge_trigger(action, prompt=prompt, correlation_id=correlation_id, dry_run=dry_run)
+
+@mcp.tool
+def judge_trace_current(limit: int = 20) -> dict[str, Any]:
+    """Judge Console Live Trace: latest events for polling/SSE consumers."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.current_trace(limit=limit)
+
+@mcp.tool
+def judge_trace_detail(run_id: str) -> dict[str, Any]:
+    """Judge Console Live Trace: detailed run with events."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.trace_detail(run_id)
+
+@mcp.tool
+def judge_trace_history(correlation_id: str = "", run_id: str = "", limit: int = 50) -> dict[str, Any]:
+    """Judge Console Live Trace: query run/correlation history."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.list_trace_events(correlation_id=correlation_id, run_id=run_id, limit=limit)
+
+@mcp.tool
+def judge_trace_kpis(correlation_id: str = "", limit: int = 500) -> dict[str, Any]:
+    """Judge Console: KPIs derived only from persisted real trace events."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.kpis(correlation_id=correlation_id, limit=limit)
+
+@mcp.tool
+def judge_trace_record(event: dict[str, Any]) -> dict[str, Any]:
+    """Judge Console Live Trace: record one real trace event with validation/redaction."""
+    from raphiia_openai import judge_telemetry
+
+    return judge_telemetry.record_trace_event(event)
+
+@mcp.tool
+def judge_workflow_continue(
+    workflow_id: str,
+    fields: dict[str, Any] | None = None,
+    message: str = "",
+    execute: bool = False,
+    actor: str = "judge",
+) -> dict[str, Any]:
+    """Judge Console: continue workflow; execution is blocked until required fields are complete."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.continue_workflow(workflow_id, fields=fields or {}, message=message, execute=execute, actor=actor)
+
+@mcp.tool
+def judge_workflow_execute(workflow_id: str, actor: str = "judge") -> dict[str, Any]:
+    """Judge Console: execute a complete allowlisted workflow and emit Live Trace evidence."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.execute_workflow(workflow_id, actor=actor)
+
+@mcp.tool
+def judge_workflow_get(workflow_id: str) -> dict[str, Any]:
+    """Judge Console: read persisted workflow state."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.get_workflow(workflow_id)
+
+@mcp.tool
+def judge_workflow_list(correlation_id: str = "", limit: int = 50) -> dict[str, Any]:
+    """Judge Console: list persisted workflow states."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.list_workflows(correlation_id=correlation_id, limit=limit)
+
+@mcp.tool
+def judge_workflow_start(
+    message: str,
+    intent: str = "auto",
+    fields: dict[str, Any] | None = None,
+    correlation_id: str = "",
+    actor: str = "judge",
+) -> dict[str, Any]:
+    """Judge Console: start conversational workflow, ask only missing fields, persist state."""
+    from raphiia_openai import judge_workflows
+
+    return judge_workflows.start_workflow(message, intent=intent, fields=fields or {}, correlation_id=correlation_id, actor=actor)
+
+@mcp.tool
+def list_self_heal_baselines(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    """Lista baselines manuales usados para KPI/ROI de self-healing."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.list_self_heal_baselines(limit=limit, service_id=service_id)
+
+@mcp.tool
+def list_self_heal_incidents(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    """Lista incidentes de auto-reparación, opcionalmente filtrados por servicio."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.list_self_heal_incidents(limit=limit, service_id=service_id)
+
+@mcp.tool
+def save_self_heal_baseline(payload: dict[str, Any]) -> dict[str, Any]:
+    """Guarda baseline auditado; measured+verified exige evidence_refs."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.save_self_heal_baseline(payload)
+
+@mcp.tool
+def summarize_self_heal_incidents(limit: int = 500) -> dict[str, Any]:
+    """Resume incidentes de auto-reparación sin escribir baselines ni eventos."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.summarize_self_heal_incidents(limit=limit)
+
+
+@mcp.tool
+def agent_iskcon_module_manifest() -> dict[str, Any]:
+    """AG-52 alias: manifiesto canónico del módulo ISKCON."""
+    from raphiia_openai import module_contract
+
+    return module_contract.get_module_manifest("ent_iskcon", "iskcon_ops")
+
+
+@mcp.tool
+def agent_iskcon_action(action: str, inputs: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
+    """AG-52 alias: ejecuta acción ISKCON vía module contract, dry-run por defecto."""
+    from raphiia_openai import module_contract
+
+    return module_contract.route_module_action("ent_iskcon", "iskcon_ops", action, inputs or {}, dry_run=dry_run)
+
+
+@mcp.tool
+def agent_iskcon_artifact_download(artifact_id: str) -> dict[str, Any]:
+    """AG-52 alias: descarga artefacto ISKCON por id."""
+    from raphiia_openai import module_contract
+
+    return module_contract.download_module_artifact("ent_iskcon", artifact_id)
+
+
+@mcp.tool
+def module_manifest(tenant_id: str | None = None, module_id: str | None = None) -> dict[str, Any]:
+    """InnerOS module contract: lista o devuelve manifiesto de módulo."""
+    from raphiia_openai import module_contract
+
+    if tenant_id and module_id:
+        return module_contract.get_module_manifest(tenant_id, module_id)
+    return module_contract.list_module_manifests(tenant_id=tenant_id)
+
+
+@mcp.tool
+def module_action(tenant_id: str, module_id: str, action: str, inputs: dict[str, Any] | None = None, actor: str = "mcp", dry_run: bool = True) -> dict[str, Any]:
+    """InnerOS module contract: acción allowlisted, dry-run por defecto."""
+    from raphiia_openai import module_contract
+
+    return module_contract.route_module_action(tenant_id, module_id, action, inputs or {}, actor=actor, dry_run=dry_run)
+
+
+@mcp.tool
+def module_artifact_download(tenant_id: str, artifact_id: str) -> dict[str, Any]:
+    """InnerOS module contract: descarga artefacto generado por módulo."""
+    from raphiia_openai import module_contract
+
+    return module_contract.download_module_artifact(tenant_id, artifact_id)
+
+
+@mcp.tool
+def disk_steward_inventory(include_candidates: bool = True) -> dict[str, Any]:
+    """AG-37: inventario seguro de discos/backups, policy y guardrails."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_inventory(include_candidates=include_candidates)
+
+
+@mcp.tool
+def disk_steward_plan_migration(source_path: str = "", destination_root: str = "", reason: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """AG-37: crea plan de migración allowlisted; no mueve datos por defecto."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_plan_migration(source_path=source_path, destination_root=destination_root, reason=reason, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_execute_migration(plan_id: str, dry_run: bool = True) -> dict[str, Any]:
+    """AG-37: ejecuta copia de plan; dry_run por defecto."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_execute_migration(plan_id, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_verify_migration(plan_id: str) -> dict[str, Any]:
+    """AG-37: verifica tamaños antes de cualquier limpieza."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_verify_migration(plan_id)
+
+
+@mcp.tool
+def disk_steward_cleanup_verified(plan_id: str, verified: bool = False) -> dict[str, Any]:
+    """AG-37: limpieza bloqueada salvo plan verificado y ventana explícita."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_cleanup_verified(plan_id, verified=verified)
+
+
+@mcp.tool
+def disk_steward_update_backup_policy(preferred_backup_root: str = "", write: bool = False) -> dict[str, Any]:
+    """AG-37: lee/actualiza policy de backups; write requiere destino allowlisted."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.disk_steward_backup_policy(preferred_backup_root=preferred_backup_root or None, write=write)
+
+
+@mcp.tool
+def inneros_dual_deployment_status() -> dict[str, Any]:
+    """Estado read-only de despliegue dual Intel/AMD."""
+    from raphiia_openai import mcp_fleet
+
+    return {"ok": True, "fleet": mcp_fleet.fleet_status(), "mode": "read_only"}
+
+
+@mcp.tool
+def inneros_dual_deployment_drill(dry_run: bool = True) -> dict[str, Any]:
+    """Drill dual-node no destructivo por defecto."""
+    from raphiia_openai import mcp_fleet
+
+    return {"ok": True, "dry_run": dry_run, "fleet": mcp_fleet.fleet_status(), "actions": []}
+
+
+@mcp.tool
+def inneros_dual_queue_operation(action: str, target_node: str = "both", payload: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
+    """Encola operación dual declarativa; dry-run por defecto."""
+    doc = {"action": action, "target_node": target_node, "payload": payload or {}, "dry_run": dry_run, "status": "dry_run" if dry_run else "queued"}
+    if dry_run:
+        return {"ok": True, "operation": doc}
+    from raphiia_openai import mongo_store, ralfia_time
+
+    doc["created_at"] = ralfia_time.now_utc_iso()
+    result = mongo_store.get_db().ralfia_dual_operations.insert_one(doc)
+    return {"ok": True, "operation_id": str(result.inserted_id), "operation": doc}
+
+
+@mcp.tool
+def inneros_dual_reconcile_operations(limit: int = 50, dry_run: bool = True) -> dict[str, Any]:
+    """Reconciliación read-only de operaciones dual-node."""
+    from raphiia_openai import mongo_store
+
+    rows = list(mongo_store.get_db().ralfia_dual_operations.find({}, {"_id": 0}).sort("created_at", -1).limit(int(limit)))
+    return {"ok": True, "dry_run": dry_run, "operations": rows, "count": len(rows)}
+
+
+@mcp.tool
+def editorial_image_providers() -> dict[str, Any]:
+    """Lista providers editoriales disponibles sin generar imágenes ni gastar créditos."""
+    return {"ok": True, "providers": ["chatgpt_dalle", "chatgpt_url", "local_upload"], "default": "local_upload", "spend_policy": "no generation from this tool"}
+
+@mcp.tool
 def get_mcp_profile(name: str) -> dict[str, Any]:
     """Devuelve un perfil versionado (toolset pinneable)."""
     from raphiia_openai import mcp_profiles

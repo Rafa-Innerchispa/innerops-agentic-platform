@@ -92,6 +92,21 @@ def _catalog_guard(previous_runtime: dict[str, Any] | None = None) -> dict[str, 
         status = "catalog_stable"
     else:
         status = "no_baseline"
+
+    release_gate = None
+    try:
+        from raphiia_openai import mcp_capability_forensics
+
+        previous_snapshot = {
+            "label": "documentary_sync",
+            "tool_names": prev_tools or current["tool_names"],
+            "backend_unavailable": [],
+        }
+        current_snapshot = mcp_capability_forensics.current_snapshot("current-runtime")
+        release_gate = mcp_capability_forensics.compare_snapshots(previous_snapshot, current_snapshot)
+    except Exception as exc:
+        release_gate = {"ok": False, "status": "UNKNOWN", "error": str(exc)[:240]}
+
     return {
         "status": status,
         "tool_loss_detected": bool(removed),
@@ -102,6 +117,12 @@ def _catalog_guard(previous_runtime: dict[str, Any] | None = None) -> dict[str, 
         "current_tool_names_hash": current["tool_names_hash"],
         "previous_tool_names_hash": prev_runtime.get("tool_names_hash"),
         "baseline_key": "documentary_sync",
+        "release_gate": release_gate,
+        "policy": {
+            "baseline_update": "never_auto_update_to_silence_alarm",
+            "removal_requires": "DEPRECATED -> RETIREMENT_PENDING -> explicit owner approval",
+            "backend_rule": "tool_name_present=true + backend_available=false is REGRESSION",
+        },
     }
 
 

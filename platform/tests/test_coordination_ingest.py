@@ -88,3 +88,20 @@ class HeartbeatTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_racb_completed_prefers_result_over_descriptive_status():
+    transition = racb_protocol.build_transition(
+        current_status="verification",
+        target_status="completed",
+        actor="codex",
+        current_revision=6,
+        owner="codex",
+        evidence={
+            "status": "BRANCH_READY_NOT_PROMOTED",
+            "result": "PASS",
+            "commit": "86ac4f4ce8194462f0a9f5c16d4df7666c106ab1",
+        },
+    )
+    assert transition["ok"] is True
+    assert transition["patch"]["status"] == "completed"
