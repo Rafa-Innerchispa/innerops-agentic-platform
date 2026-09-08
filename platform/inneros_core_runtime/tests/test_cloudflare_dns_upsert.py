@@ -22,6 +22,30 @@ class CloudflareDnsUpsertTests(unittest.TestCase):
         self.assertEqual(result["record"]["priority"], 10)
         self.assertFalse(result["record"]["proxied"])
 
+    def test_provider_status_finds_gcloud_in_home_local_bin(self):
+        def fake_exists(self):
+            return str(self) == "/home/rlopez/.local/bin/gcloud"
+
+        with patch.object(ag44.shutil, "which", return_value=None), \
+            patch.object(ag44.Path, "exists", fake_exists), \
+            patch.object(ag44.os, "access", return_value=True), \
+            patch.object(ag44, "_gcp_readiness", return_value={"auth": {"ok": True}}):
+            result = ag44.cloud_provider_status("gcp")
+        self.assertTrue(result["cli_available"])
+        self.assertEqual(result["cli_path"], "/home/rlopez/.local/bin/gcloud")
+
+    def test_provider_status_finds_gcloud_in_snap_bin(self):
+        def fake_exists(self):
+            return str(self) == "/snap/bin/gcloud"
+
+        with patch.object(ag44.shutil, "which", return_value=None), \
+            patch.object(ag44.Path, "exists", fake_exists), \
+            patch.object(ag44.os, "access", return_value=True), \
+            patch.object(ag44, "_gcp_readiness", return_value={"auth": {"ok": True}}):
+            result = ag44.cloud_provider_status("gcp")
+        self.assertTrue(result["cli_available"])
+        self.assertEqual(result["cli_path"], "/snap/bin/gcloud")
+
 
 if __name__ == "__main__":
     unittest.main()

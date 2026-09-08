@@ -199,7 +199,7 @@ def cloud_provider_status(provider: str = "gcp") -> dict[str, Any]:
     provider = _normalize_provider(provider)
     meta = PROVIDERS[provider]
     cli = str(meta.get("cli") or "")
-    cli_path = shutil.which(cli) if cli else None
+    cli_path = _resolve_cli_path(cli) if cli else None
     status: dict[str, Any] = {
         "ok": True,
         "agent_id": AGENT_ID,
@@ -2160,7 +2160,27 @@ def _extract_ingress(text: str) -> list[dict[str, str]]:
     return items
 
 
-def _which(cmd: str) -> bool:
-    from shutil import which
+def _resolve_cli_path(cmd: str) -> str | None:
+    """Resolve provider CLIs for both interactive shells and systemd-style services."""
+    if not cmd:
+        return None
+    direct = shutil.which(cmd)
+    if direct:
+        return direct
+    home = Path(os.path.expanduser("~"))
+    for candidate in (
+        home / ".local" / "bin" / cmd,
+        Path("/snap/bin") / cmd,
+        Path("/usr/local/bin") / cmd,
+        Path("/usr/bin") / cmd,
+    ):
+        try:
+            if candidate.exists() and os.access(candidate, os.X_OK):
+                return str(candidate)
+        except OSError:
+            continue
+    return None
 
-    return which(cmd) is not None
+
+def _which(cmd: str) -> bool:
+    return _resolve_cli_path(cmd) is not None
