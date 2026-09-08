@@ -19,6 +19,7 @@ VOICE_SAMPLES_ROOT = Path(os.getenv("VOICE_SAMPLES_ROOT", "/home/rlopez/data/ral
 VOICE_MODELS_ROOT = Path(os.getenv("VOICE_MODELS_ROOT", "/home/rlopez/data/ralfia/voice_models"))
 CLONE_JOBS_PATH = VOICE_MODELS_ROOT / "clone_jobs.json"
 XTTS_DOCKER_IMAGE = os.getenv("XTTS_DOCKER_IMAGE", "ralfia-xtts:latest")
+XTTS_CACHE_ROOT = Path(os.getenv("XTTS_CACHE_ROOT", str(Path.home() / "data" / "ralfia" / "tts_cache")))
 AUDIO_EXTS = {".wav", ".webm", ".mp3", ".m4a", ".ogg"}
 SUPPORTED_LANGUAGES = {
     "es": "Español",
@@ -109,9 +110,10 @@ def _docker_run(args: list[str], timeout: int = 3600) -> dict[str, Any]:
     if not docker_image_ready():
         raise RuntimeError(
             "Imagen Docker XTTS no encontrada. En el servidor ejecuta una vez:\n"
-            "  bash ~/projects/ralfiia-amd-standby/scripts/setup_xtts_docker.sh"
+            "  bash ~/inneros/inneros_core/platform/scripts/setup_xtts_docker.sh"
         )
     worker = Path(__file__).resolve().parent / "xtts_worker.py"
+    XTTS_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
     use_gpu = os.getenv("XTTS_DOCKER_GPU", "0").strip().lower() in ("1", "true", "yes")
     use_rocm = os.getenv("XTTS_DOCKER_ROCM", "1").strip().lower() in ("1", "true", "yes")
     base = [
@@ -120,8 +122,14 @@ def _docker_run(args: list[str], timeout: int = 3600) -> dict[str, Any]:
         "--rm",
         "-e",
         "COQUI_TOS_AGREED=1",
+        "-e",
+        "TTS_HOME=/cache/tts",
+        "-e",
+        "HF_HOME=/cache/huggingface",
         "-v",
         f"{VOICE_MODELS_ROOT.resolve()}:/models",
+        "-v",
+        f"{XTTS_CACHE_ROOT.resolve()}:/cache",
     ]
     if worker.is_file():
         base.extend(["-v", f"{worker.resolve()}:/app/xtts_worker.py:ro"])
@@ -369,7 +377,7 @@ def _run_clone_worker(speaker: str, language: str, output_languages: list[str] |
         if "pip" in err or "3.14" in err or "No matching distribution" in err:
             err = (
                 "XTTS requiere Docker (Python 3.14 no soporta Coqui TTS). "
-                "Ejecuta en el servidor: bash ~/projects/ralfiia-amd-standby/scripts/setup_xtts_docker.sh"
+                "Ejecuta en el servidor: bash ~/inneros/inneros_core/platform/scripts/setup_xtts_docker.sh"
             )
         _set_job(sp, status="error", message=err[:600], progress_pct=0, language=lang)
 
@@ -414,7 +422,7 @@ def start_clone(
             "error": "docker_image_missing",
             "detail": (
                 "Falta la imagen Docker XTTS. En el servidor AMD ejecuta:\n"
-                "bash ~/projects/ralfiia-amd-standby/scripts/setup_xtts_docker.sh"
+                "bash ~/inneros/inneros_core/platform/scripts/setup_xtts_docker.sh"
             ),
             **st,
         }

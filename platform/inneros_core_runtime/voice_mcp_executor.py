@@ -205,49 +205,23 @@ def _in_process_call(name: str, args: dict[str, Any]) -> dict[str, Any] | None:
 
             return ha.home_status(limit=int(args.get("limit") or 40))
         if name == "dmx_set_scene":
-            import sys
-            dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
-            if dmx_path not in sys.path:
-                sys.path.insert(0, dmx_path)
-            from src.effects_engine import DynamicEffectsRunner
-            runner = DynamicEffectsRunner(target_ip="192.168.1.10", universe=0)
-            scene = str(args.get("scene") or args.get("effect") or "static")
-            color = str(args.get("color") or "")
-            target = str(args.get("target") or "todas")
-            brightness = int(args.get("brightness") or 255)
-            speed = float(args.get("speed") or 1.0)
-            if scene == "blackout" or color == "blackout":
-                runner.blackout()
-                return {"ok": True, "action": "blackout"}
-            if scene in ["rainbow", "frenzy", "police", "fire", "chill_lounge"]:
-                runner.start_effect(scene, speed=speed)
-                return {"ok": True, "effect": scene, "speed": speed}
-            col = color if color and color != "blanco" else scene
-            runner.apply_static_scene(color_name=col, brightness=brightness, target=target)
-            return {"ok": True, "applied": col, "target": target, "brightness": brightness}
+            from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+            return ag59.dmx_set_scene(
+                str(args.get("scene") or args.get("effect") or ""),
+                color=str(args.get("color") or ""),
+                target=str(args.get("target") or "todas"),
+                brightness=int(args.get("brightness") or 255),
+                speed=float(args.get("speed") or 1.0),
+            )
         if name == "dmx_blackout":
-            import sys
-            dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
-            if dmx_path not in sys.path:
-                sys.path.insert(0, dmx_path)
-            from src.effects_engine import DynamicEffectsRunner
-            runner = DynamicEffectsRunner(target_ip="192.168.1.10", universe=0)
-            runner.blackout()
-            return {"ok": True, "action": "blackout"}
+            from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+            return ag59.dmx_blackout()
         if name == "dmx_status":
-            import sys
-            dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
-            if dmx_path not in sys.path:
-                sys.path.insert(0, dmx_path)
-            from src.fixture_profiles import FIXTURES
-            return {
-                "ok": True,
-                "engine": "inneros-dmx-engine",
-                "target_ip": "192.168.1.10",
-                "universe": 0,
-                "fixtures": [{"id": f.id, "name": f.name, "channels": f.num_channels} for f in FIXTURES],
-                "scenes": ["rainbow", "frenzy", "police", "fire", "chill_lounge", "morado_uv", "rojo_sangre"]
-            }
+            from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+            return ag59.dmx_status()
         if name == "resolve_client":
             from raphiia_openai import pcdoctor_store
 

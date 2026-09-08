@@ -18,6 +18,7 @@ def _entry(
     entry_tool: str | None = None,
     task_kind: str | None = None,
     mcp_profile: str | None = None,
+    mcp_tools: list[str] | None = None,
     intent_keywords: list[str] | None = None,
     domain: str = "platform",
 ) -> dict[str, Any]:
@@ -29,6 +30,7 @@ def _entry(
         "entry_tool": entry_tool,
         "task_kind": task_kind,
         "mcp_profile": mcp_profile,
+        "mcp_tools": list(mcp_tools or []),
         "intent_keywords": [k.lower() for k in (intent_keywords or [])],
         "domain": domain,
     }
@@ -66,7 +68,7 @@ AGENT_CATALOG: dict[str, dict[str, Any]] = {
     "AG-29": _entry("Log Ops", "Logs servicios peer ops", domain="ops", entry_tool="invoke_agent", intent_keywords=["logs", "journal"]),
     "AG-30": _entry("WhatsApp Agent", "WhatsApp Evolution", domain="whatsapp", entry_tool="invoke_agent", intent_keywords=["whatsapp", "wsp", "enviar mensaje"]),
     "AG-31": _entry("Service Recovery", "Recuperación servicios", domain="ops", entry_tool="invoke_agent", intent_keywords=["health watch", "recuperar servicio", "caído"]),
-    "AG-32": _entry("Home Assistant", "Orquestador maestro multi-protocolo para casa inteligente", domain="home", entry_tool="invoke_agent", intent_keywords=["casa", "luz", "home assistant", "hubitat", "broadlink"]),
+    "AG-32": _entry("Home Assistant & Ambient Ops", "Casa inteligente, Hubitat, Broadlink y domótica unificada", domain="home", entry_tool="invoke_agent", aliases=["home assistant", "domotica", "casa inteligente", "hubitat", "broadlink"], intent_keywords=["casa", "luz", "luces", "home assistant", "aire acondicionado", "hubitat", "broadlink", "termostato"]),
     "AG-33": _entry("Sync Sentinel", "Sincronización docs", domain="coordination", entry_tool="invoke_agent"),
     "AG-34": _entry("KB Ingest", "Ingesta conocimiento", domain="memory", entry_tool="invoke_agent"),
     "AG-35": _entry("Ecosystem Pulse", "Pulso ecosistema / flota MCP", domain="ops", entry_tool="invoke_agent"),
@@ -86,20 +88,13 @@ AGENT_CATALOG: dict[str, dict[str, Any]] = {
     "AG-49": _entry("Dispatcher", "Entrada única local-first", domain="platform", entry_tool="dispatch_local_agent", aliases=["dispatcher", "dispatch"], intent_keywords=["dispatch", "agente local"]),
     "AG-50": _entry("Daily Companion", "Compañero día a día", domain="life", entry_tool="invoke_agent", task_kind="daily", mcp_profile="daily_companion", aliases=["companion", "compañero", "día a día"], intent_keywords=["cómo va mi día", "buenos días", "pendientes hoy", "brief", "día a día", "compañero"]),
     "AG-51": _entry("Health Memory", "Historial de salud", domain="life", entry_tool="invoke_agent", task_kind="salud", mcp_profile="health_memory", aliases=["salud", "health", "médico"], intent_keywords=["salud", "me siento", "registrar salud", "historial médico", "presión", "glucosa", "dolor", "síntoma", "vitals", "cómo estoy de salud", "guardar salud"]),
-    "AG-52": _entry("Iskcon Ops", "Operaciones ISKCON", domain="iskcon", entry_tool="invoke_agent", task_kind="iskcon", mcp_profile="iskcon_ops", aliases=["iskcon", "ffl", "panihati", "templo"], intent_keywords=["iskcon", "food for life", "ffl", "panihati", "templo", "festival devocional"]),
+    "AG-52": _entry("Iskcon Ops", "Operaciones ISKCON", domain="iskcon", entry_tool="invoke_agent", task_kind="iskcon", mcp_profile="iskcon_ops", aliases=["iskcon", "ffl", "panihati", "templo", "yoga vaishnava"], intent_keywords=["iskcon", "food for life", "ffl", "panihati", "templo", "festival devocional", "yoga", "vaishnava", "bhagavad gita", "kirtan", "prasadam", "clases", "whatsapp yoga"]),
     "AG-53": _entry("Hackathon Agent", "Hackathons y convocatorias", domain="funding", entry_tool="invoke_agent", task_kind="hackathon", intent_keywords=["hackathon", "devpost", "xprize"]),
     "AG-54": _entry("Funding Credits", "Créditos y grants", domain="funding", entry_tool="invoke_agent", task_kind="credits", mcp_profile="hackathon_funding", aliases=["créditos", "credits", "grants"], intent_keywords=["crédito", "credit", "grant", "funding", "aws activate", "google cloud credits", "no desperdiciar créditos", "bright data"]),
     "AG-55": _entry("Browser Ops", "Navegador local Playwright", domain="platform", entry_tool="invoke_agent", task_kind="browser", mcp_profile="ralfia_hub", aliases=["browser", "navegador", "playwright", "formulario"], intent_keywords=["navegador", "browser", "llenar formulario", "publicar web", "screenshot pagina", "playwright", "automatizar web"]),
     "AG-56": _entry("Sandbox Fleet", "Modelos uncensored + WebUI sandbox", domain="research", entry_tool="invoke_agent", task_kind="sandbox", mcp_profile="local_fleet", aliases=["sandbox", "uncensored", "research sandbox"], intent_keywords=["sandbox", "uncensored", "modelo local", "instalar modelo", "ollama sandbox", "3004", "research"]),
-    # AG-57 is reserved by Backlog Steward and AG-58 by Agent Activity Report.
-    "AG-59": _entry(
-        "DMX Orchestrator",
-        "Iluminación física Art-Net/DMX segura, subordinada a AG-32",
-        domain="home",
-        entry_tool="invoke_agent",
-        aliases=["dmx", "artnet", "art-net", "luces dmx"],
-        intent_keywords=["dmx", "artnet", "art-net", "frenzy", "rainbow", "blackout dmx", "morado uv", "rojo sangre"],
-    ),
+    "AG-57": _entry("Backlog Steward", "Recordatorio diario WhatsApp + asignar agentes locales al backlog", domain="coordination", entry_tool="run_backlog_steward", aliases=["backlog", "pendientes", "dev backlog"], intent_keywords=["backlog", "pendientes", "olvidados", "desarrolla", "dev swarm"]),
+    "AG-59": _entry("DMX Stage Orchestrator", "Orquestador de iluminación escénica DMX512 / Art-Net, cabezas móviles pulpos, beams y efectos", domain="home", entry_tool="invoke_agent", aliases=["dmx", "artnet", "pulpos", "luces disco", "iluminacion dmx", "stage lights"], intent_keywords=["dmx", "artnet", "luces dmx", "pulpos", "beams", "tachos", "bola disco", "fiesta", "arcoiris", "strobe", "morado uv", "blacklight"], mcp_tools=["dmx_status", "dmx_set_scene", "dmx_blackout"]),
 }
 
 
@@ -148,6 +143,7 @@ def get_agent_catalog(
             "entry_tool": meta.get("entry_tool"),
             "task_kind": meta.get("task_kind"),
             "mcp_profile": meta.get("mcp_profile"),
+            "mcp_tools": meta.get("mcp_tools") or [],
             "domain": meta.get("domain"),
         })
     return {

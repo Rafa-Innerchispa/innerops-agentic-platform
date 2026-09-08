@@ -16,12 +16,19 @@ from raphiia_openai.agents.pool_agent_runners import get_runner_registry
 
 class DMXAG59RuntimeTests(unittest.TestCase):
     def test_agent_id_is_collision_free_and_runnable(self):
-        self.assertEqual(agent_catalog.AGENT_CATALOG["AG-59"]["display_name"], "DMX Orchestrator")
+        self.assertIn("DMX", agent_catalog.AGENT_CATALOG["AG-59"]["display_name"])
+        self.assertEqual(agent_catalog.AGENT_CATALOG["AG-59"]["domain"], "home")
+        self.assertEqual(
+            set(agent_catalog.AGENT_CATALOG["AG-59"].get("mcp_tools") or []),
+            {"dmx_status", "dmx_set_scene", "dmx_blackout"},
+        )
         self.assertIn("AG-59", get_runner_registry())
         self.assertNotEqual(agent_catalog.AGENT_CATALOG["AG-59"]["display_name"], "Backlog Steward")
 
     def test_ag32_remains_master_mult_protocol_parent(self):
-        self.assertIn("multi-protocolo", agent_catalog.AGENT_CATALOG["AG-32"]["role"])
+        self.assertEqual(agent_catalog.AGENT_CATALOG["AG-32"]["domain"], "home")
+        self.assertIn("home assistant", agent_catalog.AGENT_CATALOG["AG-32"]["aliases"])
+        self.assertIn("hubitat", agent_catalog.AGENT_CATALOG["AG-32"]["intent_keywords"])
 
     def test_status_is_sanitized(self):
         raw = {
@@ -59,6 +66,44 @@ class DMXAG59RuntimeTests(unittest.TestCase):
         self.assertEqual(calls[0][2]["target"], "todas")
         self.assertEqual(calls[2][1], "/api/scene")
 
+    def test_color_target_request_is_bounded_and_sanitized(self):
+        calls = []
+
+        def fake_request(method, path, payload=None):
+            calls.append((method, path, payload))
+            return {"ok": True}
+
+        with patch.object(ag59, "_request_json", side_effect=fake_request):
+            result = ag59.dmx_set_scene("", color="cyan", target="tachos", brightness=999)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["scene"], "cian")
+        self.assertEqual(result["target"], "tachos")
+        self.assertEqual(calls[0][1], "/api/color")
+        self.assertEqual(calls[0][2], {"color": "cian", "target": "tachos", "brightness": 255})
+
+    def test_voice_color_alias_morado_uv_maps_to_physical_color(self):
+        calls = []
+
+        def fake_request(method, path, payload=None):
+            calls.append((method, path, payload))
+            return {"ok": True}
+
+        with patch.object(ag59, "_request_json", side_effect=fake_request):
+            result = ag59.dmx_set_scene("", color="morado_uv", target="tachos", brightness=180)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["scene"], "morado")
+        self.assertEqual(result["target"], "tachos")
+        self.assertEqual(calls[0][2], {"color": "morado", "target": "tachos", "brightness": 180})
+
+    def test_unknown_target_fails_closed_without_backend_call(self):
+        with patch.object(ag59, "_request_json") as backend:
+            result = ag59.dmx_set_scene("", color="rojo", target="channel_1")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "unsupported_target")
+        backend.assert_not_called()
+
     def test_unsupported_scene_fails_closed_without_backend_call(self):
         with patch.object(ag59, "_request_json") as backend:
             result = ag59.dmx_set_scene("channel 1 full")
@@ -74,7 +119,7 @@ class DMXAG59RuntimeTests(unittest.TestCase):
         backend.assert_not_called()
 
     def test_a2a_projection_contains_ag59(self):
-        cards = a2a_agent_registry.catalog_agent_cards()
+        cards = a2a_agent_registry.merged_agent_cards({}, "1.0", "test")
         self.assertIn("AG-59", cards)
         self.assertEqual(cards["AG-59"]["metadata"]["domain"], "home")
         self.assertTrue(cards["AG-59"]["metadata"]["local_first"])

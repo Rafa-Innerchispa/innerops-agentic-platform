@@ -1,86 +1,96 @@
-"""Dynamic A2A Agent Card projection from the canonical InnerOS agent catalog."""
+"""A2A Agent Card projection from the canonical InnerOS agent catalog."""
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import Any
 
 
-def _slug_skill(agent: dict[str, Any]) -> str:
-    return str(agent.get("task_kind") or agent.get("domain") or "agent").strip().lower().replace(" ", "_")
+def normalize_agent_key(value: str) -> str:
+    """Normalize A2A/card identifiers while preserving canonical AG-xx ids."""
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    upper = raw.upper().replace("_", "-")
+    ag = re.search(r"AG-?0*(\d+)", upper)
+    if ag:
+        return f"AG-{int(ag.group(1)):02d}"
+    text = unicodedata.normalize("NFKD", raw.lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    aliases = {
+        "inneros-orchestrator": "AG-25",
+        "ralfia": "AG-25",
+        "ralphi-ia": "AG-25",
+        "browser-qa": "AG-55",
+        "qwen-coding": "AG-45",
+        "codex-repair": "codex-repair",
+        "integration-guardian": "integration-guardian",
+    }
+    return aliases.get(text, text)
 
 
-def _catalog_snapshot() -> tuple[list[dict[str, Any]], str]:
-    """Prefer runtime-verified agents without making A2A depend on every optional import."""
+def _card_from_catalog(entry: dict[str, Any], protocol_version: str, bridge_version: str) -> dict[str, Any]:
+    agent_id = normalize_agent_key(str(entry.get("agent_id") or ""))
+    name = str(entry.get("display_name") or entry.get("name") or agent_id)
+    role = str(entry.get("role") or entry.get("description") or name)
+    domain = str(entry.get("domain") or "platform")
+    entry_tool = entry.get("entry_tool") or "invoke_agent"
+    task_kind = entry.get("task_kind")
+    metadata = {
+        "inneros_role": agent_id,
+        "agent_id": agent_id,
+        "assignee": "ralfia",
+        "domain": domain,
+        "entry_tool": entry_tool,
+        "task_kind": task_kind,
+        "mcp_profile": entry.get("mcp_profile"),
+        "local_first": True,
+        "catalog_source": "inneros_core_runtime.agents.agent_catalog",
+    }
+    if agent_id == "AG-25":
+        metadata.update({"root_orchestrator": True, "assignee": "ralfia"})
+    return {
+        "name": name,
+        "description": role,
+        "url": f"inneros://a2a/{agent_id.lower()}",
+        "version": bridge_version,
+        "protocolVersion": protocol_version,
+        "capabilities": {"streaming": False, "pushNotifications": False, "stateTransitionHistory": True},
+        "defaultInputModes": ["text/plain", "application/json"],
+        "defaultOutputModes": ["application/json"],
+        "skills": [{"id": agent_id, "name": name, "description": role}],
+        "metadata": metadata,
+    }
+
+
+def _catalog_cards(protocol_version: str, bridge_version: str) -> dict[str, dict[str, Any]]:
     try:
-        from raphiia_openai.agents import agent_catalog
+        from inneros_core_runtime.agents.agent_catalog import get_agent_catalog
+        result = get_agent_catalog(functional_only=False)
+        entries = result.get("agents") if isinstance(result, dict) else []
     except Exception:
-        return [], "catalog_unavailable"
-    try:
-        verified = agent_catalog.get_agent_catalog(functional_only=True)
-        return list(verified.get("agents") or []), "runtime_verified"
-    except Exception:
-        # Fail soft: A2A discovery itself must stay available if an optional
-        # runner dependency is temporarily unavailable. Dispatch still goes
-        # through the runner registry and fails closed for an unusable target.
-        items: list[dict[str, Any]] = []
-        for agent_id, meta in sorted(agent_catalog.AGENT_CATALOG.items()):
-            if str(meta.get("status") or "").lower() != "functional":
-                continue
-            items.append({
-                "agent_id": agent_id,
-                "display_name": meta.get("display_name"),
-                "role": meta.get("role"),
-                "entry_tool": meta.get("entry_tool"),
-                "task_kind": meta.get("task_kind"),
-                "mcp_profile": meta.get("mcp_profile"),
-                "domain": meta.get("domain"),
-            })
-        return items, "catalog_fallback"
-
-
-def catalog_agent_cards(protocol_version: str = "1.0", bridge_version: str = "1.0.0") -> dict[str, dict[str, Any]]:
-    """Return one discoverable A2A card for every functional InnerOS agent."""
-    agents, verification = _catalog_snapshot()
+        entries = []
     cards: dict[str, dict[str, Any]] = {}
-    for agent in agents:
-        agent_id = str(agent.get("agent_id") or "").strip().upper()
-        if not agent_id:
-            continue
-        skill_id = _slug_skill(agent)
-        cards[agent_id] = {
-            "name": str(agent.get("display_name") or agent_id),
-            "description": str(agent.get("role") or "InnerOS agent"),
-            "url": f"inneros://a2a/{agent_id.lower()}",
-            "version": bridge_version,
-            "protocolVersion": protocol_version,
-            "capabilities": {"streaming": False, "pushNotifications": False, "stateTransitionHistory": True},
-            "defaultInputModes": ["text/plain", "application/json"],
-            "defaultOutputModes": ["application/json"],
-            "skills": [{"id": skill_id, "name": str(agent.get("display_name") or agent_id), "description": str(agent.get("role") or "Execute bounded InnerOS capability")}],
-            "metadata": {
-                "inneros_role": "root_orchestrator" if agent_id == "AG-25" else "catalog_agent",
-                "agent_id": agent_id,
-                "domain": agent.get("domain"),
-                "entry_tool": agent.get("entry_tool"),
-                "task_kind": agent.get("task_kind"),
-                "mcp_profile": agent.get("mcp_profile"),
-                "assignee": "ralfia",
-                "runnable": verification == "runtime_verified",
-                "runtime_verification": verification,
-                "local_first": True,
-                "root_orchestrator": agent_id == "AG-25",
-            },
-        }
+    for entry in entries or []:
+        agent_id = normalize_agent_key(str(entry.get("agent_id") or ""))
+        if agent_id:
+            cards[agent_id] = _card_from_catalog(entry, protocol_version, bridge_version)
     return cards
 
 
-def merged_agent_cards(static_cards: dict[str, dict[str, Any]], protocol_version: str, bridge_version: str) -> dict[str, dict[str, Any]]:
-    cards = dict(static_cards)
-    cards.update(catalog_agent_cards(protocol_version, bridge_version))
-    return cards
-
-
-def normalize_agent_key(agent_id: str) -> str:
-    value = str(agent_id or "").strip()
-    if value.upper().startswith("AG-"):
-        return value.upper()
-    return value.lower()
+def merged_agent_cards(base_cards: dict[str, dict[str, Any]], protocol_version: str, bridge_version: str) -> dict[str, dict[str, Any]]:
+    """Return base bridge cards plus the canonical AG catalog as A2A cards."""
+    merged = _catalog_cards(protocol_version, bridge_version)
+    for key, card in (base_cards or {}).items():
+        canonical = normalize_agent_key(str((card.get("metadata") or {}).get("agent_id") or key)) or normalize_agent_key(key)
+        if canonical in merged:
+            existing = dict(merged[canonical])
+            existing_meta = dict(existing.get("metadata") or {})
+            existing_meta.update(card.get("metadata") or {})
+            existing.update(card)
+            existing["metadata"] = existing_meta
+            merged[canonical] = existing
+        else:
+            merged[canonical] = card
+    return dict(sorted(merged.items(), key=lambda item: (0 if re.match(r"AG-\d+", item[0]) else 1, item[0])))

@@ -963,9 +963,18 @@ async function fetchTtsUrl(text){
 }
 async function replayBubbleAudio(bubble){
   if(!bubble)return;
-  if(currentAudio){try{currentAudio.pause()}catch(e){}currentAudio=null;}
-  const text=bubble.dataset.speakText||bubble.querySelector('.bubble-text')?.textContent||'';
   const bar=ensureMsgAudioBar(bubble);
+  const speakBtn=bar?.querySelector('.speak-btn');
+  if(currentAudio&&currentAudio.dataset&&currentAudio.dataset.bubbleId===bubble.dataset.audioBubbleId){
+    try{currentAudio.pause()}catch(e){}
+    currentAudio=null;
+    if(speakBtn){speakBtn.classList.remove('playing');speakBtn.textContent='🔊';speakBtn.title='Escuchar este mensaje';}
+    setStatus('Audio detenido','');
+    updateStopBtn();
+    return;
+  }
+  stopCurrentAudio();
+  const text=bubble.dataset.speakText||bubble.querySelector('.bubble-text')?.textContent||'';
   let url=bar?.dataset.audioUrl||'';
   if(!url&&text){
     setStatus('Generando voz…','thinking');
@@ -974,9 +983,21 @@ async function replayBubbleAudio(bubble){
   }
   await playReplyAudio(url,null,false,bubble);
 }
+function stopCurrentAudio(){
+  if(bargeInAbort){bargeInAbort();bargeInAbort=null;}
+  if(currentAudio){
+    const id=currentAudio.dataset?currentAudio.dataset.bubbleId:'';
+    try{currentAudio.pause();currentAudio.src='';currentAudio.load()}catch(e){}
+    currentAudio=null;
+    if(id){
+      const old=document.querySelector(`[data-audio-bubble-id="${id}"] .speak-btn`);
+      if(old){old.classList.remove('playing');old.textContent='🔊';old.title='Escuchar este mensaje';}
+    }
+  }
+}
 function stopResponse(){
   if(chatAbort){chatAbort.abort();chatAbort=null;}
-  if(currentAudio){try{currentAudio.pause()}catch(e){}currentAudio=null;}
+  stopCurrentAudio();
   if(bargeInAbort){bargeInAbort();bargeInAbort=null;}
   if(rec&&rec.state==='recording')rec.stop();
   hideTyping();
@@ -997,7 +1018,7 @@ function abortAll(){
   }
   imageGenAbort=true;
   if(chatAbort){chatAbort.abort();chatAbort=null;}
-  if(currentAudio){try{currentAudio.pause()}catch(e){}currentAudio=null;}
+  stopCurrentAudio();
   if(bargeInAbort){bargeInAbort();bargeInAbort=null;}
   fluidLoopAbort=true;
   pttTranscribeOnStop=false;
@@ -1057,12 +1078,15 @@ function playReplyAudio(url,onDone,bargeIn,bubble){
   const bar=ensureMsgAudioBar(bubble);
   const mini=bar?.querySelector('.audio-mini');
   const speakBtn=bar?.querySelector('.speak-btn');
+  if(!bubble.dataset.audioBubbleId)bubble.dataset.audioBubbleId='aud'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
   if(bar){bar.dataset.audioUrl=url;bar.classList.add('has-url');}
-  if(mini){mini.src=url;}
+  if(mini){mini.src=url;mini.pause();mini.currentTime=0;}
+  stopCurrentAudio();
   const a=new Audio(url);
+  a.dataset.bubbleId=bubble.dataset.audioBubbleId;
   a.preload='auto';
   currentAudio=a;
-  if(speakBtn)speakBtn.classList.add('playing');
+  if(speakBtn){speakBtn.classList.add('playing');speakBtn.textContent='■';speakBtn.title='Detener audio';}
   updateStopBtn();
   return new Promise(resolve=>{
     let bargeDone=false;
@@ -1070,7 +1094,7 @@ function playReplyAudio(url,onDone,bargeIn,bubble){
       if(bargeDone)return;
       bargeDone=true;
       try{a.pause()}catch(e){}
-      currentAudio=null;if(speakBtn)speakBtn.classList.remove('playing');
+      currentAudio=null;if(speakBtn){speakBtn.classList.remove('playing');speakBtn.textContent='🔊';speakBtn.title='Escuchar este mensaje';}
       updateStopBtn();
       resolve();
       if(onDone)onDone(true);
@@ -1080,7 +1104,7 @@ function playReplyAudio(url,onDone,bargeIn,bubble){
       bargeDone=true;
       if(bargeInAbort){bargeInAbort();bargeInAbort=null;}
       currentAudio=null;
-      if(speakBtn)speakBtn.classList.remove('playing');
+      if(speakBtn){speakBtn.classList.remove('playing');speakBtn.textContent='🔊';speakBtn.title='Escuchar este mensaje';}
       updateStopBtn();
       resolve();
       if(onDone)onDone(barged);
@@ -1088,8 +1112,7 @@ function playReplyAudio(url,onDone,bargeIn,bubble){
     a.onended=()=>done(false);
     a.onerror=()=>done(false);
     const startPlay=()=>a.play().catch(()=>{
-      if(mini){mini.play().catch(()=>done(false));}
-      else done(false);
+      done(false);
     });
     if(a.readyState>=2)startPlay();
     else{a.oncanplaythrough=startPlay;a.load();}
