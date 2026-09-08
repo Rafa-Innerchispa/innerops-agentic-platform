@@ -137,11 +137,31 @@ def a2a_status(verbose: bool = False) -> dict[str, Any]:
 
 
 @mcp.tool
-def a2a_agent_cards() -> dict[str, Any]:
+def a2a_agent_cards(verbose: bool = False) -> dict[str, Any]:
     """A2A: Agent Cards de los roles disponibles en InnerOS."""
     from raphiia_openai import a2a_bridge
 
-    return a2a_bridge.agent_cards()
+    cards = a2a_bridge.agent_cards()
+    if verbose:
+        return cards
+    agents = cards.get("card_list") or cards.get("agents") or cards.get("agent_cards") or list((cards.get("cards") or {}).values())
+    compact_agents = []
+    for agent in agents[:12]:
+        skills = agent.get("skills") or agent.get("capabilities") or []
+        compact_agents.append({
+            "id": agent.get("id") or agent.get("name") or agent.get("url"),
+            "name": agent.get("name"),
+            "description": agent.get("description"),
+            "skill_count": len(skills) if isinstance(skills, list) else None,
+            "skills": skills[:6] if isinstance(skills, list) else skills,
+        })
+    return {
+        "ok": cards.get("ok", True),
+        "count": cards.get("count") or len(agents),
+        "agents": compact_agents,
+        "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
+        "note": "Resumen compacto para agentes externos. Usa verbose=true para Agent Cards completas.",
+    }
 
 
 @mcp.tool
