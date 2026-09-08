@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${RALFIA_ROOT:-/home/rlopez/projects/raphiia-openai}"
+ROOT="${RALFIA_ROOT:-/home/rlopez/inneros/inneros_core/platform}"
 PROFILE="${1:-quoteops}"
 PORT="${2:-8110}"
 MODE="${3:---plan}"
+PUBLIC_URL="${4:-}"
 UNIT_SOURCE="$ROOT/deploy/systemd/ralfia-mcp-profile@.service"
 UNIT_TARGET="$HOME/.config/systemd/user/ralfia-mcp-profile@.service"
 ENV_DIR="$HOME/.config/ralphiia/mcp-profiles"
@@ -48,10 +49,21 @@ mkdir -p "$backup" "$(dirname "$UNIT_TARGET")" "$ENV_DIR"
 [[ -f "$ENV_TARGET" ]] && cp -p "$ENV_TARGET" "$backup/" || true
 
 install -m 0644 "$UNIT_SOURCE" "$UNIT_TARGET"
+if [[ -z "$PUBLIC_URL" && "$PROFILE" == "chatgpt_compact" ]]; then
+  PUBLIC_URL="https://mcp-chatgpt.creatorcore.ai"
+fi
 {
   printf 'MCP_TOOL_PROFILE=%s\n' "$PROFILE"
   printf 'MCP_PORT=%s\n' "$PORT"
   printf 'MCP_DISPLAY_NAME=RalfIA MCP - %s\n' "$PROFILE"
+  if [[ -n "$PUBLIC_URL" ]]; then
+    public_url="${PUBLIC_URL%/}"
+    printf 'MCP_PUBLIC_URL=%s\n' "$public_url"
+    printf 'OAUTH_MCP_RESOURCE=%s/mcp\n' "$public_url"
+    if [[ "$PROFILE" == "chatgpt_compact" ]]; then
+      printf 'OAUTH_ACCEPTED_MCP_RESOURCES=%s/mcp,https://mcp.pcdoctor.ai/mcp\n' "$public_url"
+    fi
+  fi
 } > "$ENV_TARGET"
 chmod 0600 "$ENV_TARGET"
 

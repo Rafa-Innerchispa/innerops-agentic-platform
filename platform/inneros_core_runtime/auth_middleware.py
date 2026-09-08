@@ -10,8 +10,8 @@ from fastmcp.server.dependencies import get_http_headers, get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 
 from raphiia_openai import mongo_store
-from raphiia_openai.oauth_store import validate_access_token
-from raphiia_openai.settings import OAUTH_MCP_RESOURCE
+from raphiia_openai.oauth_store import get_client, validate_access_token
+from raphiia_openai.settings import OAUTH_ACCEPTED_MCP_RESOURCES, OAUTH_MCP_RESOURCE
 
 # Cache credenciales por sesión MCP (streamable-http no siempre reenvía headers en tools/call).
 _SESSION_AUTH: dict[str, dict[str, str]] = {}
@@ -258,6 +258,9 @@ TOOL_SCOPES = {
     "agent_iskcon_sources": "ralfia:read",
     "agent_iskcon_yoga_campaign": "ralfia:write",
     "agent_iskcon_class_update": "ralfia:write",
+    "agent_iskcon_module_manifest": "ralfia:read",
+    "agent_iskcon_action": "ralfia:write",
+    "agent_iskcon_artifact_download": "ralfia:read",
     "agent_hackathon_status": "ralfia:read",
     "agent_hackathon_scan_emails": "ralfia:read",
     "agent_funding_status": "ralfia:read",
@@ -272,11 +275,18 @@ TOOL_SCOPES = {
     "owner_vault_store_secret": ["ralfia:admin", "ralfia:private_memory"],
     "owner_vault_secret_status": ["ralfia:read", "ralfia:private_memory"],
     "owner_vault_materialize_project_env": ["ralfia:admin", "ralfia:private_memory"],
+    "editorial_image_providers": "ralfia:read",
     "get_chatgpt_workspace": "ralfia:read",
     "bootstrap_context": "ralfia:read",
     "get_operational_runbooks": "ralfia:read",
     "get_coordination_live": "ralfia:read",
     "inneros_agent_fabric_status": "ralfia:read",
+    "inneros_dual_deployment_status": "ralfia:read",
+    "inneros_dual_queue_operation": "ralfia:agents",
+    "inneros_dual_reconcile_operations": "ralfia:agents",
+    "inneros_dual_deployment_drill": "ralfia:agents",
+    "inneros_ingest_drop_status": "ralfia:read",
+    "inneros_ingest_drop_run": "ralfia:agents",
     "ack_coordination_revision": "ralfia:write",
     "create_ops_task": "ralfia:write",
     "complete_ops_task": "ralfia:write",
@@ -327,6 +337,16 @@ TOOL_SCOPES = {
     "list_self_heal_incidents": "ralfia:read",
     "list_self_heal_baselines": "ralfia:read",
     "save_self_heal_baseline": "ralfia:write",
+    "get_disk_steward_status": "ralfia:read",
+    "disk_steward_inventory": "ralfia:read",
+    "disk_steward_plan_migration": "ralfia:agents",
+    "disk_steward_execute_migration": "ralfia:agents",
+    "disk_steward_verify_migration": "ralfia:read",
+    "disk_steward_update_backup_policy": "ralfia:agents",
+    "disk_steward_cleanup_verified": "ralfia:agents",
+    "module_manifest": "ralfia:read",
+    "module_action": "ralfia:agents",
+    "module_artifact_download": "ralfia:read",
     "search_email_archive": "ralfia:read",
     "get_email_archive_status": "ralfia:read",
     "get_email_archive_message": "ralfia:read",
@@ -737,6 +757,37 @@ def _resolve_headers(context: MiddlewareContext) -> dict[str, str]:
     return headers
 
 
+def _token_profile_guard(token_doc: dict[str, Any], tool_name: str) -> dict[str, Any]:
+    """Apply optional per-token/per-client MCP profile restrictions."""
+    profile = token_doc.get("mcp_profile") or token_doc.get("tool_profile")
+    client = None
+    if not profile and token_doc.get("client_id"):
+        try:
+            client = get_client(str(token_doc["client_id"]))
+        except Exception:
+            client = None
+        metadata = (client or {}).get("metadata") or {}
+        profile = metadata.get("mcp_profile") or metadata.get("tool_profile")
+
+    if not profile:
+        return {"ok": True, "profile": None}
+
+    try:
+        from raphiia_openai import mcp_profiles
+
+        conf = mcp_profiles.PROFILES.get(str(profile))
+    except Exception as exc:
+        return {"ok": False, "profile": profile, "error": f"profile_lookup_failed:{type(exc).__name__}"}
+
+    if not conf:
+        return {"ok": False, "profile": profile, "error": "unknown_profile"}
+
+    allowed = set(conf.get("tools") or [])
+    if tool_name not in allowed:
+        return {"ok": False, "profile": profile, "error": "tool_not_allowed_for_profile"}
+    return {"ok": True, "profile": profile}
+
+
 class ApiKeyMiddleware(Middleware):
     def __init__(self, valid_key: str) -> None:
         self.valid_key = (valid_key or "").strip()
@@ -766,9 +817,37 @@ class ApiKeyMiddleware(Middleware):
             token_doc = validate_access_token(token)
             if token_doc:
                 token_scopes = set((token_doc.get("scope") or "").split())
-                token_resource = token_doc.get("resource")
-                if token_resource and token_resource != OAUTH_MCP_RESOURCE:
+                token_resource = str(token_doc.get("resource") or "").rstrip("/")
+                accepted_resources = {str(resource).rstrip("/") for resource in OAUTH_ACCEPTED_MCP_RESOURCES}
+                if token_resource and token_resource not in accepted_resources:
+                    mongo_store.log_mcp_error(
+                        error_type="oauth_resource_mismatch",
+                        tool=tool_name,
+                        session_id=session_id,
+                        client=user_agent,
+                        message=f"OAuth resource mismatch for {tool_name}",
+                        catalog_version=None,
+                        scopes=sorted(token_scopes),
+                        metadata={
+                            "token_resource": token_resource,
+                            "expected_resource": OAUTH_MCP_RESOURCE,
+                            "accepted_resources": sorted(accepted_resources),
+                        },
+                    )
                     raise ToolError("Unauthorized: OAuth resource mismatch")
+                profile_guard = _token_profile_guard(token_doc, tool_name)
+                if not profile_guard.get("ok"):
+                    mongo_store.log_mcp_error(
+                        error_type="profile_denied",
+                        tool=tool_name,
+                        session_id=session_id,
+                        client=user_agent,
+                        message=f"Tool {tool_name} denied by MCP profile {profile_guard.get('profile')}",
+                        catalog_version=None,
+                        scopes=sorted(token_scopes),
+                        metadata=profile_guard,
+                    )
+                    raise ToolError(f"profile_denied: {profile_guard.get('profile')}")
                 if set(required_scopes).issubset(token_scopes) or "ralfia:admin" in token_scopes:
                     return await call_next(context)
                 mongo_store.log_mcp_error(

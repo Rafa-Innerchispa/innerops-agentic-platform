@@ -51,6 +51,14 @@ OAUTH_ALLOWED_REDIRECT_HOSTS = tuple(
     ).split(",")
     if host.strip()
 )
+_oauth_resource_candidates = [
+    resource.strip()
+    for resource in os.getenv("OAUTH_ACCEPTED_MCP_RESOURCES", OAUTH_MCP_RESOURCE).split(",")
+    if resource.strip()
+]
+if OAUTH_MCP_RESOURCE not in _oauth_resource_candidates:
+    _oauth_resource_candidates.append(OAUTH_MCP_RESOURCE)
+OAUTH_ACCEPTED_MCP_RESOURCES = tuple(dict.fromkeys(resource.rstrip("/") for resource in _oauth_resource_candidates))
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017/")
 MONGO_URI_PRIMARY = os.getenv("MONGO_URI_PRIMARY", "mongodb://192.168.1.4:27017/")
