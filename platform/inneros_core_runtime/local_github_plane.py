@@ -37,14 +37,14 @@ def _allowed_owners() -> set[str]:
     return set(owners)
 
 
-def _bounded(text: str) -> str:
+def _bounded(text: str, max_output: int = MAX_OUTPUT) -> str:
     value = text or ""
-    if len(value.encode("utf-8", errors="replace")) <= MAX_OUTPUT:
+    if max_output <= 0 or len(value.encode("utf-8", errors="replace")) <= max_output:
         return value
-    return value.encode("utf-8", errors="replace")[:MAX_OUTPUT].decode("utf-8", errors="replace") + "\n[TRUNCATED]"
+    return value.encode("utf-8", errors="replace")[:max_output].decode("utf-8", errors="replace") + "\n[TRUNCATED]"
 
 
-def _run(argv: list[str], cwd: str | Path | None = None, timeout: int = 120, input_text: str | None = None) -> dict[str, Any]:
+def _run(argv: list[str], cwd: str | Path | None = None, timeout: int = 120, input_text: str | None = None, max_output: int = MAX_OUTPUT) -> dict[str, Any]:
     proc = subprocess.run(
         argv,
         cwd=str(cwd) if cwd else None,
@@ -57,7 +57,7 @@ def _run(argv: list[str], cwd: str | Path | None = None, timeout: int = 120, inp
     return {
         "ok": proc.returncode == 0,
         "returncode": proc.returncode,
-        "stdout": _bounded(proc.stdout),
+        "stdout": _bounded(proc.stdout, max_output),
         "stderr": _bounded(_redact(proc.stderr)),
         "argv": [argv[0], *argv[1:]],
     }
@@ -327,13 +327,15 @@ def audit_github_professionalization(owner: str = "Rafa-Innerchispa", limit: int
             return {"ok": False, "capability": CAPABILITY, "error": "gh_unavailable"}
         limit = max(1, min(int(limit or DEFAULT_GITHUB_LIMIT), 100))
         fields = "name,nameWithOwner,isPrivate,isArchived,description,homepageUrl,repositoryTopics,url,defaultBranchRef,pushedAt,updatedAt"
-        listed = _run([gh, "repo", "list", owner, "--limit", str(limit), "--json", fields], timeout=120)
+        listed = _run([gh, "repo", "list", owner, "--limit", str(limit), "--json", fields], timeout=120, max_output=MAX_OUTPUT * 20)
         if not listed["ok"]:
             return {"ok": False, "capability": CAPABILITY, "error": "github_repo_list_failed", "detail": listed}
         repos = _json_result(listed)
+        if not isinstance(repos, list):
+            return {"ok": False, "capability": CAPABILITY, "error": "github_repo_list_invalid_json", "detail": {"stdout_len": len(listed.get("stdout") or ""), "truncated": "[TRUNCATED]" in (listed.get("stdout") or "")}}
         rows: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
-        for repo in repos if isinstance(repos, list) else []:
+        for repo in repos:
             full = repo.get("nameWithOwner") or f"{owner}/{repo.get('name', '')}"
             view, meta = _repo_view(gh, full)
             if not view["ok"]:

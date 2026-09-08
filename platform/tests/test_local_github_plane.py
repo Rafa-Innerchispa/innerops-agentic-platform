@@ -107,6 +107,40 @@ class LocalGithubPlaneTests(unittest.TestCase):
         self.assertEqual(result["freeze_review_required_count"], 1)
         self.assertEqual(result["bio_pins_minimum_missing_oauth_scope_classic_pat"], "user")
 
+    def test_professionalization_audit_uses_large_stdout_for_repo_list(self) -> None:
+        repos = [{"name": f"repo-{i}", "nameWithOwner": f"Rafa-Innerchispa/repo-{i}", "isPrivate": False, "isArchived": False, "description": "Repo", "homepageUrl": "", "repositoryTopics": [], "url": f"https://github.com/Rafa-Innerchispa/repo-{i}", "defaultBranchRef": {"name": "main"}} for i in range(43)]
+        observed = {}
+
+        def fake_run(argv, **kwargs):
+            if argv[:3] == ["/usr/bin/gh", "repo", "list"]:
+                observed["max_output"] = kwargs.get("max_output")
+                return {"ok": True, "returncode": 0, "stdout": json.dumps(repos), "stderr": "", "argv": argv}
+            if argv[:2] == ["/usr/bin/gh", "api"] and argv[2].startswith("repos/"):
+                return {"ok": True, "returncode": 0, "stdout": json.dumps({"permissions": {"push": True}, "archived": False, "disabled": False, "default_branch": "main"}), "stderr": "", "argv": argv}
+            if argv[:2] == ["/usr/bin/gh", "auth"]:
+                return {"ok": True, "returncode": 0, "stdout": "", "stderr": "Token scopes: 'repo', 'workflow'", "argv": argv}
+            return {"ok": True, "returncode": 0, "stdout": "{}", "stderr": "", "argv": argv}
+
+        with mock.patch.object(local_github_plane, "_gh_path", return_value="/usr/bin/gh"), mock.patch.object(local_github_plane, "_run", side_effect=fake_run):
+            result = local_github_plane.audit_github_professionalization(limit=100)
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["repo_count"], 43)
+        self.assertGreaterEqual(observed["max_output"], local_github_plane.MAX_OUTPUT * 20)
+
+    def test_professionalization_audit_does_not_silently_treat_invalid_json_as_zero_repos(self) -> None:
+        def fake_run(argv, **kwargs):
+            if argv[:3] == ["/usr/bin/gh", "repo", "list"]:
+                return {"ok": True, "returncode": 0, "stdout": "{not json\n[TRUNCATED]", "stderr": "", "argv": argv}
+            return {"ok": True, "returncode": 0, "stdout": "{}", "stderr": "", "argv": argv}
+
+        with mock.patch.object(local_github_plane, "_gh_path", return_value="/usr/bin/gh"), mock.patch.object(local_github_plane, "_run", side_effect=fake_run):
+            result = local_github_plane.audit_github_professionalization(limit=100)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "github_repo_list_invalid_json")
+        self.assertTrue(result["detail"]["truncated"])
+
     def test_update_repo_profile_dry_run_blocks_frozen_hackathon(self) -> None:
         with mock.patch.object(local_github_plane, "_gh_path", return_value="/usr/bin/gh"), mock.patch.object(local_github_plane, "_repo_view", return_value=({"ok": True}, {"permissions": {"push": True}, "archived": False, "disabled": False})):
             result = local_github_plane.update_repo_professionalization(
