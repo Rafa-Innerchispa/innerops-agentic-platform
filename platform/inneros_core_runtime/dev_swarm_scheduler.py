@@ -1037,6 +1037,8 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
             return False, "blocked_missing_task_binding", None
         if not (repo == SAFE_INNEROS_REPO and platform_context) and not (lane == LOCAL_DEV_SWARM_LANE and repo == SAFE_INNEROS_REPO):
             return False, "blocked_missing_task_binding", None
+    if not lane and repo and (binding_repo or inferred_repo):
+        lane = LOCAL_DEV_SWARM_LANE
     if lane and lane != LOCAL_DEV_SWARM_LANE:
         return False, f"execution_lane_not_local_dev_swarm:{lane}", None
     if assignee in {"codex", "cursor", "antigravity"} and not retry_allowed and lane != LOCAL_DEV_SWARM_LANE:

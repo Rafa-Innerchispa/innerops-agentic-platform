@@ -113,6 +113,41 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
             self.assertEqual(commands, [["git", "diff", "--check"]])
             self.assertFalse(any(command[:3] == ["python3", "-m", "unittest"] for command in commands))
 
+
+    def test_repo_bound_codex_task_without_lane_is_eligible(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+        task = {
+            "task_id": "ops_lane_missing",
+            "assignee": "codex",
+            "status": "proposed",
+            "priority": "p0",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "task_class": "coding",
+            "title": "Fix control-plane tests in isolated worktree",
+        }
+        with patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "worktree"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, "Rafa-Innerchispa/innerops-agentic-platform")
+
+    def test_non_development_task_without_lane_still_filtered(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+        task = {
+            "task_id": "ops_email_noise",
+            "assignee": "codex",
+            "status": "proposed",
+            "priority": "p0",
+            "title": "Review email invoice backlog",
+            "checklist": ["read billing email", "reply to invoice thread"],
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "non_development_ops_filtered")
+        self.assertIsNone(repo)
+
     def test_executor_records_use_single_v10_version(self):
         source = _source("dev_swarm_scheduler.py")
         self.assertIn('EXECUTOR_VERSION = "autonomous_impl_v10_a2a_liveness"', source)
