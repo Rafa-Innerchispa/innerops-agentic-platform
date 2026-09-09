@@ -17,6 +17,14 @@ ralfia_disk_steward:
     - /
     - /home/rlopez/data
     - /home/rlopez/projects
+    - /mnt/datos_agentes
+  backup_primary_max_gb: 50
+  alert_dedup_minutes: 360
+  archive_mounts:
+    - /home/rlopez/data/archive
+    - /home/rlopez/data/backups
+    - /mnt/backup
+    - /mnt/backups
   integrates:
     - AG-35
     - AG-36

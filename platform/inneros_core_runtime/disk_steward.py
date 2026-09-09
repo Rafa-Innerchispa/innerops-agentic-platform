@@ -18,26 +18,42 @@ STATE_DIR = Path(os.getenv("RALPHI_DATA_ROOT", "/home/rlopez/data")) / "ralfia"
 STATE_FILE = STATE_DIR / "disk_steward_state.json"
 LOG_FILE = STATE_DIR / "disk_steward.log"
 
+def _csv_env(name: str, default: str) -> list[str]:
+    return [p.strip() for p in os.getenv(name, default).split(",") if p.strip()]
+
+
 # Libre ≤20% en disco principal = CRÍTICO (requisito Rafael)
 CRITICAL_FREE_PCT = float(os.getenv("DISK_CRITICAL_FREE_PCT", "20"))
 WARN_FREE_PCT = float(os.getenv("DISK_WARN_FREE_PCT", "30"))
+ALERT_DEDUP_MINUTES = int(os.getenv("DISK_ALERT_DEDUP_MINUTES", "360"))
+BACKUP_PRIMARY_MAX_GB = float(os.getenv("DISK_BACKUP_PRIMARY_MAX_GB", "50"))
 
 PRIMARY_MOUNTS = tuple(
-    m.strip()
-    for m in os.getenv(
+    _csv_env(
         "DISK_PRIMARY_MOUNTS",
-        "/,/home/rlopez/data,/home/rlopez/projects",
-    ).split(",")
-    if m.strip()
+        "/,/home/rlopez/data,/home/rlopez/projects,/mnt/datos_agentes",
+    )
 )
 
-BACKUP_SCAN_DIRS = [
-    "/home/rlopez/data/backups",
-    "/home/rlopez/data/backups/disaster_recovery",
-    "/home/rlopez/data/backups/snapshots",
-    "/home/rlopez/backups",
-    "/mnt/datos_agentes/backups",
-]
+ARCHIVE_MOUNTS = tuple(
+    _csv_env(
+        "DISK_ARCHIVE_MOUNTS",
+        "/home/rlopez/data/archive,/home/rlopez/data/backups,/mnt/backup,/mnt/backups",
+    )
+)
+
+BACKUP_SCAN_DIRS = _csv_env(
+    "DISK_BACKUP_SCAN_DIRS",
+    ",".join(
+        [
+            "/home/rlopez/data/backups",
+            "/home/rlopez/data/backups/disaster_recovery",
+            "/home/rlopez/data/backups/snapshots",
+            "/home/rlopez/backups",
+            "/mnt/datos_agentes/backups",
+        ]
+    ),
+)
 
 ARCHIVE_ROOT = Path(os.getenv("DISK_ARCHIVE_ROOT", "/home/rlopez/data/archive/disk_steward"))
 
@@ -60,6 +76,27 @@ def _log(msg: str) -> None:
     line = f"[{datetime.now().strftime('%F %T')}] {msg}\n"
     with LOG_FILE.open("a", encoding="utf-8") as f:
         f.write(line)
+
+
+def _load_state() -> dict[str, Any]:
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_state(state: dict[str, Any]) -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _parse_time(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _dir_size_bytes(path: Path, *, max_depth: int = 2) -> int:
@@ -137,6 +174,61 @@ def scan_backups() -> list[dict[str, Any]]:
     return sorted(items, key=lambda x: -x["size_gb"])
 
 
+def _mount_for_path(path: str, mounts: list[dict[str, Any]]) -> dict[str, Any] | None:
+    try:
+        resolved = str(Path(path).resolve())
+    except OSError:
+        resolved = str(Path(path))
+    best: dict[str, Any] | None = None
+    for mount in mounts:
+        m = str(mount.get("mount") or "")
+        if not m:
+            continue
+        if resolved == m or resolved.startswith(m.rstrip("/") + "/"):
+            if best is None or len(m) > len(str(best.get("mount") or "")):
+                best = mount
+    return best
+
+
+def _is_under_any(path: str, prefixes: tuple[str, ...]) -> bool:
+    try:
+        resolved = str(Path(path).resolve())
+    except OSError:
+        resolved = str(Path(path))
+    for raw in prefixes:
+        prefix = str(Path(raw))
+        if resolved == prefix or resolved.startswith(prefix.rstrip("/") + "/"):
+            return True
+    return False
+
+
+def scan_backup_placement(mounts: list[dict[str, Any]], backups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for item in backups:
+        path = str(item.get("path") or "")
+        size_gb = float(item.get("size_gb") or 0)
+        mount = _mount_for_path(path, mounts)
+        if not mount or size_gb < BACKUP_PRIMARY_MAX_GB:
+            continue
+        on_primary = bool(mount.get("is_primary"))
+        on_archive = _is_under_any(path, ARCHIVE_MOUNTS)
+        if on_primary and not on_archive:
+            free_pct = float(mount.get("free_pct") or 0)
+            level = "critical" if size_gb >= 100 and free_pct <= WARN_FREE_PCT else "warning"
+            issues.append(
+                {
+                    "level": level,
+                    "path": path,
+                    "size_gb": round(size_gb, 2),
+                    "mount": mount.get("mount"),
+                    "mount_free_pct": free_pct,
+                    "reason": "large_backup_tree_on_primary_mount",
+                    "required_action": "second_gate_review_before_move_or_delete",
+                }
+            )
+    return sorted(issues, key=lambda x: (x["level"] != "critical", -x["size_gb"]))
+
+
 def _safe_move_candidates() -> list[dict[str, Any]]:
     """Candidatos a mover a disco de archivo (solo propuesta; requiere WhatsApp)."""
     candidates: list[dict[str, Any]] = []
@@ -175,6 +267,7 @@ def _safe_move_candidates() -> list[dict[str, Any]]:
 def build_status(*, include_candidates: bool = True) -> dict[str, Any]:
     mounts = scan_mounts()
     backups = scan_backups()
+    backup_placement_issues = scan_backup_placement(mounts, backups)
     primary = [m for m in mounts if m.get("is_primary")]
     worst = max(primary, key=lambda m: m.get("use_pct", 0), default={})
     overall = "ok"
@@ -182,15 +275,25 @@ def build_status(*, include_candidates: bool = True) -> dict[str, Any]:
         overall = "critical"
     elif any(m.get("level") == "warning" for m in primary):
         overall = "warning"
+    if any(i.get("level") == "critical" for i in backup_placement_issues):
+        overall = "critical"
+    elif backup_placement_issues and overall == "ok":
+        overall = "warning"
 
     status: dict[str, Any] = {
         "schema": "ralfia.disk_steward.v1",
         "timestamp": _now(),
         "hostname": os.uname().nodename,
         "overall": overall,
-        "thresholds": {"critical_free_pct": CRITICAL_FREE_PCT, "warn_free_pct": WARN_FREE_PCT},
+        "thresholds": {
+            "critical_free_pct": CRITICAL_FREE_PCT,
+            "warn_free_pct": WARN_FREE_PCT,
+            "backup_primary_max_gb": BACKUP_PRIMARY_MAX_GB,
+            "alert_dedup_minutes": ALERT_DEDUP_MINUTES,
+        },
         "mounts": mounts,
         "backups": backups,
+        "backup_placement_issues": backup_placement_issues,
         "primary_worst": worst,
         "archive_root": str(ARCHIVE_ROOT),
     }
@@ -203,6 +306,38 @@ def build_status(*, include_candidates: bool = True) -> dict[str, Any]:
     except Exception:
         status["deferred_tasks"] = {"ok": False}
     return status
+
+
+def _alert_signature(status: dict[str, Any]) -> str:
+    worst = status.get("primary_worst") or {}
+    issue_sig = ";".join(
+        f"{i.get('level')}:{i.get('path')}:{i.get('size_gb')}" for i in status.get("backup_placement_issues") or []
+    )
+    return "|".join(
+        [
+            str(status.get("overall")),
+            str(worst.get("mount")),
+            str(worst.get("level")),
+            str(worst.get("free_pct")),
+            issue_sig,
+        ]
+    )
+
+
+def _should_emit_alert(status: dict[str, Any], state: dict[str, Any]) -> bool:
+    signature = _alert_signature(status)
+    last = state.get("last_alert") or {}
+    last_at = _parse_time(last.get("at"))
+    if last.get("signature") != signature:
+        return True
+    if last_at is None:
+        return True
+    return datetime.now(timezone.utc) - last_at >= timedelta(minutes=ALERT_DEDUP_MINUTES)
+
+
+def _record_alert(status: dict[str, Any], state: dict[str, Any]) -> None:
+    state["last_alert"] = {"at": _now(), "signature": _alert_signature(status), "overall": status.get("overall")}
+    _save_state(state)
 
 
 def _proposal_id() -> str:
@@ -270,8 +405,10 @@ def run_check(*, auto_propose: bool = True) -> dict[str, Any]:
     out_path.write_text(json.dumps(status, indent=2, ensure_ascii=False), encoding="utf-8")
 
     result: dict[str, Any] = {"ok": True, "status": status, "alerts": []}
+    state = _load_state()
 
     if status["overall"] in ("warning", "critical"):
+        issues = status.get("backup_placement_issues") or []
         msg = (
             f"*DISK {'CRÍTICO' if status['overall'] == 'critical' else 'AVISO'}* · {host}\n"
             f"Disco: `{status.get('primary_worst', {}).get('mount', '/')}` "
@@ -279,13 +416,27 @@ def run_check(*, auto_propose: bool = True) -> dict[str, Any]:
             f"({status.get('primary_worst', {}).get('free_gb', '?')} GB)\n"
             f"Umbral crítico: ≤{CRITICAL_FREE_PCT}% libre en discos principales."
         )
+        if issues:
+            msg += "\n\nBackups en revisión:"
+            for issue in issues[:3]:
+                msg += (
+                    f"\n- `{issue['path']}` ~{issue['size_gb']} GB en `{issue['mount']}` "
+                    f"({issue['reason']}; requiere segunda compuerta)"
+                )
         result["alerts"].append(msg)
-        try:
-            from raphiia_openai.notifications.evolution_client import send_whatsapp
+        if _should_emit_alert(status, state):
+            try:
+                from raphiia_openai.notifications.evolution_client import send_whatsapp
 
-            send_whatsapp(msg)
-        except Exception as exc:
-            _log(f"alert_failed: {exc}")
+                send_whatsapp(msg)
+                result["alert_sent"] = True
+                _record_alert(status, state)
+            except Exception as exc:
+                result["alert_sent"] = False
+                result["alert_error"] = str(exc)
+                _log(f"alert_failed: {exc}")
+        else:
+            result["alert_suppressed"] = "dedup_window"
 
         if auto_propose and status.get("move_candidates"):
             prop = create_move_proposal(reason=msg.replace("*", ""))

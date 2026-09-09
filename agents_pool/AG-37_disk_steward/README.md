@@ -8,15 +8,21 @@
 |-------|-----------|
 | **CRÍTICO** | ≤ **20% libre** en `/`, `/home/rlopez/data` o `/home/rlopez/projects` |
 | **AVISO** | ≤ 30% libre |
+| **REVISIÓN** | backup grande (>50GB por defecto) en mount primario que no sea archive root |
 
 ## Qué hace
 
 1. Escanea **todos** los montajes (`df`) — incluye discos adicionales (`/mnt/...`).
 2. Inventaria carpetas de **backups** conocidas (tamaño GB).
-3. Lee estado **AG-36** (tareas diferidas PST/GDrive).
-4. Si crítico/aviso → WhatsApp alerta inmediata.
-5. Si hay candidatos seguros (snapshots/DR antiguos) → propuesta con botones **Sí, mover** / **No mover**.
-6. **Nunca** formatea discos. **Nunca** mueve Mongo, Docker, InnerOS platform sin propuesta explícita.
+3. Detecta backups grandes en discos primarios, por ejemplo `/mnt/datos_agentes/backups/off-root`, y los marca como `second_gate_review_before_move_or_delete`.
+4. Lee estado **AG-36** (tareas diferidas PST/GDrive).
+5. Si crítico/aviso → WhatsApp alerta inmediata con deduplicación/histéresis para no spamear cada timer.
+6. Si hay candidatos seguros (snapshots/DR antiguos) → propuesta con botones **Sí, mover** / **No mover**.
+7. **Nunca** formatea discos. **Nunca** mueve Mongo, Docker, InnerOS platform ni árboles grandes sin segunda compuerta explícita.
+
+## Restore Points
+
+Los restore points son checkpoints de release/configuración con manifiesto, hashes y archivos pequeños copiados de forma acotada. No son backups completos ni snapshots de disco. Una restauración debe pasar por aprobación explícita del owner y plan de acciones antes de escribir sobre archivos vivos.
 
 ## Aprobación Rafael
 

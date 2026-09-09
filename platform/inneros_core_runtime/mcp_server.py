@@ -3741,6 +3741,53 @@ def get_disk_steward_status(include_candidates: bool = True) -> dict[str, Any]:
     return disk_steward.build_status(include_candidates=include_candidates)
 
 
+def _default_restore_point_roots() -> list[str]:
+    base = Path(os.getenv("RALPHIIA_OPENAI_ROOT", "/home/rlopez/inneros/inneros_core/platform"))
+    repo = base.parent
+    candidates = [
+        base / "inneros_core_runtime",
+        base / "systemd",
+        base / "scripts",
+        repo / "agents_pool" / "AG-37_disk_steward",
+    ]
+    return [str(p) for p in candidates if p.exists()]
+
+
+@mcp.tool
+def inneros_restore_point_create(
+    label: str = "manual checkpoint",
+    roots: list[str] | None = None,
+    output_root: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a bounded InnerOS restore point; this is a config/release checkpoint, not a full backup."""
+    from raphiia_openai import restore_points
+
+    selected_roots = roots or _default_restore_point_roots()
+    return restore_points.create_restore_point(
+        label,
+        roots=selected_roots,
+        output_root=output_root,
+        metadata=metadata or {"source": "mcp"},
+    )
+
+
+@mcp.tool
+def inneros_restore_point_list(output_root: str | None = None, limit: int = 50) -> dict[str, Any]:
+    """List InnerOS restore points with manifest metadata."""
+    from raphiia_openai import restore_points
+
+    return restore_points.list_restore_points(output_root=output_root, limit=limit)
+
+
+@mcp.tool
+def inneros_restore_point_plan(point_id: str, output_root: str | None = None) -> dict[str, Any]:
+    """Build an approval-gated restore plan. It does not write live files."""
+    from raphiia_openai import restore_points
+
+    return restore_points.build_restore_plan(point_id, output_root=output_root)
+
+
 @mcp.tool
 def sync_hackathon_portfolio_to_web_content(
     source_path: str | None = None,
