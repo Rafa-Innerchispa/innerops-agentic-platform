@@ -19,4 +19,4 @@ for _key, _value in vars(_canonical).items():
     if _key not in {"__name__", "__package__", "__spec__"}:
         globals()[_key] = _value
 
-sys.modules.setdefault(__name__, _canonical)
+sys.modules[__name__] = _canonical

@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import re
 import secrets
+import sys
 import shutil
 import socket
 import subprocess
@@ -40,6 +41,11 @@ RUN_ACTIVE_STATUSES = {"queued", "running", "checkpointed"}
 RUN_TERMINAL_STATUSES = {"completed", "failed", "blocked", "cancelled"}
 AUTO_CLAIM_ENV = "EXTERNAL_REPAIR_AUTO_CLAIM"
 AUTO_CLAIM_OWNER_ENV = "EXTERNAL_REPAIR_OWNER_AUTHORIZED"
+
+if __name__ == "inneros_core_runtime.external_repair_agent":
+    sys.modules["raphiia_openai.external_repair_agent"] = sys.modules[__name__]
+elif __name__ == "raphiia_openai.external_repair_agent":
+    sys.modules["inneros_core_runtime.external_repair_agent"] = sys.modules[__name__]
 
 
 def _now() -> str:
@@ -352,12 +358,16 @@ def classify_nonterminal_task(task: dict[str, Any], runs: list[dict[str, Any]] |
         return _summarize_task(task, bucket="TERMINAL_RUN_REVIEW", action="REVIEW_COMPLETED_RUN_RESULT", run=terminal_run, stale_after_seconds=stale_after_seconds)
     if status == "proposed":
         return _summarize_task(task, bucket="PROPOSED", action="ELIGIBLE_FOR_CLAIM", stale_after_seconds=stale_after_seconds)
+    if status == "accepted":
+        return _summarize_task(task, bucket="ACCEPTED_NO_RUN", action="AWAIT_EXECUTOR_BINDING", stale_after_seconds=stale_after_seconds)
     if status == "blocked" and not _recoverable_blocked_task(task):
         return _summarize_task(task, bucket="BLOCKED", action="WAIT_FOR_OWNER_OR_NEW_EVIDENCE", stale_after_seconds=stale_after_seconds)
     latest = _latest_task_activity(task)
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(60, int(stale_after_seconds or 7200)))
     if not latest or latest < cutoff:
         return _summarize_task(task, bucket="STALE_RECOVERABLE", action="RESUME_OR_CLOSE_WITH_EVIDENCE", stale_after_seconds=stale_after_seconds)
+    if status == "in_progress":
+        return _summarize_task(task, bucket="ACTIVE_TASK_NO_RUN", action="BLOCK_NO_EXECUTOR", stale_after_seconds=stale_after_seconds)
     return _summarize_task(task, bucket="ACTIVE_TASK_NO_RUN", action="MONITOR_TASK_STATE", stale_after_seconds=stale_after_seconds)
 
 
@@ -575,6 +585,52 @@ def record_nonterminal_reconcile_buckets(provider: str = "codex", limit: int = 5
     return {"ok": True, "dry_run": dry_run, "summary": summary, "updates": updates}
 
 
+def reconcile_tasks_without_live_executor(provider: str = "codex", limit: int = 50, dry_run: bool = False, task_ids: list[str] | None = None) -> dict[str, Any]:
+    """Make active ops_task state honest when no external run exists."""
+    provider_n = (provider or "codex").strip().lower()
+    target_ids = {str(task_id).strip() for task_id in (task_ids or []) if str(task_id).strip()}
+    tasks = list_provider_nonterminal_tasks(provider_n, limit=limit)
+    if target_ids:
+        tasks = [task for task in tasks if str(task.get("task_id") or "") in target_ids]
+    grouped_runs = _runs_by_task(provider_n, [str(task.get("task_id") or "") for task in tasks], limit=max(limit * 4, 50))
+    repaired: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for task in tasks:
+        task_id = str(task.get("task_id") or "")
+        row = classify_nonterminal_task(task, grouped_runs.get(task_id, []))
+        status = str(task.get("status") or "").lower()
+        if status != "in_progress" or row.get("bucket") not in {"ACTIVE_TASK_NO_RUN", "STALE_RECOVERABLE"}:
+            skipped.append({"task_id": task_id, "bucket": row.get("bucket"), "status": status})
+            continue
+        evidence = {
+            "result": "BLOCKED",
+            "reason": "blocked_no_executor",
+            "reconcile_policy": "external_repair_no_fake_working_state_v1",
+            "previous_status": status,
+            "required_binding": ["run_id", "worker_or_session_identity", "recent_heartbeat"],
+            "next_action": "create a real executor binding, then resume through accepted -> in_progress",
+        }
+        if dry_run:
+            repaired.append({**row, "dry_run": True, "target_status": "blocked"})
+            continue
+        result = coordination_live.update_ops_task_state(
+            task_id,
+            "blocked",
+            actor=provider_n,
+            evidence=evidence,
+            force_handoff=True,
+        )
+        if result.get("ok"):
+            _db()[coordination_live.OPS_TASKS_COL].update_one(
+                {"task_id": task_id},
+                {"$set": {"blocker": "blocked_no_executor", "dev_swarm_last_skip_reason": "blocked_no_executor", "evidence": evidence, "external_repair_binding_missing_at": _now()}},
+            )
+            repaired.append({**row, "target_status": "blocked", "transition": result})
+        else:
+            skipped.append({**row, "error": result.get("error"), "details": result})
+    return {"ok": True, "dry_run": dry_run, "provider": provider_n, "target_task_ids": sorted(target_ids), "repaired": repaired, "skipped": skipped, "repaired_count": len(repaired)}
+
+
 def _task_priority_key(task: dict[str, Any]) -> tuple[int, str]:
     return (PRIORITY_ORDER.get(str(task.get("priority") or "normal").lower(), 99), str(task.get("created_at") or ""))
 
@@ -679,11 +735,56 @@ def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = Tr
     if not claimed:
         return {"ok": False, "error": "claim_race_lost", "provider": provider, "candidate_task_id": selected["task_id"]}
     coordination_live.bump_revision(reason=f"external_repair_agent claimed {selected['task_id']}", source="external_repair_agent")
-    promoted = coordination_live.update_ops_task_state(claimed["task_id"], "in_progress", actor=provider, expected_revision=int(claimed.get("revision") or 1))
+    run = start_external_repair_run(
+        provider=provider,
+        task_id=str(claimed["task_id"]),
+        correlation_id=str(claimed.get("correlation_id") or ""),
+        repo=str(claimed.get("repo") or claimed.get("related_project") or ""),
+        branch=str(claimed.get("work_branch") or ""),
+        dry_run=False,
+        chargeable=False,
+        context_bundle={
+            "claim_source": "external_repair_agent_claim_next",
+            "truth_invariant": "in_progress_requires_real_run_id",
+            "task_revision": claimed.get("revision"),
+        },
+    )
+    if not run.get("ok"):
+        blocked = coordination_live.update_ops_task_state(
+            str(claimed["task_id"]),
+            "blocked",
+            actor=provider,
+            expected_revision=int(claimed.get("revision") or 1),
+            evidence={"result": "BLOCKED", "reason": "executor_run_start_failed", "run_start": run},
+            force_handoff=True,
+        )
+        return {"ok": False, "error": "executor_run_start_failed", "provider": provider, "task": claimed, "run_start": run, "transition": blocked}
+    promoted = coordination_live.update_ops_task_state(
+        claimed["task_id"],
+        "in_progress",
+        actor=provider,
+        expected_revision=int(claimed.get("revision") or 1),
+        evidence={"result": "OK", "run_id": (run.get("run") or {}).get("run_id"), "reason": "executor_run_started_before_in_progress"},
+    )
     if not promoted.get("ok"):
+        _db()[RUNS_COL].update_one(
+            {"run_id": (run.get("run") or {}).get("run_id")},
+            {"$set": {"status": "blocked", "outcome": "blocked", "blocker": "task_promotion_failed", "updated_at": _now()}},
+        )
         return {"ok": False, "error": "claim_promote_failed", "provider": provider, "task": claimed, "promotion": promoted}
+    binding = {
+        "run_id": (run.get("run") or {}).get("run_id"),
+        "provider": provider,
+        "status": (run.get("run") or {}).get("status"),
+        "started_at": (run.get("run") or {}).get("started_at"),
+        "policy": "in_progress_requires_real_run_id_v1",
+    }
+    _db()[coordination_live.OPS_TASKS_COL].update_one(
+        {"task_id": claimed["task_id"]},
+        {"$set": {"external_repair_run_id": binding["run_id"], "executor_binding": binding, "evidence": {"result": "OK", **binding}}},
+    )
     task = _db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": claimed["task_id"]}, {"_id": 0}) or claimed
-    return {"ok": True, "claimed": True, "provider": provider, "task": task, "admission": admission, "promotion": promoted}
+    return {"ok": True, "claimed": True, "provider": provider, "task": task, "run": run.get("run"), "admission": admission, "promotion": promoted}
 
 
 def reconcile_terminal_handoffs(provider: str = "codex", limit: int = 25) -> dict[str, Any]:
@@ -741,11 +842,12 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
     handoffs = reconcile_terminal_handoffs(provider_n, limit=max(limit, 10))
     recovered = recover_external_repair_runs(provider=provider_n, mark_stale_after_seconds=3600)
     bucket_record = record_nonterminal_reconcile_buckets(provider_n, limit=max(limit, 20), dry_run=dry_run)
+    no_executor = reconcile_tasks_without_live_executor(provider_n, limit=max(limit, 20), dry_run=dry_run)
     status_mid = external_repair_agent_status(provider_n)
     active_runs = status_mid.get("active_runs") or []
     active_tasks = [
         task for task in (status_mid.get("nonterminal_tasks") or [])
-        if task.get("bucket") in {"ACTIVE_RUN", "ACTIVE_TASK_NO_RUN"}
+        if task.get("bucket") in {"ACTIVE_RUN"}
     ]
     capability = ((status_mid.get("matrix") or {}).get("providers") or [{}])[0]
     enabled = _auto_claim_enabled(provider_n)
@@ -760,7 +862,7 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
         claim = {"ok": True, "claimed": False, "reason": "provider_not_ready", "capability": capability}
     status_after = external_repair_agent_status(provider_n)
     return {
-        "ok": bool(completed_runs.get("ok") and handoffs.get("ok") and recovered.get("ok") and bucket_record.get("ok") and claim.get("ok")),
+        "ok": bool(completed_runs.get("ok") and handoffs.get("ok") and recovered.get("ok") and bucket_record.get("ok") and no_executor.get("ok") and claim.get("ok")),
         "provider": provider_n,
         "auto_claim_enabled": enabled,
         "status_before": status_before,
@@ -768,6 +870,7 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
         "handoffs": handoffs,
         "recovered": recovered,
         "nonterminal_reconcile": bucket_record,
+        "no_executor_reconcile": no_executor,
         "active_tasks": active_tasks,
         "claim": claim,
         "status_after": status_after,

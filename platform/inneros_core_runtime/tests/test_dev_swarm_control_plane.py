@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import ast
 import json
 import tempfile
@@ -41,7 +46,7 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
         self.assertNotIn('or "Rafa-Innerchispa/innerops-agentic-platform"', body)
 
     def test_ag45_fanout_has_no_per_lane_legacy_launcher(self):
-        body = _function_source("pool_agent_runners.py", "run_ag45")
+        body = _function_source("agents/pool_agent_runners.py", "run_ag45")
         self.assertIn("fanout_execute(", body)
         self.assertNotIn("ThreadPoolExecutor", body)
         self.assertNotIn("dev_swarm_launch_task(", body)

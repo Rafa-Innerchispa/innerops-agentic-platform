@@ -277,7 +277,7 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertEqual(claimed["status"], "in_progress")
         self.assertEqual(claimed["owner"], "codex")
 
-    def test_reconcile_does_not_claim_when_provider_has_active_task(self):
+    def test_reconcile_blocks_no_run_task_and_claims_next(self):
         db = FakeDb()
         db[coordination_live.OPS_TASKS_COL].docs.extend([
             {
@@ -309,9 +309,14 @@ class ExternalRepairAgentTests(unittest.TestCase):
             patch.object(coordination_live.mongo_store, "get_db", return_value=db):
             result = ext.external_repair_agent_reconcile(provider="codex", auto_claim=True, dry_run=False)
         self.assertTrue(result["ok"])
-        self.assertEqual(result["claim"]["reason"], "provider_has_active_tasks")
+        self.assertEqual(result["no_executor_reconcile"]["repaired_count"], 1)
+        self.assertTrue(result["claim"]["claimed"])
+        active = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_active"})
+        self.assertEqual(active["status"], "blocked")
+        self.assertEqual(active["evidence"]["reason"], "blocked_no_executor")
         waiting = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_waiting"})
-        self.assertEqual(waiting["status"], "proposed")
+        self.assertEqual(waiting["status"], "in_progress")
+        self.assertTrue(result["claim"].get("run", {}).get("run_id"))
 
     def test_reconcile_ignores_stale_active_task_when_no_live_run(self):
         db = FakeDb()
@@ -373,6 +378,68 @@ class ExternalRepairAgentTests(unittest.TestCase):
         task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_budget"})
         self.assertEqual(task["status"], "blocked")
 
+    def test_claim_creates_run_before_in_progress(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_claim_run",
+            "assignee": "codex",
+            "status": "proposed",
+            "owner": None,
+            "priority": "p0",
+            "revision": 1,
+            "correlation_id": "corr-claim-run",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "work_branch": "codex/test-claim-run",
+            "created_at": "2026-08-26T00:11:00+00:00",
+        })
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "codex", "status": "ready", "auth_ready": True}), \
+            patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}), \
+            patch.object(ext.coordination_live, "bump_revision", return_value={"ok": True}), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db), \
+            patch.object(ext.coordination_live, "update_ops_task_state", wraps=coordination_live.update_ops_task_state):
+            result = ext.external_repair_agent_claim_next(provider="codex", dry_run=False)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["claimed"])
+        run = result["run"]
+        self.assertTrue(run["run_id"].startswith("extrep_ops_claim_run_codex_"))
+        self.assertEqual(run["status"], "running")
+        task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_claim_run"})
+        self.assertEqual(task["status"], "in_progress")
+        self.assertEqual(task["evidence"]["run_id"], run["run_id"])
+
+    def test_reconcile_no_executor_can_target_specific_tasks(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.extend([
+            {
+                "task_id": "ops_target_no_run",
+                "assignee": "codex",
+                "status": "in_progress",
+                "owner": "codex",
+                "priority": "p0",
+                "revision": 2,
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            },
+            {
+                "task_id": "ops_other_no_run",
+                "assignee": "codex",
+                "status": "in_progress",
+                "owner": "codex",
+                "priority": "p0",
+                "revision": 2,
+                "created_at": ext._now(),
+                "updated_at": ext._now(),
+            },
+        ])
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db), \
+            patch.object(ext.coordination_live, "bump_revision", return_value={"ok": True}):
+            result = ext.reconcile_tasks_without_live_executor("codex", dry_run=False, task_ids=["ops_target_no_run"])
+        self.assertEqual(result["repaired_count"], 1)
+        self.assertEqual(db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_target_no_run"})["status"], "blocked")
+        self.assertEqual(db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_other_no_run"})["status"], "in_progress")
+
 
     def test_status_exposes_nonterminal_tasks_even_when_active_runs_empty(self):
         db = FakeDb()
@@ -398,7 +465,7 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertEqual(result["pending_nonterminal_count"], 1)
         self.assertEqual(result["nonterminal_statuses"], {"in_progress": 1})
         self.assertEqual(result["nonterminal_buckets"], {"ACTIVE_TASK_NO_RUN": 1})
-        self.assertEqual(result["nonterminal_tasks"][0]["action"], "MONITOR_TASK_STATE")
+        self.assertEqual(result["nonterminal_tasks"][0]["action"], "BLOCK_NO_EXECUTOR")
 
     def test_nonterminal_summary_classifies_partial_blocked_and_proposed(self):
         db = FakeDb()
@@ -609,12 +676,15 @@ class ExternalRepairAgentTests(unittest.TestCase):
             first = ext.external_repair_agent_reconcile(provider="codex", auto_claim=True, dry_run=False)
             second = ext.external_repair_agent_reconcile(provider="codex", auto_claim=True, dry_run=False)
         self.assertTrue(first["ok"])
-        self.assertEqual(first["claim"]["reason"], "provider_has_active_tasks")
+        self.assertEqual(first["no_executor_reconcile"]["repaired_count"], 1)
+        self.assertTrue(first["claim"]["claimed"])
         self.assertTrue(second["ok"])
+        self.assertEqual(second["claim"]["reason"], "provider_has_active_runs")
         waiting = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_waiting"})
-        self.assertEqual(waiting["status"], "proposed")
+        self.assertEqual(waiting["status"], "in_progress")
         recent = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_recent"})
-        self.assertEqual(recent["nonterminal_reconcile_bucket"], "ACTIVE_TASK_NO_RUN")
+        self.assertEqual(recent["status"], "blocked")
+        self.assertEqual(recent["blocker"], "blocked_no_executor")
 
 
 if __name__ == "__main__":

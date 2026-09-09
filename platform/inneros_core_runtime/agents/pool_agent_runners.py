@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 from raphiia_openai.agent_auto_log import record_agent_run
@@ -309,10 +310,18 @@ def run_ag36(message: str = "", **kw: Any) -> dict[str, Any]:
     return ag36.run_deferred_ops_scan()
 
 
-def run_ag45(message: str = "", **_: Any) -> dict[str, Any]:
-    from raphiia_openai import local_execution_plane
-    repo = message.strip() or "inneros/inneros_core/platform"
-    return _ok("AG-45", "local_exec_inspect", **local_execution_plane.local_exec_inspect_repo(repo))
+def run_ag45(message: str = "", **kw: Any) -> dict[str, Any]:
+    from raphiia_openai import dev_swarm_scheduler, local_execution_plane
+
+    text = (message or "").strip()
+    task_ids = re.findall(r"\bops_[0-9a-f]{12}\b", text)
+    repo_match = re.search(r"\brepo=([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)", text)
+    repo = repo_match.group(1) if repo_match else dev_swarm_scheduler.SAFE_INNEROS_REPO
+    if not task_ids:
+        target = text or repo
+        return _ok("AG-45", "local_exec_inspect", **local_execution_plane.local_exec_inspect_repo(target))
+    result = dev_swarm_scheduler.fanout_execute(repo=repo, task_ids=task_ids, concurrency=min(len(task_ids), 4), dry_run=bool(kw.get("dry_run", True)))
+    return _ok("AG-45", "fanout_execute", **result)
 
 
 # Agentes con módulo dedicado ag*.py — reexport runners
