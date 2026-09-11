@@ -108,3 +108,27 @@ def test_provider_onboarding_requires_real_scoped_host_approval(monkeypatch, tmp
     assert allowed["ok"] is True
     assert allowed["executed"] is True
     assert (tmp_path / "assemblyai.json").exists()
+
+
+def test_transcribe_audio_file_uploads_without_leaking_provider_url(monkeypatch, tmp_path: Path) -> None:
+    audio = tmp_path / "note.wav"
+    audio.write_bytes(b"RIFFfixture-audio")
+    monkeypatch.setattr(assemblyai_provider, "_api_key", lambda: "fixture-key")
+    monkeypatch.setattr(
+        assemblyai_provider,
+        "_binary_request",
+        lambda *args, **kwargs: {"upload_url": "https://cdn.example.test/private-upload?opaque=123"},
+    )
+    captured = {}
+
+    def fake_transcribe(url, **kwargs):
+        captured["url"] = url
+        return {"ok": True, "provider_id": "assemblyai", "text": "Sí, autorizo.", "audio_url_exposed": False}
+
+    monkeypatch.setattr(assemblyai_provider, "transcribe_audio_url", fake_transcribe)
+    result = assemblyai_provider.transcribe_audio_file(str(audio))
+    assert result["ok"] is True
+    assert result["source"] == "local_audio_file"
+    assert result["upload_url_exposed"] is False
+    assert captured["url"].startswith("https://cdn.example.test/")
+    assert "opaque=123" not in repr(result)

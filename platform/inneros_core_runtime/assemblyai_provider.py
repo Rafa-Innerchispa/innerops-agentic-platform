@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
 
@@ -24,6 +25,7 @@ VOICE_AGENT_WS = "wss://agents.assemblyai.com/v1/ws"
 STREAMING_WS = "wss://streaming.assemblyai.com/v3/ws"
 LLM_GATEWAY = "https://llm-gateway.assemblyai.com/v1/chat/completions"
 CAPABILITIES = [
+    "voice_note_stt",
     "realtime_stt",
     "voice_agent_session",
     "tts",
@@ -250,6 +252,46 @@ def transcribe_audio_url(
     }
 
 
+def transcribe_audio_file(
+    path: str,
+    language_code: str = "es",
+    keyterms: list[str] | None = None,
+    enable_guardrails: bool = True,
+    redact_audio: bool = False,
+    timeout_seconds: int = 75,
+) -> dict[str, Any]:
+    """Upload a local audio file and transcribe it without exposing provider URLs."""
+    target = Path(path)
+    if not target.is_file():
+        return {"ok": False, "provider_id": PROVIDER_ID, "error": "audio_file_not_found"}
+    size = target.stat().st_size
+    if size <= 0:
+        return {"ok": False, "provider_id": PROVIDER_ID, "error": "audio_file_empty"}
+    if size > 25 * 1024 * 1024:
+        return {"ok": False, "provider_id": PROVIDER_ID, "error": "audio_file_too_large"}
+
+    uploaded = _binary_request(
+        REST_BASE + "/v2/upload",
+        api_key=_api_key(),
+        data=target.read_bytes(),
+        timeout=30.0,
+    )
+    upload_url = str(uploaded.get("upload_url") or "")
+    if not upload_url:
+        return {"ok": False, "provider_id": PROVIDER_ID, "error": "upload_url_missing"}
+    result = transcribe_audio_url(
+        upload_url,
+        language_code=language_code,
+        keyterms=keyterms,
+        enable_guardrails=enable_guardrails,
+        redact_audio=redact_audio,
+        timeout_seconds=timeout_seconds,
+    )
+    result["source"] = "local_audio_file"
+    result["upload_url_exposed"] = False
+    return result
+
+
 def _credential_metadata() -> dict[str, Any]:
     return owner_vault.get_owner_credential(VAULT_KEY, category=VAULT_CATEGORY, reveal=False, actor="RAFAEL")
 
@@ -287,6 +329,17 @@ def _json_request(
     req = request.Request(url, data=body, headers=headers, method=method)
     try:
         with request.urlopen(req, timeout=timeout) as response:  # noqa: S310 - fixed provider domains
+            raw = response.read().decode("utf-8")
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:300]
+        raise RuntimeError(f"assemblyai_http_{exc.code}: {detail}") from exc
+    return json.loads(raw or "{}")
+
+
+def _binary_request(url: str, *, api_key: str, data: bytes, timeout: float = 30.0) -> dict[str, Any]:
+    req = request.Request(url, data=data, headers={"Authorization": api_key}, method="POST")
+    try:
+        with request.urlopen(req, timeout=timeout) as response:  # noqa: S310 - fixed provider domain
             raw = response.read().decode("utf-8")
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:300]

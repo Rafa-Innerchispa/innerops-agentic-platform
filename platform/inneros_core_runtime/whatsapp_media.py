@@ -4,6 +4,7 @@ import base64, hashlib, io, json, math, os, re, shutil, subprocess, tempfile
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable
+from raphiia_openai import assemblyai_provider, resource_fabric
 from raphiia_openai import whatsapp_evolution_parse as evo
 from raphiia_openai.notifications.evolution_client import get_media_base64
 
@@ -110,6 +111,46 @@ def transcribe_local(path: str) -> dict[str, Any]:
             errors.append(f"{endpoint}: {exc}")
             continue
     raise RuntimeError("whisper_unavailable: " + "; ".join(errors[:3]))
+
+def transcribe_routed(
+    path: str,
+    *,
+    project_id: str = "inneros-agentic-platform",
+    keyterms: list[str] | None = None,
+) -> dict[str, Any]:
+    """Route WhatsApp voice-note STT through Resource Fabric with local fallback."""
+    route = resource_fabric.route_resource_request(
+        project_id=project_id,
+        task_class="voice_note_stt",
+        prefer_cloud=False,
+        emit_audit=False,
+    )
+    selected = route.get("selected") if isinstance(route, dict) else None
+    provider = (selected or {}).get("provider") if isinstance(selected, dict) else {}
+    provider_id = str((provider or {}).get("provider_id") or "")
+    routing = {
+        "requested_capability": "voice_note_stt",
+        "selected_provider": provider_id or "local-amd-5",
+        "fallback_used": False,
+    }
+    if provider_id == assemblyai_provider.PROVIDER_ID:
+        try:
+            result = assemblyai_provider.transcribe_audio_file(
+                path,
+                language_code="es",
+                keyterms=keyterms or ["InnerOS", "Ralphi", "Guardian", "Workforce", "orden técnica"],
+                enable_guardrails=True,
+            )
+            if result.get("ok"):
+                return {**result, "provider": assemblyai_provider.PROVIDER_ID, "routing": routing}
+            routing["managed_error"] = str(result.get("error") or "transcription_failed")[:160]
+        except Exception as exc:
+            routing["managed_error"] = type(exc).__name__
+        routing["fallback_used"] = True
+
+    local = transcribe_local(path)
+    return {**local, "routing": routing}
+
 def ocr_local(path: str) -> dict[str, Any]:
     started=perf_counter()
     proc=subprocess.run(["tesseract",path,"stdout","-l",os.getenv("OCR_LANG","spa+eng")],capture_output=True,text=True,timeout=60,check=False)
@@ -172,7 +213,7 @@ def process_media(payload: dict[str, Any], *, node: str="primary", downloader: C
         try:
             normalized = normalize_audio(downloaded["path"])
             result["audio_normalized"] = normalized != downloaded["path"]
-            result["transcript"]=(transcriber or transcribe_local)(normalized)
+            result["transcript"]=(transcriber or transcribe_routed)(normalized)
         except Exception as exc: result.update(processing_status="unavailable",processing_error=str(exc),retryable=True)
         else: result["processing_status"]="processed"
     elif downloaded["kind"]=="image":
