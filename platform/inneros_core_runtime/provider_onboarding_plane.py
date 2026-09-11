@@ -80,8 +80,16 @@ def provider_register_manifest(manifest: dict[str, Any], dry_run: bool = True, a
     if dry_run:
         _audit("provider_register_manifest_dry_run", result)
         return result
-    if clean["risk_level"] != "read_only" and not _valid_approval_id(approval_id):
-        return {"ok": False, "agent_id": AGENT_ID, "error": "approval_id_required", "manifest": _redact_manifest(clean)}
+    if clean["risk_level"] != "read_only":
+        approval = _validate_host_approval(approval_id)
+        if not approval.get("ok"):
+            return {
+                "ok": False,
+                "agent_id": AGENT_ID,
+                "error": "approval_id_required",
+                "approval": {k: v for k, v in approval.items() if k != "approval_id"},
+                "manifest": _redact_manifest(clean),
+            }
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     clean["registered_at"] = datetime.now(timezone.utc).isoformat()
     path.write_text(json.dumps(clean, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -159,8 +167,18 @@ def _redact_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in manifest.items() if k not in {"private_key", "token", "password", "api_key", "secret"}}
 
 
-def _valid_approval_id(value: str) -> bool:
-    return bool(re.fullmatch(r"(ops|msg|approval)_[A-Za-z0-9_-]{8,80}", (value or "").strip()))
+def _validate_host_approval(value: str) -> dict[str, Any]:
+    """Validate a real short-lived host approval for provider registration."""
+    if not str(value or "").startswith("hostap_"):
+        return {"ok": False, "error": "approval_id_invalid"}
+    from raphiia_openai import local_execution_plane
+
+    return local_execution_plane.validate_host_approval(
+        value,
+        action="provider_register_manifest:write",
+        project_id="inneros-local-agent-fabric",
+        node="primary",
+    )
 
 
 def _audit(action: str, evidence: dict[str, Any]) -> None:
