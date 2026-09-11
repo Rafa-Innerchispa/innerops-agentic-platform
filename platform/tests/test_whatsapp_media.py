@@ -151,3 +151,37 @@ class TestWhatsappMedia(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWhatsappVoiceRouting(unittest.TestCase):
+    def test_routed_voice_note_uses_assemblyai_when_fabric_selects_it(self):
+        route = {"selected": {"provider": {"provider_id": "assemblyai"}}}
+        managed = {
+            "ok": True,
+            "provider_id": "assemblyai",
+            "text": "Sí, autorizo.",
+            "pii_redaction_enabled": True,
+            "audio_url_exposed": False,
+        }
+        with patch.object(media.resource_fabric, "route_resource_request", return_value=route), patch.object(
+            media.assemblyai_provider, "transcribe_audio_file", return_value=managed
+        ) as managed_call, patch.object(media, "transcribe_local") as local_call:
+            result = media.transcribe_routed("/tmp/fixture.wav")
+        self.assertEqual(result["provider"], "assemblyai")
+        self.assertEqual(result["routing"]["selected_provider"], "assemblyai")
+        self.assertFalse(result["routing"]["fallback_used"])
+        managed_call.assert_called_once()
+        local_call.assert_not_called()
+
+    def test_routed_voice_note_falls_back_to_local_whisper(self):
+        route = {"selected": {"provider": {"provider_id": "assemblyai"}}}
+        local = {"text": "Sí, autorizo.", "provider": "local_whisper", "confidence": 0.9}
+        with patch.object(media.resource_fabric, "route_resource_request", return_value=route), patch.object(
+            media.assemblyai_provider, "transcribe_audio_file", return_value={"ok": False, "error": "provider_unavailable"}
+        ), patch.object(media, "transcribe_local", return_value=local) as local_call:
+            result = media.transcribe_routed("/tmp/fixture.wav")
+        self.assertEqual(result["provider"], "local_whisper")
+        self.assertTrue(result["routing"]["fallback_used"])
+        self.assertEqual(result["routing"]["selected_provider"], "assemblyai")
+        self.assertEqual(result["routing"]["managed_error"], "provider_unavailable")
+        local_call.assert_called_once_with("/tmp/fixture.wav")
