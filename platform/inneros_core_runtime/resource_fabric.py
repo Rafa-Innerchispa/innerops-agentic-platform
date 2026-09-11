@@ -15,6 +15,7 @@ from raphiia_openai import digitalocean_amd_provider
 from raphiia_openai import gemini_runtime
 from raphiia_openai import local_discord_plane
 from raphiia_openai import local_gitlab_plane
+from raphiia_openai import assemblyai_provider
 
 COL_PROVIDERS = "inneros_resource_providers"
 COL_MODEL_REGISTRY = "inneros_model_registry"
@@ -49,6 +50,7 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
         digitalocean_amd_provider.resource_provider_document(),
         local_gitlab_plane.resource_provider_document(),
         local_discord_plane.resource_provider_document(),
+        assemblyai_provider.resource_provider_document(),
     ]
     models = [
         {
@@ -138,8 +140,40 @@ def route_resource_request(
         if not prefer_cloud and model.get("cost_policy") == "explicit_burst_only":
             continue
         provider = db[COL_PROVIDERS].find_one({"provider_id": model.get("provider_id")}, {"_id": 0}) or {}
-        candidates.append({"model": model, "provider": provider})
-    if prefer_cloud:
+        candidates.append({"model": model, "provider": provider, "selection_kind": "model"})
+
+    # Non-model capabilities (voice, messaging, browser, tools, etc.) are first-class
+    # Resource Fabric resources too.  Fall back to provider capabilities when no
+    # model registry entry exists for the requested task class.
+    if not candidates:
+        links = list(
+            db[COL_RESOURCE_LINKS].find(
+                {"project_id": project_id, "capability": task_class}, {"_id": 0}
+            ).sort("updated_at", -1)
+        )
+        linked_ids = [str(row.get("provider_id") or "") for row in links if row.get("provider_id")]
+        providers = list(
+            db[COL_PROVIDERS].find(
+                {"capabilities": task_class, "status": {"$in": ["active", "configured"]}}, {"_id": 0}
+            )
+        )
+        for provider in providers:
+            candidates.append(
+                {
+                    "model": None,
+                    "provider": provider,
+                    "selection_kind": "capability",
+                    "explicit_project_link": provider.get("provider_id") in linked_ids,
+                }
+            )
+        candidates.sort(
+            key=lambda row: (
+                0 if row.get("explicit_project_link") else 1,
+                0 if (bool((row.get("provider") or {}).get("local_first")) != bool(prefer_cloud)) else 1,
+                str((row.get("provider") or {}).get("provider_id") or ""),
+            )
+        )
+    elif prefer_cloud:
         candidates.sort(key=lambda row: 0 if (row.get("model") or {}).get("cost_policy") == "explicit_burst_only" else 1)
     selected = candidates[0] if candidates else None
     result = {"ok": bool(selected), "project_id": project_id, "task_class": task_class, "selected": selected, "candidates": candidates}

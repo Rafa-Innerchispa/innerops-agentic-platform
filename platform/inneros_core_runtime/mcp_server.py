@@ -1435,6 +1435,52 @@ def provider_preflight(provider_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+def assemblyai_provider_status() -> dict[str, Any]:
+    """AssemblyAI reusable provider status; never returns the API key."""
+    from raphiia_openai import assemblyai_provider
+
+    return assemblyai_provider.provider_status()
+
+
+@mcp.tool
+def assemblyai_provider_preflight(live: bool = False) -> dict[str, Any]:
+    """AssemblyAI provider preflight; live=True validates token mint server-side."""
+    from raphiia_openai import assemblyai_provider
+
+    return assemblyai_provider.provider_preflight(live=live)
+
+
+@mcp.tool
+def assemblyai_store_api_key_server_side(secret: str, actor: str = "RAFAEL") -> dict[str, Any]:
+    """Store/rotate AssemblyAI API key in Owner Vault; raw value is never returned."""
+    from raphiia_openai import assemblyai_provider
+
+    return assemblyai_provider.store_api_key_server_side(secret=secret, actor=actor)
+
+
+@mcp.tool
+def assemblyai_transcribe_audio_url(
+    audio_url: str,
+    language_code: str = "es",
+    keyterms: list[str] | None = None,
+    enable_guardrails: bool = True,
+    redact_audio: bool = False,
+    timeout_seconds: int = 75,
+) -> dict[str, Any]:
+    """Transcribe channel audio such as WhatsApp voice notes via the global provider."""
+    from raphiia_openai import assemblyai_provider
+
+    return assemblyai_provider.transcribe_audio_url(
+        audio_url=audio_url,
+        language_code=language_code,
+        keyterms=keyterms,
+        enable_guardrails=enable_guardrails,
+        redact_audio=redact_audio,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+@mcp.tool
 def resource_fabric_bootstrap(dry_run: bool = False) -> dict[str, Any]:
     """Resource Fabric: registra providers/model providers globales sin ligarlos a proyectos."""
     from raphiia_openai import resource_fabric
