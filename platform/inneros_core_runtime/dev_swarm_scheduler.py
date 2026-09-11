@@ -34,7 +34,7 @@ ELIGIBLE_STATUSES = ("proposed",)
 OPS_TERMINAL_STATUSES = frozenset({"blocked", "completed", "cancelled", "failed"})
 PRIORITY_ORDER = {"critical": 0, "p0": 1, "p1": 2, "normal": 3, "p2": 4, "low": 5}
 SAFE_INNEROS_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
-ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini"}
+ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini", "dev_swarm"}
 TERMINAL_EXECUTOR_STATUSES = {"executed", "needs_implementation", "failed", "blocked"}
 LEGACY_SAFE_TASK_IDS = {
     "ops_e7cacfc4a525",
@@ -244,12 +244,31 @@ def _worker_objective(worker: dict[str, Any], task: dict[str, Any] | None) -> st
 CANONICAL_REPO_HINTS = {
     "innerops-agentic-platform": SAFE_INNEROS_REPO,
     "innerspark-workforce-ai": "Rafa-Innerchispa/innerspark-workforce-ai",
+    "hyperloom-r9700-experimental": "Rafa-Innerchispa/hyperloom-r9700-experimental",
+    "inneros-webmcp": "Rafa-Innerchispa/inneros-webmcp",
+    "inneros-physical-guardian": "Rafa-Innerchispa/inneros-physical-guardian",
+    "inneros-voiceops-assemblyai": "Rafa-Innerchispa/inneros-voiceops-assemblyai",
+    "inneros-forensic-replay": "Rafa-Innerchispa/inneros-forensic-replay",
+    "innerops-service-ops": "Rafa-Innerchispa/innerops-service-ops",
+    "inneros-dmx-engine": "Rafa-Innerchispa/inneros-dmx-engine",
 }
+
+WRITE_TASK_CLASSES = {"coding", "code_review", "refactor", "tests", "build", "deployment"}
+LOCAL_DEV_SWARM_LANE = "local_dev_swarm"
 
 
 def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
     candidates: list[str] = []
-    for key in ("repo", "repository", "repo_full_name", "canonical_repo", "target_repo"):
+    for key in (
+        "repo",
+        "repository",
+        "repo_full_name",
+        "canonical_repo",
+        "target_repo",
+        "related_project",
+        "project",
+        "project_id",
+    ):
         value = str(task.get(key) or "").strip()
         if value:
             candidates.append(value)
@@ -267,6 +286,9 @@ def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
         for marker, repo in CANONICAL_REPO_HINTS.items():
             if marker in lowered:
                 return repo
+    for marker, repo in CANONICAL_REPO_HINTS.items():
+        if marker in text:
+            return repo
     if "services/femar-mvp-core" in text:
         return "Rafa-Innerchispa/innerspark-workforce-ai"
     if "innerspark-workforce-ai" in text:
@@ -276,6 +298,30 @@ def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
     if workforce_dev and not hostname_only:
         return "Rafa-Innerchispa/innerspark-workforce-ai"
     return None
+
+
+def _execution_lane_for_task(task: dict[str, Any]) -> str:
+    tags = {str(item).lower() for item in task.get("tags") or []}
+    if "dev_swarm_fixture" in tags:
+        return LOCAL_DEV_SWARM_LANE
+    value = str(task.get("execution_lane") or "").strip().lower()
+    if value:
+        return value
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if payload:
+        value = str(payload.get("execution_lane") or "").strip().lower()
+        if value:
+            return value
+    assignee = str(task.get("assignee") or "").strip().lower()
+    if assignee == "dev_swarm":
+        return LOCAL_DEV_SWARM_LANE
+    owner = str(task.get("owner") or "").strip().lower()
+    if owner == "dev_swarm" and task.get("dev_swarm_retry_requested"):
+        return LOCAL_DEV_SWARM_LANE
+    text = _task_search_text(task)
+    if "dev swarm" in text or "devswarm" in text:
+        return LOCAL_DEV_SWARM_LANE
+    return ""
 
 
 def _infer_repo(task: dict[str, Any]) -> str | None:
@@ -348,11 +394,37 @@ def _infer_repo(task: dict[str, Any]) -> str | None:
 
 def _task_search_text(task: dict[str, Any]) -> str:
     parts: list[str] = []
-    for key in ("title", "correlation_id", "related_project", "project", "kind", "source"):
+    for key in (
+        "title",
+        "correlation_id",
+        "related_project",
+        "project",
+        "project_id",
+        "repo",
+        "work_branch",
+        "base_ref",
+        "execution_lane",
+        "task_class",
+        "kind",
+        "source",
+    ):
         parts.append(str(task.get(key) or ""))
     payload = task.get("payload")
     if isinstance(payload, dict):
-        for key in ("repo", "repository", "related_project", "project", "task_id", "kind", "source"):
+        for key in (
+            "repo",
+            "repository",
+            "related_project",
+            "project",
+            "project_id",
+            "work_branch",
+            "base_ref",
+            "execution_lane",
+            "task_class",
+            "task_id",
+            "kind",
+            "source",
+        ):
             parts.append(str(payload.get(key) or ""))
     parts.extend(str(item) for item in task.get("checklist") or [])
     parts.extend(str(item) for item in task.get("tags") or [])
@@ -630,6 +702,11 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     repo = _infer_repo(task)
     if not repo:
         return False, "repo_not_inferred", None
+    lane = _execution_lane_for_task(task)
+    if lane and lane != LOCAL_DEV_SWARM_LANE:
+        return False, f"execution_lane_not_local_dev_swarm:{lane}", None
+    if not lane:
+        return False, "execution_lane_required_for_dev_swarm", None
     policy = local_execution_plane.repo_policy_status(repo)
     if not policy.get("ok"):
         return False, f"repo_policy_denied:{policy.get('error')}", repo

@@ -88,6 +88,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "status": "proposed",
             "assignee": "codex",
             "priority": "p0",
+            "execution_lane": "local_dev_swarm",
             "correlation_id": "devswarm-repo-inference-20260825",
             "related_project": "InnerOS platform",
             "title": "Fix Dev Swarm repo inference in InnerOS runtime",
@@ -105,6 +106,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "status": "proposed",
             "assignee": "chatgpt",
             "priority": "p0",
+            "execution_lane": "local_dev_swarm",
             "correlation_id": "brand-new-correlation",
             "repo": "Rafa-Innerchispa/innerops-agentic-platform",
             "title": "Run platform tests",
@@ -156,6 +158,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "status": "proposed",
             "assignee": "codex",
             "priority": "p0",
+            "execution_lane": "local_dev_swarm",
             "related_project": "InnerOS platform",
             "title": "Corregir scheduler y reparar verifier del Dev Swarm",
             "checklist": ["Arreglar runtime local y pruebas de regresion"],
@@ -172,6 +175,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "status": "proposed",
             "assignee": "codex",
             "priority": "critical",
+            "execution_lane": "local_dev_swarm",
             "correlation_id": "innerops-allthingsagentic-20260821",
             "title": "Bootstrap InnerOps All Things Agentic",
             "checklist": ["Preserve XPRIZE baseline", "Create innerops-agentic-platform repo and docs"],
@@ -188,6 +192,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "status": "proposed",
             "assignee": "chatgpt",
             "priority": "p0",
+            "execution_lane": "local_dev_swarm",
             "title": "AG-44 Cloudflare tools need DNS WAF and tunnel implementation",
             "checklist": ["Wire provider tools to owner_vault and MCP runtime"],
         }
@@ -269,6 +274,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
             "status": "proposed",
             "assignee": "chatgpt",
             "priority": "p0",
+            "execution_lane": "local_dev_swarm",
             "correlation_id": "devswarm-code-repair-20260826",
             "title": "Restore Jest dependencies",
             "checklist": ["Run npm ci in services/femar-mvp-core inside isolated worktree"],
@@ -294,6 +300,7 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
                     "status": "proposed",
                     "assignee": "chatgpt",
                     "priority": "p0",
+                    "execution_lane": "local_dev_swarm",
                     "created_at": "2026-08-26T20:00:00+00:00",
                     "checklist": ["Run npm ci in services/femar-mvp-core"],
                 },
@@ -348,6 +355,54 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertEqual(reasons["ops_email"], "non_development_ops_filtered")
         self.assertEqual(reasons["ops_needs_repo"], "needs_repo_metadata")
         self.assertFalse(result["skipped"])
+
+    def test_hyperloom_repo_is_inferred_but_requires_dev_swarm_lane(self) -> None:
+        task = {
+            "task_id": "ops_hyperloom_finalize",
+            "status": "proposed",
+            "assignee": "chatgpt",
+            "priority": "critical",
+            "correlation_id": "hyperloom-r9700-finalize-20260910",
+            "title": "HyperLoom R9700 finalizer",
+            "checklist": ["Continue Rafa-Innerchispa/hyperloom-r9700-experimental from existing checkpoint."],
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "execution_lane_required_for_dev_swarm")
+        self.assertIsNone(repo)
+
+    def test_hyperloom_local_dev_swarm_lane_is_eligible(self) -> None:
+        task = {
+            "task_id": "ops_hyperloom_devswarm",
+            "status": "proposed",
+            "assignee": "dev_swarm",
+            "priority": "critical",
+            "execution_lane": "local_dev_swarm",
+            "correlation_id": "hyperloom-r9700-finalize-20260910",
+            "title": "HyperLoom R9700 finalizer",
+            "checklist": ["Continue Rafa-Innerchispa/hyperloom-r9700-experimental from existing checkpoint."],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, "Rafa-Innerchispa/hyperloom-r9700-experimental")
+
+    def test_cursor_webmcp_ide_inbox_is_not_swarm_claimed(self) -> None:
+        task = {
+            "task_id": "ops_webmcp_cursor",
+            "status": "proposed",
+            "assignee": "cursor",
+            "priority": "p0",
+            "execution_lane": "ide_inbox",
+            "related_project": "Rafa-Innerchispa/inneros-webmcp",
+            "title": "WebMCP final provider fix",
+            "checklist": ["IDE target=cursor", "Claim task before editing"],
+        }
+        ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertFalse(ok)
+        self.assertEqual(reason, "execution_lane_not_local_dev_swarm:ide_inbox")
+        self.assertIsNone(repo)
 
 
 if __name__ == "__main__":
