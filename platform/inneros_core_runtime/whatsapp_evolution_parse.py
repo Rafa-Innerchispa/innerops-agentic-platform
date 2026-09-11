@@ -271,3 +271,39 @@ def extract_media(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 def is_group_sender(sender: str) -> bool:
     return sender.endswith("@g.us") or sender.startswith("group:")
+
+
+def extract_quoted_text(payload: dict[str, Any]) -> str:
+    """Return only human-visible text/caption from the quoted WhatsApp message."""
+    data = evolution_data(payload)
+    message = data.get("message") if isinstance(data, dict) else None
+    if not isinstance(message, dict):
+        return ""
+    containers = []
+    extended = message.get("extendedTextMessage")
+    if isinstance(extended, dict):
+        containers.append(extended.get("contextInfo"))
+    message_context = message.get("messageContextInfo")
+    if isinstance(message_context, dict):
+        containers.append(message_context)
+    for context in containers:
+        if not isinstance(context, dict):
+            continue
+        quoted = context.get("quotedMessage")
+        if not isinstance(quoted, dict):
+            continue
+        conversation = quoted.get("conversation")
+        if isinstance(conversation, str) and conversation.strip():
+            return conversation.strip()[:8000]
+        quoted_extended = quoted.get("extendedTextMessage")
+        if isinstance(quoted_extended, dict):
+            text = quoted_extended.get("text")
+            if isinstance(text, str) and text.strip():
+                return text.strip()[:8000]
+        for media_key in ("imageMessage", "videoMessage", "documentMessage", "audioMessage"):
+            media = quoted.get(media_key)
+            if isinstance(media, dict):
+                caption = media.get("caption")
+                if isinstance(caption, str) and caption.strip():
+                    return caption.strip()[:8000]
+    return ""

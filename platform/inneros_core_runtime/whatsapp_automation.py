@@ -496,6 +496,40 @@ def ingest_inbound_event(payload: dict[str, Any]) -> dict[str, Any]:
         conversation_message = f"{message.strip()}\n\nTranscripción del audio: {transcript_text}"
     image_context = whatsapp_daily_memory.untrusted_image_context(media_result)
     media_kind = str(media_result.get("kind") or "").lower() if isinstance(media_result, dict) else ""
+    if media_kind == "audio" and transcript_text and whatsapp_identity.is_owner(identity):
+        try:
+            from raphiia_openai import voiceops_guardian_bridge
+
+            guardian_voice = voiceops_guardian_bridge.route_owner_voice_reply(
+                payload,
+                transcript_text,
+                canonical_conversation_id=canonical_conversation_id,
+            )
+        except Exception as exc:
+            guardian_voice = {
+                "ok": False,
+                "applicable": True,
+                "status": "bridge_unavailable",
+                "error": str(exc)[:180],
+            }
+        if guardian_voice.get("applicable"):
+            reply_text = voiceops_guardian_bridge.format_whatsapp_reply(guardian_voice)
+            reply_dest = conversation_id if is_group else _normalize_phone(sender)
+            wa = None
+            if reply_text and reply_dest:
+                wa = _send_whatsapp_reply(
+                    reply_text,
+                    number=reply_dest,
+                    node=node,
+                    reply_audio=False,
+                )
+            return {
+                "ok": bool(guardian_voice.get("ok")),
+                "event": event_out,
+                "action": "guardian_voiceops_bridge",
+                "guardian_voiceops": guardian_voice,
+                "auto_reply": wa,
+            }
     if image_context and not conversation_message:
         conversation_message = "Te envío esta imagen para que la tengas en cuenta en la conversación."
     cmd_result = whatsapp_commands.handle_inbound_command(
