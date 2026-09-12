@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from raphiia_openai import project_git_alignment
 from raphiia_openai.notifications import whatsapp_service_ops
 
 CAPABILITY = "project_runtime_registry"
@@ -203,11 +204,14 @@ def status(project_id: str = "", repo: str = "", node: str = "primary") -> dict[
     if not resolved.get("ok"):
         return resolved
     path = Path(resolved["project_path"])
+    project = resolved.get("project") if isinstance(resolved.get("project"), dict) else {}
+    alignment = project_git_alignment.alignment_status(str(path), str((project or {}).get("repo") or repo)) if path.exists() else {"ok": False, "reason": "project_path_missing", "aligned_with_origin_main": False}
     return {
         **resolved,
         "exists": path.exists(),
         "is_git": (path / ".git").exists(),
         "trusted_roots": trusted_roots(resolved["node"]),
+        "git_alignment": alignment,
     }
 
 
