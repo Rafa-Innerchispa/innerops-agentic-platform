@@ -7,8 +7,12 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
 EnvironmentFile=/home/rlopez/inneros/inneros_core/platform/.env
-EnvironmentFile=-/home/rlopez/.config/ralphiia/mcp-profiles/%i.env
-ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m raphiia_openai.mcp_server
+# Fail closed: a bounded profile must have its own port/profile contract.
+# Do not silently inherit MCP_PORT=8102 from the canonical MCP environment.
+EnvironmentFile=/home/rlopez/.config/ralphiia/mcp-profiles/%i.env
+ExecStartPre=/bin/bash -c 'if [[ "${MCP_PORT:-}" == "8102" ]]; then echo "Refusing bounded MCP profile on canonical port 8102" >&2; exit 64; fi'
+ExecStartPre=/bin/bash /home/rlopez/inneros/inneros_core/platform/scripts/free_port.sh ${MCP_PORT}
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m inneros_core_runtime.mcp_server
 Restart=on-failure
 RestartSec=5
 
