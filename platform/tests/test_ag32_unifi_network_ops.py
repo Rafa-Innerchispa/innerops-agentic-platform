@@ -60,12 +60,78 @@ def _fixture_states():
     return {"ok": True, "data": [{"entity_id": key, "state": value, "attributes": {}} for key, value in states.items()]}
 
 
+def _fixture_alarm_registry():
+    return {
+        "ok": True,
+        "entities": [
+            {
+                "entity_id": "device_tracker.alarma_interbras",
+                "original_name": "Alarma Interbras",
+                "device_id": "alarm1",
+                "platform": "unifi",
+            }
+        ],
+    }
+
+
+def _fixture_alarm_devices():
+    return {
+        "ok": True,
+        "devices": [
+            {
+                "id": "alarm1",
+                "name": "Alarma Interbras",
+                "manufacturer": "Intelbras",
+                "model": None,
+                "connections": [["mac", "d8:36:5f:2b:15:ae"]],
+            }
+        ],
+    }
+
+
+def _fixture_alarm_states():
+    return {
+        "ok": True,
+        "data": [
+            {
+                "entity_id": "device_tracker.alarma_interbras",
+                "state": "home",
+                "attributes": {"friendly_name": "Alarma Interbras", "ip": "192.168.1.202"},
+            }
+        ],
+    }
+
+
 def test_unifi_request_routes_to_dedicated_path():
     with mock.patch.object(ha, "unifi_network_ops", return_value={"ok": True, "mode": "unifi_network_ops"}) as unifi:
         out = ha.run_home_ops_cycle("revisa el wifi unifi que está lento")
     assert out["mode"] == "unifi_network_ops"
     assert out["entrypoint"] == "homeassistant_client.unifi_network_ops"
     unifi.assert_called_once()
+
+
+def test_alarm_request_routes_to_dedicated_read_only_path():
+    with mock.patch.object(ha, "alarm_intelbras_ops", return_value={"ok": True, "mode": "alarm_intelbras_ops"}) as alarm:
+        out = ha.run_home_ops_cycle("revisa la alarma intelbras")
+    assert out["mode"] == "alarm_intelbras_ops"
+    assert out["entrypoint"] == "homeassistant_client.alarm_intelbras_ops"
+    alarm.assert_called_once()
+
+
+def test_alarm_diagnostics_are_read_only_and_block_writes():
+    with mock.patch.object(ha, "list_entity_registry", return_value=_fixture_alarm_registry()), mock.patch.object(
+        ha, "list_devices", return_value=_fixture_alarm_devices()
+    ), mock.patch.object(ha, "_request", return_value=_fixture_alarm_states()), mock.patch.object(
+        ha, "_tcp_connectivity_probe", return_value={"ok": True, "host": "192.168.1.202", "port": 9009, "state": "open"}
+    ):
+        out = ha.alarm_intelbras_ops("desarma la alarma intelbras")
+    assert out["ok"] is True
+    assert out["read_only"] is True
+    assert out["requested_write"] is True
+    assert out["device"]["manufacturer"] == "Intelbras"
+    assert out["connectivity"]["tcp_probe"]["state"] == "open"
+    assert out["fieldops_security"]["can_execute_alarm_actions"] is False
+    assert out["actions_requiring_approval"]
 
 
 def test_unifi_diagnostics_are_complete_and_fail_closed():

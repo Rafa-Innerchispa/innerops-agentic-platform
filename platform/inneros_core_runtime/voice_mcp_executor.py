@@ -38,6 +38,7 @@ OPERATOR_TOOLS = frozenset(
         "resolve_party",
         "list_ops_tasks",
         "mcp_version",
+        "alarm_intelbras_status",
     }
 )
 
@@ -63,6 +64,10 @@ RAFAEL_EXTRA_TOOLS = frozenset(
         "ha_turn_off_light",
         "ha_call_service",
         "ha_home_status",
+        "alarm_intelbras_status",
+        "dmx_set_scene",
+        "dmx_blackout",
+        "dmx_status",
         "resolve_client",
         "vero_dispatch",
         "raul_dispatch",
@@ -182,6 +187,22 @@ def _in_process_call(name: str, args: dict[str, Any]) -> dict[str, Any] | None:
             from raphiia_openai import homeassistant_client as ha
 
             return ha.home_status(limit=int(args.get("limit") or 40))
+        if name == "alarm_intelbras_status":
+            from raphiia_openai import homeassistant_client as ha
+
+            return ha.alarm_intelbras_ops(str(args.get("message") or args.get("query") or "revisa la alarma"))
+        if name == "dmx_status":
+            from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+            return ag59.dmx_status()
+        if name == "dmx_blackout":
+            from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+            return ag59.dmx_blackout()
+        if name == "dmx_set_scene":
+            from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
+
+            return ag59.dmx_set_scene(str(args.get("scene") or args.get("color") or ""))
         if name == "resolve_client":
             from raphiia_openai import pcdoctor_store
 
@@ -358,8 +379,28 @@ def _extract_client_identifier(text: str) -> str | None:
 
 _HA_KW = (
     r"wifikong|sp3s|zhi_neng|socket|enchufe|cocina|estudio|bodega|entrada|sombrilla|cinta|living|comedor|"
-    r"sala|dormitorio|ba[ñn]o|garage|patio|oficina|office|pasillo|terraza|cuarto|habitaci[oó]n"
+    r"sala|dormitorio|ba[ñn]o|garage|patio|oficina|office|pasillo|terraza|cuarto|habitaci[oó]n|"
+    r"tacho|tachos|pulpo|pulpos|beam|beams|bola|disco|dmx|escena"
 )
+_DMX_COLOR_WORDS = (
+    "verde", "azul", "rojo", "morado", "uv", "amarillo", "blanco", "magenta",
+    "ambar", "rosa", "naranja", "fucsia",
+)
+_DMX_SCENE_ALIASES = {
+    "rainbow": "rainbow",
+    "arcoiris": "rainbow",
+    "arco iris": "rainbow",
+    "fiesta": "frenzy",
+    "frenzy": "frenzy",
+    "morado": "morado_uv",
+    "uv": "morado_uv",
+    "rojo": "rojo_sangre",
+    "sangre": "rojo_sangre",
+}
+
+
+def _is_alarm_intent(t: str) -> bool:
+    return bool(re.search(r"\b(alarma|alarm|intelbras|interbras|anm\s*24|amt\s*24|sirena|p[aá]nico|panico)\b", t, re.I))
 
 
 def _is_ha_intent(t: str) -> bool:
@@ -411,6 +452,9 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
     if "list_ops_tasks" in perms and re.search(r"\b(tareas?\s+ops|ops\s+tasks|mis\s+tareas)\b", t):
         calls.append(("list_ops_tasks", {"limit": 10}))
 
+    if "alarm_intelbras_status" in perms and _is_alarm_intent(t):
+        calls.insert(0, ("alarm_intelbras_status", {"message": text[:500]}))
+
     if "get_whatsapp_status" in perms and re.search(r"\b(whatsapp|wsp|evolution)\b", t):
         calls.append(("get_whatsapp_status", {"dual": True}))
 
@@ -432,7 +476,7 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
         if bare:
             calls.append(("resolve_client", {"identifier": bare, "limit": 8}))
 
-    if "hybrid_search" in perms and not ha_intent and not client_intent and (
+    if "hybrid_search" in perms and not ha_intent and not client_intent and not _is_alarm_intent(t) and (
         re.search(r"\b(busca|encuentra|search|qué sabes|informaci[oó]n)\b", t)
         or (len(text.strip()) > 20 and not re.search(r"\b(enciende|apaga|prende|luces?|casa)\b", t))
     ):
@@ -491,13 +535,32 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
         else:
             calls.append(("list_monitored_emails", {"limit": 8, "importance": "alta"}))
 
-    if "ha_turn_on_light" in perms and re.search(r"\b(enciende|prende|activa|abre)\b", t):
+    if "dmx_set_scene" in perms and re.search(r"\b(tacho|tachos|pulpo|pulpos|beam|beams|bola|disco|dmx|luces?)\b", t):
+        if re.search(r"\b(apaga(?:r)?\s+(?:todo|dmx|luces)|blackout)\b", t) and "dmx_blackout" in perms:
+            calls.append(("dmx_blackout", {}))
+        else:
+            scene = None
+            for key, value in _DMX_SCENE_ALIASES.items():
+                if re.search(rf"\b{re.escape(key)}\b", t):
+                    scene = value
+                    break
+            if scene is None:
+                for color in _DMX_COLOR_WORDS:
+                    if re.search(rf"\b{re.escape(color)}\b", t):
+                        scene = "morado_uv" if color in {"morado", "uv"} else ("rojo_sangre" if color == "rojo" else color)
+                        break
+            if scene:
+                calls.append(("dmx_set_scene", {"scene": scene}))
+            elif "dmx_status" in perms and re.search(r"\b(estado|status|c[oó]mo est[aá])\b", t):
+                calls.append(("dmx_status", {}))
+
+    if "ha_turn_on_light" in perms and re.search(r"\b(enciende|prende|activa|abre)\b", t) and not any(c[0].startswith("dmx_") for c in calls):
         km = re.search(rf"\b({_HA_KW})\b", t, re.I)
         if km or re.search(r"\b(luz|luces|light|interruptor|enchufe|switch)\b", t):
             target = km.group(1) if km else (re.search(r"\b(?:la|el|del|de la)\s+([a-záéíóúñ0-9 _-]{2,40})", t, re.I) or [None, "living"])[1]
             calls.append(("ha_turn_on_light", {"name_or_entity": str(target).strip()}))
 
-    if "ha_turn_off_light" in perms and re.search(r"\b(apaga|apagar|desactiva|cierra)\b", t):
+    if "ha_turn_off_light" in perms and re.search(r"\b(apaga|apagar|desactiva|cierra)\b", t) and not any(c[0].startswith("dmx_") for c in calls):
         km = re.search(rf"\b({_HA_KW})\b", t, re.I)
         if km or re.search(r"\b(luz|luces|light|interruptor|enchufe|switch)\b", t):
             target = km.group(1) if km else (re.search(r"\b(?:la|el|del|de la)\s+([a-záéíóúñ0-9 _-]{2,40})", t, re.I) or [None, "living"])[1]
@@ -513,7 +576,7 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
     ):
         calls.insert(0, ("ha_home_status", {"limit": 35}))
 
-    if "ha_list_entities" in perms and re.search(
+    if "ha_list_entities" in perms and not any(c[0].startswith("dmx_") for c in calls) and not _is_alarm_intent(t) and re.search(
         r"\b(casa|dom[oó]tica|home assistant|luces|estado de la casa|qu[eé] luces|interruptores)\b", t
     ):
         dom = "switch" if re.search(r"\b(interruptor|enchufe|switch)\b", t) else "light"
@@ -522,6 +585,10 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
 
     # Priorizar domótica y clientes sobre stack/RAG genérico
     _priority = {
+        "alarm_intelbras_status": 0,
+        "dmx_set_scene": 0,
+        "dmx_blackout": 0,
+        "dmx_status": 0,
         "ha_turn_on_light": 0,
         "ha_turn_off_light": 0,
         "ha_home_status": 0,
@@ -567,6 +634,16 @@ def format_tool_results(results: list[dict[str, Any]]) -> str:
         result = item.get("result") or {}
         if name == "ha_home_status" and result.get("summary"):
             lines.append(f"**{name}**:\n{result['summary']}")
+            continue
+        if name == "alarm_intelbras_status" and result.get("summary"):
+            blocked = " Escrituras bloqueadas: requieren aprobación." if result.get("requested_write") else ""
+            lines.append(f"**{name}**:\n{result['summary']}{blocked}")
+            continue
+        if name.startswith("dmx_"):
+            if result.get("ok"):
+                lines.append(f"**{name}**:\nDMX OK: {result.get('scene') or result.get('action') or result.get('status') or 'comando aplicado/verificado'}.")
+            else:
+                lines.append(f"**{name}**:\nDMX no disponible o acción no soportada: {result.get('error') or 'sin detalle'}.")
             continue
         if name in ("resolve_client", "list_clients") and result.get("matches"):
             brief = []

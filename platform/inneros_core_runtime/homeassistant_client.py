@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,9 @@ from dotenv import load_dotenv
 
 _ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(_ROOT / ".env", override=True)
+_CANONICAL_RUNTIME_ENV = Path("/home/rlopez/inneros/inneros_core/platform/.env")
+if _CANONICAL_RUNTIME_ENV != (_ROOT / ".env") and _CANONICAL_RUNTIME_ENV.is_file():
+    load_dotenv(_CANONICAL_RUNTIME_ENV, override=False)
 
 HA_URL = os.getenv("HOME_ASSISTANT_URL", os.getenv("HA_URL", "http://192.168.1.4:8123")).rstrip("/")
 HA_TOKEN = os.getenv("HOME_ASSISTANT_TOKEN", os.getenv("HA_TOKEN", "")).strip()
@@ -461,6 +465,159 @@ def read_cached_snapshot() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# AG-32 Intelbras alarm operations
+# ---------------------------------------------------------------------------
+
+_ALARM_INTENT_KEYWORDS = (
+    "alarma", "alarm", "intelbras", "interbras", "anm", "amt24", "amt 24",
+    "anm24", "anm 24", "sirena", "panic", "pánico", "panico", "armar",
+    "desarmar", "perimetral", "seguridad casa",
+)
+_ALARM_WRITE_KEYWORDS = (
+    "arma", "armar", "activa", "activar", "desarma", "desarmar", "desactiva",
+    "desactivar", "sirena", "pánico", "panico", "panic", "dispara",
+)
+_ALARM_DEVICE_TERMS = ("alarma", "alarm", "intelbras", "interbras", "anm", "amt")
+_INTELBRAS_DEFAULT_HOST = os.getenv("INTELBRAS_ALARM_HOST", "192.168.1.202").strip()
+_INTELBRAS_DEFAULT_PORT = int(os.getenv("INTELBRAS_ALARM_PORT", "9009") or "9009")
+
+
+def _is_alarm_request(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return any(keyword in text for keyword in _ALARM_INTENT_KEYWORDS)
+
+
+def _requested_alarm_write(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return any(keyword in text for keyword in _ALARM_WRITE_KEYWORDS)
+
+
+def _alarm_matches(value: Any) -> bool:
+    haystack = json.dumps(value, ensure_ascii=False).lower()
+    return any(term in haystack for term in _ALARM_DEVICE_TERMS)
+
+
+def _tcp_connectivity_probe(host: str, port: int, timeout: float = 1.5) -> dict[str, Any]:
+    if not host:
+        return {"ok": False, "error": "host_missing"}
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        sock.connect((host, int(port)))
+        return {"ok": True, "host": host, "port": int(port), "state": "open"}
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "host": host, "port": int(port), "state": "closed_or_unreachable", "error": type(exc).__name__}
+    finally:
+        sock.close()
+
+
+def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
+    """Read-only Intelbras alarm discovery for AG-32 and FieldOps.
+
+    The first phase is intentionally non-invasive: Home Assistant/UniFi
+    inventory plus a TCP connect probe to the known local alarm service. It
+    does not send protocol frames, arm/disarm, trigger panic, siren or PGM.
+    """
+    raw_states = _request("GET", "/api/states")
+    registry = list_entity_registry(limit=2000)
+    devices = list_devices(limit=2000)
+    if not raw_states.get("ok") or not registry.get("ok") or not devices.get("ok"):
+        return {
+            "ok": False,
+            "mode": "alarm_intelbras_ops",
+            "error": "alarm_observation_failed",
+            "states_ok": bool(raw_states.get("ok")),
+            "registry_ok": bool(registry.get("ok")),
+            "devices_ok": bool(devices.get("ok")),
+        }
+
+    states = raw_states.get("data") or []
+    alarm_states = [row for row in states if _alarm_matches(row)]
+    alarm_entities = [row for row in registry.get("entities") or [] if _alarm_matches(row)]
+    alarm_devices = [row for row in devices.get("devices") or [] if _alarm_matches(row)]
+
+    tracker = next(
+        (row for row in alarm_states if str(row.get("entity_id") or "").startswith("device_tracker.")),
+        alarm_states[0] if alarm_states else {},
+    )
+    attrs = tracker.get("attributes") or {}
+    device = alarm_devices[0] if alarm_devices else {}
+    connections = device.get("connections") or []
+    mac = next((item[1] for item in connections if isinstance(item, list) and item and item[0] == "mac"), None)
+    host = str(attrs.get("ip") or attrs.get("ip_address") or _INTELBRAS_DEFAULT_HOST or "").strip()
+    port_probe = _tcp_connectivity_probe(host, _INTELBRAS_DEFAULT_PORT) if host else {"ok": False, "error": "host_missing"}
+    alarm_control_panels = [
+        row for row in states if str(row.get("entity_id") or "").startswith("alarm_control_panel.")
+    ]
+    requested_write = _requested_alarm_write(message)
+
+    inferred = []
+    if str(device.get("manufacturer") or "").lower() == "intelbras" or str(mac or "").lower().startswith("d8:36:5f"):
+        inferred.append("intelbras_device")
+    if port_probe.get("ok") and int(port_probe.get("port") or 0) == 9009:
+        inferred.append("local_tcp_9009_open")
+    if not alarm_control_panels:
+        inferred.append("home_assistant_alarm_control_panel_missing")
+
+    safe_actions = []
+    if port_probe.get("ok"):
+        safe_actions.append("verified_tcp_connectivity_9009_without_protocol_frames")
+    if tracker:
+        safe_actions.append("verified_home_assistant_unifi_presence_tracker")
+
+    actions_requiring_approval = [
+        "Validate a mature local Intelbras integration against this exact model before reading zones through protocol frames.",
+        "Configure Home Assistant alarm_control_panel only after credentials/protocol are confirmed.",
+        "Arm/disarm, panic, siren and PGM are blocked until explicit human approval and rollback/verification exist.",
+    ]
+    if requested_write:
+        actions_requiring_approval.insert(0, "Requested alarm state change was detected and intentionally blocked in read-only phase.")
+
+    return {
+        "ok": True,
+        "mode": "alarm_intelbras_ops",
+        "read_only": True,
+        "requested_write": requested_write,
+        "summary": (
+            "Intelbras alarm observed on LAN via Home Assistant/UniFi; "
+            f"presence={tracker.get('state') or 'unknown'}, tcp_9009={port_probe.get('state')}. "
+            "No Home Assistant alarm_control_panel entity is present yet."
+        ),
+        "device": {
+            "declared_model": os.getenv("INTELBRAS_ALARM_MODEL", "AMT24 Net / ANM 24 NET candidate"),
+            "ha_name": device.get("name_by_user") or device.get("name") or attrs.get("friendly_name"),
+            "manufacturer": device.get("manufacturer"),
+            "model": device.get("model"),
+            "entity_id": tracker.get("entity_id"),
+            "presence_state": tracker.get("state"),
+            "host": host,
+            "mac": mac or attrs.get("mac") or attrs.get("mac_address"),
+            "connections": connections,
+        },
+        "connectivity": {
+            "home_assistant_entities": [row.get("entity_id") for row in alarm_states],
+            "registry_entities": [row.get("entity_id") for row in alarm_entities],
+            "alarm_control_panel_entities": [row.get("entity_id") for row in alarm_control_panels],
+            "tcp_probe": port_probe,
+            "inferred": inferred,
+        },
+        "safe_actions_applied": safe_actions,
+        "actions_requiring_approval": actions_requiring_approval,
+        "fieldops_security": {
+            "capability": "read_only_alarm_presence_and_connectivity",
+            "event_source": "home_assistant_unifi_device_tracker_plus_tcp_probe",
+            "can_verify_intrusion_state": bool(alarm_control_panels),
+            "can_execute_alarm_actions": False,
+        },
+        "limitations": [
+            "Home Assistant currently exposes the panel as a UniFi device_tracker, not as alarm_control_panel.",
+            "TCP 9009 confirms a local service is reachable but does not prove authenticated protocol compatibility.",
+            "Zone, tamper, battery, power and armed/disarmed state need a validated Intelbras local integration or documented protocol adapter.",
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
 # AG-32 UniFi / Wi-Fi operations
 # ---------------------------------------------------------------------------
 
@@ -753,6 +910,11 @@ def unifi_network_ops(message: str = "") -> dict[str, Any]:
 
 def run_home_ops_cycle(trigger: str = "mcp") -> dict[str, Any]:
     """Canonical AG-32 entrypoint with intent-aware routing."""
+    if _is_alarm_request(trigger):
+        out = alarm_intelbras_ops(trigger)
+        out.setdefault("trigger", trigger or "mcp")
+        out["entrypoint"] = "homeassistant_client.alarm_intelbras_ops"
+        return out
     if _is_unifi_request(trigger):
         out = unifi_network_ops(trigger)
         out.setdefault("trigger", trigger or "mcp")
