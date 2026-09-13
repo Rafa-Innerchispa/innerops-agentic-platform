@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import asyncio
 from datetime import datetime, timezone
@@ -477,6 +478,9 @@ _ALARM_WRITE_KEYWORDS = (
     "arma", "armar", "activa", "activar", "desarma", "desarmar", "desactiva",
     "desactivar", "sirena", "pánico", "panico", "panic", "dispara",
 )
+_ALARM_APPROVAL_KEYWORDS = (
+    "autorizo", "autorizado", "confirmo", "apruebo", "sí autorizo", "si autorizo",
+)
 _ALARM_DEVICE_TERMS = ("alarma", "alarm", "intelbras", "interbras", "anm", "amt")
 _INTELBRAS_DEFAULT_HOST = os.getenv("INTELBRAS_ALARM_HOST", "192.168.1.202").strip()
 _INTELBRAS_DEFAULT_PORT = int(os.getenv("INTELBRAS_ALARM_PORT", "9009") or "9009")
@@ -488,13 +492,99 @@ def _is_alarm_request(message: str) -> bool:
 
 
 def _requested_alarm_write(message: str) -> bool:
+    return _requested_alarm_action(message) is not None
+
+
+def _explicit_alarm_approval(message: str) -> bool:
     text = (message or "").strip().lower()
-    return any(keyword in text for keyword in _ALARM_WRITE_KEYWORDS)
+    return _is_alarm_request(text) and any(keyword in text for keyword in _ALARM_APPROVAL_KEYWORDS)
+
+
+def _requested_alarm_action(message: str) -> str | None:
+    text = (message or "").strip().lower()
+    if re.search(r"\b(desarma|desarmar|desactiva|desactivar)\b", text):
+        return "alarm_disarm"
+    if re.search(r"\b(perimetral|noche|en casa|home|stay)\b", text) and re.search(r"\b(arma|armar|activa|activar)\b", text):
+        return "alarm_arm_home"
+    if re.search(r"\b(arma|armar|activa|activar)\b", text):
+        return "alarm_arm_away"
+    if re.search(r"\b(sirena|p[aá]nico|panico|panic|dispara)\b", text):
+        return "blocked_alarm_panic_or_siren"
+    return None
 
 
 def _alarm_matches(value: Any) -> bool:
     haystack = json.dumps(value, ensure_ascii=False).lower()
     return any(term in haystack for term in _ALARM_DEVICE_TERMS)
+
+
+def _alarm_control_panels(states: list[dict[str, Any]], alarm_entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    panels = [row for row in states if str(row.get("entity_id") or "").startswith("alarm_control_panel.")]
+    if not panels:
+        return []
+    registry_ids = {
+        str(row.get("entity_id") or "")
+        for row in alarm_entities
+        if str(row.get("entity_id") or "").startswith("alarm_control_panel.")
+    }
+    matched = [row for row in panels if str(row.get("entity_id") or "") in registry_ids or _alarm_matches(row)]
+    return matched or panels
+
+
+def _alarm_panel_summary(panel: dict[str, Any]) -> dict[str, Any]:
+    attrs = panel.get("attributes") or {}
+    return {
+        "entity_id": panel.get("entity_id"),
+        "state": panel.get("state"),
+        "friendly_name": attrs.get("friendly_name"),
+        "supported_features": attrs.get("supported_features"),
+        "changed_at": panel.get("last_changed"),
+        "updated_at": panel.get("last_updated"),
+    }
+
+
+def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None) -> dict[str, Any]:
+    requested_action = _requested_alarm_action(message)
+    requested_write = bool(requested_action)
+    approved = _explicit_alarm_approval(message)
+    if not requested_write:
+        return {"requested_write": False, "approved": False, "executed": False}
+    if requested_action == "blocked_alarm_panic_or_siren":
+        return {
+            "requested_write": True,
+            "approved": approved,
+            "executed": False,
+            "blocked": True,
+            "reason": "panic_or_siren_requires_manual_runbook",
+        }
+    if not panel_entity_id:
+        return {
+            "requested_write": True,
+            "approved": approved,
+            "executed": False,
+            "blocked": True,
+            "reason": "alarm_control_panel_missing",
+        }
+    if not approved:
+        return {
+            "requested_write": True,
+            "approved": False,
+            "executed": False,
+            "blocked": True,
+            "reason": "explicit_alarm_approval_required",
+            "required_phrase": "Sí, autorizo armar/desarmar la alarma.",
+            "proposed_service": f"alarm_control_panel.{requested_action}",
+            "entity_id": panel_entity_id,
+        }
+    result = call_service("alarm_control_panel", requested_action, entity_id=panel_entity_id)
+    return {
+        "requested_write": True,
+        "approved": True,
+        "executed": bool(result.get("ok")),
+        "service": requested_action,
+        "entity_id": panel_entity_id,
+        "result": result,
+    }
 
 
 def _tcp_connectivity_probe(host: str, port: int, timeout: float = 1.5) -> dict[str, Any]:
@@ -546,10 +636,12 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
     mac = next((item[1] for item in connections if isinstance(item, list) and item and item[0] == "mac"), None)
     host = str(attrs.get("ip") or attrs.get("ip_address") or _INTELBRAS_DEFAULT_HOST or "").strip()
     port_probe = _tcp_connectivity_probe(host, _INTELBRAS_DEFAULT_PORT) if host else {"ok": False, "error": "host_missing"}
-    alarm_control_panels = [
-        row for row in states if str(row.get("entity_id") or "").startswith("alarm_control_panel.")
-    ]
+    alarm_control_panels = _alarm_control_panels(states, alarm_entities)
+    alarm_panel_entities = [str(row.get("entity_id") or "") for row in alarm_control_panels if row.get("entity_id")]
+    primary_panel = alarm_control_panels[0] if alarm_control_panels else {}
+    primary_panel_entity = str(primary_panel.get("entity_id") or "")
     requested_write = _requested_alarm_write(message)
+    action_result = _maybe_apply_alarm_action(message, primary_panel_entity or None)
 
     inferred = []
     if str(device.get("manufacturer") or "").lower() == "intelbras" or str(mac or "").lower().startswith("d8:36:5f"):
@@ -558,30 +650,46 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
         inferred.append("local_tcp_9009_open")
     if not alarm_control_panels:
         inferred.append("home_assistant_alarm_control_panel_missing")
+    else:
+        inferred.append("home_assistant_alarm_control_panel_present")
 
     safe_actions = []
     if port_probe.get("ok"):
         safe_actions.append("verified_tcp_connectivity_9009_without_protocol_frames")
     if tracker:
         safe_actions.append("verified_home_assistant_unifi_presence_tracker")
+    if alarm_control_panels:
+        safe_actions.append("read_home_assistant_alarm_control_panel_state")
+    if action_result.get("executed"):
+        safe_actions.append(f"executed_home_assistant_alarm_service:{action_result.get('service')}")
 
     actions_requiring_approval = [
         "Validate a mature local Intelbras integration against this exact model before reading zones through protocol frames.",
         "Configure Home Assistant alarm_control_panel only after credentials/protocol are confirmed.",
-        "Arm/disarm, panic, siren and PGM are blocked until explicit human approval and rollback/verification exist.",
+        "Arm/disarm require explicit owner approval and the Home Assistant alarm_control_panel entity.",
+        "Panic, siren and PGM remain blocked until a physical runbook is validated.",
     ]
-    if requested_write:
-        actions_requiring_approval.insert(0, "Requested alarm state change was detected and intentionally blocked in read-only phase.")
+    if requested_write and not action_result.get("executed"):
+        actions_requiring_approval.insert(0, f"Requested alarm state change was not executed: {action_result.get('reason') or 'approval_or_entity_missing'}.")
+    elif action_result.get("executed"):
+        actions_requiring_approval.insert(0, "Alarm state change was sent through Home Assistant after explicit owner approval.")
+
+    summary_tail = (
+        f"alarm_panel={primary_panel.get('state')} ({primary_panel_entity})."
+        if primary_panel_entity
+        else "No Home Assistant alarm_control_panel entity is present yet."
+    )
 
     return {
         "ok": True,
         "mode": "alarm_intelbras_ops",
-        "read_only": True,
+        "read_only": not bool(action_result.get("executed")),
         "requested_write": requested_write,
+        "action_result": action_result,
         "summary": (
             "Intelbras alarm observed on LAN via Home Assistant/UniFi; "
             f"presence={tracker.get('state') or 'unknown'}, tcp_9009={port_probe.get('state')}. "
-            "No Home Assistant alarm_control_panel entity is present yet."
+            f"{summary_tail}"
         ),
         "device": {
             "declared_model": os.getenv("INTELBRAS_ALARM_MODEL", "AMT24 Net / ANM 24 NET candidate"),
@@ -597,7 +705,8 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
         "connectivity": {
             "home_assistant_entities": [row.get("entity_id") for row in alarm_states],
             "registry_entities": [row.get("entity_id") for row in alarm_entities],
-            "alarm_control_panel_entities": [row.get("entity_id") for row in alarm_control_panels],
+            "alarm_control_panel_entities": alarm_panel_entities,
+            "alarm_control_panels": [_alarm_panel_summary(row) for row in alarm_control_panels],
             "tcp_probe": port_probe,
             "inferred": inferred,
         },
@@ -605,15 +714,23 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
         "actions_requiring_approval": actions_requiring_approval,
         "fieldops_security": {
             "capability": "read_only_alarm_presence_and_connectivity",
-            "event_source": "home_assistant_unifi_device_tracker_plus_tcp_probe",
+            "event_source": "home_assistant_alarm_control_panel_or_unifi_device_tracker_plus_tcp_probe",
             "can_verify_intrusion_state": bool(alarm_control_panels),
-            "can_execute_alarm_actions": False,
+            "can_execute_alarm_actions": bool(alarm_control_panels),
+            "alarm_actions_guard": "explicit_owner_approval_required",
         },
-        "limitations": [
-            "Home Assistant currently exposes the panel as a UniFi device_tracker, not as alarm_control_panel.",
-            "TCP 9009 confirms a local service is reachable but does not prove authenticated protocol compatibility.",
-            "Zone, tamper, battery, power and armed/disarmed state need a validated Intelbras local integration or documented protocol adapter.",
-        ],
+        "limitations": (
+            [
+                "Home Assistant currently exposes the panel as a UniFi device_tracker, not as alarm_control_panel.",
+                "TCP 9009 confirms a local service is reachable but does not prove authenticated protocol compatibility.",
+                "Zone, tamper, battery, power and armed/disarmed state need a validated Intelbras local integration or documented protocol adapter.",
+            ]
+            if not alarm_control_panels
+            else [
+                "Panic, siren and PGM remain blocked until physically validated.",
+                "Arm/disarm are routed only through Home Assistant and require explicit owner approval.",
+            ]
+        ),
     }
 
 
