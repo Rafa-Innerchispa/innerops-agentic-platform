@@ -458,3 +458,21 @@ def read_cached_snapshot() -> dict[str, Any]:
         return {"ok": True, **json.loads(HA_STATE_FILE.read_text(encoding="utf-8"))}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+def run_home_ops_cycle(trigger: str = "mcp") -> dict[str, Any]:
+    """Run the local AG-32 home-ops cycle through the canonical HA client module."""
+    from raphiia_openai import home_ops_daemon
+
+    out = home_ops_daemon.run_cycle()
+    if isinstance(out, dict):
+        out.setdefault("ok", True)
+        out["trigger"] = trigger or "mcp"
+        out["entrypoint"] = "homeassistant_client.run_home_ops_cycle"
+        return out
+    return {
+        "ok": False,
+        "error": "home_ops_cycle_invalid_result",
+        "trigger": trigger or "mcp",
+        "entrypoint": "homeassistant_client.run_home_ops_cycle",
+    }
