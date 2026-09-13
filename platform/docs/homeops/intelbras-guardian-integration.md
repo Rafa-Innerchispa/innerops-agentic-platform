@@ -1,6 +1,6 @@
 # Intelbras Guardian / ANM 24 NET Integration
 
-Status: installed, waiting for owner OAuth + device password.
+Status: middleware and HA component installed; AG-32/voice guard prepared; waiting for owner OAuth + device password.
 Date: 2026-09-13
 Owner: AG-32 Home Assistant Bridge / Codex
 
@@ -28,6 +28,8 @@ The integration creates Home Assistant entities for `alarm_control_panel`, zones
 - `curl http://192.168.1.4:8015/api/v1/health` returns `healthy`.
 - Home Assistant restarted and loaded custom integration; log only shows normal warning for custom integration.
 - Local alarm device is visible on LAN as `device_tracker.alarma_interbras`, IP `192.168.1.202`, MAC `d8:36:5f:2b:15:ae`, TCP `9009` open.
+- AG-32/voice smoke reports read-only alarm presence, `requested_write=false` for "revisa la alarma", and `tcp_9009=open`.
+- Focused regression suite: `PYTHONPATH=platform /home/rlopez/inneros/inneros_core/platform/venv/bin/python -m pytest platform/tests/test_voice_mcp_home_capabilities.py -q` -> `7 passed`.
 
 ## Owner Action Required
 
@@ -53,9 +55,10 @@ Complete the Home Assistant config flow:
 
 ## Next Automation Work
 
-After HA creates `alarm_control_panel.*` entities:
+AG-32/voice is already prepared to detect `alarm_control_panel.*` entities when HA creates them:
 
-- Update AG-32/voice alarm path to resolve and use the real HA `alarm_control_panel` entity.
-- Enable read status, zones, last event, battery/tamper/power sensors.
-- Enable arm/disarm only with explicit Rafael approval phrase and audit logging.
+- Read status automatically switches from UniFi/TCP presence to the HA alarm panel state when the entity appears.
+- Arm/disarm are routed only through Home Assistant and only when the request includes an explicit owner approval phrase.
+- Panic, siren and PGM remain blocked until a physical runbook is validated.
+- Still pending after OAuth: verify zones, last event, battery/tamper/power sensors.
 - Add WhatsApp alerts for alarm triggered, grid/power related alarm trouble if exposed, tamper and battery low.
