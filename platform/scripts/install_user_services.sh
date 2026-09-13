@@ -8,12 +8,20 @@ chmod +x "$ROOT/scripts/free_port.sh" "$ROOT/run_ops.sh" "$ROOT/scripts/ralfia_b
 
 for unit in ralfia-portal ralfia-app ralfia-mcp ralfia-boot-verify ralfia-voice-gateway; do
   cp "$ROOT/systemd/user/${unit}.service" "$DST/"
+  if [[ -d "$ROOT/systemd/user/${unit}.service.d" ]]; then
+    mkdir -p "$DST/${unit}.service.d"
+    cp "$ROOT/systemd/user/${unit}.service.d/"*.conf "$DST/${unit}.service.d/" 2>/dev/null || true
+  fi
 done
 CANON_VOICE="${HOME}/.config/systemd/user/ralfia-voice-gateway.service"
 CANON_DIR="/home/rlopez/data/ralfia/ecosystem/canonical/systemd/user"
 if [[ -f "$ROOT/systemd/user/ralfia-voice-gateway.service" ]]; then
   mkdir -p "$CANON_DIR"
   cp "$ROOT/systemd/user/ralfia-voice-gateway.service" "$CANON_DIR/"
+  if [[ -d "$ROOT/systemd/user/ralfia-voice-gateway.service.d" ]]; then
+    mkdir -p "$CANON_DIR/ralfia-voice-gateway.service.d"
+    cp "$ROOT/systemd/user/ralfia-voice-gateway.service.d/"*.conf "$CANON_DIR/ralfia-voice-gateway.service.d/" 2>/dev/null || true
+  fi
 fi
 AMD_ROUTER="/home/rlopez/projects/ralfiia-amd-standby/scripts/install_ollama_router.sh"
 if [[ -x "$AMD_ROUTER" ]] && [[ "$(hostname -I 2>/dev/null)" == *"192.168.1.5"* ]]; then

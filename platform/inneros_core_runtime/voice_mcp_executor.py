@@ -12,6 +12,7 @@ from raphiia_openai.voice_user_profile import is_rafael
 
 MCP_URL = os.getenv("MCP_URL", "http://127.0.0.1:8102/mcp").rstrip("/")
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
+VOICE_MCP_PROFILE = os.getenv("VOICE_MCP_PROFILE", "voice_owner_compact")
 
 
 def _mcp_urls_for_tool(tool_name: str) -> list[str]:
@@ -63,6 +64,9 @@ RAFAEL_EXTRA_TOOLS = frozenset(
         "ha_turn_off_light",
         "ha_call_service",
         "ha_home_status",
+        "dmx_set_scene",
+        "dmx_blackout",
+        "dmx_status",
         "resolve_client",
         "vero_dispatch",
         "raul_dispatch",
@@ -78,6 +82,24 @@ def allowed_tools(user: dict[str, Any]) -> frozenset[str]:
     if is_rafael(user) or user.get("is_admin"):
         return OPERATOR_TOOLS | RAFAEL_EXTRA_TOOLS
     return OPERATOR_TOOLS
+
+
+def mcp_policy_summary(user: dict[str, Any], *, include_tools: bool = True) -> dict[str, Any]:
+    """Contrato machine-readable del gateway voz -> MCP."""
+    tools = sorted(allowed_tools(user))
+    owner = bool(is_rafael(user) or user.get("is_admin"))
+    summary = {
+        "profile": VOICE_MCP_PROFILE,
+        "strategy": "compact_tool_surface_with_capability_router",
+        "visible_tool_count": len(tools),
+        "full_catalog_access": owner,
+        "full_catalog_access_path": "route_mcp_tools",
+        "execution_guard": "allowlisted tools only; development goes through Local Execution Plane/RACB, never arbitrary shell",
+        "model_fit": "small/local voice models see compact broker tools; larger agents may request bounded profiles",
+    }
+    if include_tools:
+        summary["visible_tools"] = tools
+    return summary
 
 
 def _in_process_call(name: str, args: dict[str, Any]) -> dict[str, Any] | None:
@@ -182,6 +204,50 @@ def _in_process_call(name: str, args: dict[str, Any]) -> dict[str, Any] | None:
             from raphiia_openai import homeassistant_client as ha
 
             return ha.home_status(limit=int(args.get("limit") or 40))
+        if name == "dmx_set_scene":
+            import sys
+            dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
+            if dmx_path not in sys.path:
+                sys.path.insert(0, dmx_path)
+            from src.effects_engine import DynamicEffectsRunner
+            runner = DynamicEffectsRunner(target_ip="192.168.1.10", universe=0)
+            scene = str(args.get("scene") or args.get("effect") or "static")
+            color = str(args.get("color") or "")
+            target = str(args.get("target") or "todas")
+            brightness = int(args.get("brightness") or 255)
+            speed = float(args.get("speed") or 1.0)
+            if scene == "blackout" or color == "blackout":
+                runner.blackout()
+                return {"ok": True, "action": "blackout"}
+            if scene in ["rainbow", "frenzy", "police", "fire", "chill_lounge"]:
+                runner.start_effect(scene, speed=speed)
+                return {"ok": True, "effect": scene, "speed": speed}
+            col = color if color and color != "blanco" else scene
+            runner.apply_static_scene(color_name=col, brightness=brightness, target=target)
+            return {"ok": True, "applied": col, "target": target, "brightness": brightness}
+        if name == "dmx_blackout":
+            import sys
+            dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
+            if dmx_path not in sys.path:
+                sys.path.insert(0, dmx_path)
+            from src.effects_engine import DynamicEffectsRunner
+            runner = DynamicEffectsRunner(target_ip="192.168.1.10", universe=0)
+            runner.blackout()
+            return {"ok": True, "action": "blackout"}
+        if name == "dmx_status":
+            import sys
+            dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
+            if dmx_path not in sys.path:
+                sys.path.insert(0, dmx_path)
+            from src.fixture_profiles import FIXTURES
+            return {
+                "ok": True,
+                "engine": "inneros-dmx-engine",
+                "target_ip": "192.168.1.10",
+                "universe": 0,
+                "fixtures": [{"id": f.id, "name": f.name, "channels": f.num_channels} for f in FIXTURES],
+                "scenes": ["rainbow", "frenzy", "police", "fire", "chill_lounge", "morado_uv", "rojo_sangre"]
+            }
         if name == "resolve_client":
             from raphiia_openai import pcdoctor_store
 
@@ -206,11 +272,11 @@ def _in_process_call(name: str, args: dict[str, Any]) -> dict[str, Any] | None:
             from raphiia_openai.commercial import raul_orchestrator
 
             return raul_orchestrator.raul_dispatch(
-                str(arguments.get("message") or ""),
-                channel=str(arguments.get("channel") or "voice"),
-                max_fetch=arguments.get("max_fetch"),
-                dry_run=bool(arguments.get("dry_run")),
-                background=arguments.get("background", True),
+                str(args.get("message") or ""),
+                channel=str(args.get("channel") or "voice"),
+                max_fetch=args.get("max_fetch"),
+                dry_run=bool(args.get("dry_run")),
+                background=args.get("background", True),
             )
         if name == "vero_dispatch":
             from raphiia_openai.commercial import vero_orchestrator
@@ -278,6 +344,32 @@ def call_tool(user: dict[str, Any], name: str, args: dict[str, Any] | None = Non
     if local is not None:
         return local
     return _call_mcp_http(name, payload)
+
+
+def _append_capability_route(
+    calls: list[tuple[str, dict[str, Any]]],
+    perms: frozenset[str],
+    *,
+    text: str,
+    profile: str,
+    max_risk: str = "medium",
+    max_tools: int = 12,
+) -> None:
+    if "route_mcp_tools" not in perms:
+        return
+    calls.append(
+        (
+            "route_mcp_tools",
+            {
+                "title": text[:200],
+                "body": text[:2000],
+                "requested_profile": profile,
+                "max_risk": max_risk,
+                "for_model": "small",
+                "max_tools": max_tools,
+            },
+        )
+    )
 
 
 def _extract_search_query(text: str) -> str:
@@ -358,15 +450,16 @@ def _extract_client_identifier(text: str) -> str | None:
 
 _HA_KW = (
     r"wifikong|sp3s|zhi_neng|socket|enchufe|cocina|estudio|bodega|entrada|sombrilla|cinta|living|comedor|"
-    r"sala|dormitorio|ba[ñn]o|garage|patio|oficina|office|pasillo|terraza|cuarto|habitaci[oó]n"
+    r"sala|dormitorio|ba[ñn]o|garage|patio|oficina|office|pasillo|terraza|cuarto|habitaci[oó]n|"
+    r"tacho|tachos|plantas|escalera|peces|central|pulpo|pulpos|spider|beam|beams|bola|disco|dmx|escena"
 )
 
 
 def _is_ha_intent(t: str) -> bool:
     return bool(
         re.search(
-            rf"\b(enciende|prende|activa|apaga|apagar|desactiva|casa|dom[oó]tica|home assistant|"
-            rf"luces|estado de la casa|qu[eé] luces|interruptores|{_HA_KW})\b",
+            rf"\b(enciende|prende|activa|apaga|apagar|desactiva|pon|cambia|coloca|ajusta|casa|dom[oó]tica|home assistant|"
+            rf"luces|luz|color|colores|estado de la casa|qu[eé] luces|interruptores|{_HA_KW})\b",
             t,
             re.I,
         )
@@ -377,6 +470,21 @@ def _is_client_intent(t: str) -> bool:
     return bool(re.search(r"\b(cliente|clientes)\b", t, re.I))
 
 
+def _is_development_intent(t: str) -> bool:
+    return bool(
+        re.search(
+            r"\b("
+            r"programa|programar|desarrolla|desarrollar|codifica|c[oó]digo|codigo|"
+            r"crea(?:r)?\s+(?:un\s+)?(?:repo|repositorio|proyecto|app|aplicaci[oó]n|sitio)|"
+            r"github|gitlab|commit|branch|rama|worktree|deploy|despliega|"
+            r"arregla(?:r)?\s+(?:el\s+)?(?:bug|c[oó]digo|repo|repositorio|proyecto)"
+            r")\b",
+            t,
+            re.I,
+        )
+    )
+
+
 def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[str, Any]]]:
     """Heurística de intención → herramientas MCP."""
     t = (text or "").lower()
@@ -384,7 +492,54 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
     perms = allowed_tools(user)
     ha_intent = _is_ha_intent(t)
     client_intent = _is_client_intent(t)
+    quote_intent = bool(re.search(r"\b(cotiz\w*|quote|quotes|presupuesto|presupuestos)\b", t))
+    development_intent = _is_development_intent(t)
     _ha_query = ha_intent
+
+    # DMX direct detection: colores / escenas sobre tachos, pulpos, beams o luces
+    if "dmx_set_scene" in perms and re.search(r"\b(tacho|tachos|pulpo|pulpos|beam|beams|bola|disco|dmx|luces?)\b", t):
+        dmx_colors = ["verde", "azul", "rojo", "morado", "uv", "cian", "cyan", "amarillo", "blanco", "magenta", "ambar", "rosa", "naranja", "fucsia", "calido", "frio"]
+        dmx_scenes = ["rainbow", "arcoiris", "frenzy", "fiesta", "police", "policia", "fire", "fuego", "chill", "relax", "blackout", "apaga todo"]
+        
+        # Color match
+        found_color = None
+        for c in dmx_colors:
+            if re.search(rf"\b{c}\b", t):
+                found_color = "morado_uv" if c in ("morado", "uv") else ("blanco_calido" if c == "calido" else c)
+                break
+        
+        # Scene match
+        found_scene = None
+        for s in dmx_scenes:
+            if re.search(rf"\b{s}\b", t):
+                found_scene = "chill_lounge" if s in ("chill", "relax") else ("police" if s == "policia" else ("rainbow" if s == "arcoiris" else ("frenzy" if s == "fiesta" else s)))
+                break
+
+        # Target match
+        target = "todas"
+        if re.search(r"\b(planta|plantas)\b", t):
+            target = "tacho_plantas"
+        elif re.search(r"\b(escalera|gradas)\b", t):
+            target = "tacho_escalera"
+        elif re.search(r"\b(pez|peces|acuario)\b", t):
+            target = "tacho_peces"
+        elif re.search(r"\b(central|centro)\b", t):
+            target = "tacho_central"
+        elif re.search(r"\b(tacho|tachos|par)\b", t):
+            target = "tachos"
+        elif re.search(r"\b(beam|beams)\b", t):
+            target = "beams"
+        elif re.search(r"\b(pulpo|pulpos|spider)\b", t):
+            target = "pulpos"
+        elif re.search(r"\b(bola|disco)\b", t):
+            target = "bola_disco"
+
+        if found_scene == "blackout" or found_scene == "apaga todo" or re.search(r"\b(apaga todas|blackout|apagar todo)\b", t):
+            calls.append(("dmx_blackout", {}))
+        elif found_scene:
+            calls.append(("dmx_set_scene", {"scene": found_scene, "speed": 1.0}))
+        elif found_color or re.search(r"\b(pon|cambia|coloca|pasa|ajusta|enciende|prende)\b", t):
+            calls.append(("dmx_set_scene", {"color": found_color or "blanco_calido", "target": target, "brightness": 255}))
 
     if perms & {"poll_agent_inbox"} and re.search(r"\b(pendiente|inbox|mensajes?\s+agente)\b", t):
         calls.append(("poll_agent_inbox", {"agent": "ralfia_voice", "limit": 8, "auto_ack": False}))
@@ -438,13 +593,8 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
     ):
         calls.append(("hybrid_search", {"query": _extract_search_query(text), "limit": 8}))
 
-    if "route_mcp_tools" in perms and re.search(r"\b(cotiz|quote|presupuesto)\b", t):
-        calls.append(
-            (
-                "route_mcp_tools",
-                {"title": text[:200], "body": text, "requested_profile": "quoter", "max_risk": "medium"},
-            )
-        )
+    if quote_intent:
+        _append_capability_route(calls, perms, text=text, profile="quoter", max_risk="medium", max_tools=12)
         if re.search(r"\b(inicia|crea|nueva|empezar)\b", t):
             calls.append(
                 (
@@ -452,6 +602,9 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
                     {"client_name": "Por voz", "notes": text[:500]},
                 )
             )
+
+    if development_intent and not quote_intent:
+        _append_capability_route(calls, perms, text=text, profile="owner_dev", max_risk="medium", max_tools=14)
 
     if "raul_dispatch" in perms and re.search(
         r"\b(raul|raúl|atlas|dile\s+a\s+raul|dile\s+a\s+raúl|cat[aá]logo\s+local|hidrata\s+cat[aá]logo)\b", t, re.I
@@ -491,13 +644,13 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
         else:
             calls.append(("list_monitored_emails", {"limit": 8, "importance": "alta"}))
 
-    if "ha_turn_on_light" in perms and re.search(r"\b(enciende|prende|activa|abre)\b", t):
+    if "ha_turn_on_light" in perms and re.search(r"\b(enciende|prende|activa|abre|pon)\b", t) and not any(c[0].startswith("dmx_") for c in calls):
         km = re.search(rf"\b({_HA_KW})\b", t, re.I)
         if km or re.search(r"\b(luz|luces|light|interruptor|enchufe|switch)\b", t):
             target = km.group(1) if km else (re.search(r"\b(?:la|el|del|de la)\s+([a-záéíóúñ0-9 _-]{2,40})", t, re.I) or [None, "living"])[1]
             calls.append(("ha_turn_on_light", {"name_or_entity": str(target).strip()}))
 
-    if "ha_turn_off_light" in perms and re.search(r"\b(apaga|apagar|desactiva|cierra)\b", t):
+    if "ha_turn_off_light" in perms and re.search(r"\b(apaga|apagar|desactiva|cierra)\b", t) and not any(c[0].startswith("dmx_") for c in calls):
         km = re.search(rf"\b({_HA_KW})\b", t, re.I)
         if km or re.search(r"\b(luz|luces|light|interruptor|enchufe|switch)\b", t):
             target = km.group(1) if km else (re.search(r"\b(?:la|el|del|de la)\s+([a-záéíóúñ0-9 _-]{2,40})", t, re.I) or [None, "living"])[1]
@@ -522,9 +675,13 @@ def detect_tool_calls(user: dict[str, Any], text: str) -> list[tuple[str, dict[s
 
     # Priorizar domótica y clientes sobre stack/RAG genérico
     _priority = {
+        "dmx_set_scene": 0,
+        "dmx_blackout": 0,
+        "dmx_status": 0,
         "ha_turn_on_light": 0,
         "ha_turn_off_light": 0,
         "ha_home_status": 0,
+        "route_mcp_tools": 1,
         "ha_get_entity": 1,
         "ha_list_entities": 1,
         "get_server_status": 1,

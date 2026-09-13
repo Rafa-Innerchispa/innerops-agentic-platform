@@ -133,6 +133,7 @@ def build_system_prompt(
     mcp_block: str = "",
 ) -> str:
     lang = detect_language(user_text)
+    short_greeting = bool(re.fullmatch(r"\s*(hola|hol+a|hey|hello|hi|buenas|buenos d[ií]as|buenas tardes|buenas noches)[!. ]*\s*", user_text or "", re.I))
     identity = build_identity_block(
         user=user,
         lang=lang,
@@ -143,18 +144,27 @@ def build_system_prompt(
     profile = profile_context_block(user)
     rules_es = (
         "Responde en el idioma del usuario. Conversación natural como ChatGPT — no telegráfico salvo en voz. "
+        "Si el usuario solo saluda, responde con una línea cálida y breve; no recites identidad, stack ni capacidades. "
+        "Evita emojis salvo que el usuario los use o los pida. "
         "Usa el perfil aprendido del usuario cuando sea relevante. "
         "Si hay bloque «Resultados herramientas MCP (ejecutadas)», resume esos datos en voz/texto — ya corrieron en el servidor. "
         "No inventes herramientas ni pasos de conexión. No reveles memoria privada de Rafael a no-Rafael.\n\n"
     )
     rules_en = (
         "Reply in the user's language. Natural ChatGPT-like flow — not telegraphic unless voice mode. "
+        "If the user only greets you, answer with one warm brief line; do not recite identity, stack or capabilities. "
+        "Avoid emojis unless the user uses or asks for them. "
         "Use learned user profile when relevant. "
         "If a «Resultados herramientas MCP (ejecutadas)» block is present, summarize that live data — tools already ran. "
         "Do not invent tools or connection steps. Do not reveal Rafael's private memory to non-Rafael users.\n\n"
     )
     rules = rules_en if lang == "en" else rules_es
     parts = [identity, rules]
+    if short_greeting:
+        parts.append(
+            "=== Modo saludo corto ===\n"
+            "Responde solo una línea natural y cercana. No expliques qué puedes hacer."
+        )
     if profile.strip():
         parts.append(profile)
     if mcp_block.strip():
