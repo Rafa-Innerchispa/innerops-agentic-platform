@@ -1,0 +1,8 @@
+[Unit]
+Description=InnerOS Pi01 Xmart solar telemetry publish to Home Assistant
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python /home/rlopez/inneros/inneros_core/platform/scripts/publish_pi01_xmart_solar_to_ha.py

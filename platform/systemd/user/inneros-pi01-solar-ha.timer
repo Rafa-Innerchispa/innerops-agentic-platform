@@ -1,0 +1,11 @@
+[Unit]
+Description=Run InnerOS Pi01 Xmart solar telemetry publish every minute
+
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=60
+AccuracySec=10
+Persistent=true
+
+[Install]
+WantedBy=timers.target
