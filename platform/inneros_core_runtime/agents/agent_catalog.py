@@ -209,3 +209,12 @@ def resolve_agent(message: str, limit: int = 3) -> dict[str, Any]:
             if best else "get_agent_catalog(functional_only=true)"
         ),
     }
+
+
+# AG-32 network/UniFi capability extension.
+# Keep this close to runtime truth until the catalog entry is folded into the main table.
+_AG32_NETWORK_ALIASES = ["unifi", "wifi", "wi-fi", "wlan", "access point", "punto de acceso"]
+_AG32_NETWORK_INTENTS = ["unifi", "wifi", "wi-fi", "wlan", "señal", "senal", "2.4", "5 ghz", "access point", "cámara lenta", "camara lenta"]
+AGENT_CATALOG["AG-32"]["role"] = "Casa inteligente, Home Assistant, UniFi/Wi-Fi, Hubitat, Broadlink y domótica unificada"
+AGENT_CATALOG["AG-32"]["aliases"] = sorted(set((AGENT_CATALOG["AG-32"].get("aliases") or []) + _AG32_NETWORK_ALIASES))
+AGENT_CATALOG["AG-32"]["intent_keywords"] = list(dict.fromkeys((AGENT_CATALOG["AG-32"].get("intent_keywords") or []) + _AG32_NETWORK_INTENTS))
