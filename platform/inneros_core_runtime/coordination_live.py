@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +25,8 @@ MANDATORY_READS: tuple[str, ...] = (
 )
 
 ASSIGNEES = frozenset({"cursor", "codex", "antigravity", "chatgpt", "gemini", "notion", "ralfia", "rafael"})
+COMMIT_SHA_RE = re.compile(r"\b[0-9a-f]{40}\b", re.IGNORECASE)
+SHA_EVIDENCE_KEYS = ("remote_commit_sha", "commit_sha", "commit", "sha", "merge_sha", "pr_merge_sha")
 
 
 def _status_event_type(status: str) -> str:
@@ -77,6 +80,50 @@ def _publish_task_event(
         except Exception:
             pass
         return None
+
+
+def _find_commit_sha(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for key in SHA_EVIDENCE_KEYS:
+            found = _find_commit_sha(value.get(key))
+            if found:
+                return found
+        for nested in value.values():
+            found = _find_commit_sha(nested)
+            if found:
+                return found
+        return None
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            found = _find_commit_sha(item)
+            if found:
+                return found
+        return None
+    if value is None:
+        return None
+    match = COMMIT_SHA_RE.search(str(value))
+    return match.group(0) if match else None
+
+
+def _task_requires_remote_commit_gate(task: dict[str, Any]) -> bool:
+    return bool((task.get("repo") or "").strip() or (task.get("work_branch") or "").strip())
+
+
+def _validate_terminal_evidence(task: dict[str, Any], status: str, evidence: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = (status or "").strip().lower()
+    if normalized != "completed" or not _task_requires_remote_commit_gate(task):
+        return {"ok": True}
+    commit_sha = _find_commit_sha(evidence or {})
+    if not commit_sha:
+        return {
+            "ok": False,
+            "error": "remote_commit_sha_required",
+            "task_id": task.get("task_id"),
+            "repo": task.get("repo"),
+            "work_branch": task.get("work_branch"),
+            "hint": "Repo/branch tasks need a 40-character remote commit SHA in evidence before completed.",
+        }
+    return {"ok": True, "remote_commit_sha": commit_sha}
 
 
 def _now() -> str:
@@ -468,6 +515,10 @@ def update_ops_task_state(
             "expected_revision": int(expected_revision),
             "current_revision": current_revision,
         }
+
+    terminal_gate = _validate_terminal_evidence(task, status, evidence)
+    if not terminal_gate.get("ok"):
+        return terminal_gate
 
     transition = racb_protocol.build_transition(
         current_status=str(task.get("status") or "pending"),
