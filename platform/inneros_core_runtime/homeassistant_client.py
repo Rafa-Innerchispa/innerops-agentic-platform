@@ -7,6 +7,7 @@ import os
 import re
 import socket
 import asyncio
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -646,6 +647,75 @@ def _guardian_direct_alarm_action(requested_action: str, *, device_id: str | Non
     return {"ok": False, "error": "unsupported_guardian_alarm_action", "action": requested_action}
 
 
+def _expected_alarm_states(requested_action: str) -> set[str]:
+    if requested_action == "alarm_disarm":
+        return {"disarmed"}
+    if requested_action == "alarm_arm_home":
+        return {"armed_home", "armed_stay"}
+    if requested_action == "alarm_arm_away":
+        return {"armed_away"}
+    return set()
+
+
+def _read_alarm_panel_state(panel_entity_id: str | None) -> dict[str, Any]:
+    if not panel_entity_id:
+        return {"ok": False, "error": "alarm_control_panel_missing"}
+    raw = _request("GET", f"/api/states/{panel_entity_id}", timeout=10.0)
+    if not raw.get("ok"):
+        return raw
+    data = raw.get("data") or {}
+    attrs = data.get("attributes") or {}
+    return {
+        "ok": True,
+        "entity_id": data.get("entity_id"),
+        "state": data.get("state"),
+        "friendly_name": attrs.get("friendly_name"),
+        "updated_at": data.get("last_updated"),
+    }
+
+
+def _verify_alarm_post_state(requested_action: str, panel_entity_id: str | None, *, attempts: int = 5, delay_s: float = 1.0) -> dict[str, Any]:
+    expected = _expected_alarm_states(requested_action)
+    if not expected:
+        return {"ok": False, "error": "unsupported_alarm_verification_action", "action": requested_action}
+    last_panel: dict[str, Any] = {}
+    last_guardian: dict[str, Any] = {}
+    for attempt in range(max(1, attempts)):
+        last_panel = _read_alarm_panel_state(panel_entity_id)
+        last_guardian = _guardian_direct_status()
+        panel_state = str(last_panel.get("state") or "")
+        guardian_state = str(last_guardian.get("arm_mode") or "")
+        if panel_state in expected or guardian_state in expected:
+            return {
+                "ok": True,
+                "expected_states": sorted(expected),
+                "attempt": attempt + 1,
+                "panel": last_panel,
+                "guardian": {
+                    "ok": last_guardian.get("ok"),
+                    "arm_mode": last_guardian.get("arm_mode"),
+                    "is_armed": last_guardian.get("is_armed"),
+                    "is_triggered": last_guardian.get("is_triggered"),
+                    "open_zones": last_guardian.get("open_zones"),
+                },
+            }
+        if attempt < max(1, attempts) - 1:
+            time.sleep(delay_s)
+    return {
+        "ok": False,
+        "error": "alarm_state_verification_failed",
+        "expected_states": sorted(expected),
+        "panel": last_panel,
+        "guardian": {
+            "ok": last_guardian.get("ok"),
+            "arm_mode": last_guardian.get("arm_mode"),
+            "is_armed": last_guardian.get("is_armed"),
+            "is_triggered": last_guardian.get("is_triggered"),
+            "open_zones": last_guardian.get("open_zones"),
+        },
+    }
+
+
 def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None, *, allow_guardian_direct: bool = True) -> dict[str, Any]:
     requested_action = _requested_alarm_action(message)
     requested_write = bool(requested_action)
@@ -690,14 +760,18 @@ def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None, *, allo
         transport = "intelbras_guardian_middleware"
         service = requested_action
         target = INTELBRAS_GUARDIAN_DEVICE_ID
+    verification = _verify_alarm_post_state(requested_action, panel_entity_id)
+    verified = bool(verification.get("ok"))
     return {
         "requested_write": True,
         "approved": True,
-        "executed": bool(result.get("ok")),
+        "executed": bool(result.get("ok")) and verified,
+        "verified": verified,
         "transport": transport,
         "service": service,
         "entity_id": target,
         "result": result,
+        "verification": verification,
     }
 
 

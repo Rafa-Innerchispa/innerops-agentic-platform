@@ -55,9 +55,29 @@ def test_alarm_action_routes_through_home_assistant_when_approved(monkeypatch):
         return {"ok": True}
 
     monkeypatch.setattr(ha, "call_service", fake_call_service)
+    monkeypatch.setattr(ha, "_verify_alarm_post_state", lambda action, entity_id: {"ok": True, "state": "armed_away"})
     result = ha._maybe_apply_alarm_action("sí autorizo armar la alarma Intelbras", "alarm_control_panel.intelbras")
     assert result["executed"] is True
+    assert result["verified"] is True
     assert calls == [("alarm_control_panel", "alarm_arm_away", "alarm_control_panel.intelbras", None)]
+
+
+def test_alarm_action_does_not_execute_when_state_verification_fails(monkeypatch):
+    monkeypatch.setattr(ha, "call_service", lambda *args, **kwargs: {"ok": True})
+    monkeypatch.setattr(
+        ha,
+        "_verify_alarm_post_state",
+        lambda action, entity_id: {
+            "ok": False,
+            "error": "alarm_state_verification_failed",
+            "expected_states": ["armed_away"],
+            "panel": {"state": "disarmed"},
+        },
+    )
+    result = ha._maybe_apply_alarm_action("sí autorizo armar la alarma Intelbras", "alarm_control_panel.intelbras")
+    assert result["executed"] is False
+    assert result["verified"] is False
+    assert result["verification"]["error"] == "alarm_state_verification_failed"
 
 
 def test_alarm_action_routes_through_guardian_when_approved_and_no_ha_panel(monkeypatch):
@@ -69,8 +89,10 @@ def test_alarm_action_routes_through_guardian_when_approved_and_no_ha_panel(monk
         return {"ok": True, "data": {"success": True}}
 
     monkeypatch.setattr(ha, "_guardian_direct_alarm_action", fake_guardian_action)
+    monkeypatch.setattr(ha, "_verify_alarm_post_state", lambda action, entity_id: {"ok": True, "state": "disarmed"})
     result = ha._maybe_apply_alarm_action("sí autorizo desarmar la alarma Intelbras", None)
     assert result["executed"] is True
+    assert result["verified"] is True
     assert result["transport"] == "intelbras_guardian_middleware"
     assert result["entity_id"] == "602518"
     assert calls == ["alarm_disarm"]
