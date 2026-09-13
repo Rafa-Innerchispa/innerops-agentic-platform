@@ -58,3 +58,35 @@ def test_alarm_action_routes_through_home_assistant_when_approved(monkeypatch):
     result = ha._maybe_apply_alarm_action("sí autorizo armar la alarma Intelbras", "alarm_control_panel.intelbras")
     assert result["executed"] is True
     assert calls == [("alarm_control_panel", "alarm_arm_away", "alarm_control_panel.intelbras", None)]
+
+
+def test_guardian_direct_status_summarizes_open_and_trouble_zones(monkeypatch):
+    monkeypatch.setattr(ha, "INTELBRAS_GUARDIAN_DEVICE_ID", "602518")
+
+    def fake_guardian_api_request(method, path, *, json_body=None, timeout=25.0):
+        assert method == "GET"
+        assert path == "/api/v1/alarm/602518/status/auto"
+        return {
+            "ok": True,
+            "data": {
+                "device_id": 602518,
+                "model": "ANM_24_NET",
+                "mac": "D8365F2B15AE",
+                "is_armed": False,
+                "arm_mode": "disarmed",
+                "is_triggered": False,
+                "partitions_enabled": True,
+                "zones": [
+                    {"index": 6, "name": "Zona 07", "is_open": True, "is_in_alarm": False, "battery_low": False, "tamper": False},
+                    {"index": 8, "name": "Zona 09", "is_open": False, "is_in_alarm": False, "battery_low": True, "tamper": False},
+                ],
+            },
+        }
+
+    monkeypatch.setattr(ha, "_guardian_api_request", fake_guardian_api_request)
+    status = ha._guardian_direct_status()
+    assert status["ok"] is True
+    assert status["source"] == "intelbras_guardian_middleware"
+    assert status["arm_mode"] == "disarmed"
+    assert status["open_zones"] == [{"index": 6, "name": "Zona 07", "is_in_alarm": False}]
+    assert status["trouble_zones"] == [{"index": 8, "name": "Zona 09", "battery_low": True, "tamper": False}]

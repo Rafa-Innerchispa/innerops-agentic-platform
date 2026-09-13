@@ -24,6 +24,10 @@ if _CANONICAL_RUNTIME_ENV != (_ROOT / ".env") and _CANONICAL_RUNTIME_ENV.is_file
 HA_URL = os.getenv("HOME_ASSISTANT_URL", os.getenv("HA_URL", "http://192.168.1.4:8123")).rstrip("/")
 HA_TOKEN = os.getenv("HOME_ASSISTANT_TOKEN", os.getenv("HA_TOKEN", "")).strip()
 HA_STATE_FILE = Path(os.getenv("HA_STATE_FILE", "/home/rlopez/data/ralfia/ha_state.json"))
+INTELBRAS_GUARDIAN_URL = os.getenv("INTELBRAS_GUARDIAN_URL", "http://192.168.1.4:8015").rstrip("/")
+INTELBRAS_GUARDIAN_DEVICE_ID = os.getenv("INTELBRAS_GUARDIAN_DEVICE_ID", "").strip()
+INTELBRAS_GUARDIAN_SESSION_ID = os.getenv("INTELBRAS_GUARDIAN_SESSION_ID", "").strip()
+INTELBRAS_GUARDIAN_SESSION_FILE = os.getenv("INTELBRAS_GUARDIAN_SESSION_FILE", "").strip()
 
 # Alias habitación → fragmentos entity_id / friendly_name (español + nombres HA reales)
 ROOM_ALIASES: dict[str, list[str]] = {
@@ -543,6 +547,77 @@ def _alarm_panel_summary(panel: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _guardian_session_id() -> str:
+    if INTELBRAS_GUARDIAN_SESSION_ID:
+        return INTELBRAS_GUARDIAN_SESSION_ID
+    if INTELBRAS_GUARDIAN_SESSION_FILE:
+        try:
+            return Path(INTELBRAS_GUARDIAN_SESSION_FILE).expanduser().read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+    return ""
+
+
+def _guardian_api_request(method: str, path: str, *, json_body: dict[str, Any] | None = None, timeout: float = 25.0) -> dict[str, Any]:
+    session_id = _guardian_session_id()
+    if not session_id:
+        return {"ok": False, "error": "intelbras_guardian_session_missing"}
+    try:
+        response = httpx.request(
+            method,
+            f"{INTELBRAS_GUARDIAN_URL}{path}",
+            headers={"X-Session-ID": session_id, "Content-Type": "application/json"},
+            json=json_body,
+            timeout=timeout,
+        )
+        if not response.is_success:
+            return {"ok": False, "error": "intelbras_guardian_http_error", "http_status": response.status_code, "body": response.text[:300]}
+        return {"ok": True, "data": response.json() if response.content else {}}
+    except Exception as exc:
+        return {"ok": False, "error": "intelbras_guardian_unreachable", "detail": str(exc)[:200]}
+
+
+def _guardian_direct_status(device_id: str | None = None) -> dict[str, Any]:
+    did = str(device_id or INTELBRAS_GUARDIAN_DEVICE_ID or "").strip()
+    if not did:
+        return {"ok": False, "error": "intelbras_guardian_device_id_missing"}
+    raw = _guardian_api_request("GET", f"/api/v1/alarm/{did}/status/auto", timeout=35.0)
+    if not raw.get("ok"):
+        return raw
+    status = raw.get("data") or {}
+    zones = status.get("zones") if isinstance(status.get("zones"), list) else []
+    open_zones = [
+        {"index": z.get("index"), "name": z.get("name"), "is_in_alarm": z.get("is_in_alarm")}
+        for z in zones
+        if isinstance(z, dict) and z.get("is_open")
+    ]
+    alarm_zones = [
+        {"index": z.get("index"), "name": z.get("name")}
+        for z in zones
+        if isinstance(z, dict) and z.get("is_in_alarm")
+    ]
+    trouble_zones = [
+        {"index": z.get("index"), "name": z.get("name"), "battery_low": z.get("battery_low"), "tamper": z.get("tamper")}
+        for z in zones
+        if isinstance(z, dict) and (z.get("battery_low") or z.get("tamper"))
+    ]
+    return {
+        "ok": True,
+        "source": "intelbras_guardian_middleware",
+        "device_id": status.get("device_id"),
+        "model": status.get("model"),
+        "mac": status.get("mac"),
+        "is_armed": status.get("is_armed"),
+        "arm_mode": status.get("arm_mode"),
+        "is_triggered": status.get("is_triggered"),
+        "partitions_enabled": status.get("partitions_enabled"),
+        "zone_count": len(zones),
+        "open_zones": open_zones,
+        "alarm_zones": alarm_zones,
+        "trouble_zones": trouble_zones,
+    }
+
+
 def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None) -> dict[str, Any]:
     requested_action = _requested_alarm_action(message)
     requested_write = bool(requested_action)
@@ -640,6 +715,7 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
     alarm_panel_entities = [str(row.get("entity_id") or "") for row in alarm_control_panels if row.get("entity_id")]
     primary_panel = alarm_control_panels[0] if alarm_control_panels else {}
     primary_panel_entity = str(primary_panel.get("entity_id") or "")
+    guardian_status = _guardian_direct_status()
     requested_write = _requested_alarm_write(message)
     action_result = _maybe_apply_alarm_action(message, primary_panel_entity or None)
 
@@ -652,6 +728,8 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
         inferred.append("home_assistant_alarm_control_panel_missing")
     else:
         inferred.append("home_assistant_alarm_control_panel_present")
+    if guardian_status.get("ok"):
+        inferred.append("intelbras_guardian_direct_status_ok")
 
     safe_actions = []
     if port_probe.get("ok"):
@@ -660,6 +738,8 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
         safe_actions.append("verified_home_assistant_unifi_presence_tracker")
     if alarm_control_panels:
         safe_actions.append("read_home_assistant_alarm_control_panel_state")
+    if guardian_status.get("ok"):
+        safe_actions.append("read_intelbras_guardian_direct_status")
     if action_result.get("executed"):
         safe_actions.append(f"executed_home_assistant_alarm_service:{action_result.get('service')}")
 
@@ -677,7 +757,11 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
     summary_tail = (
         f"alarm_panel={primary_panel.get('state')} ({primary_panel_entity})."
         if primary_panel_entity
-        else "No Home Assistant alarm_control_panel entity is present yet."
+        else (
+            f"guardian={guardian_status.get('arm_mode')}, triggered={guardian_status.get('is_triggered')}, open_zones={len(guardian_status.get('open_zones') or [])}."
+            if guardian_status.get("ok")
+            else "No Home Assistant alarm_control_panel entity is present yet."
+        )
     )
 
     return {
@@ -707,6 +791,7 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
             "registry_entities": [row.get("entity_id") for row in alarm_entities],
             "alarm_control_panel_entities": alarm_panel_entities,
             "alarm_control_panels": [_alarm_panel_summary(row) for row in alarm_control_panels],
+            "intelbras_guardian_direct_status": guardian_status,
             "tcp_probe": port_probe,
             "inferred": inferred,
         },
@@ -715,7 +800,7 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
         "fieldops_security": {
             "capability": "read_only_alarm_presence_and_connectivity",
             "event_source": "home_assistant_alarm_control_panel_or_unifi_device_tracker_plus_tcp_probe",
-            "can_verify_intrusion_state": bool(alarm_control_panels),
+            "can_verify_intrusion_state": bool(alarm_control_panels) or bool(guardian_status.get("ok")),
             "can_execute_alarm_actions": bool(alarm_control_panels),
             "alarm_actions_guard": "explicit_owner_approval_required",
         },
