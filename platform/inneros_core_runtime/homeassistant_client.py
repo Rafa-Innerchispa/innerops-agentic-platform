@@ -458,3 +458,318 @@ def read_cached_snapshot() -> dict[str, Any]:
         return {"ok": True, **json.loads(HA_STATE_FILE.read_text(encoding="utf-8"))}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# AG-32 UniFi / Wi-Fi operations
+# ---------------------------------------------------------------------------
+
+_UNIFI_INTENT_KEYWORDS = (
+    "unifi", "wifi", "wi-fi", "wlan", "access point", "punto de acceso",
+    "señal", "senal", "2.4", "5 ghz", "5ghz", "cámara lenta", "camara lenta",
+)
+_UNIFI_REPAIR_KEYWORDS = (
+    "arregla", "arreglar", "corrige", "corregir", "optimiza", "optimizar",
+    "repara", "reparar",
+)
+
+
+def _is_unifi_request(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return any(keyword in text for keyword in _UNIFI_INTENT_KEYWORDS)
+
+
+def _requested_unifi_repair(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return any(keyword in text for keyword in _UNIFI_REPAIR_KEYWORDS)
+
+
+def _safe_int(value: Any) -> int | None:
+    try:
+        return int(float(str(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _unifi_group_entity(
+    rows: list[dict[str, Any]],
+    state_by_id: dict[str, dict[str, Any]],
+    *,
+    original_name: str | None = None,
+    suffix: str | None = None,
+) -> dict[str, Any] | None:
+    for row in rows:
+        if original_name and str(row.get("original_name") or "").lower() != original_name.lower():
+            continue
+        entity_id = str(row.get("entity_id") or "")
+        if suffix and not entity_id.endswith(suffix):
+            continue
+        state_row = state_by_id.get(entity_id) or {}
+        return {
+            "entity_id": entity_id,
+            "state": state_row.get("state"),
+            "attributes": state_row.get("attributes") or {},
+        }
+    return None
+
+
+def unifi_network_ops(message: str = "") -> dict[str, Any]:
+    """Observe, diagnose, act safely, and verify the local UniFi network.
+
+    The current Home Assistant integration provides device/WLAN state and client
+    counts, but not complete RF telemetry. Radio/channel/power changes therefore
+    fail closed until an audited controller adapter with rollback is available.
+    """
+    registry = list_entity_registry(limit=2000, integration="unifi")
+    devices = list_devices(limit=2000)
+    raw_states = _request("GET", "/api/states")
+    if not registry.get("ok") or not devices.get("ok") or not raw_states.get("ok"):
+        return {
+            "ok": False,
+            "mode": "unifi_network_ops",
+            "error": "unifi_observation_failed",
+            "registry_ok": bool(registry.get("ok")),
+            "devices_ok": bool(devices.get("ok")),
+            "states_ok": bool(raw_states.get("ok")),
+        }
+
+    state_rows = raw_states.get("data") or []
+    state_by_id = {
+        str(row.get("entity_id") or ""): row
+        for row in state_rows
+        if row.get("entity_id")
+    }
+    entity_rows = registry.get("entities") or []
+    relevant_device_ids = {
+        str(row.get("device_id")) for row in entity_rows if row.get("device_id")
+    }
+    device_rows = devices.get("devices") or []
+    unifi_devices = {
+        str(row.get("id")): row
+        for row in device_rows
+        if row.get("id")
+        and (
+            str(row.get("id")) in relevant_device_ids
+            or "ubiquiti" in str(row.get("manufacturer") or "").lower()
+            or "unifi" in str(row.get("model") or "").lower()
+        )
+    }
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in entity_rows:
+        device_id = str(row.get("device_id") or "")
+        if device_id:
+            grouped.setdefault(device_id, []).append(row)
+
+    aps: list[dict[str, Any]] = []
+    wlans: list[dict[str, Any]] = []
+    gateways: list[dict[str, Any]] = []
+
+    for device_id, device in unifi_devices.items():
+        name = str(device.get("name_by_user") or device.get("name") or device_id)
+        model = str(device.get("model") or "")
+        rows = grouped.get(device_id, [])
+
+        if model == "UniFi WLAN":
+            clients = (
+                _unifi_group_entity(rows, state_by_id, original_name="Clients")
+                or _unifi_group_entity(rows, state_by_id, suffix="_clients")
+            )
+            enabled = (
+                _unifi_group_entity(rows, state_by_id, original_name="Enabled")
+                or _unifi_group_entity(rows, state_by_id, suffix="_enabled")
+            )
+            wlans.append({
+                "name": name,
+                "device_id": device_id,
+                "clients": _safe_int((clients or {}).get("state")),
+                "enabled": (enabled or {}).get("state"),
+                "clients_entity": (clients or {}).get("entity_id"),
+                "enabled_entity": (enabled or {}).get("entity_id"),
+            })
+            continue
+
+        if model in {"UniFi Network", "UniFi Network Application"}:
+            continue
+
+        state_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="State")
+            or _unifi_group_entity(rows, state_by_id, suffix="_state")
+        )
+        uptime_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="Uptime")
+            or _unifi_group_entity(rows, state_by_id, suffix="_uptime")
+        )
+        cpu_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="CPU utilization")
+            or _unifi_group_entity(rows, state_by_id, suffix="_cpu_utilization")
+        )
+        mem_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="Memory utilization")
+            or _unifi_group_entity(rows, state_by_id, suffix="_memory_utilization")
+        )
+        uplink_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="Uplink MAC")
+            or _unifi_group_entity(rows, state_by_id, suffix="_uplink_mac")
+        )
+        item = {
+            "name": name,
+            "device_id": device_id,
+            "model": model,
+            "software": device.get("sw_version"),
+            "state": (state_ent or {}).get("state"),
+            "uptime": (uptime_ent or {}).get("state"),
+            "cpu_percent": _safe_int((cpu_ent or {}).get("state")),
+            "memory_percent": _safe_int((mem_ent or {}).get("state")),
+            "uplink_mac": (uplink_ent or {}).get("state"),
+        }
+        if "gateway" in name.lower() or model.upper() in {"UDRULT", "UDM", "UDMPRO", "UDR"}:
+            gateways.append(item)
+        elif state_ent or any(str(r.get("original_name") or "").lower() == "restart" for r in rows):
+            aps.append(item)
+
+    disconnected_states = {
+        "unavailable", "disconnected", "heartbeat_missed", "isolated",
+        "adoption_failed", "inform_error",
+    }
+    offline_aps = [
+        ap for ap in aps if str(ap.get("state") or "").lower() in disconnected_states
+    ]
+    active_aps = [
+        ap for ap in aps if str(ap.get("state") or "").lower() == "connected"
+    ]
+    high_memory_aps = [
+        ap for ap in active_aps if (ap.get("memory_percent") or 0) >= 80
+    ]
+
+    clients_24 = 0
+    clients_5 = 0
+    wlans_24: list[dict[str, Any]] = []
+    wlans_5: list[dict[str, Any]] = []
+    for wlan in wlans:
+        low = wlan["name"].lower()
+        if "2.4" in low or "2_4" in low or "2-4" in low:
+            wlans_24.append(wlan)
+            clients_24 += wlan.get("clients") or 0
+        elif "5g" in low or "5 ghz" in low or "5ghz" in low:
+            wlans_5.append(wlan)
+            clients_5 += wlan.get("clients") or 0
+
+    findings: list[dict[str, Any]] = []
+    likely_causes: list[str] = []
+
+    if offline_aps:
+        findings.append({
+            "severity": "high",
+            "code": "ap_unavailable",
+            "detail": [ap["name"] for ap in offline_aps],
+        })
+        likely_causes.append(
+            "One or more configured UniFi AP records are unavailable, reducing expected coverage or representing stale/replaced AP records."
+        )
+    if len(wlans_24) > 1:
+        findings.append({
+            "severity": "medium",
+            "code": "multiple_24ghz_wlans",
+            "detail": [w["name"] for w in wlans_24],
+        })
+        likely_causes.append(
+            "Multiple 2.4 GHz WLANs may duplicate airtime and make client placement harder to reason about."
+        )
+    if clients_24 >= 25:
+        findings.append({
+            "severity": "high",
+            "code": "24ghz_client_pressure",
+            "detail": {"clients": clients_24, "wlans": len(wlans_24)},
+        })
+        likely_causes.append(
+            "2.4 GHz carries a high client count; cameras and IoT compete for limited airtime, especially with weak RSSI or overlapping channels."
+        )
+    if high_memory_aps:
+        findings.append({
+            "severity": "medium",
+            "code": "ap_memory_high",
+            "detail": [
+                {"name": ap["name"], "memory_percent": ap["memory_percent"]}
+                for ap in high_memory_aps
+            ],
+        })
+    if clients_24 > clients_5 * 2 and clients_24 >= 15:
+        findings.append({
+            "severity": "medium",
+            "code": "band_imbalance",
+            "detail": {"clients_24": clients_24, "clients_5": clients_5},
+        })
+        likely_causes.append(
+            "Client distribution is heavily skewed toward 2.4 GHz instead of 5 GHz for capable devices."
+        )
+
+    requested_repair = _requested_unifi_repair(message)
+    before = {
+        "active_aps": [ap["name"] for ap in active_aps],
+        "offline_or_stale_aps": [ap["name"] for ap in offline_aps],
+        "clients_24ghz": clients_24,
+        "clients_5ghz": clients_5,
+        "wlans_24ghz": [w["name"] for w in wlans_24],
+        "wlans_5ghz": [w["name"] for w in wlans_5],
+    }
+
+    limitations = [
+        "Home Assistant exposes UniFi device/WLAN state, client counts, uptime and some resource telemetry, but not RF channel width, channel utilization, RSSI/retry rate, transmit power or interference on this integration surface.",
+        "Channel, power, firmware, password and AP restart changes remain fail-closed until an audited controller adapter can verify the before/after state and rollback."
+    ]
+    actions_requiring_approval = [
+        "Read per-radio channel, channel utilization, retry rate and client RSSI from the UniFi controller before RF changes.",
+        "If contention is confirmed, coordinate non-overlapping 2.4 GHz channels, 20 MHz width, and 5 GHz steering/power tuning with rollback evidence.",
+    ]
+    if offline_aps:
+        actions_requiring_approval.append(
+            "Confirm whether unavailable AP records are intentionally disabled/replaced or physically offline before restart/removal/adoption."
+        )
+
+    return {
+        "ok": True,
+        "mode": "unifi_network_ops",
+        "requested_repair": requested_repair,
+        "summary": (
+            f"UniFi observed: {len(active_aps)} AP(s) connected, {len(offline_aps)} unavailable/stale; "
+            f"{clients_24} clients on identified 2.4 GHz WLANs and {clients_5} on identified 5 GHz WLANs."
+        ),
+        "findings": findings,
+        "evidence": {"access_points": aps, "gateways": gateways, "wlans": wlans},
+        "likely_causes": likely_causes,
+        "safe_actions_applied": [],
+        "actions_requiring_approval": actions_requiring_approval,
+        "verification": {
+            "performed": True,
+            "source": "home_assistant_unifi_integration",
+            "read_only": True,
+            "consistent": True,
+        },
+        "before_after": {"before": before, "after": before, "changed": False},
+        "limitations": limitations,
+    }
+
+
+def run_home_ops_cycle(trigger: str = "mcp") -> dict[str, Any]:
+    """Canonical AG-32 entrypoint with intent-aware routing."""
+    if _is_unifi_request(trigger):
+        out = unifi_network_ops(trigger)
+        out.setdefault("trigger", trigger or "mcp")
+        out["entrypoint"] = "homeassistant_client.unifi_network_ops"
+        return out
+
+    from raphiia_openai import home_ops_daemon
+
+    out = home_ops_daemon.run_cycle()
+    if isinstance(out, dict):
+        out.setdefault("ok", True)
+        out["trigger"] = trigger or "mcp"
+        out["entrypoint"] = "homeassistant_client.run_home_ops_cycle"
+        return out
+    return {
+        "ok": False,
+        "error": "home_ops_cycle_invalid_result",
+        "trigger": trigger or "mcp",
+        "entrypoint": "homeassistant_client.run_home_ops_cycle",
+    }
