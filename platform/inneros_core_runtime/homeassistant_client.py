@@ -618,7 +618,19 @@ def _guardian_direct_status(device_id: str | None = None) -> dict[str, Any]:
     }
 
 
-def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None) -> dict[str, Any]:
+def _guardian_direct_alarm_action(requested_action: str, *, device_id: str | None = None) -> dict[str, Any]:
+    did = str(device_id or INTELBRAS_GUARDIAN_DEVICE_ID or "").strip()
+    if not did:
+        return {"ok": False, "error": "intelbras_guardian_device_id_missing"}
+    if requested_action == "alarm_disarm":
+        return _guardian_api_request("POST", f"/api/v1/alarm/{did}/disarm", json_body={}, timeout=45.0)
+    if requested_action in {"alarm_arm_away", "alarm_arm_home"}:
+        mode = "home" if requested_action == "alarm_arm_home" else "away"
+        return _guardian_api_request("POST", f"/api/v1/alarm/{did}/arm", json_body={"mode": mode}, timeout=45.0)
+    return {"ok": False, "error": "unsupported_guardian_alarm_action", "action": requested_action}
+
+
+def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None, *, allow_guardian_direct: bool = True) -> dict[str, Any]:
     requested_action = _requested_alarm_action(message)
     requested_write = bool(requested_action)
     approved = _explicit_alarm_approval(message)
@@ -632,7 +644,7 @@ def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None) -> dict
             "blocked": True,
             "reason": "panic_or_siren_requires_manual_runbook",
         }
-    if not panel_entity_id:
+    if not panel_entity_id and not allow_guardian_direct:
         return {
             "requested_write": True,
             "approved": approved,
@@ -650,14 +662,25 @@ def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None) -> dict
             "required_phrase": "Sí, autorizo armar/desarmar la alarma.",
             "proposed_service": f"alarm_control_panel.{requested_action}",
             "entity_id": panel_entity_id,
+            "fallback_transport": "intelbras_guardian_middleware" if allow_guardian_direct and INTELBRAS_GUARDIAN_DEVICE_ID else None,
         }
-    result = call_service("alarm_control_panel", requested_action, entity_id=panel_entity_id)
+    if panel_entity_id:
+        result = call_service("alarm_control_panel", requested_action, entity_id=panel_entity_id)
+        transport = "home_assistant"
+        service = requested_action
+        target = panel_entity_id
+    else:
+        result = _guardian_direct_alarm_action(requested_action)
+        transport = "intelbras_guardian_middleware"
+        service = requested_action
+        target = INTELBRAS_GUARDIAN_DEVICE_ID
     return {
         "requested_write": True,
         "approved": True,
         "executed": bool(result.get("ok")),
-        "service": requested_action,
-        "entity_id": panel_entity_id,
+        "transport": transport,
+        "service": service,
+        "entity_id": target,
         "result": result,
     }
 
@@ -741,7 +764,7 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
     if guardian_status.get("ok"):
         safe_actions.append("read_intelbras_guardian_direct_status")
     if action_result.get("executed"):
-        safe_actions.append(f"executed_home_assistant_alarm_service:{action_result.get('service')}")
+        safe_actions.append(f"executed_alarm_service:{action_result.get('transport')}:{action_result.get('service')}")
 
     actions_requiring_approval = [
         "Validate a mature local Intelbras integration against this exact model before reading zones through protocol frames.",
@@ -801,7 +824,7 @@ def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
             "capability": "read_only_alarm_presence_and_connectivity",
             "event_source": "home_assistant_alarm_control_panel_or_unifi_device_tracker_plus_tcp_probe",
             "can_verify_intrusion_state": bool(alarm_control_panels) or bool(guardian_status.get("ok")),
-            "can_execute_alarm_actions": bool(alarm_control_panels),
+            "can_execute_alarm_actions": bool(alarm_control_panels) or bool(guardian_status.get("ok")),
             "alarm_actions_guard": "explicit_owner_approval_required",
         },
         "limitations": (

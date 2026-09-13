@@ -60,6 +60,22 @@ def test_alarm_action_routes_through_home_assistant_when_approved(monkeypatch):
     assert calls == [("alarm_control_panel", "alarm_arm_away", "alarm_control_panel.intelbras", None)]
 
 
+def test_alarm_action_routes_through_guardian_when_approved_and_no_ha_panel(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ha, "INTELBRAS_GUARDIAN_DEVICE_ID", "602518")
+
+    def fake_guardian_action(action):
+        calls.append(action)
+        return {"ok": True, "data": {"success": True}}
+
+    monkeypatch.setattr(ha, "_guardian_direct_alarm_action", fake_guardian_action)
+    result = ha._maybe_apply_alarm_action("sí autorizo desarmar la alarma Intelbras", None)
+    assert result["executed"] is True
+    assert result["transport"] == "intelbras_guardian_middleware"
+    assert result["entity_id"] == "602518"
+    assert calls == ["alarm_disarm"]
+
+
 def test_guardian_direct_status_summarizes_open_and_trouble_zones(monkeypatch):
     monkeypatch.setattr(ha, "INTELBRAS_GUARDIAN_DEVICE_ID", "602518")
 
