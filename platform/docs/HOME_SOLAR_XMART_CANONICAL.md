@@ -68,6 +68,32 @@ Systemd user timers on Intel `.4`:
 
 - `inneros-pi01-solar-ha.timer`: publishes telemetry to Home Assistant every 60 seconds.
 - `inneros-pi01-solar-alerts.timer`: checks alert conditions every 60 seconds and sends WhatsApp only on transitions or critical cooldown.
+- `inneros-pi01-solar-history.timer`: records full inverter + breaker telemetry every 60 seconds for test-mode analysis.
+
+## Test-Mode History
+
+InnerOS records a local long-term history so the solar system can be sized from evidence instead of guesses.
+
+Storage:
+
+- SQLite database: `/home/rlopez/data/ralfia/solar_xmart_history/solar_xmart_history.sqlite3`.
+- Raw daily JSONL archive: `/home/rlopez/data/ralfia/solar_xmart_history/raw_jsonl/YYYY-MM-DD.jsonl`.
+- Recorder script: `/home/rlopez/inneros/inneros_core/platform/scripts/record_pi01_xmart_solar_history.py`.
+- Summary script: `/home/rlopez/inneros/inneros_core/platform/scripts/summarize_pi01_xmart_solar_history.py`.
+
+Each sample includes:
+
+- Full raw inverter JSON from the read-only PI30 reader.
+- Normalized inverter fields: grid, output, load, battery, PV, temperature and inferred mode.
+- Breaker/Home Assistant fields: switch state, voltage, current, power and total energy.
+- Raw JSON for forensic replay and normalized columns for statistics.
+
+Useful commands:
+
+- Record one sample manually: `PYTHONPATH=/home/rlopez/inneros/inneros_core/platform /home/rlopez/inneros/inneros_core/platform/venv/bin/python /home/rlopez/inneros/inneros_core/platform/scripts/record_pi01_xmart_solar_history.py`
+- Summarize last 24 hours: `PYTHONPATH=/home/rlopez/inneros/inneros_core/platform /home/rlopez/inneros/inneros_core/platform/venv/bin/python /home/rlopez/inneros/inneros_core/platform/scripts/summarize_pi01_xmart_solar_history.py --since-hours 24`
+
+The first analysis target is a full 24-72 hour window covering night load, morning ramp, midday PV production and evening load. This will support recommendations such as whether more panels, a second battery or load shedding are needed for practical energy independence on the protected circuit.
 
 ## What InnerOS Can Read
 

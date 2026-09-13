@@ -1,0 +1,8 @@
+[Unit]
+Description=InnerOS Pi01 Xmart solar history recorder
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python /home/rlopez/inneros/inneros_core/platform/scripts/record_pi01_xmart_solar_history.py
