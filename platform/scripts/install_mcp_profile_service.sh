@@ -10,6 +10,7 @@ UNIT_SOURCE="$ROOT/deploy/systemd/ralfia-mcp-profile@.service"
 UNIT_TARGET="$HOME/.config/systemd/user/ralfia-mcp-profile@.service"
 ENV_DIR="$HOME/.config/ralphiia/mcp-profiles"
 ENV_TARGET="$ENV_DIR/$PROFILE.env"
+CANONICAL_MCP_PORT=8102
 
 if [[ ! "$PROFILE" =~ ^[a-z0-9_]+$ ]]; then
   echo "Invalid profile name: $PROFILE" >&2
@@ -17,6 +18,10 @@ if [[ ! "$PROFILE" =~ ^[a-z0-9_]+$ ]]; then
 fi
 if [[ ! "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1024 || PORT > 65535 )); then
   echo "Invalid profile port: $PORT" >&2
+  exit 2
+fi
+if (( PORT == CANONICAL_MCP_PORT )); then
+  echo "Refusing bounded MCP profile on canonical port $CANONICAL_MCP_PORT" >&2
   exit 2
 fi
 if [[ ! -f "$UNIT_SOURCE" ]]; then
