@@ -36,9 +36,46 @@ def read_remote() -> dict[str, Any]:
         return {"ok": False, "error": "invalid_reader_json", "detail": str(exc), "stdout": proc.stdout[-500:]}
 
 
+def infer_mode(telemetry: dict[str, Any]) -> dict[str, Any]:
+    grid_voltage = float(telemetry.get("grid_voltage_v") or 0)
+    output_voltage = float(telemetry.get("ac_output_voltage_v") or 0)
+    pv_power = int(telemetry.get("pv_charging_power_w") or 0)
+    battery_discharge = int(telemetry.get("battery_discharge_current_a") or 0)
+    battery_charge = int(telemetry.get("battery_charging_current_a") or 0)
+    battery_capacity = int(telemetry.get("battery_capacity_percent") or 0)
+    battery_voltage = float(telemetry.get("battery_voltage_v") or 0)
+
+    grid_present = grid_voltage >= 90.0
+    output_present = output_voltage >= 90.0
+    battery_mode = (not grid_present) and output_present
+
+    if battery_mode:
+        mode = "battery_backup"
+    elif grid_present and pv_power > 0 and battery_charge > 0:
+        mode = "utility_present_solar_charging"
+    elif grid_present and battery_capacity >= 95 and battery_voltage >= 28.0:
+        mode = "utility_present_backup_float"
+    elif grid_present:
+        mode = "utility_present"
+    elif output_present:
+        mode = "inverter_output_no_grid"
+    else:
+        mode = "offline_or_unknown"
+
+    return {
+        "mode": mode,
+        "grid_present": grid_present,
+        "output_present": output_present,
+        "battery_mode": battery_mode,
+        "pv_charging": pv_power > 0,
+        "battery_discharging": battery_discharge > 0,
+    }
+
+
 def main() -> None:
     data = read_remote()
     telemetry = data.get("telemetry") or {}
+    inferred = infer_mode(telemetry)
     common = {
         "friendly_name": "InnerOS Pi01 Solar Status",
         "device_model": data.get("device_model") or "Xmart XSI-BB-120-3K-24-MPP",
@@ -48,6 +85,7 @@ def main() -> None:
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "safety": data.get("safety") or "read_only_queries_only",
         "raw_field_count": telemetry.get("field_count"),
+        "mode_inferred": inferred,
     }
     status = "online" if data.get("ok") else "error"
     posted = [_state("sensor.inneros_pi01_solar_status", status, {**common, "reader": data})]
@@ -68,7 +106,18 @@ def main() -> None:
         if device_class:
             attrs["device_class"] = device_class
         posted.append(_state(entity, telemetry[key], attrs))
-    print(json.dumps({"ok": all(p.get("ok") for p in posted), "status": status, "posted": len(posted), "telemetry": telemetry}, ensure_ascii=False, sort_keys=True))
+    posted.append(_state("sensor.inneros_pi01_solar_mode", inferred["mode"], {**common, "friendly_name": "InnerOS Pi01 Solar Mode"}))
+    posted.append(_state(
+        "binary_sensor.inneros_pi01_solar_grid_present",
+        "on" if inferred["grid_present"] else "off",
+        {**common, "friendly_name": "InnerOS Pi01 Grid Present", "device_class": "power"},
+    ))
+    posted.append(_state(
+        "binary_sensor.inneros_pi01_solar_battery_mode",
+        "on" if inferred["battery_mode"] else "off",
+        {**common, "friendly_name": "InnerOS Pi01 Battery Backup Mode", "device_class": "power"},
+    ))
+    print(json.dumps({"ok": all(p.get("ok") for p in posted), "status": status, "posted": len(posted), "telemetry": telemetry, "inferred": inferred}, ensure_ascii=False, sort_keys=True))
 
 
 if __name__ == "__main__":
