@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import mongo_store, ralfia_time
+from raphiia_openai import agent_identity, mongo_store, ralfia_time
 from raphiia_openai.settings import COL_AGENT_MESSAGES
 
 OPEN_STATUSES = {"open", "acknowledged", "in_progress", "blocked"}
@@ -26,7 +26,7 @@ VISIBLE_INBOX_STATUSES = {"open", "acknowledged", "in_progress", "blocked"}
 TERMINAL_STATUSES = {"done", "cancelled", "obsolete", "superseded"}
 LEGACY_OPEN_STATUSES = {"delivered"}  # schema viejo de write_agent_message
 
-MAILBOX_AGENTS = ("cursor", "codex", "antigravity", "gemini", "chatgpt", "notion", "rafael")
+MAILBOX_AGENTS = tuple(sorted(agent_identity.CANONICAL_MAILBOXES))
 MESSAGE_TYPES = frozenset({"message", "task", "status", "handoff", "reply", "event", "approval"})
 
 
@@ -41,7 +41,7 @@ def _coord_root() -> Path:
 
 
 def _normalize_agent(name: str) -> str:
-    return (name or "").strip().lower()
+    return agent_identity.canonical_mailbox(name)
 
 
 def _normalize_from(name: str) -> str:
@@ -132,8 +132,10 @@ def create_agent_message(
     db = mongo_store.get_db()
     now = ralfia_time.now_utc_iso()
     message_id = _new_id()
-    target = _normalize_agent(target_agent)
-    sender = _normalize_from(from_agent)
+    from_identity = agent_identity.identity_from_payload(from_agent, payload)
+    target_identity = agent_identity.identity_from_payload(target_agent, payload)
+    target = target_identity["mailbox"]
+    sender = _normalize_from(from_identity["mailbox"])
     type_n = (message_type or "message").strip().lower()
     if target not in MAILBOX_AGENTS:
         return {"ok": False, "error": f"invalid_target_agent: {target}", "allowed": list(MAILBOX_AGENTS)}
@@ -159,6 +161,10 @@ def create_agent_message(
         "message_id": message_id,
         "from_agent": sender,
         "target_agent": target,
+        "from_identity": from_identity,
+        "target_identity": target_identity,
+        "actor_instance": from_identity["actor_id"],
+        "target_instance": target_identity["actor_id"],
         "type": type_n,
         "title": title.strip(),
         "body": body.strip(),
@@ -262,6 +268,18 @@ def write_agent_message(
         body=body,
         priority=priority or "normal",
     )
+
+
+def identify_agent_session(
+    *,
+    agent: str,
+    account: str | None = None,
+    host: str | None = None,
+    lane: str | None = None,
+    role: str | None = None,
+) -> dict[str, Any]:
+    identity = agent_identity.normalize_actor(agent, account=account, host=host, lane=lane, role=role)
+    return {"ok": True, "identity": identity, "allowed_mailboxes": list(MAILBOX_AGENTS)}
 
 
 def list_agent_messages(

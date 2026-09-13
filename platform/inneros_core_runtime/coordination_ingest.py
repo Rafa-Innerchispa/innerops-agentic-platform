@@ -5,13 +5,16 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from raphiia_openai import coordination_live, mongo_store, ralfia_time
+from raphiia_openai import agent_identity, coordination_live, mongo_store, ralfia_time
 from raphiia_openai.settings import COL_AGENT_MESSAGES
 
 
 _TASK_TITLE = re.compile(r"^\s*\[(?:OPS|P[0-3]|E2E\s+P[0-3])(?:\s+[^]]*)?\]", re.IGNORECASE)
 _TASK_BODY = re.compile(r"\b(?:INSTRUCCI[ÓO]N|TAREA|ORDEN)\s+P[0-3]\b", re.IGNORECASE)
-_FIELD = re.compile(r"^\s*(correlation_id|project|conversation_ref)\s*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+_FIELD = re.compile(
+    r"^\s*(correlation_id|project|project_id|repo|related_project|conversation_ref)\s*:\s*(.+?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def _body_fields(body: str) -> dict[str, str]:
@@ -34,7 +37,7 @@ def _checklist_from_body(body: str) -> list[str]:
         match = re.match(r"^\s*-\s*(?:\[[ xX]\]\s*)?(.+?)\s*$", line)
         if match:
             item = match.group(1).strip()
-            if item and not re.match(r"^(correlation_id|project|conversation_ref)\s*:", item, re.IGNORECASE):
+            if item and not _FIELD.match(item):
                 items.append(item)
     if items:
         return items
@@ -73,13 +76,28 @@ def ingest_agent_message(
     from raphiia_openai.memory import agent_messages
 
     payload_n = payload or {}
+    from_identity = agent_identity.identity_from_payload(from_agent, payload_n)
+    target_identity = agent_identity.identity_from_payload(target_agent, payload_n)
     fields = _body_fields(body)
     correlation = (correlation_id or fields.get("correlation_id") or "").strip() or None
-    project = str(payload_n.get("project") or fields.get("project") or "").strip() or None
+    project = (
+        str(
+            payload_n.get("related_project")
+            or payload_n.get("repo")
+            or payload_n.get("project")
+            or payload_n.get("project_id")
+            or fields.get("related_project")
+            or fields.get("repo")
+            or fields.get("project")
+            or fields.get("project_id")
+            or ""
+        ).strip()
+        or None
+    )
     conversation_ref = str(payload_n.get("conversation_ref") or fields.get("conversation_ref") or "").strip() or None
     message = agent_messages.create_agent_message(
-        from_agent=from_agent,
-        target_agent=target_agent,
+        from_agent=from_identity["mailbox"],
+        target_agent=target_identity["mailbox"],
         title=title,
         body=body,
         priority=priority,
@@ -101,16 +119,28 @@ def ingest_agent_message(
     message_id = str(message.get("message_id") or "")
     correlation = str(message.get("correlation_id") or correlation or message_id)
     task = coordination_live.create_ops_task(
-        assignee=target_agent,
+        assignee=target_identity["mailbox"],
         title=re.sub(r"^\s*\[[^]]+\]\s*", "", title).strip() or title.strip(),
         checklist=_list_value(payload_n.get("checklist")) or _checklist_from_body(body),
         evidence_required=_list_value(payload_n.get("evidence_required")),
         priority=priority,
-        from_agent=from_agent,
+        from_agent=from_identity["actor_id"],
         correlation_id=correlation,
         source_message_id=message_id,
         conversation_ref=conversation_ref,
         related_project=project,
+        project_id=str(payload_n.get("project_id") or "").strip() or None,
+        repo=str(payload_n.get("repo") or fields.get("repo") or "").strip() or None,
+        base_ref=str(payload_n.get("base_ref") or "").strip() or None,
+        work_branch=str(payload_n.get("work_branch") or "").strip() or None,
+        task_class=str(payload_n.get("task_class") or "").strip() or None,
+        execution_lane=str(payload_n.get("execution_lane") or "").strip() or None,
+        provider_transport=str(payload_n.get("provider_transport") or "").strip() or None,
+        runtime_profile=str(payload_n.get("runtime_profile") or "").strip() or None,
+        execution_policy=str(payload_n.get("execution_policy") or "").strip() or None,
+        preferred_provider=str(payload_n.get("preferred_provider") or "").strip() or None,
+        preferred_model=str(payload_n.get("preferred_model") or "").strip() or None,
+        idempotency_key=str(payload_n.get("idempotency_key") or idempotency_key or "").strip() or None,
     )
     if task.get("ok"):
         now = ralfia_time.now_utc_iso()
@@ -124,6 +154,10 @@ def ingest_agent_message(
                     "correlation_id": correlation,
                     "related_project": project,
                     "conversation_ref": conversation_ref,
+                    "from_identity": from_identity,
+                    "target_identity": target_identity,
+                    "actor_instance": from_identity["actor_id"],
+                    "target_instance": target_identity["actor_id"],
                     "normalized_at": now,
                     "updated_at": now,
                 },

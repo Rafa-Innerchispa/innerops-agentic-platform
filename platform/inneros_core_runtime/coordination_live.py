@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +25,8 @@ MANDATORY_READS: tuple[str, ...] = (
 )
 
 ASSIGNEES = frozenset({"cursor", "codex", "antigravity", "chatgpt", "gemini", "notion", "ralfia", "rafael"})
+COMMIT_SHA_RE = re.compile(r"\b[0-9a-f]{40}\b", re.IGNORECASE)
+SHA_EVIDENCE_KEYS = ("remote_commit_sha", "commit_sha", "commit", "sha", "merge_sha", "pr_merge_sha")
 
 
 def _status_event_type(status: str) -> str:
@@ -77,6 +80,50 @@ def _publish_task_event(
         except Exception:
             pass
         return None
+
+
+def _find_commit_sha(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for key in SHA_EVIDENCE_KEYS:
+            found = _find_commit_sha(value.get(key))
+            if found:
+                return found
+        for nested in value.values():
+            found = _find_commit_sha(nested)
+            if found:
+                return found
+        return None
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            found = _find_commit_sha(item)
+            if found:
+                return found
+        return None
+    if value is None:
+        return None
+    match = COMMIT_SHA_RE.search(str(value))
+    return match.group(0) if match else None
+
+
+def _task_requires_remote_commit_gate(task: dict[str, Any]) -> bool:
+    return bool((task.get("repo") or "").strip() or (task.get("work_branch") or "").strip())
+
+
+def _validate_terminal_evidence(task: dict[str, Any], status: str, evidence: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = (status or "").strip().lower()
+    if normalized != "completed" or not _task_requires_remote_commit_gate(task):
+        return {"ok": True}
+    commit_sha = _find_commit_sha(evidence or {})
+    if not commit_sha:
+        return {
+            "ok": False,
+            "error": "remote_commit_sha_required",
+            "task_id": task.get("task_id"),
+            "repo": task.get("repo"),
+            "work_branch": task.get("work_branch"),
+            "hint": "Repo/branch tasks need a 40-character remote commit SHA in evidence before completed.",
+        }
+    return {"ok": True, "remote_commit_sha": commit_sha}
 
 
 def _now() -> str:
@@ -280,6 +327,18 @@ def create_ops_task(
     source_message_id: str | None = None,
     conversation_ref: str | None = None,
     related_project: str | None = None,
+    project_id: str | None = None,
+    repo: str | None = None,
+    base_ref: str | None = None,
+    work_branch: str | None = None,
+    task_class: str | None = None,
+    execution_lane: str | None = None,
+    provider_transport: str | None = None,
+    runtime_profile: str | None = None,
+    execution_policy: str | None = None,
+    preferred_provider: str | None = None,
+    preferred_model: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     assignee_l = (assignee or "").strip().lower()
     if assignee_l not in ASSIGNEES:
@@ -295,6 +354,9 @@ def create_ops_task(
     items = _norm_list(checklist)
     evidence = _norm_list(evidence_required) or ["status OK/PARTIAL/FAIL", "outputs o conteos Mongo"]
     cid = (correlation_id or "").strip() or _task_id()
+    repo_n = (repo or related_project or "").strip() or None
+    project_n = (project_id or "").strip() or None
+    related_n = (related_project or repo_n or project_n or "").strip() or None
     db = mongo_store.get_db()
     existing = db[OPS_TASKS_COL].find_one(
         {
@@ -335,7 +397,19 @@ def create_ops_task(
         "evidence": {},
         "source_message_id": (source_message_id or "").strip() or None,
         "conversation_ref": (conversation_ref or "").strip() or None,
-        "related_project": (related_project or "").strip() or None,
+        "related_project": related_n,
+        "project_id": project_n,
+        "repo": repo_n,
+        "base_ref": (base_ref or "").strip() or None,
+        "work_branch": (work_branch or "").strip() or None,
+        "task_class": (task_class or "").strip() or None,
+        "execution_lane": (execution_lane or "").strip() or None,
+        "provider_transport": (provider_transport or "").strip() or None,
+        "runtime_profile": (runtime_profile or "").strip() or None,
+        "execution_policy": (execution_policy or "").strip() or "local_first",
+        "preferred_provider": (preferred_provider or "").strip() or None,
+        "preferred_model": (preferred_model or "").strip() or None,
+        "idempotency_key": (idempotency_key or "").strip() or None,
     }
     # PyMongo mutates the inserted mapping by adding ``_id``. Keep the public
     # tool response JSON-safe so MCP can return structuredContent reliably.
@@ -371,6 +445,17 @@ def create_ops_task(
             "source_message_id": doc["source_message_id"],
             "conversation_ref": doc["conversation_ref"],
             "related_project": doc["related_project"],
+            "project_id": doc["project_id"],
+            "repo": doc["repo"],
+            "base_ref": doc["base_ref"],
+            "work_branch": doc["work_branch"],
+            "task_class": doc["task_class"],
+            "execution_lane": doc["execution_lane"],
+            "provider_transport": doc["provider_transport"],
+            "runtime_profile": doc["runtime_profile"],
+            "execution_policy": doc["execution_policy"],
+            "preferred_provider": doc["preferred_provider"],
+            "preferred_model": doc["preferred_model"],
         },
         related_project=doc["related_project"],
         tags=["ops_task", tid, cid],
@@ -468,6 +553,10 @@ def update_ops_task_state(
             "expected_revision": int(expected_revision),
             "current_revision": current_revision,
         }
+
+    terminal_gate = _validate_terminal_evidence(task, status, evidence)
+    if not terminal_gate.get("ok"):
+        return terminal_gate
 
     transition = racb_protocol.build_transition(
         current_status=str(task.get("status") or "pending"),
