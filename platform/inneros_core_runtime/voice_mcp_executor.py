@@ -12,6 +12,7 @@ from raphiia_openai.voice_user_profile import is_rafael
 
 MCP_URL = os.getenv("MCP_URL", "http://127.0.0.1:8102/mcp").rstrip("/")
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
+VOICE_MCP_PROFILE = os.getenv("VOICE_MCP_PROFILE", "voice_owner_compact")
 
 
 def _mcp_urls_for_tool(tool_name: str) -> list[str]:
@@ -83,6 +84,23 @@ def allowed_tools(user: dict[str, Any]) -> frozenset[str]:
     if is_rafael(user) or user.get("is_admin"):
         return OPERATOR_TOOLS | RAFAEL_EXTRA_TOOLS
     return OPERATOR_TOOLS
+
+
+def mcp_policy_summary(user: dict[str, Any], *, include_tools: bool = True) -> dict[str, Any]:
+    tools = sorted(allowed_tools(user))
+    owner = bool(is_rafael(user) or user.get("is_admin"))
+    summary: dict[str, Any] = {
+        "profile": VOICE_MCP_PROFILE,
+        "strategy": "compact_tool_surface_with_capability_router",
+        "visible_tool_count": len(tools),
+        "full_catalog_access": owner,
+        "full_catalog_access_path": "route_mcp_tools",
+        "execution_guard": "allowlisted tools only; development goes through Local Execution Plane/RACB, never arbitrary shell",
+        "model_fit": "small/local voice models see compact broker tools; larger agents may request bounded profiles",
+    }
+    if include_tools:
+        summary["visible_tools"] = tools
+    return summary
 
 
 def _in_process_call(name: str, args: dict[str, Any]) -> dict[str, Any] | None:
