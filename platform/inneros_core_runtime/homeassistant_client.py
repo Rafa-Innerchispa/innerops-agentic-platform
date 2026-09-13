@@ -28,6 +28,7 @@ INTELBRAS_GUARDIAN_URL = os.getenv("INTELBRAS_GUARDIAN_URL", "http://192.168.1.4
 INTELBRAS_GUARDIAN_DEVICE_ID = os.getenv("INTELBRAS_GUARDIAN_DEVICE_ID", "").strip()
 INTELBRAS_GUARDIAN_SESSION_ID = os.getenv("INTELBRAS_GUARDIAN_SESSION_ID", "").strip()
 INTELBRAS_GUARDIAN_SESSION_FILE = os.getenv("INTELBRAS_GUARDIAN_SESSION_FILE", "").strip()
+INTELBRAS_PREFERRED_ALARM_PANEL = os.getenv("INTELBRAS_PREFERRED_ALARM_PANEL", "panel_home_ralphi").strip().lower()
 
 # Alias habitación → fragmentos entity_id / friendly_name (español + nombres HA reales)
 ROOM_ALIASES: dict[str, list[str]] = {
@@ -522,6 +523,21 @@ def _alarm_matches(value: Any) -> bool:
     return any(term in haystack for term in _ALARM_DEVICE_TERMS)
 
 
+def _alarm_panel_rank(panel: dict[str, Any]) -> tuple[int, str]:
+    haystack = json.dumps(panel, ensure_ascii=False).lower()
+    entity_id = str(panel.get("entity_id") or "")
+    score = 0
+    if INTELBRAS_PREFERRED_ALARM_PANEL and INTELBRAS_PREFERRED_ALARM_PANEL in haystack:
+        score += 100
+    if "panel_home_ralphi" in entity_id:
+        score += 80
+    if "panel home ralphi" in haystack:
+        score += 80
+    if "intelbras" in haystack or "guardian" in haystack:
+        score += 10
+    return (-score, entity_id)
+
+
 def _alarm_control_panels(states: list[dict[str, Any]], alarm_entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
     panels = [row for row in states if str(row.get("entity_id") or "").startswith("alarm_control_panel.")]
     if not panels:
@@ -532,7 +548,7 @@ def _alarm_control_panels(states: list[dict[str, Any]], alarm_entities: list[dic
         if str(row.get("entity_id") or "").startswith("alarm_control_panel.")
     }
     matched = [row for row in panels if str(row.get("entity_id") or "") in registry_ids or _alarm_matches(row)]
-    return matched or panels
+    return sorted(matched or panels, key=_alarm_panel_rank)
 
 
 def _alarm_panel_summary(panel: dict[str, Any]) -> dict[str, Any]:

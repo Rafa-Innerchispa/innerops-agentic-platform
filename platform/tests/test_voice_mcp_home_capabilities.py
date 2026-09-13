@@ -76,6 +76,29 @@ def test_alarm_action_routes_through_guardian_when_approved_and_no_ha_panel(monk
     assert calls == ["alarm_disarm"]
 
 
+def test_alarm_control_panels_prefer_home_ralphi_when_multiple_panels(monkeypatch):
+    monkeypatch.setattr(ha, "INTELBRAS_PREFERRED_ALARM_PANEL", "panel_home_ralphi")
+    states = [
+        {
+            "entity_id": "alarm_control_panel.la_victoria_particion_a",
+            "state": "disarmed",
+            "attributes": {"friendly_name": "La Victoria Partición A"},
+        },
+        {
+            "entity_id": "alarm_control_panel.panel_home_ralphi_panel_home_ralphi",
+            "state": "disarmed",
+            "attributes": {"friendly_name": "Panel Home Ralphi Panel Home Ralphi"},
+        },
+        {
+            "entity_id": "alarm_control_panel.casa_mama_casa_mama",
+            "state": "disarmed",
+            "attributes": {"friendly_name": "Casa Mama Casa Mama"},
+        },
+    ]
+    panels = ha._alarm_control_panels(states, alarm_entities=states)
+    assert panels[0]["entity_id"] == "alarm_control_panel.panel_home_ralphi_panel_home_ralphi"
+
+
 def test_guardian_direct_status_summarizes_open_and_trouble_zones(monkeypatch):
     monkeypatch.setattr(ha, "INTELBRAS_GUARDIAN_DEVICE_ID", "602518")
 
