@@ -36,6 +36,10 @@ class DevSwarmStreamRecoveryTests(unittest.TestCase):
         wrapped = f"```json\n{self.raw}\n```"
         self.assertEqual(scheduler._fanout_parse_model_json(wrapped), self.payload)
 
+    def test_parse_fenced_javascript_object(self) -> None:
+        wrapped = f"```javascript\n{self.raw}\n```"
+        self.assertEqual(scheduler._fanout_parse_model_json(wrapped), self.payload)
+
     def test_parse_complete_object_before_truncated_stream_suffix(self) -> None:
         wrapped = f"implementation follows\n{self.raw}\nnext chunk {{\"partial\":"
         self.assertEqual(scheduler._fanout_parse_model_json(wrapped), self.payload)
@@ -48,6 +52,23 @@ class DevSwarmStreamRecoveryTests(unittest.TestCase):
         self.assertIsNone(
             scheduler._fanout_parse_model_json('{"summary":"broken","files":[')
         )
+
+    def test_normalize_single_file_alias(self) -> None:
+        item = {"path": "platform/inneros_core_runtime/example.py", "content": "VALUE = 1\n"}
+        normalized = scheduler._normalize_fanout_payload({"summary": "ok", "file": item})
+        assert normalized is not None
+        self.assertEqual(normalized["files"], [item])
+
+    def test_normalize_changes_alias(self) -> None:
+        items = [{"path": "platform/inneros_core_runtime/example.py", "content": "VALUE = 1\n"}]
+        normalized = scheduler._normalize_fanout_payload({"summary": "ok", "changes": items})
+        assert normalized is not None
+        self.assertEqual(normalized["files"], items)
+
+    def test_strict_output_guardrails_are_preserved(self) -> None:
+        self.assertEqual(scheduler.MODEL_OUTPUT_MAX_TOKENS, 1536)
+        self.assertEqual(scheduler.MODEL_OUTPUT_MAX_FILES, 2)
+        self.assertEqual(scheduler.MODEL_OUTPUT_MAX_TOTAL_CHARS, 2800)
 
     def test_amd_unreachable_is_transport_failure_not_json_failure(self) -> None:
         failure = scheduler._local_model_failure(

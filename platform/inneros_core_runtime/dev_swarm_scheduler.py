@@ -31,6 +31,9 @@ STALE_PROGRESS_SECONDS = 1800
 STALE_OPS_TASK_SECONDS = 6 * 3600
 MAX_STALE_RECLAIMS = 2
 MAX_MODEL_OUTPUT_ATTEMPTS = 2
+MODEL_OUTPUT_MAX_TOKENS = 1536
+MODEL_OUTPUT_MAX_FILES = 2
+MODEL_OUTPUT_MAX_TOTAL_CHARS = 2_800
 MAX_AUTONOMOUS_DELETIONS_PER_FILE = 800
 MAX_AUTONOMOUS_DELETION_RATIO = 3.0
 MAX_FIXTURE_CONTROL_PLANE_DELETIONS = 50
@@ -1587,7 +1590,10 @@ def _fanout_parse_model_json(text: str) -> dict[str, Any] | None:
     if "```" in raw:
         for part in raw.split("```"):
             value = part.strip()
-            if value.startswith("json"):
+            first_line, _sep, rest = value.partition("\n")
+            if first_line.strip().lower() in {"json", "javascript", "js"}:
+                value = rest.strip()
+            elif value.lower().startswith("json"):
                 value = value[4:].strip()
             if value:
                 candidates.append(value)
@@ -1652,6 +1658,26 @@ def _local_model_failure(model: dict[str, Any]) -> dict[str, str] | None:
         "selected_node": str(model.get("selected_node") or ""),
         "selected_model": str(model.get("selected_model") or ""),
     }
+
+
+def _normalize_fanout_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Accept common local-model JSON aliases, then let path/content gates decide."""
+    if not isinstance(payload, dict):
+        return payload
+    if isinstance(payload.get("files"), list):
+        return payload
+    normalized = dict(payload)
+    for key in ("file", "change", "artifact"):
+        value = normalized.get(key)
+        if isinstance(value, dict) and ("path" in value or "content" in value):
+            normalized["files"] = [value]
+            return normalized
+    for key in ("changes", "artifacts", "writes", "patches"):
+        value = normalized.get(key)
+        if isinstance(value, list):
+            normalized["files"] = value
+            return normalized
+    return normalized
 
 
 def _fanout_repo_snapshot(worktree: Path, max_chars: int = 16000) -> str:
@@ -2322,6 +2348,7 @@ def _safe_generated_files(
     worktree: Path,
     model_text: str = "",
 ) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+    payload = _normalize_fanout_payload(payload)
     proposed = payload.get("files") if isinstance(payload, dict) else None
     files: list[dict[str, str]] = []
     rejected: list[dict[str, Any]] = []
@@ -2541,17 +2568,26 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         prompt = (
             "You are an autonomous LOCAL software implementation worker. IMPLEMENT the task now. "
             "For Python tests, prefer unittest-compatible tests unless pytest is declared by the repository. "
-            "Return ONLY valid JSON with this shape: "
-            "{\"summary\":\"...\",\"files\":[{\"path\":\"relative/path\",\"content\":\"FULL file content\"}]}. "
+            "Return EXACTLY ONE valid JSON object, starting with { and ending with }. "
+            "Required shape: {\"summary\":\"...\",\"files\":[{\"path\":\"relative/path\",\"content\":\"FULL file content\"}]}. "
+            "The files array must be non-empty; its first item must be product code, not a test, README, package.json, "
+            "inneros_dev_swarm contract, diagnostic, or status stub. Do not wrap JSON in Markdown fences. "
+            "Keep the implementation increment small and complete: "
+            f"at most {MODEL_OUTPUT_MAX_FILES} files and about {MODEL_OUTPUT_MAX_TOTAL_CHARS} total content characters. "
+            "Return one product module plus one focused test when possible. "
+            "Keep each content string under 1600 characters; oversized answers will be rejected. "
+            "Prefer self-contained product code with zero imports; tests may only import generated modules by relative path. "
+            "Do not import packages, aliases, clients or framework modules that are absent from the repository snapshot. "
+            "Use concise code. Prefer the smallest working vertical slice over trying to implement the entire product in one response. "
             f"{path_contract} "
             "At least one file must be product code under src/, modules/, app/, lib/, components/ or infra/ inside the product scope. "
             "Modify/reuse the existing architecture shown below. Do not invent parallel Express/NestJS/Mongoose routes or undeclared dependencies when the repo is Next.js/Firebase or another stack. "
             "Include tests under tests/ when behavior is testable. No secrets, no cloud apply, no production deploy, no markdown-only result.\n\n"
-            f"TASK:\n{objective[:4000]}\n\nPREVIOUS FAILURES:\n{failures[:1500]}\n\n"
-            f"ARCHITECTURE CONTEXT:\n{_repo_architecture_context(repo, worktree, objective, max_chars=4000)}\n\n"
-            f"REPOSITORY SNAPSHOT:\n{_fanout_repo_snapshot(worktree, max_chars=5000)}"
+            f"TASK:\n{objective[:1600]}\n\nPREVIOUS FAILURES:\n{failures[:600]}\n\n"
+            f"ARCHITECTURE CONTEXT:\n{_repo_architecture_context(repo, worktree, objective, max_chars=1400)}\n\n"
+            f"REPOSITORY SNAPSHOT:\n{_fanout_repo_snapshot(worktree, max_chars=1400)}"
         )
-        model = local_model_router.run_local_model(task_type="coding", prompt=prompt, max_tokens=3072)
+        model = local_model_router.run_local_model(task_type="coding", prompt=prompt, max_tokens=MODEL_OUTPUT_MAX_TOKENS)
         local_model_ok = local_model_ok or bool(model.get("ok"))
         last_model_route = {
             "ok": bool(model.get("ok")),
