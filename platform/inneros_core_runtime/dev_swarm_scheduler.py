@@ -23,7 +23,7 @@ from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
-EXECUTOR_VERSION = "autonomous_impl_v10_a2a_liveness"
+EXECUTOR_VERSION = "autonomous_impl_v12_stream_transport_recovery"
 executor_version = EXECUTOR_VERSION
 DEFAULT_MAX_CONCURRENT = 4
 STALE_WORKER_SECONDS = 3600
@@ -1580,27 +1580,78 @@ def create_fixture_tasks(count: int = 2) -> dict[str, Any]:
 # Global path for all owner-approved projects. Structured inputs only.
 
 def _fanout_parse_model_json(text: str) -> dict[str, Any] | None:
-    import json
     raw = str(text or "").strip()
+    if not raw:
+        return None
     candidates = [raw]
     if "```" in raw:
         for part in raw.split("```"):
             value = part.strip()
             if value.startswith("json"):
                 value = value[4:].strip()
-            if value.startswith("{"):
+            if value:
                 candidates.append(value)
-    first, last = raw.find("{"), raw.rfind("}")
-    if first >= 0 and last > first:
-        candidates.append(raw[first:last + 1])
+    stream_parts: list[str] = []
+    for line in raw.splitlines():
+        value = line.strip()
+        if not value.startswith("data:"):
+            continue
+        value = value[5:].strip()
+        if value and value != "[DONE]":
+            stream_parts.append(value)
+    if stream_parts:
+        candidates.append("\n".join(stream_parts))
+
+    decoder = json.JSONDecoder()
+    seen: set[str] = set()
     for candidate in candidates:
+        candidate = candidate.strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
         try:
             obj = json.loads(candidate)
             if isinstance(obj, dict):
                 return obj
-        except Exception:
-            continue
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+        # Streaming/model wrappers may prepend prose or append an incomplete
+        # next chunk. Scan for the first complete JSON object and deliberately
+        # ignore suffix data after the decoded object.
+        for match in re.finditer(r"\{", candidate):
+            try:
+                obj, _end = decoder.raw_decode(candidate[match.start():])
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if isinstance(obj, dict):
+                return obj
     return None
+
+
+def _local_model_failure(model: dict[str, Any]) -> dict[str, str] | None:
+    """Classify provider/transport failures before JSON quality validation."""
+    if bool(model.get("ok")):
+        return None
+    error = str(model.get("error") or model.get("reason") or "local_model_unavailable").strip()
+    lowered = error.lower()
+    transport_markers = (
+        "unreachable",
+        "connection",
+        "refused",
+        "timeout",
+        "timed out",
+        "network",
+        "route",
+        "dns",
+    )
+    kind = "transport" if any(marker in lowered for marker in transport_markers) else "provider"
+    return {
+        "kind": kind,
+        "error": error[:1000],
+        "provider_id": str(model.get("provider_id") or ""),
+        "selected_node": str(model.get("selected_node") or ""),
+        "selected_model": str(model.get("selected_model") or ""),
+    }
 
 
 def _fanout_repo_snapshot(worktree: Path, max_chars: int = 16000) -> str:
@@ -2512,7 +2563,28 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             "error": model.get("error"),
         }
         model_text = str(model.get("response") or model.get("text") or model.get("content") or "")
-        payload = _fanout_parse_model_json(model_text) if model.get("ok") else None
+        model_failure = _local_model_failure(model)
+        if model_failure is not None:
+            failure_kind = model_failure["kind"]
+            failures = f"local_model_{failure_kind}_failure:{model_failure['error']}"
+            attempts.append(
+                {
+                    "attempt": attempt,
+                    "phase": f"model_{failure_kind}",
+                    "model_ok": False,
+                    "model_failure": model_failure,
+                    "error": failures,
+                }
+            )
+            _set_worker_phase(
+                task_id,
+                f"model_{failure_kind}_failure",
+                attempt_count=attempt,
+                blocker=failures,
+                model_output_diagnostics=attempts,
+            )
+            continue
+        payload = _fanout_parse_model_json(model_text)
         files, rejected_files = _safe_generated_files(payload, objective, task_id, repo, worktree, model_text=model_text)
         files = _merge_node_scaffold(objective=objective, task_id=task_id, worktree=worktree, files=files, repo=repo)
         if not files:
