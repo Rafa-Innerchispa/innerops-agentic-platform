@@ -33,7 +33,9 @@ The integration creates Home Assistant entities for `alarm_control_panel`, zones
 - Correct panel discovered: `Panel Home Ralphi`, device id `602518`, model `ANM_24_NET`, MAC `D8365F2B15AE`.
 - Panel PIN was saved in middleware storage for that device by owner authorization.
 - Direct status smoke through Guardian middleware: `arm_mode=disarmed`, `is_triggered=false`, one open zone (`Zona 07`), no trouble zones in the sampled response.
-- Focused regression suite: `PYTHONPATH=platform /home/rlopez/inneros/inneros_core/platform/venv/bin/python -m pytest platform/tests/test_voice_mcp_home_capabilities.py -q` -> `8 passed`.
+- Direct command guard is available through Guardian middleware as a fallback while HA lacks `alarm_control_panel.*`: arm/disarm require explicit owner approval; panic/siren/PGM remain blocked.
+- Guard smoke: `arma la alarma Intelbras` without approval returns `explicit_alarm_approval_required` and executes nothing.
+- Focused regression suite: `PYTHONPATH=platform /home/rlopez/inneros/inneros_core/platform/venv/bin/python -m pytest platform/tests/test_voice_mcp_home_capabilities.py -q` -> `9 passed`.
 - Runtime voice gateway was restarted and remained `active`.
 
 ## Owner Action Still Useful
@@ -65,7 +67,7 @@ AG-32/voice currently reads live alarm status directly from the Guardian middlew
 
 - Read status automatically switches from UniFi/TCP presence to the HA alarm panel state when the entity appears.
 - Until the HA panel entity appears, status comes from `INTELBRAS_GUARDIAN_URL`, `INTELBRAS_GUARDIAN_DEVICE_ID`, and a local session id in `/home/rlopez/inneros/inneros_core/platform/.env`.
-- Arm/disarm are routed only through Home Assistant and only when the request includes an explicit owner approval phrase.
+- Arm/disarm prefer Home Assistant when `alarm_control_panel.*` exists; until then they can use Guardian middleware directly, only when the request includes an explicit owner approval phrase.
 - Panic, siren and PGM remain blocked until a physical runbook is validated.
 - Still pending after OAuth: verify zones, last event, battery/tamper/power sensors.
 - Add WhatsApp alerts for alarm triggered, grid/power related alarm trouble if exposed, tamper and battery low.
