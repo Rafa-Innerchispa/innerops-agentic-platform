@@ -59,12 +59,72 @@ class DMXAG59RuntimeTests(unittest.TestCase):
         self.assertEqual(calls[0][2]["target"], "todas")
         self.assertEqual(calls[2][1], "/api/scene")
 
-    def test_unsupported_scene_fails_closed_without_backend_call(self):
+    def test_unsupported_raw_scene_fails_closed_without_backend_call(self):
         with patch.object(ag59, "_request_json") as backend:
             result = ag59.dmx_set_scene("channel 1 full")
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "unsupported_scene")
         backend.assert_not_called()
+
+    def test_backend_advertised_dynamic_scene_is_allowed_and_executed(self):
+        calls = []
+
+        def fake_request(method, path, payload=None):
+            calls.append((method, path, payload))
+            if method == "GET" and path == "/api/status":
+                return {
+                    "ok": True,
+                    "status": "online",
+                    "supported_scenes": ["rainbow", "aurora_verde_demo"],
+                }
+            if method == "POST" and path == "/api/scene":
+                return {"ok": True, "effect": payload["mode"]}
+            raise AssertionError((method, path, payload))
+
+        with patch.object(ag59, "_request_json", side_effect=fake_request):
+            result = ag59.dmx_set_scene("aurora_verde_demo")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["scene"], "aurora_verde_demo")
+        self.assertEqual(calls[0], ("GET", "/api/status", None))
+        self.assertEqual(calls[1][0:2], ("POST", "/api/scene"))
+        self.assertEqual(calls[1][2]["mode"], "aurora_verde_demo")
+
+    def test_unadvertised_dynamic_scene_fails_closed_without_physical_post(self):
+        calls = []
+
+        def fake_request(method, path, payload=None):
+            calls.append((method, path, payload))
+            return {"ok": True, "status": "online", "supported_scenes": ["rainbow"]}
+
+        with patch.object(ag59, "_request_json", side_effect=fake_request):
+            result = ag59.dmx_set_scene("totally_new_scene")
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "unsupported_scene")
+        self.assertEqual(calls, [("GET", "/api/status", None)])
+
+    def test_status_and_setter_share_backend_dynamic_catalog(self):
+        def fake_request(method, path, payload=None):
+            if method == "GET" and path == "/api/status":
+                return {
+                    "ok": True,
+                    "status": "online",
+                    "current_effect": None,
+                    "running": False,
+                    "supported_scenes": ["aurora_verde_demo"],
+                }
+            if method == "POST" and path == "/api/scene":
+                return {"ok": True, "effect": payload["mode"]}
+            raise AssertionError((method, path, payload))
+
+        with patch.object(ag59, "_request_json", side_effect=fake_request):
+            status = ag59.dmx_status()
+            applied = ag59.dmx_set_scene("aurora_verde_demo")
+
+        self.assertIn("aurora_verde_demo", status["safe_scenes"])
+        self.assertTrue(applied["ok"])
+        self.assertEqual(applied["scene"], "aurora_verde_demo")
 
     def test_casual_text_never_changes_physical_state(self):
         with patch.object(ag59, "_request_json") as backend:
