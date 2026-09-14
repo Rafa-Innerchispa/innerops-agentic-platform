@@ -28,6 +28,7 @@ NESTED_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
 SAFE_REMOTE_RE = re.compile(r"^(https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?|git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git|https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner(?:\\.git)?)$")
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
 OWNER_APPROVED_NESTED_REPOS = {"gitlab-community/gitlab-org/gitlab-runner"}
+SECRET_PATH_RE = re.compile(r"(?i)(secret|token|password|passwd|credential|cookie|\.env|key)")
 
 
 def _now() -> str:
@@ -236,29 +237,144 @@ def _run_node(node: str, args: list[str], *, input_text: str = "", timeout: int 
     return subprocess.run(command, input=input_text, capture_output=True, text=True, timeout=timeout, check=False)
 
 
+def _run_git(path: Path, args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", "-C", str(path), *args], capture_output=True, text=True, timeout=timeout, check=False)
+
+
+def _sanitize_dirty_path(value: str) -> str:
+    item = (value or "").strip().strip('"')
+    if not item:
+        return ""
+    if SECRET_PATH_RE.search(item):
+        return "[REDACTED_SECRET_PATH]"
+    return item[:240]
+
+
+def _parse_dirty_status(stdout: str) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for raw_line in (stdout or "").splitlines():
+        line = raw_line.rstrip()
+        if not line:
+            continue
+        status = line[:2].strip() or "?"
+        path = line[3:] if len(line) > 3 else ""
+        if " -> " in path:
+            path = " -> ".join(_sanitize_dirty_path(part) for part in path.split(" -> ", 1))
+        else:
+            path = _sanitize_dirty_path(path)
+        items.append({"status": status, "path": path})
+        if len(items) >= 50:
+            items.append({"status": "...", "path": "truncated"})
+            break
+    return items
+
+
+def _git_clean_status(path: Path) -> dict[str, Any]:
+    if not (path / ".git").exists():
+        return {"ok": False, "error": "not_git_repository", "dirty": False, "dirty_paths": []}
+    proc = _run_git(path, ["status", "--porcelain=v1", "-uall"])
+    stdout = proc.stdout or ""
+    dirty_paths = _parse_dirty_status(stdout)
+    return {
+        "ok": proc.returncode == 0,
+        "dirty": bool(stdout.strip()) or proc.returncode != 0,
+        "dirty_paths": dirty_paths,
+        "returncode": proc.returncode,
+        "stderr": (proc.stderr or "")[-1000:],
+    }
+
+
+def _git_head(path: Path) -> str:
+    proc = _run_git(path, ["rev-parse", "HEAD"])
+    if proc.returncode != 0:
+        return ""
+    return (proc.stdout or "").strip().lower()
+
+
+def _sha_matches(observed_sha: str, expected_sha: str) -> bool:
+    expected = (expected_sha or "").strip().lower()
+    observed = (observed_sha or "").strip().lower()
+    if not expected:
+        return True
+    if len(expected) in {40, 64}:
+        return observed == expected
+    return observed.startswith(expected)
+
+
 def bootstrap_runtime(
     node: str = "primary",
     project_id: str = "",
     repo: str = "",
     remote_url: str = "",
+    base_ref: str = "",
+    expected_sha: str = "",
     actor: str = "chatgpt",
     task_id: str = "",
     correlation_id: str = "",
     dry_run: bool = True,
 ) -> dict[str, Any]:
     resolved = resolve_project(project_id=project_id or repo, repo=repo, node=node)
-    path = resolved["project_path"]
+    project_path = Path(resolved["project_path"])
     remote = (remote_url or "").strip()
     if remote and not SAFE_REMOTE_RE.match(remote):
         return {"ok": False, "error": "remote_url_not_allowlisted"}
-    payload = json.dumps({"project_path": path, "repo": resolved["project"]["repo"], "remote_url": remote, "dry_run": dry_run})
+    if project_path.exists() and (project_path / ".git").exists():
+        preflight = _git_clean_status(project_path)
+        if not preflight.get("ok") or preflight.get("dirty"):
+            return {
+                **resolved,
+                "ok": False,
+                "error": "dirty_project_runtime_preflight",
+                "reason": "project_runtime_bootstrap refuses to mutate or validate a dirty checkout",
+                "dry_run": dry_run,
+                "dirty_paths": preflight.get("dirty_paths", []),
+                "git_status": preflight,
+            }
+    payload = json.dumps(
+        {
+            "project_path": str(project_path),
+            "repo": resolved["project"]["repo"],
+            "remote_url": remote,
+            "base_ref": base_ref,
+            "expected_sha": expected_sha,
+            "dry_run": dry_run,
+        }
+    )
     proc = _run_node(resolved["node"], [NODE_HELPER, "project_bootstrap"], input_text=payload, timeout=300)
     try:
         result = json.loads(proc.stdout or "{}")
     except Exception:
         result = {"ok": False, "stdout": proc.stdout[-2000:], "stderr": proc.stderr[-2000:]}
     ok = bool(result.get("ok")) and proc.returncode == 0
-    return {**resolved, "ok": ok, "dry_run": dry_run, "result": result, "helper_returncode": proc.returncode}
+    postcheck: dict[str, Any] = {}
+    if ok and project_path.exists() and (project_path / ".git").exists() and not dry_run:
+        observed_sha = _git_head(project_path)
+        postcheck = {"observed_sha": observed_sha, "expected_sha": expected_sha or ""}
+        if expected_sha and not _sha_matches(observed_sha, expected_sha):
+            return {
+                **resolved,
+                "ok": False,
+                "error": "expected_sha_mismatch",
+                "dry_run": dry_run,
+                "result": result,
+                "helper_returncode": proc.returncode,
+                "postcheck": postcheck,
+            }
+        clean = _git_clean_status(project_path)
+        postcheck["git_status"] = clean
+        if not clean.get("ok") or clean.get("dirty"):
+            return {
+                **resolved,
+                "ok": False,
+                "error": "dirty_project_runtime_postcheck",
+                "reason": "project_runtime_bootstrap helper left the checkout dirty",
+                "dry_run": dry_run,
+                "dirty_paths": clean.get("dirty_paths", []),
+                "result": result,
+                "helper_returncode": proc.returncode,
+                "postcheck": postcheck,
+            }
+    return {**resolved, "ok": ok, "dry_run": dry_run, "result": result, "helper_returncode": proc.returncode, "postcheck": postcheck}
 
 
 def reconcile(
