@@ -277,3 +277,32 @@ class AuditFabricTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_external_explicit_provider_routing_evidence_is_not_labeled_local_first():
+    routing = audit_fabric.routing_evidence_from_resource_decision(
+        {
+            "ok": True,
+            "project_id": "inneros-physical-guardian-ai-infra-2026",
+            "task_class": "realtime_stt",
+            "selected": {
+                "model": None,
+                "provider": {
+                    "provider_id": "speechmatics",
+                    "label": "Speechmatics Voice AI",
+                    "kind": "external_voice_provider",
+                    "local_first": False,
+                    "cost_policy": "external_specialized_explicit_or_policy_routed",
+                },
+                "selection_kind": "capability",
+                "explicit_project_link": True,
+            },
+            "candidates": [1, 2],
+        },
+        latency_ms=7.5,
+    )
+
+    assert routing["provider_id"] == "speechmatics"
+    assert routing["local_cloud"] == "cloud"
+    assert routing["reason_codes"] == ["explicit_project_link"]
+    assert routing["candidate_count"] == 2

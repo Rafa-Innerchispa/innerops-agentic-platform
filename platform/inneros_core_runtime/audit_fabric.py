@@ -111,7 +111,12 @@ def routing_evidence_from_resource_decision(
     provider_kind = _clean(provider.get("kind") or selected.get("provider_kind"))
     local_cloud = _clean(selected.get("local_cloud") or model.get("local_cloud") or provider.get("local_cloud"))
     if not local_cloud:
-        local_cloud = "cloud" if cost_policy == "explicit_burst_only" or provider_kind in {"cloud", "cloud_provider"} else "local"
+        if provider.get("local_first") is True or provider_kind == "local_node":
+            local_cloud = "local"
+        elif provider:
+            local_cloud = "cloud"
+        else:
+            local_cloud = "cloud" if cost_policy == "explicit_burst_only" or provider_kind in {"cloud", "cloud_provider"} else "local"
     reason_codes = (
         selected.get("reason_codes")
         or result.get("reason_codes")
@@ -123,7 +128,12 @@ def routing_evidence_from_resource_decision(
         reason_codes = [reason_codes]
     reason_codes = [_clean(code) for code in reason_codes if _clean(code)]
     if not reason_codes:
-        reason_codes = ["local_first"] if selected and local_cloud == "local" else (["explicit_cloud_burst"] if selected else ["no_candidate"])
+        if selected.get("explicit_project_link"):
+            reason_codes = ["explicit_project_link"]
+        elif selected and local_cloud == "local":
+            reason_codes = ["local_first"]
+        else:
+            reason_codes = ["external_provider"] if selected else ["no_candidate"]
     fallback = selected.get("fallback", result.get("fallback", model.get("fallback", provider.get("fallback"))))
     return {
         "schema_version": "inneros.routing_evidence.v1",
