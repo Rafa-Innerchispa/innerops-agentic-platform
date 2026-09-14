@@ -76,6 +76,12 @@ def agent_iskcon_status() -> dict[str, Any]:
         "entities": ENTITY_ID,
         "tags": {"$in": ["ffl", "food_for_life", "rations"]},
     })
+    try:
+        from raphiia_openai import iskcon_conversation_memory
+
+        conversation_memory = iskcon_conversation_memory.audit_historical_coverage(limit=100)
+    except Exception as exc:
+        conversation_memory = {"ok": False, "error": str(exc)[:300]}
     return {
         "ok": True,
         "agent_id": AGENT_ID,
@@ -83,6 +89,7 @@ def agent_iskcon_status() -> dict[str, Any]:
         "ops_open": ops_open,
         "memory_items": mem,
         "ffl_log_entries": ffl_mem,
+        "conversation_memory": conversation_memory,
         "contacts": _count_entity_contacts(),
         "panihati": _panihati_counts(),
         "funding": _funding_iskcon(),
@@ -239,6 +246,26 @@ def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = Tru
         })
         record_agent_run(AGENT_ID, action="iskcon_memory", summary="saved", project=PROJECT)
         return {"ok": True, "agent_id": AGENT_ID, **r}
+    if action in ("conversation_status", "conversations", "coverage"):
+        from raphiia_openai import iskcon_conversation_memory
+
+        return {"ok": True, "agent_id": AGENT_ID, **iskcon_conversation_memory.audit_historical_coverage(limit=200)}
+    if action in ("conversation_backfill", "backfill"):
+        from raphiia_openai import iskcon_conversation_memory
+
+        return {
+            "ok": True,
+            "agent_id": AGENT_ID,
+            **iskcon_conversation_memory.backfill_historical_iskcon(limit=25, dry_run=dry_run),
+        }
+    if action in ("conversation_search", "search") and message.strip():
+        from raphiia_openai import iskcon_conversation_memory
+
+        return {"ok": True, "agent_id": AGENT_ID, **iskcon_conversation_memory.search_iskcon_memory(message, actor="RAFAEL", limit=10)}
+    if action in ("hector", "héctor"):
+        from raphiia_openai import iskcon_conversation_memory
+
+        return {"ok": True, "agent_id": AGENT_ID, **iskcon_conversation_memory.hector_context_status()}
     if action == "ops" and message.strip() and not dry_run:
         from raphiia_openai import coordination_live
         return coordination_live.create_ops_task(
@@ -256,7 +283,8 @@ def agent_iskcon_dispatch(action: str, message: str = "", *, dry_run: bool = Tru
         "dry_run": dry_run,
         "allowed_actions": [
             "status", "capabilities", "domain", "ffl", "festival", "temple",
-            "contacts", "funding", "ffl_log", "memory", "ops",
+            "contacts", "funding", "ffl_log", "memory", "conversation_status",
+            "conversation_backfill", "conversation_search", "hector", "ops",
         ],
         "entity_id": ENTITY_ID,
     }
