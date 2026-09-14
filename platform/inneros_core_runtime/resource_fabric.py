@@ -16,14 +16,70 @@ from raphiia_openai import gemini_runtime
 from raphiia_openai import local_discord_plane
 from raphiia_openai import local_gitlab_plane
 from raphiia_openai import assemblyai_provider
+from raphiia_openai import provider_onboarding_plane
 
 COL_PROVIDERS = "inneros_resource_providers"
 COL_MODEL_REGISTRY = "inneros_model_registry"
 COL_RESOURCE_LINKS = "inneros_resource_project_links"
 
+_GENERIC_PROVIDER_CAPABILITIES = {"status", "preflight", "dry_run", "audit"}
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _manifest_provider_kind(manifest: dict[str, Any]) -> str:
+    category = str(manifest.get("secret_category") or "").strip().lower()
+    if category == "voice_ai_provider":
+        return "external_voice_provider"
+    return "external_provider"
+
+
+def _registered_manifest_provider_documents(existing_ids: set[str] | None = None) -> list[dict[str, Any]]:
+    """Project validated Provider Onboarding manifests into Resource Fabric docs.
+
+    Native providers can carry richer runtime-specific metadata and therefore win
+    on duplicate IDs. Generic manifest projection intentionally contains no raw
+    credential values or invented endpoint health claims.
+    """
+
+    existing = {str(item).strip() for item in (existing_ids or set()) if str(item).strip()}
+    result = provider_onboarding_plane.provider_list_manifests()
+    if not result.get("ok"):
+        return []
+
+    projected: list[dict[str, Any]] = []
+    for manifest in result.get("manifests") or []:
+        provider_id = str(manifest.get("id") or "").strip()
+        if not provider_id or provider_id in existing:
+            continue
+        preflight = provider_onboarding_plane.provider_preflight(provider_id)
+        if not preflight.get("ok"):
+            continue
+        capabilities = [
+            str(capability)
+            for capability in manifest.get("capabilities") or []
+            if str(capability).strip() and str(capability) not in _GENERIC_PROVIDER_CAPABILITIES
+        ]
+        projected.append(
+            {
+                "provider_id": provider_id,
+                "label": str(manifest.get("label") or provider_id),
+                "kind": _manifest_provider_kind(manifest),
+                "capabilities": capabilities,
+                "auth_mode": str(manifest.get("auth_mode") or "none"),
+                "secret_category": str(manifest.get("secret_category") or ""),
+                "risk_level": str(manifest.get("risk_level") or "read_only"),
+                "local_first": False,
+                "status": "configured",
+                "cost_policy": "external_specialized_explicit_or_policy_routed",
+                "governance": "Provider Onboarding manifest; server-side credentials; consuming workflow owns approval/evidence gates",
+                "manifest_registered_at": manifest.get("registered_at"),
+            }
+        )
+    projected.sort(key=lambda item: item["provider_id"])
+    return projected
 
 
 def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
@@ -52,6 +108,8 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
         local_discord_plane.resource_provider_document(),
         assemblyai_provider.resource_provider_document(),
     ]
+    provider_ids = {str(row.get("provider_id") or "") for row in providers}
+    providers.extend(_registered_manifest_provider_documents(provider_ids))
     models = [
         {
             "model_provider": "local-amd",
@@ -143,7 +201,7 @@ def route_resource_request(
         candidates.append({"model": model, "provider": provider, "selection_kind": "model"})
 
     # Non-model capabilities (voice, messaging, browser, tools, etc.) are first-class
-    # Resource Fabric resources too.  Fall back to provider capabilities when no
+    # Resource Fabric resources too. Fall back to provider capabilities when no
     # model registry entry exists for the requested task class.
     if not candidates:
         links = list(
