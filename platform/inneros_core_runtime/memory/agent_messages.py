@@ -13,6 +13,7 @@ Reglas:
 
 from __future__ import annotations
 
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -23,11 +24,24 @@ from raphiia_openai.settings import COL_AGENT_MESSAGES
 
 OPEN_STATUSES = {"open", "acknowledged", "in_progress", "blocked"}
 VISIBLE_INBOX_STATUSES = {"open", "acknowledged", "in_progress", "blocked"}
-TERMINAL_STATUSES = {"done", "cancelled", "obsolete", "superseded"}
+TERMINAL_STATUSES = {"done", "cancelled", "obsolete", "superseded", "failed"}
 LEGACY_OPEN_STATUSES = {"delivered"}  # schema viejo de write_agent_message
 
 MAILBOX_AGENTS = tuple(sorted(agent_identity.CANONICAL_MAILBOXES))
 MESSAGE_TYPES = frozenset({"message", "task", "status", "handoff", "reply", "event", "approval"})
+
+TASK_MESSAGE_ACTIVE_STATUSES = {"accepted", "in_progress", "blocked", "awaiting_approval", "verification", "partial", "dispatched"}
+TASK_MESSAGE_TERMINAL_MAP = {
+    "completed": "done",
+    "done": "done",
+    "cancelled": "cancelled",
+    "superseded": "superseded",
+    "obsolete": "obsolete",
+    "failed": "failed",
+}
+OPS_TASKS_COL = "ralfia_ops_tasks"
+OPS_TASK_ID_RE = re.compile(r"\bops_[0-9a-f]{12}\b")
+
 
 
 def _new_id() -> str:
@@ -345,6 +359,87 @@ def poll_agent_inbox(*, agent: str, limit: int = 20, auto_ack: bool = True) -> d
     }
 
 
+def _message_task_id(message: dict[str, Any]) -> str:
+    payload = message.get("payload") if isinstance(message.get("payload"), dict) else {}
+    task_id = str((payload or {}).get("task_id") or "").strip()
+    if task_id:
+        return task_id
+    for item in message.get("tags") or []:
+        value = str(item or "").strip()
+        if OPS_TASK_ID_RE.fullmatch(value):
+            return value
+    body = str(message.get("body") or "")
+    match = OPS_TASK_ID_RE.search(body)
+    return match.group(0) if match else ""
+
+
+def reconcile_task_message_statuses(agent: str | None = None, *, limit: int = 300) -> dict[str, Any]:
+    """Align task-message visibility with the canonical ops_task lifecycle.
+
+    The ops task is the execution source of truth. Once a task has been claimed,
+    blocked, completed, or marked partial, its delivery message should stop
+    counting as a fresh unread inbox item; the task remains visible through
+    ``get_coordination_live`` / ``list_ops_tasks``.
+    """
+    db = mongo_store.get_db()
+    filt: dict[str, Any] = {"status": {"$in": sorted(OPEN_STATUSES | LEGACY_OPEN_STATUSES)}}
+    if agent:
+        filt["target_agent"] = _normalize_agent(agent)
+    cursor = db[COL_AGENT_MESSAGES].find(filt).sort([("created_at", -1), ("ts", -1)]).limit(max(1, min(int(limit or 300), 1000)))
+    updated = 0
+    skipped = 0
+    counts: dict[str, int] = {}
+    examples: list[dict[str, str]] = []
+    now = ralfia_time.now_utc_iso()
+    for message in cursor:
+        task_id = _message_task_id(message)
+        if not task_id:
+            skipped += 1
+            continue
+        task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0, "status": 1, "revision": 1, "owner": 1, "updated_at": 1})
+        if not task:
+            skipped += 1
+            continue
+        task_status = str(task.get("status") or "").strip().lower()
+        target_status = TASK_MESSAGE_TERMINAL_MAP.get(task_status)
+        patch: dict[str, Any] = {
+            "linked_ops_task": task_id,
+            "linked_ops_task_status": task_status,
+            "linked_ops_task_revision": task.get("revision"),
+            "updated_at": now,
+            "schema_version": 4,
+        }
+        if target_status:
+            patch["status"] = target_status
+            patch["resolved_at"] = message.get("resolved_at") or now
+            patch["resolution_reason"] = "ops_task_lifecycle_reconciled"
+        elif task_status in TASK_MESSAGE_ACTIVE_STATUSES:
+            target_status = "acknowledged"
+            patch["status"] = target_status
+            patch["acknowledged_at"] = message.get("acknowledged_at") or now
+            patch["acknowledged_by"] = message.get("acknowledged_by") or "ops_task_lifecycle"
+        else:
+            skipped += 1
+            continue
+        if message.get("status") == target_status and message.get("linked_ops_task_status") == task_status:
+            skipped += 1
+            continue
+        message_id = message.get("message_id") or message.get("_id")
+        if message.get("message_id"):
+            query = {"message_id": message.get("message_id"), "status": message.get("status")}
+        else:
+            query = {"_id": message.get("_id"), "status": message.get("status")}
+        result = db[COL_AGENT_MESSAGES].update_one(query, {"$set": patch})
+        if result.modified_count:
+            updated += 1
+            counts[target_status] = counts.get(target_status, 0) + 1
+            if len(examples) < 10:
+                examples.append({"message_id": str(message_id), "task_id": task_id, "message_status": target_status, "task_status": task_status})
+        else:
+            skipped += 1
+    return {"ok": True, "agent": _normalize_agent(agent) if agent else None, "updated": updated, "skipped": skipped, "counts": counts, "examples": examples}
+
+
 def update_agent_message_status(message_id: str, status: str) -> dict[str, Any]:
     db = mongo_store.get_db()
     st = status.strip().lower()
@@ -439,6 +534,7 @@ def compact_agent_mailbox(agent: str, *, max_open: int = 20, archive_days: int =
     """Regenera INBOX.md desde Mongo (solo recibidos abiertos). No pierde mensajes open."""
     name = _normalize_agent(agent)
     inbox_path = _ensure_inbox_file(name)
+    reconcile = reconcile_task_message_statuses(name, limit=max_open * 5)
 
     open_msgs = list_agent_messages(agent=name, status="open", limit=max_open, role="inbox")
     in_prog = list_agent_messages(agent=name, status="in_progress", limit=max_open, role="inbox")
@@ -488,6 +584,7 @@ def compact_agent_mailbox(agent: str, *, max_open: int = 20, archive_days: int =
         "agent": name,
         "open_shown": len(ordered),
         "archived": archived,
+        "reconciled": reconcile,
         "message_ids": [m.get("message_id") for m in ordered],
     }
 

@@ -117,6 +117,42 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertEqual(reason, "eligible")
         self.assertEqual(repo, "Rafa-Innerchispa/innerops-agentic-platform")
 
+    def test_short_repo_binding_is_normalized_before_policy_check(self) -> None:
+        task = {
+            "task_id": "ops_short_repo",
+            "status": "proposed",
+            "assignee": "ralfia",
+            "execution_lane": "local_dev_swarm",
+            "priority": "p1",
+            "repo": "inneros-ambient-guardian-amazon-2026",
+            "related_project": "inneros-ambient-guardian-amazon-2026",
+            "title": "Prepare Alexa control plane",
+            "checklist": ["Install tooling in the registered project workspace"],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}) as policy:
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, "Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026")
+        policy.assert_called_once_with("Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026")
+
+    def test_short_related_project_is_normalized_before_policy_check(self) -> None:
+        task = {
+            "task_id": "ops_short_related",
+            "status": "proposed",
+            "assignee": "chatgpt",
+            "execution_lane": "local_dev_swarm",
+            "priority": "p0",
+            "related_project": "inneros-voiceops-assemblyai",
+            "title": "VoiceOps AssemblyAI SIP/RTP bridge",
+            "checklist": ["Implement SIP parser and RTP audio bridge"],
+        }
+        with mock.patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True, "write_scope": "trusted"}):
+            ok, reason, repo = scheduler._eligible_reason(task)
+        self.assertTrue(ok)
+        self.assertEqual(reason, "eligible")
+        self.assertEqual(repo, "Rafa-Innerchispa/inneros-voiceops-assemblyai")
+
     def test_email_finance_whatsapp_tasks_are_not_inferred_as_dev_repo(self) -> None:
         for title in (
             "Process email inbox and invoice summary",
