@@ -297,11 +297,26 @@ def _worker_objective(worker: dict[str, Any], task: dict[str, Any] | None) -> st
 CANONICAL_REPO_HINTS = {
     "innerops-agentic-platform": SAFE_INNEROS_REPO,
     "innerspark-workforce-ai": "Rafa-Innerchispa/innerspark-workforce-ai",
+    "inneros-ambient-guardian-amazon-2026": "Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026",
+    "inneros-voiceops-assemblyai": "Rafa-Innerchispa/inneros-voiceops-assemblyai",
+    "inneros-voiceops": "Rafa-Innerchispa/inneros-voiceops",
 }
 
 
 WRITE_TASK_CLASSES = {"coding", "code_review", "refactor", "tests", "build", "deployment"}
 LOCAL_DEV_SWARM_LANE = "local_dev_swarm"
+
+
+def _canonical_repo_from_short_name(value: str) -> str | None:
+    item = str(value or "").strip()
+    if not item or "/" in item:
+        return None
+    lowered = item.lower()
+    if lowered in CANONICAL_REPO_HINTS:
+        return CANONICAL_REPO_HINTS[lowered]
+    if project_runtime_registry.PROJECT_ID_RE.match(item):
+        return f"Rafa-Innerchispa/{item}"
+    return None
 
 
 def _registry_resolve_repo(project_id: str = "", repo: str = "") -> str | None:
@@ -320,17 +335,21 @@ def _structured_repo_binding(task: dict[str, Any]) -> str | None:
     repo = str(task.get("repo") or task.get("repository") or "").strip()
     project_id = str(task.get("project_id") or "").strip()
     if repo:
-        return repo
+        if "/" in repo:
+            return _registry_resolve_repo(project_id=project_id, repo=repo) or repo
+        return _registry_resolve_repo(project_id=project_id or repo) or _canonical_repo_from_short_name(repo) or repo
     if project_id:
-        return _registry_resolve_repo(project_id=project_id)
+        return _registry_resolve_repo(project_id=project_id) or _canonical_repo_from_short_name(project_id)
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     if payload:
         repo = str(payload.get("repo") or payload.get("repository") or "").strip()
         project_id = str(payload.get("project_id") or "").strip()
         if repo:
-            return repo
+            if "/" in repo:
+                return _registry_resolve_repo(project_id=project_id, repo=repo) or repo
+            return _registry_resolve_repo(project_id=project_id or repo) or _canonical_repo_from_short_name(repo) or repo
         if project_id:
-            return _registry_resolve_repo(project_id=project_id)
+            return _registry_resolve_repo(project_id=project_id) or _canonical_repo_from_short_name(project_id)
     return None
 
 
@@ -368,10 +387,16 @@ def _repo_from_related_project(task: dict[str, Any]) -> str | None:
     value = str(task.get("related_project") or "").strip()
     if value.startswith("Rafa-Innerchispa/"):
         return value
+    short = _registry_resolve_repo(project_id=value) or _canonical_repo_from_short_name(value)
+    if short:
+        return short
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     value = str((payload or {}).get("related_project") or "").strip()
     if value.startswith("Rafa-Innerchispa/"):
         return value
+    short = _registry_resolve_repo(project_id=value) or _canonical_repo_from_short_name(value)
+    if short:
+        return short
     return None
 
 

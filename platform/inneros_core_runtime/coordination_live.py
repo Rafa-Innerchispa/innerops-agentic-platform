@@ -168,6 +168,12 @@ def bump_revision(*, reason: str, source: str = "system", current_priority: dict
 
 
 def _unread_messages() -> dict[str, int]:
+    try:
+        from raphiia_openai.memory import agent_messages
+
+        agent_messages.reconcile_task_message_statuses(limit=500)
+    except Exception:
+        pass
     db = mongo_store.get_db()
     out: dict[str, int] = {}
     for agent in ("cursor", "codex", "antigravity", "chatgpt", "gemini", "notion"):
