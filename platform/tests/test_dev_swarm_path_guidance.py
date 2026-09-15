@@ -25,7 +25,7 @@ class DevSwarmPathGuidanceTests(unittest.TestCase):
             ["platform/inneros_core_runtime", "platform/raphiia_openai"],
         )
 
-    def test_instruction_never_broadens_policy(self) -> None:
+    def test_instruction_never_broadens_innerops_policy(self) -> None:
         text = product_path_instruction(
             "platform",
             [
@@ -38,6 +38,22 @@ class DevSwarmPathGuidanceTests(unittest.TestCase):
         self.assertIn("platform/raphiia_openai", text)
         self.assertNotIn("platform/src", text)
         self.assertNotIn("platform/tests", text)
+
+    def test_parent_scope_preserves_workforce_product_relative_paths(self) -> None:
+        roots = allowed_product_code_roots(
+            "services/femar-mvp-core",
+            ["services", "src", "tests", "README.md"],
+        )
+        self.assertIn("services/femar-mvp-core/src", roots)
+        self.assertIn("services/femar-mvp-core/app", roots)
+        self.assertIn("services/femar-mvp-core/lib", roots)
+        self.assertNotIn("services/femar-mvp-core/tests", roots)
+
+        text = product_path_instruction(
+            "services/femar-mvp-core",
+            ["services", "src", "tests", "README.md"],
+        )
+        self.assertIn("services/femar-mvp-core/src", text)
 
     def test_root_level_repo_preserves_existing_product_roots(self) -> None:
         roots = allowed_product_code_roots(
