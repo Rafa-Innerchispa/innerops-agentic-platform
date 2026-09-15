@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, durable_coordination_spine, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
+from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_path_guidance, dev_swarm_watchdog, durable_coordination_spine, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -1839,7 +1839,8 @@ def _normalize_product_scoped_path(
         else:
             return {"ok": False, "raw_path": raw, "reason": "outside_product_root", "product_root": product_root}
         try:
-            local_execution_plane._validate_relative_path(normalized, [product_root])
+            allowed_paths = _repo_allowed_paths(repo) or [product_root]
+            local_execution_plane._validate_relative_path(normalized, allowed_paths)
         except Exception as exc:
             return {
                 "ok": False,
@@ -2180,6 +2181,20 @@ def _normalize_generated_content(content: str) -> str:
     return normalized + ("\n" if content.endswith("\n") or normalized else "")
 
 
+def _repo_allowed_paths(repo: str) -> list[str]:
+    try:
+        return list(local_execution_plane._repo_config(repo).get("allowed_paths") or [])
+    except Exception:
+        return []
+
+
+def _policy_product_path_instruction(repo: str, product_root: str) -> str:
+    return dev_swarm_path_guidance.product_path_instruction(
+        product_root,
+        _repo_allowed_paths(repo),
+    )
+
+
 def _quality_gate_guidance(
     *,
     repo: str,
@@ -2204,10 +2219,7 @@ def _quality_gate_guidance(
     if "missing_files_array" in reasons or "json_parse_failed_or_missing_json_object" in reasons:
         instructions.append("Return only a single JSON object with summary and files; do not wrap it in Markdown.")
     if any(reason in reasons for reason in ("path_not_allowed_for_repo_profile", "path_outside_product_root", "path_traversal_denied")):
-        if product_root:
-            instructions.append(f"Use paths under {product_root}/src, {product_root}/app, {product_root}/lib, {product_root}/components, {product_root}/infra, or {product_root}/tests.")
-        else:
-            instructions.append("Use repo-relative paths under src, app, lib, components, infra, modules, or tests.")
+        instructions.append(_policy_product_path_instruction(repo, product_root))
     if "undeclared_imports_denied" in reasons:
         instructions.append("Do not add imports for packages that are absent from the existing package manifests.")
     if not product_writes:
@@ -2580,13 +2592,13 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
     local_model_ok = False
     last_model_route: dict[str, Any] = {}
     product_root = _primary_product_root(repo, worktree)
+    policy_path_instruction = _policy_product_path_instruction(repo, product_root)
     path_contract = (
-        f"Product root is {product_root}. Return file paths either under {product_root}/... "
-        f"or relative to that product root such as src/..., components/... or tests/.... "
-        f"The executor will normalize product-relative paths to {product_root}/.... "
+        f"Product root is {product_root}. {policy_path_instruction} "
+        f"The executor normalizes product-relative paths to {product_root}/ only when repo policy permits them. "
         "Absolute paths, traversal, sibling services and repo-root writes outside the product root are denied."
         if product_root
-        else "Return repo-relative file paths under src/, modules/, app/, lib/, components/, infra/ or tests/. Absolute paths and traversal are denied."
+        else policy_path_instruction + " Absolute paths and traversal are denied."
     )
     for attempt in range(1, MAX_MODEL_OUTPUT_ATTEMPTS + 1):
         _set_worker_phase(task_id, "inference", attempt_count=attempt, blocker=None)
@@ -2605,7 +2617,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             "Do not import packages, aliases, clients or framework modules that are absent from the repository snapshot. "
             "Use concise code. Prefer the smallest working vertical slice over trying to implement the entire product in one response. "
             f"{path_contract} "
-            "At least one file must be product code under src/, modules/, app/, lib/, components/ or infra/ inside the product scope. "
+            "At least one file must be product code under a repo-policy product root listed above. "
             "Modify/reuse the existing architecture shown below. Do not invent parallel Express/NestJS/Mongoose routes or undeclared dependencies when the repo is Next.js/Firebase or another stack. "
             "Include tests under tests/ when behavior is testable. No secrets, no cloud apply, no production deploy, no markdown-only result.\n\n"
             f"TASK:\n{objective[:1600]}\n\nPREVIOUS FAILURES:\n{failures[:600]}\n\n"
@@ -2657,7 +2669,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
                 "model_ok": bool(model.get("ok")),
                 "error": "model did not produce valid bounded files",
                 "quality_gate": gate,
-                "path_contract": {"product_root": product_root, "allowed_paths": [product_root] if product_root else list(local_execution_plane._repo_config(repo).get("allowed_paths") or [])},
+                "path_contract": {"product_root": product_root, "allowed_paths": _repo_allowed_paths(repo)},
                 "rejected_files": rejected_files,
                 "model_text_preview": model_text[:1200],
             }
