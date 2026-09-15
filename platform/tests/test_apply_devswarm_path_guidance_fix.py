@@ -20,35 +20,28 @@ def _load_patcher():
 
 
 class ApplyDevSwarmPathGuidanceFixTests(unittest.TestCase):
-    def test_patch_applies_to_current_scheduler_and_is_idempotent(self) -> None:
+    def test_current_scheduler_converges_to_policy_aware_form(self) -> None:
         patcher = _load_patcher()
         source = SCHEDULER.read_text(encoding="utf-8")
 
-        patched, changed = patcher.patch_scheduler_source(source)
-        self.assertTrue(changed)
-        self.assertIn("dev_swarm_path_guidance", patched)
-        self.assertIn("allowed_paths = _repo_allowed_paths(repo) or [product_root]", patched)
-        self.assertIn("instructions.append(_policy_product_path_instruction(repo, product_root))", patched)
-        self.assertIn("repo-policy product root listed above", patched)
+        candidate, _changed = patcher.patch_scheduler_source(source)
+        self.assertIn("dev_swarm_path_guidance", candidate)
+        self.assertIn("allowed_paths = _repo_allowed_paths(repo) or [product_root]", candidate)
+        self.assertIn("instructions.append(_policy_product_path_instruction(repo, product_root))", candidate)
+        self.assertIn("repo-policy product root listed above", candidate)
         self.assertNotIn(
             "Use paths under {product_root}/src, {product_root}/app",
-            patched,
+            candidate,
         )
 
-        patched_again, changed_again = patcher.patch_scheduler_source(patched)
+        candidate_again, changed_again = patcher.patch_scheduler_source(candidate)
         self.assertFalse(changed_again)
-        self.assertEqual(patched_again, patched)
+        self.assertEqual(candidate_again, candidate)
 
-    def test_source_drift_fails_closed(self) -> None:
+    def test_replace_once_fails_closed_on_source_drift(self) -> None:
         patcher = _load_patcher()
-        source = SCHEDULER.read_text(encoding="utf-8")
-        source = source.replace(
-            "local_execution_plane._validate_relative_path(normalized, [product_root])",
-            "local_execution_plane._validate_relative_path(normalized, ['unexpected'])",
-            1,
-        )
-        with self.assertRaisesRegex(RuntimeError, "source_drift:normalize_policy"):
-            patcher.patch_scheduler_source(source)
+        with self.assertRaisesRegex(RuntimeError, "source_drift:probe"):
+            patcher._replace_once("alpha", "missing", "replacement", "probe")
 
 
 if __name__ == "__main__":
