@@ -5795,6 +5795,41 @@ def local_gitlab_list_issues(project_id_or_path: str, state: str = "opened", lim
 
 
 @mcp.tool
+def local_gitlab_get_issue(project_id_or_path: str, issue_iid: int) -> dict[str, Any]:
+    """Local GitLab Plane: lee una issue puntual con estado, labels y assignees."""
+    return local_gitlab_plane.get_issue(project_id_or_path=project_id_or_path, issue_iid=issue_iid)
+
+
+@mcp.tool
+def local_gitlab_comment_issue(project_id_or_path: str, issue_iid: int, body: str, dry_run: bool = True) -> dict[str, Any]:
+    """Local GitLab Plane: comenta una issue sin quick actions; dry-run por defecto."""
+    return local_gitlab_plane.comment_issue(
+        project_id_or_path=project_id_or_path,
+        issue_iid=issue_iid,
+        body=body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
+def local_gitlab_claim_issue(
+    project_id_or_path: str,
+    issue_iid: int,
+    username: str = "rafagye",
+    require_label: str = "Seeking community contributions",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Local GitLab Plane: autoasigna una issue comunitaria con guardas fail-closed."""
+    return local_gitlab_plane.claim_issue(
+        project_id_or_path=project_id_or_path,
+        issue_iid=issue_iid,
+        username=username,
+        require_label=require_label,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
 def local_gitlab_list_pipelines(project_id_or_path: str, ref: str = "", limit: int = 20) -> dict[str, Any]:
     """Local GitLab Plane: lista pipelines CI/CD sin disparar ejecuciones."""
     return local_gitlab_plane.list_pipelines(project_id_or_path=project_id_or_path, ref=ref, limit=limit)
