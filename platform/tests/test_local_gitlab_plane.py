@@ -171,6 +171,160 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         self.assertIn("title", schema)
         self.assertNotIn("project_id_or_path", schema)
 
+    def test_get_issue_returns_bounded_detail(self) -> None:
+        payload = {
+            "ok": True,
+            "data": {
+                "id": 9,
+                "iid": 607885,
+                "title": "MCP naming",
+                "state": "opened",
+                "labels": ["Seeking community contributions", "community-bonus::200"],
+                "description": "Issue details",
+                "assignees": [{"id": 7, "username": "rafagye", "name": "Rafael Lopez"}],
+                "milestone": {"id": 19, "title": "19.5"},
+                "web_url": "https://gitlab.com/gitlab-org/gitlab/-/issues/607885",
+            },
+        }
+        with mock.patch.object(gl, "_request", return_value=payload) as request:
+            result = gl.get_issue("gitlab-org/gitlab", 607885)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["issue"]["assignees"][0]["username"], "rafagye")
+        self.assertEqual(result["issue"]["milestone"]["title"], "19.5")
+        request.assert_called_once_with("GET", "/projects/gitlab-org%2Fgitlab/issues/607885")
+
+    def test_comment_issue_rejects_quick_actions(self) -> None:
+        with mock.patch.object(gl, "_request") as request:
+            result = gl.comment_issue("gitlab-org/gitlab", 607885, "Working on it\n/assign @rafagye", dry_run=False)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "quick_actions_not_allowed_in_comment_issue")
+        request.assert_not_called()
+
+    def test_comment_issue_posts_only_when_not_dry_run(self) -> None:
+        response = {
+            "ok": True,
+            "data": {
+                "id": 42,
+                "body": "Working on this.",
+                "author": {"username": "rafagye"},
+                "created_at": "2026-09-15T00:00:00Z",
+            },
+        }
+        with mock.patch.object(gl, "_request", return_value=response) as request, mock.patch.object(gl, "_audit"):
+            result = gl.comment_issue("gitlab-org/gitlab", 607885, "Working on this.", dry_run=False)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["note"]["author"], "rafagye")
+        request.assert_called_once_with(
+            "POST",
+            "/projects/gitlab-org%2Fgitlab/issues/607885/notes",
+            payload={"body": "Working on this."},
+        )
+
+    def test_claim_issue_refuses_closed_issue(self) -> None:
+        with (
+            mock.patch.object(gl, "gitlab_status", return_value={"auth_ok": True, "verified_user": {"id": 7, "username": "rafagye"}}),
+            mock.patch.object(gl, "get_issue", return_value={"ok": True, "issue": {"state": "closed", "labels": ["Seeking community contributions"], "assignees": []}}),
+            mock.patch.object(gl, "_request") as request,
+        ):
+            result = gl.claim_issue("gitlab-org/gitlab", 607885, dry_run=False)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "issue_not_open")
+        request.assert_not_called()
+
+    def test_claim_issue_refuses_other_assignee(self) -> None:
+        issue = {
+            "state": "opened",
+            "labels": ["Seeking community contributions"],
+            "assignees": [{"id": 8, "username": "someone_else"}],
+        }
+        with (
+            mock.patch.object(gl, "gitlab_status", return_value={"auth_ok": True, "verified_user": {"id": 7, "username": "rafagye"}}),
+            mock.patch.object(gl, "get_issue", return_value={"ok": True, "issue": issue}),
+            mock.patch.object(gl, "_request") as request,
+        ):
+            result = gl.claim_issue("gitlab-org/gitlab", 607885, dry_run=False)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "issue_already_assigned")
+        request.assert_not_called()
+
+    def test_claim_issue_requires_community_label_by_default(self) -> None:
+        issue = {"state": "opened", "labels": ["backend"], "assignees": []}
+        with (
+            mock.patch.object(gl, "gitlab_status", return_value={"auth_ok": True, "verified_user": {"id": 7, "username": "rafagye"}}),
+            mock.patch.object(gl, "get_issue", return_value={"ok": True, "issue": issue}),
+            mock.patch.object(gl, "_request") as request,
+        ):
+            result = gl.claim_issue("gitlab-org/gitlab", 607885, dry_run=False)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "required_label_missing")
+        request.assert_not_called()
+
+    def test_claim_issue_assigns_only_authenticated_user(self) -> None:
+        current = {
+            "state": "opened",
+            "labels": ["Seeking community contributions"],
+            "assignees": [],
+            "iid": 607885,
+        }
+        updated = {
+            "ok": True,
+            "data": {
+                "iid": 607885,
+                "title": "MCP naming",
+                "state": "opened",
+                "labels": ["Seeking community contributions"],
+                "assignees": [{"id": 7, "username": "rafagye"}],
+            },
+        }
+        with (
+            mock.patch.object(gl, "gitlab_status", return_value={"auth_ok": True, "verified_user": {"id": 7, "username": "rafagye"}}),
+            mock.patch.object(gl, "get_issue", return_value={"ok": True, "issue": current}),
+            mock.patch.object(gl, "_request", return_value=updated) as request,
+            mock.patch.object(gl, "_audit"),
+        ):
+            result = gl.claim_issue("gitlab-org/gitlab", 607885, username="rafagye", dry_run=False)
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["claimed"])
+        request.assert_called_once_with(
+            "PUT",
+            "/projects/gitlab-org%2Fgitlab/issues/607885",
+            payload={"assignee_ids": [7]},
+        )
+
+    def test_claim_issue_reports_maintainer_gate(self) -> None:
+        current = {
+            "state": "opened",
+            "labels": ["Seeking community contributions"],
+            "assignees": [],
+        }
+        with (
+            mock.patch.object(gl, "gitlab_status", return_value={"auth_ok": True, "verified_user": {"id": 7, "username": "rafagye"}}),
+            mock.patch.object(gl, "get_issue", return_value={"ok": True, "issue": current}),
+            mock.patch.object(gl, "_request", return_value={"ok": False, "status": 403, "error": "gitlab_http_error"}),
+            mock.patch.object(gl, "_audit"),
+        ):
+            result = gl.claim_issue("gitlab-org/gitlab", 607885, dry_run=False)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "assignment_requires_maintainer_or_contributor_platform")
+
+    def test_issue_write_tool_catalog_schemas_are_specific(self) -> None:
+        get_schema = tool_catalog.describe_tool("local_gitlab_get_issue")["input_schema"]
+        comment_schema = tool_catalog.describe_tool("local_gitlab_comment_issue")["input_schema"]
+        claim_schema = tool_catalog.describe_tool("local_gitlab_claim_issue")["input_schema"]
+        self.assertEqual(set(get_schema), {"project_id_or_path", "issue_iid"})
+        self.assertIn("body", comment_schema)
+        self.assertIn("dry_run", comment_schema)
+        self.assertIn("require_label", claim_schema)
+        self.assertIn("username", claim_schema)
+
 
 if __name__ == "__main__":
     unittest.main()

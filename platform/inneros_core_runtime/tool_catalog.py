@@ -208,6 +208,9 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_project_summary",
     "local_gitlab_list_merge_requests",
     "local_gitlab_create_draft_merge_request",
+    "local_gitlab_get_issue",
+    "local_gitlab_comment_issue",
+    "local_gitlab_claim_issue",
     "local_gitlab_list_issues",
     "local_gitlab_list_pipelines",
     "local_gitlab_resource_sync",
@@ -3475,6 +3478,8 @@ _LOCAL_GITLAB_WRITES = {
     "local_gitlab_resource_sync",
     "local_gitlab_prepare_github_mirrors",
     "local_gitlab_create_draft_merge_request",
+    "local_gitlab_comment_issue",
+    "local_gitlab_claim_issue",
 }
 for _name in (
     "local_gitlab_status",
@@ -3488,6 +3493,9 @@ for _name in (
     "local_gitlab_project_summary",
     "local_gitlab_list_merge_requests",
     "local_gitlab_create_draft_merge_request",
+    "local_gitlab_get_issue",
+    "local_gitlab_comment_issue",
+    "local_gitlab_claim_issue",
     "local_gitlab_list_issues",
     "local_gitlab_list_pipelines",
     "local_gitlab_resource_sync",
@@ -4464,6 +4472,69 @@ TOOL_DEFINITIONS.update(
             "input_schema": {"event_type": "string", "actor": "string", "task_id": "string|null", "correlation_id": "string|null", "dry_run": "bool|null"},
             "output_schema": {"ok": "bool", "event_id": "string", "event": "object"},
             "example_payload": {"event_type": "task.heartbeat", "actor": "codex", "task_id": "ops_abc123", "dry_run": True},
+        },
+    }
+)
+TOOL_DEFINITIONS["local_gitlab_get_issue"].update(
+    {
+        "description": "Local GitLab Plane: lee una issue puntual con estado, labels, assignees y milestone.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["gitlab_api", "owner_vault"],
+        "input_schema": {
+            "project_id_or_path": "string",
+            "issue_iid": "number",
+        },
+        "output_schema": {"ok": "bool", "issue": "object|null"},
+        "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "issue_iid": 607885},
+    }
+)
+
+TOOL_DEFINITIONS["local_gitlab_comment_issue"].update(
+    {
+        "description": "Local GitLab Plane: publica un comentario acotado en una issue; rechaza quick actions y usa dry-run por defecto.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["gitlab_issue_notes", "ralfia_gitlab_audit"],
+        "reads_from": ["gitlab_api", "owner_vault"],
+        "input_schema": {
+            "project_id_or_path": "string",
+            "issue_iid": "number",
+            "body": "string",
+            "dry_run": "bool default true",
+        },
+        "output_schema": {"ok": "bool", "dry_run": "bool", "note": "object|null"},
+        "example_payload": {
+            "project_id_or_path": "gitlab-org/gitlab",
+            "issue_iid": 607885,
+            "body": "I am working on this contribution and will keep the MR in Draft until checks pass.",
+            "dry_run": True,
+        },
+    }
+)
+
+TOOL_DEFINITIONS["local_gitlab_claim_issue"].update(
+    {
+        "description": "Local GitLab Plane: autoasigna al usuario autenticado una issue abierta de contribucion con guardas de estado, labels y assignees.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["gitlab_issue_assignment", "ralfia_gitlab_audit"],
+        "reads_from": ["gitlab_api", "owner_vault"],
+        "input_schema": {
+            "project_id_or_path": "string",
+            "issue_iid": "number",
+            "username": "string default rafagye",
+            "require_label": "string default Seeking community contributions",
+            "dry_run": "bool default true",
+        },
+        "output_schema": {"ok": "bool", "dry_run": "bool", "claimed": "bool|null", "issue": "object|null"},
+        "example_payload": {
+            "project_id_or_path": "gitlab-org/gitlab",
+            "issue_iid": 607885,
+            "username": "rafagye",
+            "require_label": "Seeking community contributions",
+            "dry_run": True,
         },
     }
 )

@@ -547,6 +547,170 @@ def list_issues(project_id_or_path: str, state: str = "opened", limit: int = 20)
     return {"ok": True, "count": len(rows), "issues": [_issue_summary(item) for item in rows if isinstance(item, dict)]}
 
 
+def get_issue(project_id_or_path: str, issue_iid: int) -> dict[str, Any]:
+    """Read one GitLab issue without exposing provider credentials."""
+    try:
+        iid = int(issue_iid)
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "issue_iid_invalid"}
+    if iid <= 0:
+        return {"ok": False, "error": "issue_iid_invalid"}
+
+    encoded = project_api_path(project_id_or_path)
+    res = _request("GET", f"/projects/{encoded}/issues/{iid}")
+    if not res.get("ok"):
+        return {key: value for key, value in res.items() if key != "data"}
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    return {
+        "ok": True,
+        "issue": {
+            **_issue_summary(data),
+            "description": _bounded(str(data.get("description") or "")),
+            "assignees": [
+                {"id": item.get("id"), "username": item.get("username"), "name": item.get("name")}
+                for item in (data.get("assignees") or [])
+                if isinstance(item, dict)
+            ],
+            "milestone": {
+                "id": (data.get("milestone") or {}).get("id"),
+                "title": (data.get("milestone") or {}).get("title"),
+            } if isinstance(data.get("milestone"), dict) else None,
+        },
+    }
+
+
+def comment_issue(
+    project_id_or_path: str,
+    issue_iid: int,
+    body: str,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Post a bounded plain comment to an issue; quick-action lines are rejected."""
+    try:
+        iid = int(issue_iid)
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "issue_iid_invalid"}
+    if iid <= 0:
+        return {"ok": False, "error": "issue_iid_invalid"}
+
+    clean_body = str(body or "").strip()
+    if not clean_body:
+        return {"ok": False, "error": "comment_body_required"}
+    if len(clean_body) > 8000:
+        return {"ok": False, "error": "comment_body_too_long", "max_chars": 8000}
+    if any(line.lstrip().startswith("/") for line in clean_body.splitlines()):
+        return {"ok": False, "error": "quick_actions_not_allowed_in_comment_issue"}
+
+    encoded = project_api_path(project_id_or_path)
+    path = f"/projects/{encoded}/issues/{iid}/notes"
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "would_post": path,
+            "comment_preview": _redact(clean_body)[:500],
+        }
+
+    res = _request("POST", path, payload={"body": clean_body})
+    _audit("comment_issue", res, {"project": project_id_or_path, "issue_iid": iid})
+    if not res.get("ok"):
+        return {key: value for key, value in res.items() if key != "data"}
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    return {
+        "ok": True,
+        "dry_run": False,
+        "note": {
+            "id": data.get("id"),
+            "author": (data.get("author") or {}).get("username") if isinstance(data.get("author"), dict) else None,
+            "body": _bounded(str(data.get("body") or "")),
+            "created_at": data.get("created_at"),
+        },
+    }
+
+
+def claim_issue(
+    project_id_or_path: str,
+    issue_iid: int,
+    username: str = "rafagye",
+    require_label: str = "Seeking community contributions",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Self-assign one open community issue with fail-closed contribution guards."""
+    status = gitlab_status()
+    verified = status.get("verified_user") if isinstance(status.get("verified_user"), dict) else {}
+    verified_username = str((verified or {}).get("username") or "").strip()
+    verified_id = (verified or {}).get("id")
+    requested_username = str(username or verified_username).strip()
+    if not status.get("auth_ok") or not verified_username or not verified_id:
+        return {"ok": False, "error": "gitlab_auth_not_ready"}
+    if requested_username != verified_username:
+        return {
+            "ok": False,
+            "error": "claim_must_target_authenticated_user",
+            "authenticated_username": verified_username,
+        }
+
+    current = get_issue(project_id_or_path, issue_iid)
+    if not current.get("ok"):
+        return current
+    issue = current.get("issue") if isinstance(current.get("issue"), dict) else {}
+    if issue.get("state") != "opened":
+        return {"ok": False, "error": "issue_not_open", "issue": issue}
+
+    labels = {str(item) for item in (issue.get("labels") or [])}
+    required = str(require_label or "").strip()
+    if required and required not in labels:
+        return {"ok": False, "error": "required_label_missing", "required_label": required, "issue": issue}
+
+    assignees = [item for item in (issue.get("assignees") or []) if isinstance(item, dict)]
+    assignee_usernames = {str(item.get("username") or "") for item in assignees}
+    if verified_username in assignee_usernames:
+        return {"ok": True, "dry_run": False, "already_claimed": True, "issue": issue}
+    if assignees:
+        return {
+            "ok": False,
+            "error": "issue_already_assigned",
+            "assignees": sorted(name for name in assignee_usernames if name),
+            "issue": issue,
+        }
+
+    encoded = project_api_path(project_id_or_path)
+    path = f"/projects/{encoded}/issues/{int(issue_iid)}"
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "would_put": path,
+            "would_assign": verified_username,
+            "required_label": required or None,
+            "issue": issue,
+        }
+
+    res = _request("PUT", path, payload={"assignee_ids": [int(verified_id)]})
+    _audit("claim_issue", res, {"project": project_id_or_path, "issue_iid": int(issue_iid), "username": verified_username})
+    if not res.get("ok"):
+        result = {key: value for key, value in res.items() if key != "data"}
+        if res.get("status") in {401, 403}:
+            result["error"] = "assignment_requires_maintainer_or_contributor_platform"
+        return result
+
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    assigned = {
+        str(item.get("username") or "")
+        for item in (data.get("assignees") or [])
+        if isinstance(item, dict)
+    }
+    if verified_username not in assigned:
+        return {"ok": False, "error": "assignment_not_confirmed", "issue": _issue_summary(data)}
+    return {
+        "ok": True,
+        "dry_run": False,
+        "claimed": True,
+        "username": verified_username,
+        "issue": {**_issue_summary(data), "assignees": sorted(name for name in assigned if name)},
+    }
+
+
 def list_pipelines(project_id_or_path: str, ref: str = "", limit: int = 20) -> dict[str, Any]:
     encoded = project_api_path(project_id_or_path)
     query: dict[str, Any] = {"per_page": _limit(limit)}
