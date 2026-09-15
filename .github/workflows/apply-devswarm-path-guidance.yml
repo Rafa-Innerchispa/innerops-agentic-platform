@@ -36,8 +36,8 @@ jobs:
         env:
           PYTHONPATH: platform
         run: |
-          python -m unittest platform/tests/test_dev_swarm_path_guidance.py
-          python -m unittest platform/tests/test_apply_devswarm_path_guidance_fix.py
+          python -m unittest discover -s platform/tests -p 'test_dev_swarm_path_guidance.py'
+          python -m unittest discover -s platform/tests -p 'test_apply_devswarm_path_guidance_fix.py'
 
       - name: Validate diff
         run: git diff --check
