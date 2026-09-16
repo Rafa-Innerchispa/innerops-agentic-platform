@@ -7,6 +7,7 @@ from typing import Any
 
 from raphiia_openai import agent_identity, coordination_live, mongo_store, ralfia_time
 from raphiia_openai.settings import COL_AGENT_MESSAGES
+from . import agent_autonomy_policy
 
 
 _TASK_TITLE = re.compile(r"^\s*\[(?:OPS|P[0-3]|E2E\s+P[0-3])(?:\s+[^]]*)?\]", re.IGNORECASE)
@@ -75,10 +76,26 @@ def ingest_agent_message(
     """Persist a message and, when explicitly task-like, create a linked ops task."""
     from raphiia_openai.memory import agent_messages
 
-    payload_n = payload or {}
-    from_identity = agent_identity.identity_from_payload(from_agent, payload_n)
-    target_identity = agent_identity.identity_from_payload(target_agent, payload_n)
-    fields = _body_fields(body)
+    payload_raw = dict(payload or {})
+    from_identity = agent_identity.identity_from_payload(from_agent, payload_raw)
+    target_identity = agent_identity.identity_from_payload(target_agent, payload_raw)
+    task_like = should_create_task(
+        title=title,
+        body=body,
+        message_type=message_type,
+        payload=payload_raw,
+    )
+    payload_n = (
+        agent_autonomy_policy.enrich_payload(payload_raw, target=target_identity["mailbox"])
+        if task_like
+        else payload_raw
+    )
+    body_n = (
+        agent_autonomy_policy.enrich_body(body, target=target_identity["mailbox"], payload=payload_n)
+        if task_like
+        else body
+    )
+    fields = _body_fields(body_n)
     correlation = (correlation_id or fields.get("correlation_id") or "").strip() or None
     project = (
         str(
@@ -99,7 +116,7 @@ def ingest_agent_message(
         from_agent=from_identity["mailbox"],
         target_agent=target_identity["mailbox"],
         title=title,
-        body=body,
+        body=body_n,
         priority=priority,
         correlation_id=correlation,
         message_type=message_type,
@@ -110,7 +127,7 @@ def ingest_agent_message(
     )
     if not message.get("ok") or not should_create_task(
         title=title,
-        body=body,
+        body=body_n,
         message_type=message_type,
         payload=payload_n,
     ):
@@ -137,7 +154,11 @@ def ingest_agent_message(
         execution_lane=str(payload_n.get("execution_lane") or "").strip() or None,
         provider_transport=str(payload_n.get("provider_transport") or "").strip() or None,
         runtime_profile=str(payload_n.get("runtime_profile") or "").strip() or None,
-        execution_policy=str(payload_n.get("execution_policy") or "").strip() or None,
+        execution_policy=agent_autonomy_policy.default_execution_policy(
+            payload_n.get("execution_policy"),
+            target=target_identity["mailbox"],
+            payload=payload_n,
+        ),
         preferred_provider=str(payload_n.get("preferred_provider") or "").strip() or None,
         preferred_model=str(payload_n.get("preferred_model") or "").strip() or None,
         idempotency_key=str(payload_n.get("idempotency_key") or idempotency_key or "").strip() or None,
@@ -166,4 +187,3 @@ def ingest_agent_message(
         )
         task["source_message_id"] = message_id
     return {**message, "normalization": task}
-
