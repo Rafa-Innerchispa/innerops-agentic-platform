@@ -59,3 +59,20 @@ Lee docs/CONEXION.md, docs/HANDOFF.md, docs/MCP_CHATGPT.md.
 Trabaja SOLO en el servidor — no SSH desde Windows.
 Implementa/mantén MCP :8102 + Mongo pcdoctor_swarm. Sin OPENAI sk-.
 ```
+
+
+## Autonomía operativa obligatoria (Codex / Cursor / AntiGravity / Gemini)
+
+Para tareas owner-approved dentro del scope asignado, el agente debe **avanzar sin pedir permiso por decisiones reversibles**. Esta regla existe para evitar pausas artificiales y preguntas de rutina durante trabajo técnico.
+
+- `question_budget = 0` para decisiones reversibles.
+- Leer/inspeccionar, crear o usar worktrees aislados, ejecutar tests, reintentar comandos, corregir fallos normales, elegir defaults seguros, preservar diffs, commit y push de la rama propia están preautorizados cuando forman parte de la tarea.
+- Ante un fallo recuperable: registrar intento, diagnosticar, aplicar corrección reversible, reintentar automáticamente y probar al menos un fallback seguro antes de declarar `BLOCKED`.
+- Reportar progreso por heartbeat/status. Un reporte de progreso no es una solicitud de permiso.
+- `ACK` significa únicamente lectura. Después del ACK, reclamar/iniciar la tarea y continuar hasta estado terminal o bloqueo real.
+- Si hay ambigüedad, elegir la alternativa reversible más segura que preserve trabajo existente y continuar.
+- Interrumpir al owner sólo por: acción destructiva/irreversible; secreto o credencial inaccesible; gasto externo no preautorizado; aprobación a nivel de cuenta; o mutación hardware/red/firmware fuera del scope aprobado.
+- Un bloqueo real debe incluir evidencia, intentos realizados, al menos un fallback seguro probado y la acción humana concreta requerida.
+- Nunca usar `reset --hard`, `clean`, force-push, borrado de trabajo ajeno ni cruces de lanes como forma de “resolver” una ambigüedad.
+
+Override excepcional: una tarea puede declarar explícitamente `allow_owner_questions=true` o `interaction_mode=interactive`; sin ese override, rige el modo autónomo anterior.

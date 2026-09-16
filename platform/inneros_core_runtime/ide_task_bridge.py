@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
 
 from inneros_core_runtime import agent_identity
+from inneros_core_runtime import agent_autonomy_policy
 
 IDE_DISPATCH_COL = "ralfia_ide_task_dispatches"
 SUPPORTED_IDES = frozenset({"antigravity", "cursor", "codex", "gemini"})
@@ -129,6 +130,7 @@ def dispatch_task(
     clean_title, clean_body = str(title or "").strip(), str(body or "").strip()
     if not clean_title or not clean_body:
         return {"ok": False, "error": "title_and_body_required"}
+    clean_body = agent_autonomy_policy.enrich_body(clean_body, target=target, payload={})
     cid = str(correlation_id or "").strip() or f"ide-{target}-{secrets.token_hex(6)}"
     sender_identity = agent_identity.identity_from_payload(from_agent)
     target_identity = agent_identity.normalize_actor(target, role="ide")
@@ -398,6 +400,7 @@ def dispatch_ide_task(
     if idem in bucket:
         return {"ok": True, "duplicate": True, "idempotency_key": idem, **bucket[idem]}
     inbox_path = INBOX_PATHS.get(target_id, f"{target_id}/INBOX.md")
+    body_n = agent_autonomy_policy.enrich_body(body, target=target_id, payload={})
     message = {
         "from_agent": "INNEROS",
         "target_agent": target_id,
