@@ -3783,6 +3783,8 @@ def send_general_email(
     attachment_path: str | None = None,
     attachment_name: str | None = None,
     from_account: str | None = None,
+    idempotency_key: str | None = None,
+    dedupe_window_seconds: int = 3600,
 ) -> dict[str, Any]:
     """Envía un correo electrónico usando SMTP configurado en email_accounts (ej. rlopez@innerchispa.us)."""
     from raphiia_openai.notifications.email_client import send_email
@@ -3793,6 +3795,8 @@ def send_general_email(
         attachment_path=attachment_path,
         attachment_name=attachment_name,
         from_account=from_account,
+        idempotency_key=idempotency_key,
+        dedupe_window_seconds=dedupe_window_seconds,
     )
 
 
