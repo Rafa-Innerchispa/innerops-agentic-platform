@@ -62,6 +62,9 @@ OWNER_APPROVED_ALLOWED_PATHS = [
     "vite.config.ts",
 ]
 OWNER_APPROVED_REMOTE_POLICIES: dict[str, dict[str, str]] = {
+    "Rafa-Innerchispa/gitlab-community-contrib": {
+        "origin": "https://gitlab.com/gitlab-community/gitlab-org/gitlab.git",
+    },
     "Rafa-Innerchispa/hyperloom-r9700-experimental": {
         "origin": "https://github.com/Rafa-Innerchispa/hyperloom-r9700-experimental.git",
         "upstream": "https://github.com/AMD-AGI/Hyperloom.git",
@@ -1959,6 +1962,46 @@ def prepare_repo(
         source = Path(conf["source_path"]).expanduser().resolve()
         source.parent.mkdir(parents=True, exist_ok=True)
         if source.exists() and (source / ".git").exists():
+            head_before = _run(["git", "rev-parse", "--verify", "HEAD"], source, timeout_seconds=20)
+            if not head_before.get("ok"):
+                remote_ref = f"refs/remotes/origin/{base_ref}"
+                fetch = _run(
+                    [
+                        "git",
+                        "fetch",
+                        "--prune",
+                        "--no-tags",
+                        "--depth",
+                        "1",
+                        "--filter=blob:none",
+                        "origin",
+                        f"+refs/heads/{base_ref}:{remote_ref}",
+                    ],
+                    source,
+                    timeout_seconds=300,
+                )
+                if not fetch.get("ok"):
+                    return {
+                        "ok": False,
+                        "repo": repo,
+                        "source_path": str(source),
+                        "idempotent": True,
+                        "narrow_fetch": True,
+                        "head_before": head_before,
+                        "fetch": fetch,
+                    }
+                checkout = _run(["git", "checkout", "--detach", remote_ref], source, timeout_seconds=60)
+                return {
+                    "ok": bool(fetch.get("ok") and checkout.get("ok")),
+                    "repo": repo,
+                    "source_path": str(source),
+                    "idempotent": True,
+                    "narrow_fetch": True,
+                    "head_before": head_before,
+                    "fetch": fetch,
+                    "checkout": checkout,
+                    "hydrated_ref": remote_ref,
+                }
             fetch = _run(["git", "fetch", "--all", "--prune"], source, timeout_seconds=120)
             checkout = _run(["git", "checkout", base_ref], source, timeout_seconds=60)
             pull = _run(["git", "pull", "--ff-only"], source, timeout_seconds=120)
