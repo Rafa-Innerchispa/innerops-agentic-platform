@@ -3484,6 +3484,42 @@ def ha_get_entity(entity_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+def solar_history_query(
+    start: str,
+    end: str,
+    limit: int = 2000,
+    timezone_name: str = "America/Guayaquil",
+    include_ha: bool = True,
+) -> dict[str, Any]:
+    """Histórico read-only del inversor Xmart/Breaker y señales Home Assistant."""
+    from raphiia_openai import energy_history
+
+    return energy_history.solar_history_query(
+        start=start,
+        end=end,
+        limit=limit,
+        timezone_name=timezone_name,
+        include_ha=include_ha,
+    )
+
+
+@mcp.tool
+def energy_incident_analyze(
+    timestamp: str,
+    window_minutes: int = 30,
+    timezone_name: str = "America/Guayaquil",
+) -> dict[str, Any]:
+    """Correlación forense read-only de energía/red alrededor de un incidente."""
+    from raphiia_openai import energy_history
+
+    return energy_history.energy_incident_analyze(
+        timestamp=timestamp,
+        window_minutes=window_minutes,
+        timezone_name=timezone_name,
+    )
+
+
+@mcp.tool
 def ha_list_devices(limit: int = 500, integration: str | None = None) -> dict[str, Any]:
     """Lista devices del registry de Home Assistant via WebSocket."""
     from raphiia_openai import homeassistant_client as ha
