@@ -1451,6 +1451,38 @@ def assemblyai_provider_preflight(live: bool = False) -> dict[str, Any]:
 
 
 @mcp.tool
+def boson_provider_status() -> dict[str, Any]:
+    """Boson Higgs reusable provider status; never returns the permanent API key."""
+    from raphiia_openai import boson_provider
+
+    return boson_provider.provider_status()
+
+
+@mcp.tool
+def boson_provider_preflight(live: bool = False) -> dict[str, Any]:
+    """Boson provider preflight; live=True validates Realtime client-secret minting."""
+    from raphiia_openai import boson_provider
+
+    return boson_provider.provider_preflight(live=live)
+
+
+@mcp.tool
+def boson_store_api_key_server_side(secret: str, actor: str = "RAFAEL") -> dict[str, Any]:
+    """Store/rotate the permanent Boson API key in Owner Vault."""
+    from raphiia_openai import boson_provider
+
+    return boson_provider.store_api_key_server_side(secret=secret, actor=actor)
+
+
+@mcp.tool
+def boson_create_realtime_client_secret(expires_in_seconds: int = 120) -> dict[str, Any]:
+    """Mint a short-lived Higgs Realtime credential for a consuming project/session."""
+    from raphiia_openai import boson_provider
+
+    return boson_provider.create_realtime_client_secret(expires_in_seconds=expires_in_seconds)
+
+
+@mcp.tool
 def assemblyai_store_api_key_server_side(secret: str, actor: str = "RAFAEL") -> dict[str, Any]:
     """Store/rotate AssemblyAI API key in Owner Vault; raw value is never returned."""
     from raphiia_openai import assemblyai_provider
