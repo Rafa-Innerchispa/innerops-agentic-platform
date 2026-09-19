@@ -397,3 +397,267 @@ def rollback_promotion(
         result = {"ok": False, "capability": CAPABILITY, "error": str(exc)}
         _audit("rollback_promotion", result, metadata)
         return result
+
+
+MAX_PATCH_REPLACEMENTS = 10
+MAX_PATCH_BYTES = 100_000
+
+
+def _text_sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _normalize_replacements(replacements: Any) -> list[dict[str, Any]]:
+    if not isinstance(replacements, list) or not replacements:
+        raise ValueError("replacements_required")
+    if len(replacements) > MAX_PATCH_REPLACEMENTS:
+        raise ValueError("too_many_replacements")
+    normalized: list[dict[str, Any]] = []
+    total = 0
+    for item in replacements:
+        if not isinstance(item, dict):
+            raise ValueError("replacement_invalid")
+        before = str(item.get("before") or "")
+        after = str(item.get("after") or "")
+        expected_count = int(item.get("expected_count", 1))
+        if not before:
+            raise ValueError("replacement_before_required")
+        if expected_count != 1:
+            raise ValueError("replacement_expected_count_must_be_one")
+        total += len(before.encode("utf-8")) + len(after.encode("utf-8"))
+        if total > MAX_PATCH_BYTES:
+            raise ValueError("replacement_payload_too_large")
+        normalized.append(
+            {
+                "before": before,
+                "after": after,
+                "expected_count": expected_count,
+            }
+        )
+    return normalized
+
+
+def plan_text_patch(
+    *,
+    project_id: str,
+    repo: str,
+    relative_path: str,
+    replacements: Any,
+    node: str = "primary",
+) -> dict[str, Any]:
+    try:
+        _require_platform_identity(project_id, repo)
+        rel, target = _target_path(relative_path)
+        if not target.is_file():
+            return {"ok": False, "error": "target_file_missing", "target_path": str(target)}
+        ops = _normalize_replacements(replacements)
+        original = target.read_text(encoding="utf-8")
+        patched = original
+        applied = []
+        for index, item in enumerate(ops):
+            count = patched.count(item["before"])
+            if count != item["expected_count"]:
+                return {
+                    "ok": False,
+                    "capability": CAPABILITY,
+                    "error": "replacement_match_count_mismatch",
+                    "replacement_index": index,
+                    "expected_count": item["expected_count"],
+                    "observed_count": count,
+                }
+            patched = patched.replace(item["before"], item["after"], 1)
+            applied.append({"index": index, "matched": 1})
+
+        current_hash = _text_sha256(original)
+        result_hash = _text_sha256(patched)
+        return {
+            "ok": True,
+            "capability": CAPABILITY,
+            "project_id": project_id,
+            "repo": repo,
+            "node": node,
+            "relative_path": rel.as_posix(),
+            "target_path": str(target),
+            "target_sha256": current_hash,
+            "result_sha256": result_hash,
+            "replacement_count": len(applied),
+            "would_change": current_hash != result_hash,
+            "target_bytes": len(original.encode("utf-8")),
+            "result_bytes": len(patched.encode("utf-8")),
+        }
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+
+
+def apply_text_patch(
+    *,
+    project_id: str,
+    repo: str,
+    relative_path: str,
+    replacements: Any,
+    expected_target_sha256: str,
+    expected_result_sha256: str,
+    approval_id: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    node: str = "primary",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    metadata = {
+        "project_id": project_id,
+        "repo": repo,
+        "relative_path": relative_path,
+        "node": node,
+        "actor": actor,
+        "task_id": task_id,
+        "correlation_id": correlation_id,
+    }
+    try:
+        if not all(
+            str(x or "").strip()
+            for x in (
+                expected_target_sha256,
+                expected_result_sha256,
+                approval_id,
+                actor,
+                task_id,
+                correlation_id,
+            )
+        ):
+            raise ValueError("patch_preconditions_required")
+
+        approval = local_execution_plane.validate_host_approval(
+            approval_id=approval_id,
+            action="runtime_hunk_promote",
+            repo=repo,
+            project_id=project_id,
+            node=node,
+        )
+        if not approval.get("ok"):
+            return {
+                "ok": False,
+                "capability": CAPABILITY,
+                "error": approval.get("error") or "approval_invalid",
+            }
+
+        plan = plan_text_patch(
+            project_id=project_id,
+            repo=repo,
+            relative_path=relative_path,
+            replacements=replacements,
+            node=node,
+        )
+        if not plan.get("ok"):
+            return plan
+        if plan["target_sha256"] != expected_target_sha256:
+            return {
+                "ok": False,
+                "capability": CAPABILITY,
+                "error": "target_hash_mismatch",
+                "expected": expected_target_sha256,
+                "observed": plan["target_sha256"],
+            }
+        if plan["result_sha256"] != expected_result_sha256:
+            return {
+                "ok": False,
+                "capability": CAPABILITY,
+                "error": "result_hash_mismatch",
+                "expected": expected_result_sha256,
+                "observed": plan["result_sha256"],
+            }
+        if not plan["would_change"]:
+            result = {**plan, "ok": True, "idempotent": True, "dry_run": dry_run}
+            _audit("apply_text_patch", result, metadata)
+            return result
+        if dry_run:
+            result = {**plan, "ok": True, "dry_run": True, "would_promote": True}
+            _audit("apply_text_patch", result, metadata)
+            return result
+
+        rel, target = _target_path(relative_path)
+        original = target.read_text(encoding="utf-8")
+        if _text_sha256(original) != expected_target_sha256:
+            return {
+                "ok": False,
+                "capability": CAPABILITY,
+                "error": "target_changed_before_apply",
+                "expected": expected_target_sha256,
+                "observed": _text_sha256(original),
+            }
+
+        patched = original
+        for index, item in enumerate(_normalize_replacements(replacements)):
+            count = patched.count(item["before"])
+            if count != 1:
+                return {
+                    "ok": False,
+                    "capability": CAPABILITY,
+                    "error": "replacement_match_count_changed",
+                    "replacement_index": index,
+                    "observed_count": count,
+                }
+            patched = patched.replace(item["before"], item["after"], 1)
+        if _text_sha256(patched) != expected_result_sha256:
+            return {
+                "ok": False,
+                "capability": CAPABILITY,
+                "error": "planned_result_changed_before_apply",
+            }
+
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup_root = BACKUP_ROOT.expanduser().resolve()
+        backup = (backup_root / stamp / rel).resolve()
+        if backup_root not in backup.parents:
+            raise PermissionError("backup_path_escape")
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(target, backup)
+        backup_hash = _sha256(backup)
+        if backup_hash != expected_target_sha256:
+            raise RuntimeError("backup_hash_mismatch")
+
+        temp = target.with_name(f".{target.name}.patch-{secrets.token_hex(6)}.tmp")
+        rolled_back = False
+        try:
+            temp.write_text(patched, encoding="utf-8")
+            shutil.copystat(target, temp)
+            if _sha256(temp) != expected_result_sha256:
+                raise RuntimeError("staged_result_hash_mismatch")
+            os.replace(temp, target)
+            final_hash = _sha256(target)
+            if final_hash != expected_result_sha256:
+                rollback_temp = target.with_name(
+                    f".{target.name}.rollback-{secrets.token_hex(6)}.tmp"
+                )
+                shutil.copy2(backup, rollback_temp)
+                os.replace(rollback_temp, target)
+                rolled_back = True
+                raise RuntimeError("post_patch_hash_mismatch")
+        finally:
+            try:
+                if temp.exists():
+                    temp.unlink()
+            except Exception:
+                pass
+
+        result = {
+            "ok": True,
+            "capability": CAPABILITY,
+            "dry_run": False,
+            "promoted": True,
+            "rolled_back": rolled_back,
+            "relative_path": rel.as_posix(),
+            "previous_target_sha256": expected_target_sha256,
+            "target_sha256": _sha256(target),
+            "result_sha256": expected_result_sha256,
+            "replacement_count": plan["replacement_count"],
+            "backup_path": str(backup),
+            "backup_sha256": backup_hash,
+            "target_path": str(target),
+        }
+        _audit("apply_text_patch", result, metadata)
+        return result
+    except Exception as exc:
+        result = {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+        _audit("apply_text_patch", result, metadata)
+        return result

@@ -150,5 +150,106 @@ class RuntimeFilePromotionTests(unittest.TestCase):
         self.assertEqual(result["error"], "relative_path_not_allowlisted")
 
 
+    def test_text_patch_preserves_unrelated_runtime_drift(self) -> None:
+        self.target.write_text(
+            "before\nactive-only-setting=true\nfetch = broad\nafter\n",
+            encoding="utf-8",
+        )
+        replacements = [
+            {
+                "before": "fetch = broad",
+                "after": "fetch = narrow",
+                "expected_count": 1,
+            }
+        ]
+
+        plan = promotion.plan_text_patch(
+            project_id=promotion.PLATFORM_PROJECT_ID,
+            repo=promotion.PLATFORM_REPO,
+            relative_path=self.rel.as_posix(),
+            replacements=replacements,
+            node="primary",
+        )
+        self.assertTrue(plan["ok"])
+
+        applied = promotion.apply_text_patch(
+            project_id=promotion.PLATFORM_PROJECT_ID,
+            repo=promotion.PLATFORM_REPO,
+            relative_path=self.rel.as_posix(),
+            replacements=replacements,
+            expected_target_sha256=plan["target_sha256"],
+            expected_result_sha256=plan["result_sha256"],
+            approval_id="hostap_test",
+            actor="chatgpt",
+            task_id="ops_test",
+            correlation_id="corr_test",
+            node="primary",
+            dry_run=False,
+        )
+
+        self.assertTrue(applied["ok"])
+        final = self.target.read_text(encoding="utf-8")
+        self.assertIn("active-only-setting=true", final)
+        self.assertIn("fetch = narrow", final)
+        self.assertNotIn("fetch = broad", final)
+
+    def test_text_patch_rejects_ambiguous_match(self) -> None:
+        self.target.write_text("same\nsame\n", encoding="utf-8")
+        result = promotion.plan_text_patch(
+            project_id=promotion.PLATFORM_PROJECT_ID,
+            repo=promotion.PLATFORM_REPO,
+            relative_path=self.rel.as_posix(),
+            replacements=[
+                {
+                    "before": "same",
+                    "after": "different",
+                    "expected_count": 1,
+                }
+            ],
+            node="primary",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "replacement_match_count_mismatch")
+        self.assertEqual(result["observed_count"], 2)
+
+    def test_text_patch_stale_hash_blocks_without_mutation(self) -> None:
+        self.target.write_text("fetch = broad\n", encoding="utf-8")
+        replacements = [
+            {
+                "before": "fetch = broad",
+                "after": "fetch = narrow",
+                "expected_count": 1,
+            }
+        ]
+        plan = promotion.plan_text_patch(
+            project_id=promotion.PLATFORM_PROJECT_ID,
+            repo=promotion.PLATFORM_REPO,
+            relative_path=self.rel.as_posix(),
+            replacements=replacements,
+            node="primary",
+        )
+        self.assertTrue(plan["ok"])
+
+        result = promotion.apply_text_patch(
+            project_id=promotion.PLATFORM_PROJECT_ID,
+            repo=promotion.PLATFORM_REPO,
+            relative_path=self.rel.as_posix(),
+            replacements=replacements,
+            expected_target_sha256="0" * 64,
+            expected_result_sha256=plan["result_sha256"],
+            approval_id="hostap_test",
+            actor="chatgpt",
+            task_id="ops_test",
+            correlation_id="corr_test",
+            node="primary",
+            dry_run=False,
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "target_hash_mismatch")
+        self.assertEqual(self.target.read_text(encoding="utf-8"), "fetch = broad\n")
+
+
 if __name__ == "__main__":
     unittest.main()
