@@ -35,10 +35,18 @@ def main() -> int:
             result = promotion.plan_promotion(**payload)
         elif action == "apply":
             result = promotion.apply_promotion(**payload)
+        elif action == "patch_plan":
+            result = promotion.plan_text_patch(**payload)
+        elif action == "patch_apply":
+            result = promotion.apply_text_patch(**payload)
         elif action == "rollback":
             result = promotion.rollback_promotion(**payload)
         else:
-            result = {"ok": False, "error": "action_not_allowlisted", "allowed": ["plan", "apply", "rollback"]}
+            result = {
+                "ok": False,
+                "error": "action_not_allowlisted",
+                "allowed": ["plan", "apply", "patch_plan", "patch_apply", "rollback"],
+            }
         print(json.dumps(result, sort_keys=True))
         return 0 if result.get("ok") else 4
     finally:
