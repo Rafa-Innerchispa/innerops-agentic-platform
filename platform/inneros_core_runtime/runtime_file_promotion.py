@@ -24,8 +24,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import project_runtime_registry
-from inneros_core_runtime import local_execution_plane
 
 CAPABILITY = "runtime_file_promotion"
 PLATFORM_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
@@ -69,6 +67,8 @@ def _require_platform_identity(project_id: str, repo: str) -> None:
 
 def _workspace_platform_root(project_id: str, repo: str, node: str) -> Path:
     _require_platform_identity(project_id, repo)
+    from raphiia_openai import project_runtime_registry
+
     resolved = project_runtime_registry.resolve_project(
         project_id=project_id,
         repo=repo,
@@ -81,6 +81,25 @@ def _workspace_platform_root(project_id: str, repo: str, node: str) -> Path:
     if project_path not in platform_root.parents:
         raise PermissionError("workspace_platform_escape")
     return platform_root
+
+
+def _validate_host_approval(
+    *,
+    approval_id: str,
+    action: str,
+    repo: str,
+    project_id: str,
+    node: str,
+) -> dict[str, Any]:
+    from inneros_core_runtime import local_execution_plane
+
+    return local_execution_plane.validate_host_approval(
+        approval_id=approval_id,
+        action=action,
+        repo=repo,
+        project_id=project_id,
+        node=node,
+    )
 
 
 def _target_path(relative_path: str) -> tuple[Path, Path]:
@@ -184,7 +203,7 @@ def apply_promotion(
         if not all(str(x or "").strip() for x in (expected_source_sha256, expected_target_sha256, approval_id, actor, task_id, correlation_id)):
             raise ValueError("promotion_preconditions_required")
 
-        approval = local_execution_plane.validate_host_approval(
+        approval = _validate_host_approval(
             approval_id=approval_id,
             action="runtime_file_promote",
             repo=repo,
@@ -331,7 +350,7 @@ def rollback_promotion(
         if not all(str(x or "").strip() for x in (backup_path, expected_current_sha256, expected_backup_sha256, approval_id, actor, task_id, correlation_id)):
             raise ValueError("rollback_preconditions_required")
 
-        approval = local_execution_plane.validate_host_approval(
+        approval = _validate_host_approval(
             approval_id=approval_id,
             action="runtime_file_rollback",
             repo=repo,
@@ -563,7 +582,7 @@ def apply_text_patch(
         ):
             raise ValueError("patch_preconditions_required")
 
-        approval = local_execution_plane.validate_host_approval(
+        approval = _validate_host_approval(
             approval_id=approval_id,
             action="runtime_hunk_promote",
             repo=repo,
