@@ -41,8 +41,8 @@ class RuntimeFilePromotionTests(unittest.TestCase):
             return_value=self.workspace_platform,
         )
         self.patch_approval = mock.patch.object(
-            promotion.local_execution_plane,
-            "validate_host_approval",
+            promotion,
+            "_validate_host_approval",
             return_value={"ok": True},
         )
         self.patch_audit = mock.patch.object(promotion, "_audit")
