@@ -407,6 +407,35 @@ def _text_sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _bytes_sha256(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _detect_line_ending(text: str) -> str:
+    crlf = text.count("\r\n")
+    lf = text.count("\n")
+    bare_lf = lf - crlf
+    if crlf and bare_lf:
+        raise ValueError("mixed_line_endings")
+    return "\r\n" if crlf else "\n"
+
+
+def _adapt_replacements_to_line_ending(
+    replacements: list[dict[str, Any]],
+    line_ending: str,
+) -> list[dict[str, Any]]:
+    adapted = []
+    for item in replacements:
+        adapted.append(
+            {
+                **item,
+                "before": item["before"].replace("\n", line_ending),
+                "after": item["after"].replace("\n", line_ending),
+            }
+        )
+    return adapted
+
+
 def _normalize_replacements(replacements: Any) -> list[dict[str, Any]]:
     if not isinstance(replacements, list) or not replacements:
         raise ValueError("replacements_required")
@@ -417,8 +446,8 @@ def _normalize_replacements(replacements: Any) -> list[dict[str, Any]]:
     for item in replacements:
         if not isinstance(item, dict):
             raise ValueError("replacement_invalid")
-        before = str(item.get("before") or "")
-        after = str(item.get("after") or "")
+        before = str(item.get("before") or "").replace("\r\n", "\n")
+        after = str(item.get("after") or "").replace("\r\n", "\n")
         expected_count = int(item.get("expected_count", 1))
         if not before:
             raise ValueError("replacement_before_required")
@@ -450,8 +479,13 @@ def plan_text_patch(
         rel, target = _target_path(relative_path)
         if not target.is_file():
             return {"ok": False, "error": "target_file_missing", "target_path": str(target)}
-        ops = _normalize_replacements(replacements)
-        original = target.read_text(encoding="utf-8")
+        raw = target.read_bytes()
+        original = raw.decode("utf-8")
+        line_ending = _detect_line_ending(original)
+        ops = _adapt_replacements_to_line_ending(
+            _normalize_replacements(replacements),
+            line_ending,
+        )
         patched = original
         applied = []
         for index, item in enumerate(ops):
@@ -468,8 +502,9 @@ def plan_text_patch(
             patched = patched.replace(item["before"], item["after"], 1)
             applied.append({"index": index, "matched": 1})
 
-        current_hash = _text_sha256(original)
-        result_hash = _text_sha256(patched)
+        patched_bytes = patched.encode("utf-8")
+        current_hash = _bytes_sha256(raw)
+        result_hash = _bytes_sha256(patched_bytes)
         return {
             "ok": True,
             "capability": CAPABILITY,
@@ -482,8 +517,9 @@ def plan_text_patch(
             "result_sha256": result_hash,
             "replacement_count": len(applied),
             "would_change": current_hash != result_hash,
-            "target_bytes": len(original.encode("utf-8")),
-            "result_bytes": len(patched.encode("utf-8")),
+            "target_bytes": len(raw),
+            "result_bytes": len(patched_bytes),
+            "line_ending": "crlf" if line_ending == "\r\n" else "lf",
         }
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
@@ -576,18 +612,24 @@ def apply_text_patch(
             return result
 
         rel, target = _target_path(relative_path)
-        original = target.read_text(encoding="utf-8")
-        if _text_sha256(original) != expected_target_sha256:
+        raw = target.read_bytes()
+        original = raw.decode("utf-8")
+        if _bytes_sha256(raw) != expected_target_sha256:
             return {
                 "ok": False,
                 "capability": CAPABILITY,
                 "error": "target_changed_before_apply",
                 "expected": expected_target_sha256,
-                "observed": _text_sha256(original),
+                "observed": _bytes_sha256(raw),
             }
 
+        line_ending = _detect_line_ending(original)
         patched = original
-        for index, item in enumerate(_normalize_replacements(replacements)):
+        ops = _adapt_replacements_to_line_ending(
+            _normalize_replacements(replacements),
+            line_ending,
+        )
+        for index, item in enumerate(ops):
             count = patched.count(item["before"])
             if count != 1:
                 return {
@@ -598,7 +640,8 @@ def apply_text_patch(
                     "observed_count": count,
                 }
             patched = patched.replace(item["before"], item["after"], 1)
-        if _text_sha256(patched) != expected_result_sha256:
+        patched_bytes = patched.encode("utf-8")
+        if _bytes_sha256(patched_bytes) != expected_result_sha256:
             return {
                 "ok": False,
                 "capability": CAPABILITY,
@@ -619,7 +662,7 @@ def apply_text_patch(
         temp = target.with_name(f".{target.name}.patch-{secrets.token_hex(6)}.tmp")
         rolled_back = False
         try:
-            temp.write_text(patched, encoding="utf-8")
+            temp.write_bytes(patched_bytes)
             shutil.copystat(target, temp)
             if _sha256(temp) != expected_result_sha256:
                 raise RuntimeError("staged_result_hash_mismatch")
