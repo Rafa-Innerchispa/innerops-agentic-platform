@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import smtplib
+from datetime import datetime, timedelta, timezone
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -12,7 +14,14 @@ from email.utils import formataddr
 from pathlib import Path
 from typing import Any
 
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
+
 from raphiia_openai import mongo_store
+
+
+DEFAULT_DEDUPE_WINDOW_SECONDS = 60 * 60
+OUTBOUND_LEDGER_COLLECTION = "email_outbound_ledger"
 
 
 def smtp_settings_for_account(acc: dict[str, Any]) -> dict[str, Any]:
@@ -51,6 +60,98 @@ def _pick_send_account(prefer_address: str | None = None) -> dict[str, Any] | No
     return None
 
 
+def _normalise_recipient(value: str) -> str:
+    return value.strip().lower()
+
+
+def _normalise_text(value: str) -> str:
+    return " ".join((value or "").split())
+
+
+def _fallback_idempotency_key(*, from_address: str, to_addr: str, subject: str, body: str) -> str:
+    canonical = "\n".join(
+        [
+            _normalise_recipient(from_address),
+            _normalise_recipient(to_addr),
+            _normalise_text(subject)[:500],
+            _normalise_text(body)[:4000],
+        ]
+    )
+    return "email:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _reserve_delivery(
+    *,
+    key: str,
+    from_address: str,
+    to_addr: str,
+    subject: str,
+    window_seconds: int,
+) -> tuple[bool, dict[str, Any]]:
+    db = mongo_store.get_db()
+    collection = db[OUTBOUND_LEDGER_COLLECTION]
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=max(1, window_seconds))
+
+    existing = collection.find_one({"_id": key})
+    if existing:
+        status = existing.get("status")
+        expiry = existing.get("expires_at")
+        if status in {"reserved", "sent"} and expiry and expiry > now:
+            return False, existing
+
+    query = {
+        "_id": key,
+        "$or": [
+            {"status": "failed"},
+            {"expires_at": {"$lte": now}},
+            {"expires_at": {"$exists": False}},
+        ],
+    }
+    update = {
+        "$set": {
+            "status": "reserved",
+            "from_address": from_address,
+            "to_addr": _normalise_recipient(to_addr),
+            "subject": subject[:200],
+            "reserved_at": now,
+            "expires_at": expires_at,
+            "updated_at": now,
+        },
+        "$inc": {"attempts": 1},
+        "$setOnInsert": {"created_at": now},
+    }
+
+    try:
+        doc = collection.find_one_and_update(
+            query,
+            update,
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+    except DuplicateKeyError:
+        current = collection.find_one({"_id": key}) or {"_id": key, "status": "reserved"}
+        return False, current
+
+    if doc is None:
+        current = collection.find_one({"_id": key}) or {"_id": key, "status": "reserved"}
+        return False, current
+    return True, doc
+
+
+def _mark_delivery(key: str, *, status: str, error: str = "") -> None:
+    db = mongo_store.get_db()
+    now = datetime.now(timezone.utc)
+    set_payload: dict[str, Any] = {"status": status, "updated_at": now}
+    update: dict[str, Any] = {"$set": set_payload}
+    if status == "sent":
+        set_payload["sent_at"] = now
+        update["$unset"] = {"last_error": ""}
+    if error:
+        set_payload["last_error"] = error[:2000]
+    db[OUTBOUND_LEDGER_COLLECTION].update_one({"_id": key}, update)
+
+
 def send_email(
     *,
     to_addr: str,
@@ -59,8 +160,15 @@ def send_email(
     attachment_path: str | None = None,
     attachment_name: str | None = None,
     from_account: str | None = None,
+    idempotency_key: str | None = None,
+    dedupe_window_seconds: int = DEFAULT_DEDUPE_WINDOW_SECONDS,
 ) -> dict[str, Any]:
-    """Envía usando email_accounts (IMAP creds) — no requiere SMTP_* en .env."""
+    """Envía usando email_accounts con idempotencia durable en Mongo.
+
+    Un envío exitoso o una reserva activa bloquean reintentos equivalentes dentro
+    de la ventana. Los intentos fallidos quedan reintentables. Si el caller no
+    entrega una clave, se deriva una huella estable de remitente/destino/asunto/cuerpo.
+    """
     acc = _pick_send_account(from_account)
     if not acc:
         return {"ok": False, "error": "Sin cuentas email_accounts habilitadas en Mongo"}
@@ -71,6 +179,30 @@ def send_email(
     if not user or not password:
         return {"ok": False, "error": f"Credenciales incompletas para {address}"}
 
+    key = (idempotency_key or "").strip() or _fallback_idempotency_key(
+        from_address=address,
+        to_addr=to_addr,
+        subject=subject,
+        body=body,
+    )
+    reserved, ledger = _reserve_delivery(
+        key=key,
+        from_address=address,
+        to_addr=to_addr,
+        subject=subject,
+        window_seconds=dedupe_window_seconds,
+    )
+    if not reserved:
+        return {
+            "ok": True,
+            "deduplicated": True,
+            "delivery_status": ledger.get("status"),
+            "idempotency_key": key,
+            "to": to_addr,
+            "subject": subject,
+            "from_account": address,
+        }
+
     smtp = smtp_settings_for_account(acc)
     smtp_host = (os.getenv("SMTP_HOST") or smtp.get("smtp_host") or "").strip()
     smtp_port = int(acc.get("smtp_port") or os.getenv("SMTP_PORT", "587") or 587)
@@ -78,7 +210,9 @@ def send_email(
     from_name = (acc.get("from_name") or acc.get("label") or "PC Doctor").strip()
 
     if not smtp_host:
-        return {"ok": False, "error": f"No se pudo derivar SMTP host para {address}"}
+        error = f"No se pudo derivar SMTP host para {address}"
+        _mark_delivery(key, status="failed", error=error)
+        return {"ok": False, "error": error, "idempotency_key": key}
 
     msg = MIMEMultipart()
     msg["Subject"] = subject[:200]
@@ -99,8 +233,11 @@ def send_email(
                 server.starttls()
             server.login(user, password)
             server.sendmail(address, [to_addr], msg.as_string())
+        _mark_delivery(key, status="sent")
         return {
             "ok": True,
+            "deduplicated": False,
+            "idempotency_key": key,
             "to": to_addr,
             "subject": subject,
             "from": msg["From"],
@@ -110,4 +247,11 @@ def send_email(
             "source": "email_accounts",
         }
     except Exception as exc:
-        return {"ok": False, "error": str(exc), "from_account": address, "smtp_host": smtp_host}
+        _mark_delivery(key, status="failed", error=str(exc))
+        return {
+            "ok": False,
+            "error": str(exc),
+            "from_account": address,
+            "smtp_host": smtp_host,
+            "idempotency_key": key,
+        }
