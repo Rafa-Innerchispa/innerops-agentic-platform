@@ -205,7 +205,7 @@ def apply_promotion(
 
         approval = _validate_host_approval(
             approval_id=approval_id,
-            action="runtime_file_promote",
+            action="runtime_file_promotion:apply",
             repo=repo,
             project_id=project_id,
             node=node,
@@ -352,7 +352,7 @@ def rollback_promotion(
 
         approval = _validate_host_approval(
             approval_id=approval_id,
-            action="runtime_file_rollback",
+            action="runtime_file_promotion:rollback",
             repo=repo,
             project_id=project_id,
             node=node,
@@ -430,29 +430,55 @@ def _bytes_sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _detect_line_ending(text: str) -> str:
-    crlf = text.count("\r\n")
-    lf = text.count("\n")
-    bare_lf = lf - crlf
-    if crlf and bare_lf:
-        raise ValueError("mixed_line_endings")
-    return "\r\n" if crlf else "\n"
+def _patch_text_exact(
+    original: str,
+    replacements: Any,
+) -> dict[str, Any]:
+    ops = _normalize_replacements(replacements)
+    patched = original
+    applied: list[dict[str, Any]] = []
 
-
-def _adapt_replacements_to_line_ending(
-    replacements: list[dict[str, Any]],
-    line_ending: str,
-) -> list[dict[str, Any]]:
-    adapted = []
-    for item in replacements:
-        adapted.append(
-            {
-                **item,
-                "before": item["before"].replace("\n", line_ending),
-                "after": item["after"].replace("\n", line_ending),
+    for index, item in enumerate(ops):
+        before_lf = item["before"]
+        after_lf = item["after"]
+        if "\n" not in before_lf and "\n" in after_lf:
+            return {
+                "ok": False,
+                "error": "replacement_line_ending_ambiguous",
+                "replacement_index": index,
             }
-        )
-    return adapted
+
+        variants: list[tuple[str, str, str]] = [("none", before_lf, after_lf)]
+        if "\n" in before_lf:
+            variants = [
+                ("lf", before_lf, after_lf),
+                (
+                    "crlf",
+                    before_lf.replace("\n", "\r\n"),
+                    after_lf.replace("\n", "\r\n"),
+                ),
+            ]
+
+        counts = [(style, before, after, patched.count(before)) for style, before, after in variants]
+        total = sum(count for _, _, _, count in counts)
+        if total != item["expected_count"]:
+            return {
+                "ok": False,
+                "error": "replacement_match_count_mismatch",
+                "replacement_index": index,
+                "expected_count": item["expected_count"],
+                "observed_count": total,
+                "variant_counts": {
+                    style: count
+                    for style, _, _, count in counts
+                },
+            }
+
+        style, before, after, _ = next(entry for entry in counts if entry[3] == 1)
+        patched = patched.replace(before, after, 1)
+        applied.append({"index": index, "matched": 1, "line_ending": style})
+
+    return {"ok": True, "patched": patched, "applied": applied}
 
 
 def _normalize_replacements(replacements: Any) -> list[dict[str, Any]]:
@@ -500,27 +526,11 @@ def plan_text_patch(
             return {"ok": False, "error": "target_file_missing", "target_path": str(target)}
         raw = target.read_bytes()
         original = raw.decode("utf-8")
-        line_ending = _detect_line_ending(original)
-        ops = _adapt_replacements_to_line_ending(
-            _normalize_replacements(replacements),
-            line_ending,
-        )
-        patched = original
-        applied = []
-        for index, item in enumerate(ops):
-            count = patched.count(item["before"])
-            if count != item["expected_count"]:
-                return {
-                    "ok": False,
-                    "capability": CAPABILITY,
-                    "error": "replacement_match_count_mismatch",
-                    "replacement_index": index,
-                    "expected_count": item["expected_count"],
-                    "observed_count": count,
-                }
-            patched = patched.replace(item["before"], item["after"], 1)
-            applied.append({"index": index, "matched": 1})
-
+        patch = _patch_text_exact(original, replacements)
+        if not patch.get("ok"):
+            return {"ok": False, "capability": CAPABILITY, **patch}
+        patched = str(patch["patched"])
+        applied = list(patch["applied"])
         patched_bytes = patched.encode("utf-8")
         current_hash = _bytes_sha256(raw)
         result_hash = _bytes_sha256(patched_bytes)
@@ -538,7 +548,7 @@ def plan_text_patch(
             "would_change": current_hash != result_hash,
             "target_bytes": len(raw),
             "result_bytes": len(patched_bytes),
-            "line_ending": "crlf" if line_ending == "\r\n" else "lf",
+            "replacement_line_endings": [item["line_ending"] for item in applied],
         }
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
@@ -584,7 +594,7 @@ def apply_text_patch(
 
         approval = _validate_host_approval(
             approval_id=approval_id,
-            action="runtime_hunk_promote",
+            action="runtime_file_promotion:patch_apply",
             repo=repo,
             project_id=project_id,
             node=node,
@@ -642,23 +652,18 @@ def apply_text_patch(
                 "observed": _bytes_sha256(raw),
             }
 
-        line_ending = _detect_line_ending(original)
-        patched = original
-        ops = _adapt_replacements_to_line_ending(
-            _normalize_replacements(replacements),
-            line_ending,
-        )
-        for index, item in enumerate(ops):
-            count = patched.count(item["before"])
-            if count != 1:
-                return {
-                    "ok": False,
-                    "capability": CAPABILITY,
-                    "error": "replacement_match_count_changed",
-                    "replacement_index": index,
-                    "observed_count": count,
-                }
-            patched = patched.replace(item["before"], item["after"], 1)
+        patch = _patch_text_exact(original, replacements)
+        if not patch.get("ok"):
+            return {
+                "ok": False,
+                "capability": CAPABILITY,
+                "error": "replacement_match_count_changed",
+                "replacement_error": patch.get("error"),
+                "replacement_index": patch.get("replacement_index"),
+                "observed_count": patch.get("observed_count"),
+                "variant_counts": patch.get("variant_counts"),
+            }
+        patched = str(patch["patched"])
         patched_bytes = patched.encode("utf-8")
         if _bytes_sha256(patched_bytes) != expected_result_sha256:
             return {
