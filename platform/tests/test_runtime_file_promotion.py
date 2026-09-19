@@ -251,5 +251,50 @@ class RuntimeFilePromotionTests(unittest.TestCase):
         self.assertEqual(self.target.read_text(encoding="utf-8"), "fetch = broad\n")
 
 
+    def test_text_patch_preserves_crlf_line_endings(self) -> None:
+        original = b"before\r\nactive-only-setting=true\r\nfetch = broad\r\nafter\r\n"
+        self.target.write_bytes(original)
+        replacements = [
+            {
+                "before": "fetch = broad\n",
+                "after": "fetch = narrow\n",
+                "expected_count": 1,
+            }
+        ]
+
+        plan = promotion.plan_text_patch(
+            project_id=promotion.PLATFORM_PROJECT_ID,
+            repo=promotion.PLATFORM_REPO,
+            relative_path=self.rel.as_posix(),
+            replacements=replacements,
+            node="primary",
+        )
+        self.assertTrue(plan["ok"])
+        self.assertEqual(plan["line_ending"], "crlf")
+
+        applied = promotion.apply_text_patch(
+            project_id=promotion.PLATFORM_PROJECT_ID,
+            repo=promotion.PLATFORM_REPO,
+            relative_path=self.rel.as_posix(),
+            replacements=replacements,
+            expected_target_sha256=plan["target_sha256"],
+            expected_result_sha256=plan["result_sha256"],
+            approval_id="hostap_test",
+            actor="chatgpt",
+            task_id="ops_test",
+            correlation_id="corr_test",
+            node="primary",
+            dry_run=False,
+        )
+
+        self.assertTrue(applied["ok"])
+        final = self.target.read_bytes()
+        self.assertIn(b"active-only-setting=true\r\n", final)
+        self.assertIn(b"fetch = narrow\r\n", final)
+        self.assertNotIn(b"fetch = broad\r\n", final)
+        self.assertEqual(final.count(b"\r\n"), original.count(b"\r\n"))
+        self.assertEqual(final.replace(b"\r\n", b"").count(b"\n"), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
