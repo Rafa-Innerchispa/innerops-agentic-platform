@@ -211,6 +211,10 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_discover_contribution_issues",
     "local_gitlab_project_summary",
     "local_gitlab_list_merge_requests",
+    "local_gitlab_get_merge_request",
+    "local_gitlab_list_merge_request_discussions",
+    "local_gitlab_list_merge_request_pipelines",
+    "local_gitlab_list_pipeline_jobs",
     "local_gitlab_create_draft_merge_request",
     "local_gitlab_get_issue",
     "local_gitlab_comment_issue",
@@ -3496,6 +3500,10 @@ for _name in (
     "local_gitlab_discover_contribution_issues",
     "local_gitlab_project_summary",
     "local_gitlab_list_merge_requests",
+    "local_gitlab_get_merge_request",
+    "local_gitlab_list_merge_request_discussions",
+    "local_gitlab_list_merge_request_pipelines",
+    "local_gitlab_list_pipeline_jobs",
     "local_gitlab_create_draft_merge_request",
     "local_gitlab_get_issue",
     "local_gitlab_comment_issue",
@@ -3515,6 +3523,31 @@ for _name in (
         "output_schema": {"ok": "bool", "capability": "local_gitlab_plane"},
         "example_payload": {"project_id_or_path": "rafagye/example", "state": "opened", "limit": 20, "dry_run": True},
     }
+
+TOOL_DEFINITIONS["local_gitlab_get_merge_request"].update(
+    {
+        "input_schema": {"project_id_or_path": "string", "mr_iid": "number"},
+        "output_schema": {"ok": "bool", "merge_request": "object|null"},
+    }
+)
+TOOL_DEFINITIONS["local_gitlab_list_merge_request_discussions"].update(
+    {
+        "input_schema": {"project_id_or_path": "string", "mr_iid": "number", "limit": "number|null"},
+        "output_schema": {"ok": "bool", "count": "number", "discussions": "array"},
+    }
+)
+TOOL_DEFINITIONS["local_gitlab_list_merge_request_pipelines"].update(
+    {
+        "input_schema": {"project_id_or_path": "string", "mr_iid": "number", "limit": "number|null"},
+        "output_schema": {"ok": "bool", "count": "number", "pipelines": "array"},
+    }
+)
+TOOL_DEFINITIONS["local_gitlab_list_pipeline_jobs"].update(
+    {
+        "input_schema": {"project_id_or_path": "string", "pipeline_id": "number", "limit": "number|null"},
+        "output_schema": {"ok": "bool", "count": "number", "jobs": "array"},
+    }
+)
 
 TOOL_DEFINITIONS["local_gitlab_create_draft_merge_request"].update(
     {

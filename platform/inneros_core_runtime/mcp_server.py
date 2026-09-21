@@ -5847,6 +5847,36 @@ def local_gitlab_list_merge_requests(project_id_or_path: str, state: str = "open
 
 
 @mcp.tool
+def local_gitlab_get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
+    """Local GitLab Plane: lee estado completo de un merge request."""
+    return local_gitlab_plane.get_merge_request(project_id_or_path=project_id_or_path, mr_iid=mr_iid)
+
+
+@mcp.tool
+def local_gitlab_list_merge_request_discussions(project_id_or_path: str, mr_iid: int, limit: int = 100) -> dict[str, Any]:
+    """Local GitLab Plane: lista discusiones y notas de un merge request."""
+    return local_gitlab_plane.list_merge_request_discussions(
+        project_id_or_path=project_id_or_path, mr_iid=mr_iid, limit=limit
+    )
+
+
+@mcp.tool
+def local_gitlab_list_merge_request_pipelines(project_id_or_path: str, mr_iid: int, limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: lista pipelines asociados directamente a un merge request."""
+    return local_gitlab_plane.list_merge_request_pipelines(
+        project_id_or_path=project_id_or_path, mr_iid=mr_iid, limit=limit
+    )
+
+
+@mcp.tool
+def local_gitlab_list_pipeline_jobs(project_id_or_path: str, pipeline_id: int, limit: int = 100) -> dict[str, Any]:
+    """Local GitLab Plane: lista jobs de un pipeline para diagnosticar CI."""
+    return local_gitlab_plane.list_pipeline_jobs(
+        project_id_or_path=project_id_or_path, pipeline_id=pipeline_id, limit=limit
+    )
+
+
+@mcp.tool
 def local_gitlab_create_draft_merge_request(source_project: str, source_branch: str, target_project: str, target_branch: str = "main", title: str = "", description: str = "", dry_run: bool = True) -> dict[str, Any]:
     """Local GitLab Plane: crea un Draft MR allowlisted; por defecto solo simula."""
     return local_gitlab_plane.create_draft_merge_request(
