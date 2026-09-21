@@ -15,6 +15,24 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def origin_branches(source: str) -> list[str]:
+    res = gl._run(
+        [
+            "git", "-C", source, "for-each-ref",
+            "--format=%(refname:strip=3)",
+            "refs/remotes/origin",
+        ],
+        timeout=30,
+    )
+    if not res.get("ok"):
+        return []
+    return sorted({
+        line.strip()
+        for line in str(res.get("stdout") or "").splitlines()
+        if line.strip() and line.strip() != "HEAD"
+    })
+
+
 def main() -> int:
     STATE_ROOT.mkdir(parents=True, exist_ok=True)
     inventory = gl.prepare_github_mirrors(
@@ -34,30 +52,40 @@ def main() -> int:
             continue
 
         refresh = gl._run(["git", "-C", source, "fetch", "origin", "--prune", "--tags"], timeout=180)
+        branch_results = []
+        branches = origin_branches(source)
+
         with gl._gitlab_git_auth_env() as env:
-            branches = gl._run_with_env(
-                [
-                    "git",
-                    "-C",
-                    source,
-                    "push",
-                    "gitlab",
-                    "refs/remotes/origin/*:refs/heads/*",
-                ],
-                env,
-                timeout=600,
-            )
+            for branch in branches:
+                pushed = gl._run_with_env(
+                    [
+                        "git", "-C", source, "push", "gitlab",
+                        f"refs/remotes/origin/{branch}:refs/heads/{branch}",
+                    ],
+                    env,
+                    timeout=300,
+                )
+                branch_results.append({
+                    "branch": branch,
+                    "ok": bool(pushed.get("ok")),
+                    "returncode": pushed.get("returncode"),
+                    "stderr": gl._redact(str(pushed.get("stderr") or ""))[:1000],
+                })
+
             tags = gl._run_with_env(
                 ["git", "-C", source, "push", "gitlab", "--tags"],
                 env,
                 timeout=600,
             )
 
+        branches_ok = all(item["ok"] for item in branch_results)
         row = {
             "github": action.get("github"),
             "target": target,
             "refresh_ok": bool(refresh.get("ok")),
-            "branches_ok": bool(branches.get("ok")),
+            "branches_ok": branches_ok,
+            "branch_count": len(branch_results),
+            "branch_results": branch_results,
             "tags_ok": bool(tags.get("ok")),
             "visibility_sync": action.get("visibility_sync"),
         }
@@ -71,7 +99,7 @@ def main() -> int:
         "count": len(rows),
         "rows": rows,
         "failures": failures,
-        "policy": "GitHub origin refs -> GitLab heads, non-force; local-only committed heads are preserved in the local bare mirror.",
+        "policy": "Each GitHub origin branch -> same GitLab branch, excluding origin/HEAD; non-force. Local-only committed heads stay in the local bare mirror.",
     }
     STATUS_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return 0 if payload["ok"] else 1
