@@ -1044,3 +1044,113 @@ def health_check() -> dict[str, Any]:
         "credits_dry_run": credits,
         "ready_for_live_gitlab_calls": bool(status.get("auth_ok")),
     }
+
+
+# --- Repo sovereignty visibility parity (2026-09-21) ---
+# Safe extension: public GitHub repos may become public on the rafagye mirror.
+# Anything private, missing, or unverifiable stays private (fail-closed).
+
+def _github_public_visibility(owner: str, repo: str, timeout: int = 15) -> dict[str, Any]:
+    owner = (owner or "").strip()
+    repo = (repo or "").strip()
+    if not owner or not repo:
+        return {"ok": False, "public": False, "reason": "invalid_repo"}
+    url = f"https://api.github.com/repos/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}"
+    req = urllib.request.Request(
+        url,
+        method="GET",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "InnerOS-RalphiIA-Repo-Sovereignty/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            data = json.loads(raw) if raw else {}
+            visibility = str(data.get("visibility") or ("private" if data.get("private") else "public")).lower()
+            return {
+                "ok": True,
+                "public": visibility == "public" and not bool(data.get("private")),
+                "visibility": visibility,
+                "source": "github_public_api",
+            }
+    except urllib.error.HTTPError as exc:
+        return {"ok": True, "public": False, "visibility": "private_or_unverified", "source": "github_public_api", "status": exc.code}
+    except Exception as exc:
+        return {"ok": False, "public": False, "visibility": "unverified", "source": "github_public_api", "error": type(exc).__name__}
+
+
+_prepare_github_mirrors_base = prepare_github_mirrors
+
+def prepare_github_mirrors(
+    namespace: str = "rafagye",
+    create_missing: bool = False,
+    configure_remotes: bool = False,
+    push: bool = False,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    result = _prepare_github_mirrors_base(
+        namespace=namespace,
+        create_missing=create_missing,
+        configure_remotes=configure_remotes,
+        push=push,
+        dry_run=dry_run,
+    )
+    actions = result.get("actions") if isinstance(result.get("actions"), list) else []
+    visibility_failures: list[dict[str, Any]] = []
+
+    for action in actions:
+        github = str(action.get("github") or "")
+        target = str(action.get("target") or "")
+        if "/" not in github or not target or not action.get("project_exists_or_created"):
+            continue
+        owner, repo = github.split("/", 1)
+        gh = _github_public_visibility(owner, repo)
+        desired = "public" if gh.get("ok") and gh.get("public") else "private"
+        current = project_summary(target)
+        current_visibility = ((current.get("project") or {}).get("visibility") if isinstance(current.get("project"), dict) else None)
+        sync = {
+            "github_visibility": gh.get("visibility"),
+            "desired_gitlab_visibility": desired,
+            "current_gitlab_visibility": current_visibility,
+            "changed": False,
+            "dry_run": dry_run,
+            "fail_closed": desired == "private" and not gh.get("public"),
+        }
+
+        if current.get("ok") and current_visibility != desired:
+            if dry_run:
+                sync["would_change"] = True
+                sync["verified"] = False
+            else:
+                encoded = project_api_path(target)
+                changed = _request("PUT", f"/projects/{encoded}", payload={"visibility": desired}, timeout=30)
+                sync["changed"] = bool(changed.get("ok"))
+                sync["status"] = changed.get("status")
+                verified = project_summary(target)
+                verified_visibility = ((verified.get("project") or {}).get("visibility") if isinstance(verified.get("project"), dict) else None)
+                sync["verified_gitlab_visibility"] = verified_visibility
+                sync["verified"] = bool(verified.get("ok")) and verified_visibility == desired
+                if not sync["verified"]:
+                    visibility_failures.append({
+                        "github": github,
+                        "target": target,
+                        "stage": "visibility_parity",
+                        "desired": desired,
+                        "result": {k: v for k, v in changed.items() if k != "data"},
+                        "verified_visibility": verified_visibility,
+                    })
+        else:
+            sync["verified_gitlab_visibility"] = current_visibility
+            sync["verified"] = bool(current.get("ok")) and current_visibility == desired
+
+        action["visibility_sync"] = sync
+
+    if visibility_failures:
+        result["ok"] = False
+        result.setdefault("failures", []).extend(visibility_failures)
+    result["visibility_policy"] = "GitHub public => GitLab public; private/missing/unverified => GitLab private (fail-closed)."
+    result["visibility_failures"] = visibility_failures
+    _audit("prepare_github_mirrors_visibility_parity", result, {"namespace": namespace, "dry_run": dry_run})
+    return result
