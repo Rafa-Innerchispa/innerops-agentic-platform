@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+WorkingDirectory=/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform
 EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
-Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
-ExecStart=/bin/bash -lc 'while true; do /bin/bash /home/rlopez/inneros/inneros_core/platform/scripts/repo_sovereignty_mirror.sh; /home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/repo_sovereignty_gitlab_sync.py; sleep 21600; done'
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform/platform
+ExecStart=/bin/bash -lc 'while true; do /bin/bash /home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform/platform/scripts/repo_sovereignty_mirror.sh; /home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform/platform/scripts/repo_sovereignty_gitlab_sync.py; sleep 21600; done'
 Restart=always
 RestartSec=30
 
