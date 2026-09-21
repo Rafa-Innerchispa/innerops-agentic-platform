@@ -185,6 +185,20 @@ def test_gitlab_runner_go_profile_allows_only_safe_go_and_gitlab_reads() -> None
     assert lep._command_allowed(["glab", "mr", "merge", "1"], "go_gitlab_runner") is False
 
 
+def test_gitlab_ruby_profile_allows_targeted_tests_and_lint_only() -> None:
+    profile = "ruby-tests-local-only"
+    assert lep._command_allowed(
+        ["bundle", "exec", "rspec", "spec/requests/api/mcp/handlers/initialize_request_spec.rb"], profile
+    ) is True
+    assert lep._command_allowed(
+        ["bundle", "exec", "rubocop", "lib/api/mcp/handlers/initialize_request.rb"], profile
+    ) is True
+    assert lep._command_allowed(["bin/rspec", "spec/requests/api/mcp/handlers/list_tools_spec.rb"], profile) is True
+    assert lep._command_allowed(["git", "diff", "--check"], profile) is True
+    assert lep._command_allowed(["bundle", "exec", "rake", "db:drop"], profile) is False
+    assert lep._command_allowed(["git", "push", "origin", "master"], profile) is False
+
+
 def test_allowlisted_command_records_durable_status(monkeypatch, tmp_path: Path) -> None:
     records = []
 

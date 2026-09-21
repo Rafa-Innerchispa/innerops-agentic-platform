@@ -163,6 +163,16 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("scripts/agy", "--version"),
         ("/home/rlopez/.local/bin/agy", "--status"),
     ],
+    "ruby-tests-local-only": [
+        ("bundle", "exec", "rspec"),
+        ("bundle", "exec", "rubocop"),
+        ("bin/rspec",),
+        ("bin/rubocop",),
+        ("git", "status", "--short", "--branch"),
+        ("git", "diff", "--check"),
+        ("git", "diff", "--stat"),
+        ("git", "diff", "--name-only"),
+    ],
     "node-tests": [
         ("npm", "test"),
         ("npm", "run", "test"),
