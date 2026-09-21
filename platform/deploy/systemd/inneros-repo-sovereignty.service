@@ -1,0 +1,13 @@
+[Unit]
+Description=InnerOS Repository Sovereignty Guardian
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'while true; do /bin/bash /home/rlopez/inneros/inneros_core/platform/scripts/repo_sovereignty_mirror.sh; sleep 21600; done'
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target
