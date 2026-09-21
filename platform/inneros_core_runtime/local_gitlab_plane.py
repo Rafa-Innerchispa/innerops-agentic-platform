@@ -481,19 +481,22 @@ def create_draft_merge_request(
     dry_run: bool = True,
 ) -> dict[str, Any]:
     allowed_pairs = {
-        ("gitlab-community/gitlab-org/gitlab-runner", "gitlab-org/gitlab-runner"),
-        ("rafagye/gitlab-runner", "gitlab-org/gitlab-runner"),
+        ("gitlab-community/gitlab-org/gitlab-runner", "gitlab-org/gitlab-runner"): {"main"},
+        ("rafagye/gitlab-runner", "gitlab-org/gitlab-runner"): {"main"},
+        ("gitlab-community/gitlab-org/gitlab", "gitlab-org/gitlab"): {"master"},
     }
     source_project = (source_project or "").strip()
     target_project = (target_project or "").strip()
     source_branch = (source_branch or "").strip()
     target_branch = (target_branch or "main").strip()
-    if (source_project, target_project) not in allowed_pairs:
+    pair = (source_project, target_project)
+    if pair not in allowed_pairs:
         return {"ok": False, "error": "merge_request_pair_not_allowlisted", "allowed_pairs": sorted([list(item) for item in allowed_pairs])}
     if not re.match(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$", source_branch):
         return {"ok": False, "error": "source_branch_not_allowlisted"}
-    if target_branch != "main":
-        return {"ok": False, "error": "target_branch_not_allowlisted", "allowed": ["main"]}
+    allowed_target_branches = allowed_pairs[pair]
+    if target_branch not in allowed_target_branches:
+        return {"ok": False, "error": "target_branch_not_allowlisted", "allowed": sorted(allowed_target_branches)}
     clean_title = (title or "").strip()
     if not clean_title:
         return {"ok": False, "error": "title_required"}

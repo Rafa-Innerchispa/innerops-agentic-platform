@@ -128,6 +128,41 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "merge_request_pair_not_allowlisted")
 
+    def test_create_draft_merge_request_allows_gitlab_rails_master_pair(self) -> None:
+        with (
+            mock.patch.object(gl, "project_summary", side_effect=[
+                {"ok": True, "project": {"id": 101, "path_with_namespace": "gitlab-community/gitlab-org/gitlab"}},
+                {"ok": True, "project": {"id": 202, "path_with_namespace": "gitlab-org/gitlab"}},
+            ]),
+            mock.patch.object(gl, "_request") as request,
+        ):
+            result = gl.create_draft_merge_request(
+                source_project="gitlab-community/gitlab-org/gitlab",
+                source_branch="chatgpt/630107-mcp-protocol-events-v2",
+                target_project="gitlab-org/gitlab",
+                target_branch="master",
+                title="Instrument MCP initialize and tools/list protocol methods",
+                description="Owner-approved draft merge request dry run for GitLab Rails contribution.",
+                dry_run=True,
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["payload"]["target_branch"], "master")
+        request.assert_not_called()
+
+    def test_create_draft_merge_request_rejects_wrong_target_branch_for_gitlab_rails(self) -> None:
+        result = gl.create_draft_merge_request(
+            source_project="gitlab-community/gitlab-org/gitlab",
+            source_branch="chatgpt/630107-mcp-protocol-events-v2",
+            target_project="gitlab-org/gitlab",
+            target_branch="main",
+            title="Instrument MCP initialize and tools/list protocol methods",
+            description="Wrong target branch must be rejected before any API request is attempted.",
+            dry_run=True,
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "target_branch_not_allowlisted")
+        self.assertEqual(result["allowed"], ["master"])
+
     def test_create_draft_merge_request_posts_only_when_not_dry_run(self) -> None:
         created = {
             "ok": True,
