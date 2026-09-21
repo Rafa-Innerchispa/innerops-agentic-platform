@@ -15,16 +15,32 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def run(source: str, argv: list[str], timeout: int = 30) -> dict:
+    return gl._run(["git", "-C", source, *argv], timeout=timeout)
+
+
+def rev(source: str, ref: str) -> str:
+    r = run(source, ["rev-parse", "--verify", ref], timeout=15)
+    return str(r.get("stdout") or "").strip() if r.get("ok") else ""
+
+
+def is_ancestor(source: str, older: str, newer: str) -> bool:
+    if not older or not newer:
+        return False
+    return bool(run(source, ["merge-base", "--is-ancestor", older, newer], timeout=20).get("ok"))
+
+
 def origin_branches(source: str) -> list[str]:
-    res = gl._run(
-        ["git", "-C", source, "for-each-ref", "--format=%(refname:strip=3)", "refs/remotes/origin"],
+    r = run(
+        source,
+        ["for-each-ref", "--format=%(refname:strip=3)", "refs/remotes/origin"],
         timeout=30,
     )
-    if not res.get("ok"):
+    if not r.get("ok"):
         return []
     return sorted({
         line.strip()
-        for line in str(res.get("stdout") or "").splitlines()
+        for line in str(r.get("stdout") or "").splitlines()
         if line.strip() and line.strip() != "HEAD"
     })
 
@@ -47,35 +63,86 @@ def main() -> int:
         if not source or not target or not action.get("project_exists_or_created"):
             continue
 
-        refresh = gl._run(["git", "-C", source, "fetch", "origin", "--prune", "--tags"], timeout=180)
-        branches = origin_branches(source)
-        refspecs = [f"refs/remotes/origin/{b}:refs/heads/{b}" for b in branches]
+        refresh_origin = run(source, ["fetch", "origin", "--prune", "--tags"], timeout=180)
 
         with gl._gitlab_git_auth_env() as env:
-            if refspecs:
-                branch_push = gl._run_with_env(
-                    ["git", "-C", source, "push", "gitlab", *refspecs],
-                    env,
-                    timeout=900,
-                )
-            else:
-                branch_push = {"ok": True, "returncode": 0, "stderr": ""}
+            refresh_gitlab = gl._run_with_env(
+                ["git", "-C", source, "fetch", "gitlab", "--prune"],
+                env,
+                timeout=300,
+            )
 
             branch_results = []
-            if not branch_push.get("ok"):
-                # Diagnose safely and allow independent fast-forward branches to succeed.
-                for branch in branches:
-                    pushed = gl._run_with_env(
-                        ["git", "-C", source, "push", "gitlab", f"refs/remotes/origin/{branch}:refs/heads/{branch}"],
+            for branch in origin_branches(source):
+                origin_ref = f"refs/remotes/origin/{branch}"
+                gitlab_ref = f"refs/remotes/gitlab/{branch}"
+                origin_sha = rev(source, origin_ref)
+                gitlab_sha = rev(source, gitlab_ref)
+
+                if not origin_sha:
+                    branch_results.append({"branch": branch, "ok": False, "state": "origin_ref_missing"})
+                    continue
+
+                if origin_sha == gitlab_sha:
+                    branch_results.append({"branch": branch, "ok": True, "state": "equal", "sha": origin_sha})
+                    continue
+
+                if not gitlab_sha:
+                    push = gl._run_with_env(
+                        ["git", "-C", source, "push", "gitlab", f"{origin_ref}:refs/heads/{branch}"],
                         env,
                         timeout=300,
                     )
                     branch_results.append({
                         "branch": branch,
-                        "ok": bool(pushed.get("ok")),
-                        "returncode": pushed.get("returncode"),
-                        "stderr": gl._redact(str(pushed.get("stderr") or ""))[:1000],
+                        "ok": bool(push.get("ok")),
+                        "state": "created" if push.get("ok") else "create_failed",
+                        "origin_sha": origin_sha,
+                        "stderr": gl._redact(str(push.get("stderr") or ""))[:800],
                     })
+                    continue
+
+                if is_ancestor(source, gitlab_sha, origin_sha):
+                    push = gl._run_with_env(
+                        ["git", "-C", source, "push", "gitlab", f"{origin_ref}:refs/heads/{branch}"],
+                        env,
+                        timeout=300,
+                    )
+                    branch_results.append({
+                        "branch": branch,
+                        "ok": bool(push.get("ok")),
+                        "state": "fast_forwarded" if push.get("ok") else "fast_forward_failed",
+                        "origin_sha": origin_sha,
+                        "previous_gitlab_sha": gitlab_sha,
+                        "stderr": gl._redact(str(push.get("stderr") or ""))[:800],
+                    })
+                    continue
+
+                if is_ancestor(source, origin_sha, gitlab_sha):
+                    branch_results.append({
+                        "branch": branch,
+                        "ok": True,
+                        "state": "gitlab_ahead_preserved",
+                        "origin_sha": origin_sha,
+                        "gitlab_sha": gitlab_sha,
+                    })
+                    continue
+
+                safe_branch = f"github-sync/{branch}"
+                push = gl._run_with_env(
+                    ["git", "-C", source, "push", "gitlab", f"{origin_ref}:refs/heads/{safe_branch}"],
+                    env,
+                    timeout=300,
+                )
+                branch_results.append({
+                    "branch": branch,
+                    "ok": bool(push.get("ok")),
+                    "state": "diverged_preserved" if push.get("ok") else "divergence_preserve_failed",
+                    "origin_sha": origin_sha,
+                    "gitlab_sha": gitlab_sha,
+                    "preserved_as": safe_branch,
+                    "stderr": gl._redact(str(push.get("stderr") or ""))[:800],
+                })
 
             tags = gl._run_with_env(
                 ["git", "-C", source, "push", "gitlab", "--tags"],
@@ -83,20 +150,20 @@ def main() -> int:
                 timeout=600,
             )
 
-        branches_ok = bool(branch_push.get("ok")) or all(item["ok"] for item in branch_results)
+        branches_ok = all(item.get("ok") for item in branch_results)
         row = {
             "github": action.get("github"),
             "target": target,
-            "refresh_ok": bool(refresh.get("ok")),
+            "origin_fetch_ok": bool(refresh_origin.get("ok")),
+            "gitlab_fetch_ok": bool(refresh_gitlab.get("ok")),
             "branches_ok": branches_ok,
-            "branch_count": len(branches),
-            "batch_branch_push_ok": bool(branch_push.get("ok")),
+            "branch_count": len(branch_results),
             "branch_results": branch_results,
             "tags_ok": bool(tags.get("ok")),
             "visibility_sync": action.get("visibility_sync"),
         }
         rows.append(row)
-        if not row["branches_ok"] or not row["tags_ok"]:
+        if not branches_ok or not row["tags_ok"] or not row["gitlab_fetch_ok"]:
             failures.append(row)
 
     payload = {
@@ -105,7 +172,12 @@ def main() -> int:
         "count": len(rows),
         "rows": rows,
         "failures": failures,
-        "policy": "GitHub origin branches -> same GitLab branches, excluding origin/HEAD; non-force. Batch push with bounded conflict fallback. Local-only heads remain in local bare mirrors.",
+        "policy": (
+            "GitHub origin branches reconcile to GitLab without force. "
+            "Equal/fast-forward refs sync in place; GitLab-ahead refs are preserved; "
+            "true divergences preserve GitHub under github-sync/<branch>. "
+            "Local-only heads remain in local bare mirrors."
+        ),
     }
     STATUS_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return 0 if payload["ok"] else 1
