@@ -77,7 +77,8 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         with (
             mock.patch.object(gl, "gitlab_status", return_value={"auth_ok": True}),
             mock.patch.object(gl, "_discover_github_worktrees", return_value=[repo]),
-            mock.patch.object(gl, "project_summary", return_value={"ok": True}),
+            mock.patch.object(gl, "project_summary", return_value={"ok": True, "project": {"visibility": "private"}}),
+            mock.patch.object(gl, "_github_public_visibility", return_value={"ok": True, "public": False, "visibility": "private"}),
             mock.patch.object(gl, "_namespaces", return_value=["rafagye"]),
             mock.patch.object(gl, "_gitlab_git_auth_env") as auth_env,
             mock.patch.object(gl, "_run_with_env", side_effect=fake_run_with_env),
@@ -205,6 +206,124 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         self.assertIn("target_project", schema)
         self.assertIn("title", schema)
         self.assertNotIn("project_id_or_path", schema)
+
+    def test_get_merge_request_returns_review_and_pipeline_state(self) -> None:
+        payload = {
+            "ok": True,
+            "data": {
+                "id": 1,
+                "iid": 256812,
+                "title": "Instrument MCP initialize and tools/list protocol methods",
+                "state": "opened",
+                "draft": True,
+                "description": "MR description",
+                "author": {"username": "rafagye"},
+                "assignees": [{"id": 7, "username": "rafagye", "name": "Rafael Lopez"}],
+                "reviewers": [{"id": 8, "username": "reviewer", "name": "Reviewer"}],
+                "labels": ["backend"],
+                "milestone": {"id": 19, "title": "19.5"},
+                "source_branch": "chatgpt/630107-mcp-protocol-events-v2",
+                "target_branch": "master",
+                "merge_status": "can_be_merged",
+                "detailed_merge_status": "mergeable",
+                "has_conflicts": False,
+                "blocking_discussions_resolved": True,
+                "sha": "abc123",
+                "web_url": "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/256812",
+                "pipeline": {"id": 900, "status": "running", "web_url": "https://gitlab/p/900"},
+                "head_pipeline": {"id": 901, "status": "success", "web_url": "https://gitlab/p/901"},
+            },
+        }
+        with mock.patch.object(gl, "_request", return_value=payload) as request:
+            result = gl.get_merge_request("gitlab-org/gitlab", 256812)
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["merge_request"]["draft"])
+        self.assertEqual(result["merge_request"]["reviewers"][0]["username"], "reviewer")
+        self.assertEqual(result["merge_request"]["head_pipeline"]["status"], "success")
+        request.assert_called_once_with("GET", "/projects/gitlab-org%2Fgitlab/merge_requests/256812")
+
+    def test_list_merge_request_discussions_returns_bounded_notes(self) -> None:
+        payload = {
+            "ok": True,
+            "data": [{
+                "id": "d1",
+                "individual_note": False,
+                "notes": [{
+                    "id": 11,
+                    "author": {"username": "reviewer"},
+                    "body": "Please update the spec.",
+                    "system": False,
+                    "resolvable": True,
+                    "resolved": False,
+                    "resolved_by": None,
+                    "noteable_type": "MergeRequest",
+                    "position": {"new_path": "spec/foo_spec.rb", "new_line": 12},
+                }],
+            }],
+        }
+        with mock.patch.object(gl, "_request", return_value=payload) as request:
+            result = gl.list_merge_request_discussions("gitlab-org/gitlab", 256812, limit=50)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["discussions"][0]["notes"][0]["author"], "reviewer")
+        self.assertFalse(result["discussions"][0]["notes"][0]["resolved"])
+        request.assert_called_once_with(
+            "GET",
+            "/projects/gitlab-org%2Fgitlab/merge_requests/256812/discussions",
+            query={"per_page": 50},
+        )
+
+    def test_list_merge_request_pipelines_uses_mr_endpoint(self) -> None:
+        payload = {
+            "ok": True,
+            "data": [{"id": 901, "iid": 12, "status": "success", "ref": "refs/merge-requests/256812/head", "sha": "abc"}],
+        }
+        with mock.patch.object(gl, "_request", return_value=payload) as request:
+            result = gl.list_merge_request_pipelines("gitlab-org/gitlab", 256812, limit=20)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["pipelines"][0]["status"], "success")
+        request.assert_called_once_with(
+            "GET",
+            "/projects/gitlab-org%2Fgitlab/merge_requests/256812/pipelines",
+            query={"per_page": 20},
+        )
+
+    def test_list_pipeline_jobs_exposes_failure_reason(self) -> None:
+        payload = {
+            "ok": True,
+            "data": [{
+                "id": 77,
+                "name": "rspec",
+                "stage": "test",
+                "status": "failed",
+                "allow_failure": False,
+                "failure_reason": "script_failure",
+                "runner": {"id": 4, "description": "saas-linux-medium-amd64"},
+            }],
+        }
+        with mock.patch.object(gl, "_request", return_value=payload) as request:
+            result = gl.list_pipeline_jobs("gitlab-org/gitlab", 901, limit=100)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["jobs"][0]["failure_reason"], "script_failure")
+        request.assert_called_once_with(
+            "GET",
+            "/projects/gitlab-org%2Fgitlab/pipelines/901/jobs",
+            query={"per_page": 100, "include_retried": "true"},
+        )
+
+    def test_merge_request_observability_catalog_schemas_are_specific(self) -> None:
+        mr_schema = tool_catalog.describe_tool("local_gitlab_get_merge_request")["input_schema"]
+        discussions_schema = tool_catalog.describe_tool("local_gitlab_list_merge_request_discussions")["input_schema"]
+        pipelines_schema = tool_catalog.describe_tool("local_gitlab_list_merge_request_pipelines")["input_schema"]
+        jobs_schema = tool_catalog.describe_tool("local_gitlab_list_pipeline_jobs")["input_schema"]
+
+        self.assertEqual(set(mr_schema), {"project_id_or_path", "mr_iid"})
+        self.assertIn("mr_iid", discussions_schema)
+        self.assertIn("mr_iid", pipelines_schema)
+        self.assertIn("pipeline_id", jobs_schema)
 
     def test_get_issue_returns_bounded_detail(self) -> None:
         payload = {

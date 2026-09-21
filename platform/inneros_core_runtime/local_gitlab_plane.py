@@ -471,6 +471,179 @@ def list_merge_requests(project_id_or_path: str, state: str = "opened", limit: i
     return {"ok": True, "count": len(rows), "merge_requests": [_mr_summary(item) for item in rows if isinstance(item, dict)]}
 
 
+def _positive_int(value: Any, field: str) -> tuple[int | None, dict[str, Any] | None]:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None, {"ok": False, "error": f"{field}_invalid"}
+    if parsed <= 0:
+        return None, {"ok": False, "error": f"{field}_invalid"}
+    return parsed, None
+
+
+def get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
+    iid, error = _positive_int(mr_iid, "mr_iid")
+    if error:
+        return error
+    encoded = project_api_path(project_id_or_path)
+    res = _request("GET", f"/projects/{encoded}/merge_requests/{iid}")
+    if not res.get("ok"):
+        return {key: value for key, value in res.items() if key != "data"}
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    return {
+        "ok": True,
+        "merge_request": {
+            **_mr_summary(data),
+            "description": _bounded(str(data.get("description") or "")),
+            "draft": bool(data.get("draft") or data.get("work_in_progress")),
+            "merge_status": data.get("merge_status"),
+            "detailed_merge_status": data.get("detailed_merge_status"),
+            "has_conflicts": data.get("has_conflicts"),
+            "blocking_discussions_resolved": data.get("blocking_discussions_resolved"),
+            "assignees": [
+                {"id": item.get("id"), "username": item.get("username"), "name": item.get("name")}
+                for item in (data.get("assignees") or [])
+                if isinstance(item, dict)
+            ],
+            "reviewers": [
+                {"id": item.get("id"), "username": item.get("username"), "name": item.get("name")}
+                for item in (data.get("reviewers") or [])
+                if isinstance(item, dict)
+            ],
+            "labels": data.get("labels") or [],
+            "milestone": {
+                "id": (data.get("milestone") or {}).get("id"),
+                "title": (data.get("milestone") or {}).get("title"),
+            } if isinstance(data.get("milestone"), dict) else None,
+            "sha": data.get("sha"),
+            "diff_refs": data.get("diff_refs") if isinstance(data.get("diff_refs"), dict) else None,
+            "pipeline": {
+                "id": (data.get("pipeline") or {}).get("id"),
+                "status": (data.get("pipeline") or {}).get("status"),
+                "web_url": (data.get("pipeline") or {}).get("web_url"),
+            } if isinstance(data.get("pipeline"), dict) else None,
+            "head_pipeline": {
+                "id": (data.get("head_pipeline") or {}).get("id"),
+                "status": (data.get("head_pipeline") or {}).get("status"),
+                "web_url": (data.get("head_pipeline") or {}).get("web_url"),
+            } if isinstance(data.get("head_pipeline"), dict) else None,
+        },
+    }
+
+
+def list_merge_request_discussions(project_id_or_path: str, mr_iid: int, limit: int = 100) -> dict[str, Any]:
+    iid, error = _positive_int(mr_iid, "mr_iid")
+    if error:
+        return error
+    encoded = project_api_path(project_id_or_path)
+    res = _request(
+        "GET",
+        f"/projects/{encoded}/merge_requests/{iid}/discussions",
+        query={"per_page": _limit(limit)},
+    )
+    if not res.get("ok"):
+        return {key: value for key, value in res.items() if key != "data"}
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    discussions = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        notes = []
+        for note in item.get("notes") or []:
+            if not isinstance(note, dict):
+                continue
+            notes.append({
+                "id": note.get("id"),
+                "author": (note.get("author") or {}).get("username") if isinstance(note.get("author"), dict) else None,
+                "body": _bounded(str(note.get("body") or "")),
+                "created_at": note.get("created_at"),
+                "updated_at": note.get("updated_at"),
+                "system": bool(note.get("system")),
+                "resolvable": bool(note.get("resolvable")),
+                "resolved": bool(note.get("resolved")),
+                "resolved_by": (note.get("resolved_by") or {}).get("username") if isinstance(note.get("resolved_by"), dict) else None,
+                "noteable_type": note.get("noteable_type"),
+                "position": note.get("position") if isinstance(note.get("position"), dict) else None,
+            })
+        discussions.append({"id": item.get("id"), "individual_note": bool(item.get("individual_note")), "notes": notes})
+    return {"ok": True, "count": len(discussions), "discussions": discussions}
+
+
+def list_merge_request_pipelines(project_id_or_path: str, mr_iid: int, limit: int = 20) -> dict[str, Any]:
+    iid, error = _positive_int(mr_iid, "mr_iid")
+    if error:
+        return error
+    encoded = project_api_path(project_id_or_path)
+    res = _request(
+        "GET",
+        f"/projects/{encoded}/merge_requests/{iid}/pipelines",
+        query={"per_page": _limit(limit)},
+    )
+    if not res.get("ok"):
+        return {key: value for key, value in res.items() if key != "data"}
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    return {
+        "ok": True,
+        "count": len(rows),
+        "pipelines": [
+            {
+                "id": item.get("id"),
+                "iid": item.get("iid"),
+                "status": item.get("status"),
+                "ref": item.get("ref"),
+                "sha": item.get("sha"),
+                "source": item.get("source"),
+                "web_url": item.get("web_url"),
+                "created_at": item.get("created_at"),
+                "updated_at": item.get("updated_at"),
+            }
+            for item in rows
+            if isinstance(item, dict)
+        ],
+    }
+
+
+def list_pipeline_jobs(project_id_or_path: str, pipeline_id: int, limit: int = 100) -> dict[str, Any]:
+    pid, error = _positive_int(pipeline_id, "pipeline_id")
+    if error:
+        return error
+    encoded = project_api_path(project_id_or_path)
+    res = _request(
+        "GET",
+        f"/projects/{encoded}/pipelines/{pid}/jobs",
+        query={"per_page": _limit(limit), "include_retried": "true"},
+    )
+    if not res.get("ok"):
+        return {key: value for key, value in res.items() if key != "data"}
+    rows = res.get("data") if isinstance(res.get("data"), list) else []
+    return {
+        "ok": True,
+        "count": len(rows),
+        "jobs": [
+            {
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "stage": item.get("stage"),
+                "status": item.get("status"),
+                "allow_failure": bool(item.get("allow_failure")),
+                "failure_reason": item.get("failure_reason"),
+                "ref": item.get("ref"),
+                "web_url": item.get("web_url"),
+                "started_at": item.get("started_at"),
+                "finished_at": item.get("finished_at"),
+                "duration": item.get("duration"),
+                "queued_duration": item.get("queued_duration"),
+                "runner": {
+                    "id": (item.get("runner") or {}).get("id"),
+                    "description": (item.get("runner") or {}).get("description"),
+                } if isinstance(item.get("runner"), dict) else None,
+            }
+            for item in rows
+            if isinstance(item, dict)
+        ],
+    }
+
+
 def create_draft_merge_request(
     source_project: str,
     source_branch: str,
