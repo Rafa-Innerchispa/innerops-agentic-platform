@@ -45,7 +45,7 @@ scan_root() {
       fi
     fi
 
-    git --git-dir="$dest" fetch --prune "$src"       '+refs/heads/*:refs/heads/*'       '+refs/tags/*:refs/tags/*'       '+refs/remotes/origin/*:refs/remotes/origin/*' >>"$LOG_FILE" 2>&1 || true
+    git --git-dir="$dest" fetch --prune "$src"       '+refs/heads/*:refs/local-heads/*'       '+refs/remotes/origin/*:refs/heads/*'       '+refs/remotes/origin/*:refs/remotes/origin/*'       '+refs/tags/*:refs/tags/*' >>"$LOG_FILE" 2>&1 || true
 
     head="$(git -C "$src" rev-parse HEAD 2>/dev/null || true)"
     if git --git-dir="$dest" fsck --full --no-dangling >/dev/null 2>&1; then
