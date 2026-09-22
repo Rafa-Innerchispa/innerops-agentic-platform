@@ -5,6 +5,7 @@ from unittest import mock
 
 from raphiia_openai import local_gitlab_plane as gl
 from raphiia_openai import tool_catalog
+from raphiia_openai.mcp_catalog import tool_catalog as diagnostic_tool_catalog
 
 
 class LocalGitLabPlaneTests(unittest.TestCase):
@@ -324,6 +325,19 @@ class LocalGitLabPlaneTests(unittest.TestCase):
         self.assertIn("mr_iid", discussions_schema)
         self.assertIn("mr_iid", pipelines_schema)
         self.assertIn("pipeline_id", jobs_schema)
+
+    def test_merge_request_observability_is_in_canonical_mcp_catalog(self) -> None:
+        names = {
+            "local_gitlab_get_merge_request",
+            "local_gitlab_list_merge_request_discussions",
+            "local_gitlab_list_merge_request_pipelines",
+            "local_gitlab_list_pipeline_jobs",
+        }
+        self.assertTrue(names.issubset(set(diagnostic_tool_catalog.ALL_MCP_TOOL_NAMES)))
+        for name in names:
+            described = diagnostic_tool_catalog.describe_tool(name)
+            self.assertTrue(described["ok"], name)
+            self.assertEqual(described["required_scopes"], ["ralfia:read"])
 
     def test_get_issue_returns_bounded_detail(self) -> None:
         payload = {

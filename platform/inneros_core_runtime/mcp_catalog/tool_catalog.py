@@ -210,6 +210,10 @@ ALL_MCP_TOOL_NAMES = [
     "local_gitlab_discover_contribution_issues",
     "local_gitlab_project_summary",
     "local_gitlab_list_merge_requests",
+    "local_gitlab_get_merge_request",
+    "local_gitlab_list_merge_request_discussions",
+    "local_gitlab_list_merge_request_pipelines",
+    "local_gitlab_list_pipeline_jobs",
     "local_gitlab_create_draft_merge_request",
     "local_gitlab_list_issues",
     "local_gitlab_list_pipelines",
@@ -3492,6 +3496,10 @@ for _name in (
     "local_gitlab_discover_contribution_issues",
     "local_gitlab_project_summary",
     "local_gitlab_list_merge_requests",
+    "local_gitlab_get_merge_request",
+    "local_gitlab_list_merge_request_discussions",
+    "local_gitlab_list_merge_request_pipelines",
+    "local_gitlab_list_pipeline_jobs",
     "local_gitlab_create_draft_merge_request",
     "local_gitlab_list_issues",
     "local_gitlab_list_pipelines",
@@ -3508,6 +3516,55 @@ for _name in (
         "output_schema": {"ok": "bool", "capability": "local_gitlab_plane"},
         "example_payload": {"project_id_or_path": "rafagye/example", "state": "opened", "limit": 20, "dry_run": True},
     }
+
+TOOL_DEFINITIONS["local_gitlab_get_merge_request"].update(
+    {
+        "description": "Local GitLab Plane: lee estado completo de un merge request.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["gitlab_api", "owner_vault"],
+        "input_schema": {"project_id_or_path": "string", "mr_iid": "number"},
+        "output_schema": {"ok": "bool", "merge_request": "object|null"},
+        "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "mr_iid": 256812},
+    }
+)
+TOOL_DEFINITIONS["local_gitlab_list_merge_request_discussions"].update(
+    {
+        "description": "Local GitLab Plane: lista discusiones y notas de un merge request.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["gitlab_api", "owner_vault"],
+        "input_schema": {"project_id_or_path": "string", "mr_iid": "number", "limit": "number|null"},
+        "output_schema": {"ok": "bool", "count": "number", "discussions": "array"},
+        "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "mr_iid": 256812, "limit": 100},
+    }
+)
+TOOL_DEFINITIONS["local_gitlab_list_merge_request_pipelines"].update(
+    {
+        "description": "Local GitLab Plane: lista pipelines asociados a un merge request.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["gitlab_api", "owner_vault"],
+        "input_schema": {"project_id_or_path": "string", "mr_iid": "number", "limit": "number|null"},
+        "output_schema": {"ok": "bool", "count": "number", "pipelines": "array"},
+        "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "mr_iid": 256812, "limit": 20},
+    }
+)
+TOOL_DEFINITIONS["local_gitlab_list_pipeline_jobs"].update(
+    {
+        "description": "Local GitLab Plane: lista jobs de un pipeline para diagnosticar CI.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["gitlab_api", "owner_vault"],
+        "input_schema": {"project_id_or_path": "string", "pipeline_id": "number", "limit": "number|null"},
+        "output_schema": {"ok": "bool", "count": "number", "jobs": "array"},
+        "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "pipeline_id": 1, "limit": 100},
+    }
+)
 
 TOOL_DEFINITIONS["local_gitlab_create_draft_merge_request"].update(
     {
