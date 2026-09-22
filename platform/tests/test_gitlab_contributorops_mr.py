@@ -193,3 +193,90 @@ def test_apply_review_metadata_dry_run_preserves_existing_labels() -> None:
         "roulette-experiment::reviewer-column-hidden,"
         "backend"
     )
+
+
+def test_request_human_review_dry_run_preserves_existing_reviewers() -> None:
+    report = {
+        "ok": True,
+        "draft": False,
+        "guards": {
+            "authenticated_user_is_author": True,
+            "latest_pipeline_success": True,
+            "no_unresolved_discussions": True,
+            "state_open": True,
+        },
+    }
+    raw = {
+        "ok": True,
+        "data": {
+            "reviewers": [{"id": 99, "username": "GitLabDuo"}],
+        },
+    }
+    with (
+        mock.patch.object(mod, "inspect", return_value=report),
+        mock.patch.object(mod, "_gitlab_user", return_value={
+            "id": 15705892,
+            "username": "panoskanell",
+        }),
+        mock.patch.object(mod, "_raw_mr", return_value=raw),
+        mock.patch.object(mod, "_review_request_note_exists", return_value=False),
+    ):
+        result = mod.request_human_review(
+            "gitlab-org/gitlab",
+            256812,
+            reviewer="panoskanell",
+            apply=False,
+        )
+
+    assert result["ok"] is True
+    assert result["dry_run"] is True
+    assert result["would_update"]["reviewer_ids"] == [99, 15705892]
+    assert mod.REVIEW_REQUEST_MARKER in result["would_update"]["comment"]
+
+
+def test_request_human_review_is_idempotent_when_already_requested() -> None:
+    report = {
+        "ok": True,
+        "draft": False,
+        "guards": {
+            "authenticated_user_is_author": True,
+            "latest_pipeline_success": True,
+            "no_unresolved_discussions": True,
+            "state_open": True,
+        },
+    }
+    raw = {
+        "ok": True,
+        "data": {
+            "reviewers": [{"id": 15705892, "username": "panoskanell"}],
+        },
+    }
+    with (
+        mock.patch.object(mod, "inspect", return_value=report),
+        mock.patch.object(mod, "_gitlab_user", return_value={
+            "id": 15705892,
+            "username": "panoskanell",
+        }),
+        mock.patch.object(mod, "_raw_mr", return_value=raw),
+        mock.patch.object(mod, "_review_request_note_exists", return_value=True),
+        mock.patch.object(mod.gl, "_request") as request,
+    ):
+        result = mod.request_human_review(
+            "gitlab-org/gitlab",
+            256812,
+            reviewer="panoskanell",
+            apply=True,
+        )
+
+    assert result["applied"] is True
+    assert result["reviewer_update"]["skipped"] is True
+    assert result["note_update"]["skipped"] is True
+    request.assert_not_called()
+
+
+def test_gitlab_user_rejects_unallowlisted_reviewer() -> None:
+    with mock.patch.object(mod.gl, "_request") as request:
+        result = mod._gitlab_user("someone-else")
+
+    assert result is None
+    request.assert_not_called()

@@ -49,6 +49,9 @@ REVIEW_LABEL_SEARCHES = (
     "backend",
 )
 
+ALLOWED_HUMAN_REVIEWERS = {"panoskanell"}
+REVIEW_REQUEST_MARKER = "[ContributorOps review request]"
+
 
 def _safe_data(res: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in res.items() if k not in {"token_source"}}
@@ -322,12 +325,136 @@ def apply_review_metadata(project: str, mr_iid: int, apply: bool = False) -> dic
         "verified_labels": verify.get("labels"),
     }
 
+
+def _gitlab_user(username: str) -> dict[str, Any] | None:
+    if username not in ALLOWED_HUMAN_REVIEWERS:
+        return None
+    res = gl._request(
+        "GET",
+        "/users",
+        query={"username": username, "per_page": 20},
+    )
+    rows = res.get("data") if res.get("ok") and isinstance(res.get("data"), list) else []
+    for row in rows:
+        if isinstance(row, dict) and str(row.get("username") or "") == username:
+            return row
+    return None
+
+
+def _review_request_note_exists(project: str, mr_iid: int) -> bool:
+    discussions = gl.list_merge_request_discussions(project, mr_iid, limit=100)
+    if not discussions.get("ok"):
+        return False
+    for discussion in discussions.get("discussions") or []:
+        for note in discussion.get("notes") or []:
+            if REVIEW_REQUEST_MARKER in str(note.get("body") or ""):
+                return True
+    return False
+
+
+def request_human_review(project: str, mr_iid: int, reviewer: str, apply: bool = False) -> dict[str, Any]:
+    report = inspect(project, mr_iid)
+    if not report.get("ok"):
+        return report
+
+    guards = report.get("guards") or {}
+    safe = (
+        bool(guards.get("authenticated_user_is_author"))
+        and bool(guards.get("latest_pipeline_success"))
+        and bool(guards.get("no_unresolved_discussions"))
+        and bool(guards.get("state_open"))
+        and not bool(report.get("draft"))
+    )
+    if not safe:
+        return {**report, "ok": False, "error": "review_request_guards_failed", "applied": False}
+
+    reviewer_row = _gitlab_user(reviewer)
+    if not reviewer_row:
+        return {**report, "ok": False, "error": "reviewer_not_allowlisted_or_found", "reviewer": reviewer}
+
+    raw = _raw_mr(project, mr_iid)
+    if not raw.get("ok"):
+        return raw
+    data = raw["data"]
+    existing_reviewers = [
+        row for row in (data.get("reviewers") or []) if isinstance(row, dict)
+    ]
+    existing_ids = [int(row["id"]) for row in existing_reviewers if row.get("id")]
+    reviewer_id = int(reviewer_row["id"])
+    reviewer_already_requested = reviewer_id in existing_ids
+    note_exists = _review_request_note_exists(project, mr_iid)
+
+    note_body = (
+        f"{REVIEW_REQUEST_MARKER}\n"
+        f"Hi @{reviewer}, this community contribution is ready for human review. "
+        "The latest community-fork pipeline is green and all resolvable discussions are closed.\n\n"
+        "Danger recommends backend review and asks a reviewer/maintainer to add milestone **19.5** "
+        "plus these labels if appropriate: `analytics instrumentation`, "
+        "`analytics instrumentation::review pending`, "
+        "`roulette-experiment::reviewer-column-hidden`, and `backend`. "
+        "As the contributor, I cannot apply those maintainer-managed metadata changes. Thanks!"
+    )
+
+    would = {
+        "reviewer_ids": existing_ids if reviewer_already_requested else existing_ids + [reviewer_id],
+        "comment": None if note_exists else note_body,
+    }
+    if not apply:
+        return {
+            **report,
+            "dry_run": True,
+            "applied": False,
+            "reviewer": {"id": reviewer_id, "username": reviewer},
+            "reviewer_already_requested": reviewer_already_requested,
+            "note_already_exists": note_exists,
+            "would_update": would,
+        }
+
+    encoded = gl.project_api_path(project)
+    reviewer_update: dict[str, Any] = {"ok": True, "skipped": reviewer_already_requested}
+    if not reviewer_already_requested:
+        reviewer_update = gl._request(
+            "PUT",
+            f"/projects/{encoded}/merge_requests/{mr_iid}",
+            payload={"reviewer_ids": existing_ids + [reviewer_id]},
+            timeout=60,
+        )
+
+    note_update: dict[str, Any] = {"ok": True, "skipped": note_exists}
+    if not note_exists:
+        note_update = gl._request(
+            "POST",
+            f"/projects/{encoded}/merge_requests/{mr_iid}/notes",
+            payload={"body": note_body},
+            timeout=60,
+        )
+
+    verify_raw = _raw_mr(project, mr_iid)
+    verify_data = verify_raw.get("data") if verify_raw.get("ok") else {}
+    verify_reviewers = [
+        str(row.get("username") or "")
+        for row in (verify_data.get("reviewers") or [])
+        if isinstance(row, dict)
+    ]
+    verified_note = _review_request_note_exists(project, mr_iid)
+
+    return {
+        **report,
+        "applied": True,
+        "reviewer": {"id": reviewer_id, "username": reviewer},
+        "reviewer_update": _safe_data(reviewer_update),
+        "note_update": _safe_data(note_update),
+        "verified_reviewer_requested": reviewer in verify_reviewers,
+        "verified_note_posted": verified_note,
+    }
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["inspect", "mark-ready", "discover-review-metadata", "apply-review-metadata"])
+    parser.add_argument("action", choices=["inspect", "mark-ready", "discover-review-metadata", "apply-review-metadata", "request-human-review"])
     parser.add_argument("--project", required=True, choices=sorted(ALLOWED_TARGET_PROJECTS))
     parser.add_argument("--mr", type=int, required=True)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--reviewer", default="panoskanell", choices=sorted(ALLOWED_HUMAN_REVIEWERS))
     args = parser.parse_args()
 
     if args.mr <= 0:
@@ -338,8 +465,10 @@ def main() -> int:
         result = mark_ready(args.project, args.mr, apply=args.apply)
     elif args.action == "discover-review-metadata":
         result = discover_review_metadata(args.project, args.mr)
-    else:
+    elif args.action == "apply-review-metadata":
         result = apply_review_metadata(args.project, args.mr, apply=args.apply)
+    else:
+        result = request_human_review(args.project, args.mr, reviewer=args.reviewer, apply=args.apply)
 
     print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     return 0 if result.get("ok") else 2
