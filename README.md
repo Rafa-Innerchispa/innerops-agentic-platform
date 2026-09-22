@@ -1,5 +1,16 @@
 # InnerOS - ARIA Enterprise Agent Fleet
 
+<!-- INNEROS-NARRATIVE:START -->
+> **InnerOS role:** Core Platform  
+> **Lifecycle:** Active  
+> **Lineage:** Core InnerOS platform; accelerated and publicly validated through the All Things Agentic Hackathon 2026.
+>
+> This is the primary public reference for the InnerOS coordination, governance, execution, evidence, recovery, and local/cloud routing architecture.
+>
+> **InnerOS principle:** hackathons are validation environments. Reusable capabilities are extracted into maintained products and platform layers rather than treated as disconnected one-off projects.
+<!-- INNEROS-NARRATIVE:END -->
+
+
 > **An AI operating system for a real small technology company.**
 >
 > InnerOS watches signals, remembers context, delegates work, executes through bounded tools, verifies outcomes, recovers stalled work, and brings the human back only when the human is actually needed.
