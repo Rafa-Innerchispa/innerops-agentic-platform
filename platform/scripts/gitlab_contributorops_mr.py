@@ -54,6 +54,23 @@ ALLOWED_HUMAN_REVIEWERS = {"panoskanell"}
 REVIEW_REQUEST_MARKER = "[ContributorOps review request]"
 
 
+LOCAL_EXEC_WORKTREE_ROOT = Path("/home/rlopez/inneros/inneros_core/var/local_execution/worktrees")
+TARGET_WORKTREE_REPO_DIRS = {
+    "gitlab-org/gitlab": "rafagye__gitlab",
+}
+ALLOWED_MCP_FILE_PREFIXES = (
+    "lib/api/mcp/handlers/",
+    "spec/requests/api/mcp/handlers/",
+    "ee/lib/ee/api/mcp/handlers/",
+    "ee/config/events/",
+)
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+DEFAULT_API_SYNC_COMMIT_MESSAGE = (
+    "Sync MCP handlers with current master\n\n"
+    "Preserve upstream alias resolution and expanded tools/list coverage while retaining protocol event instrumentation."
+)
+
+
 def _safe_data(res: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in res.items() if k not in {"token_source"}}
 
@@ -542,13 +559,212 @@ def rebase_merge_request(project: str, mr_iid: int, apply: bool = False) -> dict
         "post_rebase_detailed_merge_status": final_data.get("detailed_merge_status"),
     }
 
+
+def _mr_diff_paths(project: str, mr_iid: int) -> set[str]:
+    encoded = gl.project_api_path(project)
+    res = gl._request(
+        "GET",
+        f"/projects/{encoded}/merge_requests/{mr_iid}/diffs",
+        query={"per_page": 100},
+        timeout=60,
+    )
+    rows = res.get("data") if res.get("ok") and isinstance(res.get("data"), list) else []
+    paths: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for key in ("old_path", "new_path"):
+            value = str(row.get(key) or "").strip()
+            if value:
+                paths.add(value)
+    return paths
+
+
+def _safe_mr_file_path(path: str, mr_paths: set[str]) -> tuple[bool, str]:
+    value = str(path or "").strip()
+    if not value or value.startswith("/") or "\\" in value:
+        return False, "invalid_relative_path"
+    candidate = Path(value)
+    if any(part in {"", ".", ".."} for part in candidate.parts):
+        return False, "path_traversal_or_empty_component"
+    if value not in mr_paths:
+        return False, "file_not_in_merge_request_diff"
+    if not any(value.startswith(prefix) for prefix in ALLOWED_MCP_FILE_PREFIXES):
+        return False, "file_prefix_not_allowlisted"
+    return True, ""
+
+
+def _source_worktree_path(project: str, source_branch: str) -> Path | None:
+    repo_dir = TARGET_WORKTREE_REPO_DIRS.get(project)
+    if not repo_dir:
+        return None
+    branch_dir = source_branch.replace("/", "__")
+    root = (LOCAL_EXEC_WORKTREE_ROOT / repo_dir).resolve()
+    worktree = (root / branch_dir).resolve()
+    try:
+        worktree.relative_to(root)
+    except ValueError:
+        return None
+    return worktree
+
+
+def commit_worktree_files(
+    project: str,
+    mr_iid: int,
+    expected_sha: str,
+    files: list[str],
+    apply: bool = False,
+) -> dict[str, Any]:
+    report = inspect(project, mr_iid)
+    if not report.get("ok"):
+        return report
+
+    guards = report.get("guards") or {}
+    safe = (
+        bool(guards.get("authenticated_user_is_author"))
+        and bool(guards.get("source_project_allowlisted"))
+        and bool(guards.get("source_branch_allowlisted"))
+        and bool(guards.get("state_open"))
+    )
+    if not safe:
+        return {**report, "ok": False, "error": "api_commit_guards_failed", "applied": False}
+
+    expected_sha = str(expected_sha or "").strip().lower()
+    if not SHA_RE.fullmatch(expected_sha):
+        return {**report, "ok": False, "error": "expected_sha_invalid", "applied": False}
+    if str(report.get("sha") or "").lower() != expected_sha:
+        return {
+            **report,
+            "ok": False,
+            "error": "source_sha_mismatch",
+            "applied": False,
+            "expected_sha": expected_sha,
+            "actual_sha": report.get("sha"),
+        }
+
+    source_project = str(report.get("source_project") or "")
+    source_branch = str(report.get("source_branch") or "")
+    worktree = _source_worktree_path(project, source_branch)
+    if not worktree or not worktree.is_dir():
+        return {**report, "ok": False, "error": "source_worktree_not_found", "applied": False}
+
+    unique_files = list(dict.fromkeys(str(item or "").strip() for item in files if str(item or "").strip()))
+    if not unique_files or len(unique_files) > 8:
+        return {**report, "ok": False, "error": "file_count_invalid", "applied": False}
+
+    mr_paths = _mr_diff_paths(project, mr_iid)
+    if not mr_paths:
+        return {**report, "ok": False, "error": "merge_request_diff_unavailable", "applied": False}
+
+    actions: list[dict[str, Any]] = []
+    file_evidence: list[dict[str, Any]] = []
+    for file_path in unique_files:
+        allowed, reason = _safe_mr_file_path(file_path, mr_paths)
+        if not allowed:
+            return {
+                **report,
+                "ok": False,
+                "error": reason,
+                "file": file_path,
+                "applied": False,
+            }
+
+        local_path = (worktree / file_path).resolve()
+        try:
+            local_path.relative_to(worktree)
+        except ValueError:
+            return {**report, "ok": False, "error": "local_path_escape", "file": file_path, "applied": False}
+
+        if not local_path.is_file():
+            return {**report, "ok": False, "error": "local_file_missing", "file": file_path, "applied": False}
+        if local_path.stat().st_size > 512_000:
+            return {**report, "ok": False, "error": "local_file_too_large", "file": file_path, "applied": False}
+
+        content = local_path.read_text(encoding="utf-8")
+        actions.append({
+            "action": "update",
+            "file_path": file_path,
+            "content": content,
+            "encoding": "text",
+        })
+        file_evidence.append({"file_path": file_path, "bytes": len(content.encode("utf-8"))})
+
+    # Re-check immediately before a write to narrow the race window.
+    if apply:
+        current = _raw_mr(project, mr_iid)
+        current_data = current.get("data") if current.get("ok") else {}
+        current_sha = str(current_data.get("sha") or "").lower()
+        if current_sha != expected_sha:
+            return {
+                **report,
+                "ok": False,
+                "error": "source_sha_changed_before_commit",
+                "applied": False,
+                "expected_sha": expected_sha,
+                "actual_sha": current_sha,
+            }
+
+    payload = {
+        "branch": source_branch,
+        "commit_message": DEFAULT_API_SYNC_COMMIT_MESSAGE,
+        "actions": actions,
+    }
+    if not apply:
+        return {
+            **report,
+            "dry_run": True,
+            "applied": False,
+            "source_project": source_project,
+            "worktree": str(worktree),
+            "expected_sha": expected_sha,
+            "files": file_evidence,
+            "would_commit": {
+                "branch": source_branch,
+                "commit_message": DEFAULT_API_SYNC_COMMIT_MESSAGE,
+                "actions": [{"action": "update", **item} for item in file_evidence],
+            },
+        }
+
+    encoded_source = gl.project_api_path(source_project)
+    committed = gl._request(
+        "POST",
+        f"/projects/{encoded_source}/repository/commits",
+        payload=payload,
+        timeout=120,
+    )
+    if not committed.get("ok"):
+        return {
+            **report,
+            "ok": False,
+            "error": "repository_commit_failed",
+            "applied": False,
+            "provider": _safe_data(committed),
+            "files": file_evidence,
+        }
+
+    commit_data = committed.get("data") if isinstance(committed.get("data"), dict) else {}
+    verify = inspect(project, mr_iid)
+    new_sha = str(verify.get("sha") or "")
+    return {
+        **verify,
+        "applied": True,
+        "previous_sha": expected_sha,
+        "commit_id": commit_data.get("id"),
+        "short_id": commit_data.get("short_id"),
+        "new_sha": new_sha,
+        "sha_changed": bool(new_sha) and new_sha.lower() != expected_sha,
+        "files": file_evidence,
+    }
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["inspect", "mark-ready", "discover-review-metadata", "apply-review-metadata", "request-human-review", "rebase"])
+    parser.add_argument("action", choices=["inspect", "mark-ready", "discover-review-metadata", "apply-review-metadata", "request-human-review", "rebase", "commit-worktree-files"])
     parser.add_argument("--project", required=True, choices=sorted(ALLOWED_TARGET_PROJECTS))
     parser.add_argument("--mr", type=int, required=True)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--reviewer", default="panoskanell", choices=sorted(ALLOWED_HUMAN_REVIEWERS))
+    parser.add_argument("--expected-sha", default="")
+    parser.add_argument("--file", action="append", default=[])
     args = parser.parse_args()
 
     if args.mr <= 0:
@@ -563,8 +779,16 @@ def main() -> int:
         result = apply_review_metadata(args.project, args.mr, apply=args.apply)
     elif args.action == "request-human-review":
         result = request_human_review(args.project, args.mr, reviewer=args.reviewer, apply=args.apply)
-    else:
+    elif args.action == "rebase":
         result = rebase_merge_request(args.project, args.mr, apply=args.apply)
+    else:
+        result = commit_worktree_files(
+            args.project,
+            args.mr,
+            expected_sha=args.expected_sha,
+            files=args.file,
+            apply=args.apply,
+        )
 
     print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     return 0 if result.get("ok") else 2
