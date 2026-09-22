@@ -280,3 +280,113 @@ def test_gitlab_user_rejects_unallowlisted_reviewer() -> None:
 
     assert result is None
     request.assert_not_called()
+
+
+def test_rebase_dry_run_reports_conflict_preflight() -> None:
+    report = {
+        "ok": True,
+        "draft": False,
+        "guards": {
+            "authenticated_user_is_author": True,
+            "source_project_allowlisted": True,
+            "source_branch_allowlisted": True,
+            "state_open": True,
+        },
+    }
+    raw = {
+        "ok": True,
+        "data": {
+            "has_conflicts": True,
+            "merge_status": "cannot_be_merged",
+            "detailed_merge_status": "not_approved",
+            "sha": "5f61a397",
+        },
+    }
+    with (
+        mock.patch.object(mod, "inspect", return_value=report),
+        mock.patch.object(mod, "_raw_mr", return_value=raw),
+    ):
+        result = mod.rebase_merge_request("gitlab-org/gitlab", 256812, apply=False)
+
+    assert result["ok"] is True
+    assert result["dry_run"] is True
+    assert result["preflight"]["has_conflicts"] is True
+    assert result["would_request"]["skip_ci"] is False
+
+
+def test_rebase_apply_polls_until_complete() -> None:
+    before = {
+        "ok": True,
+        "draft": False,
+        "guards": {
+            "authenticated_user_is_author": True,
+            "source_project_allowlisted": True,
+            "source_branch_allowlisted": True,
+            "state_open": True,
+        },
+    }
+    after = {
+        "ok": True,
+        "draft": False,
+        "guards": before["guards"],
+        "latest_pipeline": {"status": "pending"},
+    }
+    raw = {
+        "ok": True,
+        "data": {
+            "has_conflicts": False,
+            "merge_status": "can_be_merged",
+            "detailed_merge_status": "mergeable",
+            "sha": "oldsha",
+        },
+    }
+    queued = {"ok": True, "status": 202, "data": {"rebase_in_progress": True}}
+    final = {
+        "ok": True,
+        "status": 200,
+        "data": {
+            "rebase_in_progress": False,
+            "merge_error": None,
+            "sha": "newsha",
+            "has_conflicts": False,
+            "detailed_merge_status": "checking",
+        },
+    }
+    with (
+        mock.patch.object(mod, "inspect", side_effect=[before, after]),
+        mock.patch.object(mod, "_raw_mr", return_value=raw),
+        mock.patch.object(mod.gl, "_request", side_effect=[queued, final]) as request,
+    ):
+        result = mod.rebase_merge_request("gitlab-org/gitlab", 256812, apply=True)
+
+    assert result["ok"] is True
+    assert result["applied"] is True
+    assert result["merge_error"] is None
+    assert result["post_rebase_sha"] == "newsha"
+    assert request.call_args_list[0].args[0] == "PUT"
+    assert request.call_args_list[1].kwargs["query"] == {"include_rebase_in_progress": "true"}
+
+
+def test_rebase_enqueue_failure_is_reported_without_mutation_claim() -> None:
+    report = {
+        "ok": True,
+        "draft": False,
+        "guards": {
+            "authenticated_user_is_author": True,
+            "source_project_allowlisted": True,
+            "source_branch_allowlisted": True,
+            "state_open": True,
+        },
+    }
+    raw = {"ok": True, "data": {"has_conflicts": True, "sha": "oldsha"}}
+    denied = {"ok": False, "status": 403, "error": "Cannot push to source branch"}
+    with (
+        mock.patch.object(mod, "inspect", return_value=report),
+        mock.patch.object(mod, "_raw_mr", return_value=raw),
+        mock.patch.object(mod.gl, "_request", return_value=denied),
+    ):
+        result = mod.rebase_merge_request("gitlab-org/gitlab", 256812, apply=True)
+
+    assert result["ok"] is False
+    assert result["error"] == "rebase_enqueue_failed"
+    assert result["applied"] is False
