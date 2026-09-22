@@ -1,0 +1,8 @@
+{
+  "owner": "Rafa-Innerchispa",
+  "gitlab_namespace": "rafagye",
+  "public_repos": [
+    "inneros-personal-brain"
+  ],
+  "policy": "Explicit promotions become public on GitHub and GitLab; all other repos preserve GitHub visibility and GitLab mirrors it fail-closed."
+}
