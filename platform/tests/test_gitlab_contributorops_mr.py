@@ -130,3 +130,66 @@ def test_mark_ready_applies_title_update_and_verifies() -> None:
     request.assert_called_once()
     payload = request.call_args.kwargs["payload"]
     assert payload == {"title": "Instrument MCP initialize and tools/list protocol methods"}
+
+
+def test_pick_review_labels_uses_exact_danger_labels_only() -> None:
+    rows = [
+        {"id": 1, "name": "analytics instrumentation"},
+        {"id": 2, "name": "analytics instrumentation::review pending"},
+        {"id": 3, "name": "roulette-experiment::reviewer-column-shown"},
+        {"id": 4, "name": "roulette-experiment::reviewer-column-hidden"},
+        {"id": 5, "name": "backend"},
+    ]
+
+    selected = mod._pick_review_labels(rows)
+
+    assert [row["name"] for row in selected] == [
+        "analytics instrumentation",
+        "analytics instrumentation::review pending",
+        "roulette-experiment::reviewer-column-hidden",
+        "backend",
+    ]
+
+
+def test_milestone_rows_falls_back_to_gitlab_org_group() -> None:
+    with mock.patch.object(
+        mod.gl,
+        "_request",
+        side_effect=[
+            {"ok": True, "data": []},
+            {"ok": True, "data": [{"id": 6239396, "title": "19.5"}]},
+        ],
+    ) as request:
+        rows = mod._milestone_rows("gitlab-org/gitlab", "19.5")
+
+    assert rows == [{"id": 6239396, "title": "19.5"}]
+    assert request.call_args_list[1].args[1] == "/groups/gitlab-org/milestones"
+
+
+def test_apply_review_metadata_dry_run_preserves_existing_labels() -> None:
+    report = {
+        "ok": True,
+        "guards": {"authenticated_user_is_author": True, "state_open": True},
+        "review_metadata": {
+            "milestone": {"id": 6239396, "title": "19.5"},
+            "selected_labels": [
+                {"id": 1, "name": "analytics instrumentation"},
+                {"id": 2, "name": "analytics instrumentation::review pending"},
+                {"id": 3, "name": "roulette-experiment::reviewer-column-hidden"},
+                {"id": 4, "name": "backend"},
+            ],
+        },
+        "labels": ["Community contribution"],
+    }
+    with mock.patch.object(mod, "discover_review_metadata", return_value=report):
+        result = mod.apply_review_metadata("gitlab-org/gitlab", 256812, apply=False)
+
+    assert result["ok"] is True
+    assert result["dry_run"] is True
+    assert result["would_update"]["milestone_id"] == 6239396
+    assert result["would_update"]["add_labels"] == (
+        "analytics instrumentation,"
+        "analytics instrumentation::review pending,"
+        "roulette-experiment::reviewer-column-hidden,"
+        "backend"
+    )

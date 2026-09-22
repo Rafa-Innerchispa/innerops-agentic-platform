@@ -34,6 +34,22 @@ ALLOWED_BRANCH_RE = re.compile(r"^(?:chatgpt|codex|cursor|antigravity|gemini|loc
 DRAFT_PREFIX_RE = re.compile(r"^(?:draft\s*[:\-]|wip\s*[:\-])\s*", re.IGNORECASE)
 
 
+REVIEW_MILESTONE_TITLE = "19.5"
+REVIEW_LABEL_NAMES = (
+    "analytics instrumentation",
+    "analytics instrumentation::review pending",
+    "roulette-experiment::reviewer-column-hidden",
+    "backend",
+)
+REVIEW_LABEL_SEARCHES = (
+    "analytics instrumentation",
+    "review pending",
+    "roulette-experiment",
+    "reviewer-column-hidden",
+    "backend",
+)
+
+
 def _safe_data(res: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in res.items() if k not in {"token_source"}}
 
@@ -175,9 +191,140 @@ def mark_ready(project: str, mr_iid: int, apply: bool = False) -> dict[str, Any]
     }
 
 
+
+def _label_rows(project: str, search: str) -> list[dict[str, Any]]:
+    encoded = gl.project_api_path(project)
+    res = gl._request(
+        "GET",
+        f"/projects/{encoded}/labels",
+        query={"search": search, "per_page": 100, "include_ancestor_groups": "true"},
+    )
+    rows = res.get("data") if res.get("ok") and isinstance(res.get("data"), list) else []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _milestone_rows(project: str, search: str) -> list[dict[str, Any]]:
+    encoded = gl.project_api_path(project)
+    res = gl._request(
+        "GET",
+        f"/projects/{encoded}/milestones",
+        query={"state": "active", "search": search, "per_page": 100},
+    )
+    rows = res.get("data") if res.get("ok") and isinstance(res.get("data"), list) else []
+    project_rows = [row for row in rows if isinstance(row, dict)]
+    if any(str(row.get("title") or "") == search for row in project_rows):
+        return project_rows
+
+    group_path = project.split("/", 1)[0]
+    group_encoded = gl.project_api_path(group_path)
+    group_res = gl._request(
+        "GET",
+        f"/groups/{group_encoded}/milestones",
+        query={"state": "active", "search": search, "per_page": 100},
+    )
+    group_rows = group_res.get("data") if group_res.get("ok") and isinstance(group_res.get("data"), list) else []
+    return project_rows + [row for row in group_rows if isinstance(row, dict)]
+
+
+def _pick_review_labels(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_name = {
+        str(row.get("name") or "").strip().lower(): row
+        for row in rows
+        if str(row.get("name") or "").strip()
+    }
+    return [by_name[name] for name in REVIEW_LABEL_NAMES if name in by_name]
+
+
+def discover_review_metadata(project: str, mr_iid: int) -> dict[str, Any]:
+    report = inspect(project, mr_iid)
+    if not report.get("ok"):
+        return report
+
+    milestones = _milestone_rows(project, REVIEW_MILESTONE_TITLE)
+    milestone = next(
+        (row for row in milestones if str(row.get("title") or "") == REVIEW_MILESTONE_TITLE),
+        None,
+    )
+
+    seen: dict[int | str, dict[str, Any]] = {}
+    for search in REVIEW_LABEL_SEARCHES:
+        for row in _label_rows(project, search):
+            key = row.get("id") or str(row.get("name") or "")
+            seen[key] = row
+
+    selected = _pick_review_labels(list(seen.values()))
+    return {
+        **report,
+        "review_metadata": {
+            "milestone": {
+                "id": milestone.get("id"),
+                "title": milestone.get("title"),
+            } if isinstance(milestone, dict) else None,
+            "selected_labels": [
+                {"id": row.get("id"), "name": row.get("name")}
+                for row in selected
+            ],
+            "discovered_label_names": sorted(
+                {str(row.get("name") or "") for row in seen.values() if row.get("name")}
+            ),
+        },
+    }
+
+
+def apply_review_metadata(project: str, mr_iid: int, apply: bool = False) -> dict[str, Any]:
+    report = discover_review_metadata(project, mr_iid)
+    if not report.get("ok"):
+        return report
+
+    guards = report.get("guards") or {}
+    safe_owner = bool(guards.get("authenticated_user_is_author")) and bool(guards.get("state_open"))
+    if not safe_owner:
+        return {**report, "ok": False, "error": "metadata_guards_failed", "applied": False}
+
+    metadata = report.get("review_metadata") or {}
+    milestone = metadata.get("milestone")
+    labels = [str(row.get("name") or "") for row in (metadata.get("selected_labels") or []) if row.get("name")]
+    if not milestone:
+        return {**report, "ok": False, "error": "review_milestone_not_found", "applied": False}
+    if not labels:
+        return {**report, "ok": False, "error": "review_labels_not_found", "applied": False}
+
+    payload = {
+        "milestone_id": milestone.get("id"),
+        "add_labels": ",".join(labels),
+    }
+    if not apply:
+        return {**report, "dry_run": True, "applied": False, "would_update": payload}
+
+    encoded = gl.project_api_path(project)
+    updated = gl._request(
+        "PUT",
+        f"/projects/{encoded}/merge_requests/{mr_iid}",
+        payload=payload,
+        timeout=60,
+    )
+    if not updated.get("ok"):
+        return {
+            **report,
+            "ok": False,
+            "error": "review_metadata_update_failed",
+            "applied": False,
+            "provider": _safe_data(updated),
+            "attempted_update": payload,
+        }
+
+    verify = inspect(project, mr_iid)
+    return {
+        **verify,
+        "applied": True,
+        "attempted_update": payload,
+        "verified_milestone": verify.get("milestone"),
+        "verified_labels": verify.get("labels"),
+    }
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["inspect", "mark-ready"])
+    parser.add_argument("action", choices=["inspect", "mark-ready", "discover-review-metadata", "apply-review-metadata"])
     parser.add_argument("--project", required=True, choices=sorted(ALLOWED_TARGET_PROJECTS))
     parser.add_argument("--mr", type=int, required=True)
     parser.add_argument("--apply", action="store_true")
@@ -187,8 +334,12 @@ def main() -> int:
         result = {"ok": False, "error": "mr_iid_invalid"}
     elif args.action == "inspect":
         result = inspect(args.project, args.mr)
-    else:
+    elif args.action == "mark-ready":
         result = mark_ready(args.project, args.mr, apply=args.apply)
+    elif args.action == "discover-review-metadata":
+        result = discover_review_metadata(args.project, args.mr)
+    else:
+        result = apply_review_metadata(args.project, args.mr, apply=args.apply)
 
     print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     return 0 if result.get("ok") else 2
