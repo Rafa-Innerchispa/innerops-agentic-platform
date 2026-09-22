@@ -149,6 +149,7 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("python3", "-m", "unittest"),
         ("python", "-m", "compileall"),
         ("python3", "-m", "compileall"),
+        ("python3", "platform/scripts/gitlab_contributorops_mr.py"),
         ("git", "status", "--short", "--branch"),
         ("git", "diff", "--check"),
         ("git", "diff", "--stat"),
