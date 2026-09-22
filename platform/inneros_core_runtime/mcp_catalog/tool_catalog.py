@@ -4910,3 +4910,19 @@ TOOL_DEFINITIONS.update({'agent_iskcon_class_update': {'description': 'Compatibi
                                    'required_scopes': ['ralfia:read'],
                                    'risk_level': 'low',
                                    'writes_to': []}})
+
+
+# --- GitLab CI job trace observability (2026-09-21) ---
+if "local_gitlab_get_job_trace" not in ALL_MCP_TOOL_NAMES:
+    ALL_MCP_TOOL_NAMES.append("local_gitlab_get_job_trace")
+
+TOOL_DEFINITIONS["local_gitlab_get_job_trace"] = {
+    "description": "Local GitLab Plane: devuelve el tail acotado y redactado del trace de un job CI.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["gitlab_api", "owner_vault"],
+    "input_schema": {"project_id_or_path": "string", "job_id": "number", "max_bytes": "number|null"},
+    "output_schema": {"ok": "bool", "job_id": "number", "trace": "string", "truncated": "bool"},
+    "example_payload": {"project_id_or_path": "gitlab-community/gitlab-org/gitlab", "job_id": 16638944079, "max_bytes": 12000},
+}
