@@ -390,3 +390,126 @@ def test_rebase_enqueue_failure_is_reported_without_mutation_claim() -> None:
     assert result["ok"] is False
     assert result["error"] == "rebase_enqueue_failed"
     assert result["applied"] is False
+
+
+def _api_commit_report(sha: str = "5f61a3974db42965efd57c7041d72c0542c09fec") -> dict:
+    return {
+        "ok": True,
+        "sha": sha,
+        "source_project": "gitlab-community/gitlab-org/gitlab",
+        "source_branch": "chatgpt/630107-mcp-protocol-events-v2",
+        "guards": {
+            "authenticated_user_is_author": True,
+            "source_project_allowlisted": True,
+            "source_branch_allowlisted": True,
+            "state_open": True,
+        },
+    }
+
+
+def test_commit_worktree_files_rejects_source_sha_mismatch(tmp_path: Path) -> None:
+    with mock.patch.object(mod, "inspect", return_value=_api_commit_report()):
+        result = mod.commit_worktree_files(
+            "gitlab-org/gitlab",
+            256812,
+            expected_sha="a" * 40,
+            files=["lib/api/mcp/handlers/list_tools.rb"],
+            apply=False,
+        )
+
+    assert result["ok"] is False
+    assert result["error"] == "source_sha_mismatch"
+    assert result["actual_sha"] == "5f61a3974db42965efd57c7041d72c0542c09fec"
+
+
+def test_commit_worktree_files_dry_run_validates_mr_paths_and_sizes(tmp_path: Path) -> None:
+    expected = "5f61a3974db42965efd57c7041d72c0542c09fec"
+    file_path = "lib/api/mcp/handlers/list_tools.rb"
+    local = tmp_path / file_path
+    local.parent.mkdir(parents=True)
+    local.write_text("content\n", encoding="utf-8")
+
+    with (
+        mock.patch.object(mod, "inspect", return_value=_api_commit_report(expected)),
+        mock.patch.object(mod, "_source_worktree_path", return_value=tmp_path),
+        mock.patch.object(mod, "_mr_diff_paths", return_value={file_path}),
+    ):
+        result = mod.commit_worktree_files(
+            "gitlab-org/gitlab",
+            256812,
+            expected_sha=expected,
+            files=[file_path],
+            apply=False,
+        )
+
+    assert result["ok"] is True
+    assert result["dry_run"] is True
+    assert result["files"] == [{"file_path": file_path, "bytes": 8}]
+    assert result["would_commit"]["actions"] == [
+        {"action": "update", "file_path": file_path, "bytes": 8}
+    ]
+
+
+def test_commit_worktree_files_rejects_file_outside_mcp_allowlist(tmp_path: Path) -> None:
+    expected = "5f61a3974db42965efd57c7041d72c0542c09fec"
+    file_path = "README.md"
+    local = tmp_path / file_path
+    local.write_text("nope\n", encoding="utf-8")
+
+    with (
+        mock.patch.object(mod, "inspect", return_value=_api_commit_report(expected)),
+        mock.patch.object(mod, "_source_worktree_path", return_value=tmp_path),
+        mock.patch.object(mod, "_mr_diff_paths", return_value={file_path}),
+    ):
+        result = mod.commit_worktree_files(
+            "gitlab-org/gitlab",
+            256812,
+            expected_sha=expected,
+            files=[file_path],
+            apply=False,
+        )
+
+    assert result["ok"] is False
+    assert result["error"] == "file_prefix_not_allowlisted"
+
+
+def test_commit_worktree_files_apply_posts_source_commit_and_verifies_new_sha(tmp_path: Path) -> None:
+    expected = "5f61a3974db42965efd57c7041d72c0542c09fec"
+    new_sha = "d7591e8fdbd91234567890123456789012345678"
+    file_path = "spec/requests/api/mcp/handlers/list_tools_spec.rb"
+    local = tmp_path / file_path
+    local.parent.mkdir(parents=True)
+    local.write_text("spec content\n", encoding="utf-8")
+
+    before = _api_commit_report(expected)
+    after = _api_commit_report(new_sha)
+    with (
+        mock.patch.object(mod, "inspect", side_effect=[before, after]),
+        mock.patch.object(mod, "_source_worktree_path", return_value=tmp_path),
+        mock.patch.object(mod, "_mr_diff_paths", return_value={file_path}),
+        mock.patch.object(mod, "_raw_mr", return_value={"ok": True, "data": {"sha": expected}}),
+        mock.patch.object(
+            mod.gl,
+            "_request",
+            return_value={"ok": True, "status": 201, "data": {"id": new_sha, "short_id": new_sha[:8]}},
+        ) as request,
+    ):
+        result = mod.commit_worktree_files(
+            "gitlab-org/gitlab",
+            256812,
+            expected_sha=expected,
+            files=[file_path],
+            apply=True,
+        )
+
+    assert result["ok"] is True
+    assert result["applied"] is True
+    assert result["sha_changed"] is True
+    assert result["new_sha"] == new_sha
+    request.assert_called_once()
+    assert request.call_args.args[0] == "POST"
+    assert request.call_args.args[1] == "/projects/gitlab-community%2Fgitlab-org%2Fgitlab/repository/commits"
+    payload = request.call_args.kwargs["payload"]
+    assert payload["branch"] == "chatgpt/630107-mcp-protocol-events-v2"
+    assert payload["actions"][0]["file_path"] == file_path
+    assert payload["actions"][0]["content"] == "spec content\n"
