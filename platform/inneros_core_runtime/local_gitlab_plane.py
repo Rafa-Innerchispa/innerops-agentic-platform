@@ -644,6 +644,79 @@ def list_pipeline_jobs(project_id_or_path: str, pipeline_id: int, limit: int = 1
     }
 
 
+def get_job_trace(project_id_or_path: str, job_id: int, max_bytes: int = MAX_OUTPUT) -> dict[str, Any]:
+    jid, error = _positive_int(job_id, "job_id")
+    if error:
+        return error
+
+    try:
+        bounded_bytes = int(max_bytes)
+    except (TypeError, ValueError):
+        bounded_bytes = MAX_OUTPUT
+    bounded_bytes = max(1024, min(bounded_bytes, 100_000))
+
+    token, source = _token()
+    if not token:
+        return {
+            "ok": False,
+            "error": "gitlab_token_missing",
+            "token_source": source,
+            "hint": "store token with local_gitlab_store_pat_server_side",
+        }
+
+    encoded = project_api_path(project_id_or_path)
+    url = f"{API_BASE}/projects/{encoded}/jobs/{jid}/trace"
+    auth_header = "PRIVATE" + "-TOKEN"
+    req = urllib.request.Request(
+        url,
+        method="GET",
+        headers={
+            auth_header: token,
+            "User-Agent": "InnerOS-RalphiIA-GitLab-Plane/1.0",
+        },
+    )
+
+    try:
+        tail = bytearray()
+        total_bytes = 0
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            while True:
+                chunk = resp.read(65_536)
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                tail.extend(chunk)
+                if len(tail) > bounded_bytes:
+                    del tail[:-bounded_bytes]
+            trace = _redact(tail.decode("utf-8", errors="replace"))
+            return {
+                "ok": 200 <= resp.status < 300,
+                "status": resp.status,
+                "job_id": jid,
+                "trace": trace,
+                "total_bytes": total_bytes,
+                "returned_bytes": len(tail),
+                "truncated": total_bytes > bounded_bytes,
+                "token_source": source,
+            }
+    except urllib.error.HTTPError as exc:
+        detail = _redact(exc.read().decode("utf-8", errors="replace")[:2000])
+        return {
+            "ok": False,
+            "status": exc.code,
+            "error": "gitlab_http_error",
+            "detail": detail,
+            "job_id": jid,
+            "token_source": source,
+        }
+    except urllib.error.URLError as exc:
+        return {
+            "ok": False,
+            "error": "gitlab_unreachable",
+            "detail": _redact(str(exc.reason)),
+            "job_id": jid,
+            "token_source": source,
+        }
 def create_draft_merge_request(
     source_project: str,
     source_branch: str,

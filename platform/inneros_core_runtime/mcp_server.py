@@ -7034,3 +7034,14 @@ def ide_complete_task(dispatch_id: str, ide: str, result: str = "completed", evi
     from inneros_core_runtime import ide_task_bridge
 
     return ide_task_bridge.complete_task(dispatch_id, ide, result=result, evidence=evidence or {})
+
+
+# --- GitLab CI job trace observability (2026-09-21) ---
+@mcp.tool
+def local_gitlab_get_job_trace(project_id_or_path: str, job_id: int, max_bytes: int = 12000) -> dict[str, Any]:
+    """Local GitLab Plane: devuelve el tail acotado y redactado del trace de un job CI."""
+    return local_gitlab_plane.get_job_trace(
+        project_id_or_path=project_id_or_path,
+        job_id=job_id,
+        max_bytes=max_bytes,
+    )
