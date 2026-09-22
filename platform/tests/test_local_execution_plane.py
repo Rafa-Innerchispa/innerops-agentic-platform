@@ -411,3 +411,17 @@ def test_project_runtime_registry_policy_overrides_bundled_default(monkeypatch, 
     assert conf["allowed_paths"] == ["platform"]
     assert conf["package_roots"] == [".", "platform"]
     assert conf["registry_backed"] is True
+
+
+def test_python_profile_allows_bounded_gitlab_contributorops_wrapper() -> None:
+    command = [
+        "python3",
+        "platform/scripts/gitlab_contributorops_mr.py",
+        "inspect",
+        "--project",
+        "gitlab-org/gitlab",
+        "--mr",
+        "256812",
+    ]
+    assert lep._command_allowed(command, "python-tests") is True
+    assert lep._command_allowed(["python3", "platform/scripts/other_gitlab_script.py"], "python-tests") is False
