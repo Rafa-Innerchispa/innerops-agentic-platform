@@ -11,6 +11,7 @@ import argparse
 import json
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -448,9 +449,102 @@ def request_human_review(project: str, mr_iid: int, reviewer: str, apply: bool =
         "verified_note_posted": verified_note,
     }
 
+
+def rebase_merge_request(project: str, mr_iid: int, apply: bool = False) -> dict[str, Any]:
+    report = inspect(project, mr_iid)
+    if not report.get("ok"):
+        return report
+
+    guards = report.get("guards") or {}
+    safe = (
+        bool(guards.get("authenticated_user_is_author"))
+        and bool(guards.get("source_project_allowlisted"))
+        and bool(guards.get("source_branch_allowlisted"))
+        and bool(guards.get("state_open"))
+        and not bool(report.get("draft"))
+    )
+    if not safe:
+        return {**report, "ok": False, "error": "rebase_guards_failed", "applied": False}
+
+    raw = _raw_mr(project, mr_iid)
+    if not raw.get("ok"):
+        return raw
+    data = raw["data"]
+    preflight = {
+        "has_conflicts": bool(data.get("has_conflicts")),
+        "merge_status": data.get("merge_status"),
+        "detailed_merge_status": data.get("detailed_merge_status"),
+        "sha": data.get("sha"),
+    }
+
+    if not apply:
+        return {
+            **report,
+            "dry_run": True,
+            "applied": False,
+            "preflight": preflight,
+            "would_request": {
+                "method": "PUT",
+                "endpoint": f"/projects/{gl.project_api_path(project)}/merge_requests/{mr_iid}/rebase",
+                "skip_ci": False,
+            },
+        }
+
+    encoded = gl.project_api_path(project)
+    queued = gl._request(
+        "PUT",
+        f"/projects/{encoded}/merge_requests/{mr_iid}/rebase",
+        payload={},
+        timeout=60,
+    )
+    if not queued.get("ok"):
+        return {
+            **report,
+            "ok": False,
+            "error": "rebase_enqueue_failed",
+            "applied": False,
+            "preflight": preflight,
+            "provider": _safe_data(queued),
+        }
+
+    deadline = time.time() + 90
+    final_data: dict[str, Any] = {}
+    poll_count = 0
+    poll_error: dict[str, Any] | None = None
+    while time.time() < deadline:
+        poll_count += 1
+        status = gl._request(
+            "GET",
+            f"/projects/{encoded}/merge_requests/{mr_iid}",
+            query={"include_rebase_in_progress": "true"},
+            timeout=60,
+        )
+        if not status.get("ok"):
+            poll_error = _safe_data(status)
+            break
+        final_data = status.get("data") if isinstance(status.get("data"), dict) else {}
+        if not final_data.get("rebase_in_progress"):
+            break
+        time.sleep(2)
+
+    verify = inspect(project, mr_iid)
+    return {
+        **verify,
+        "applied": True,
+        "preflight": preflight,
+        "enqueue": _safe_data(queued),
+        "poll_count": poll_count,
+        "poll_error": poll_error,
+        "rebase_in_progress": bool(final_data.get("rebase_in_progress")),
+        "merge_error": final_data.get("merge_error"),
+        "post_rebase_sha": final_data.get("sha"),
+        "post_rebase_has_conflicts": final_data.get("has_conflicts"),
+        "post_rebase_detailed_merge_status": final_data.get("detailed_merge_status"),
+    }
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["inspect", "mark-ready", "discover-review-metadata", "apply-review-metadata", "request-human-review"])
+    parser.add_argument("action", choices=["inspect", "mark-ready", "discover-review-metadata", "apply-review-metadata", "request-human-review", "rebase"])
     parser.add_argument("--project", required=True, choices=sorted(ALLOWED_TARGET_PROJECTS))
     parser.add_argument("--mr", type=int, required=True)
     parser.add_argument("--apply", action="store_true")
@@ -467,8 +561,10 @@ def main() -> int:
         result = discover_review_metadata(args.project, args.mr)
     elif args.action == "apply-review-metadata":
         result = apply_review_metadata(args.project, args.mr, apply=args.apply)
-    else:
+    elif args.action == "request-human-review":
         result = request_human_review(args.project, args.mr, reviewer=args.reviewer, apply=args.apply)
+    else:
+        result = rebase_merge_request(args.project, args.mr, apply=args.apply)
 
     print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     return 0 if result.get("ok") else 2
