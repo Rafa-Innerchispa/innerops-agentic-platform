@@ -10,62 +10,348 @@
     "Rafa-Innerchispa/aegis-forkguard"
   ],
   "roles": [
-    "featured_system","active_product","product_extension","core_capability","rd_hub","experimental_probe",
-    "validation_snapshot","engineering_evidence","legacy","internal_operations","public_support","archive_candidate"
+    "featured_system",
+    "active_product",
+    "product_extension",
+    "core_capability",
+    "rd_hub",
+    "experimental_probe",
+    "validation_snapshot",
+    "engineering_evidence",
+    "legacy",
+    "internal_operations",
+    "public_support",
+    "archive_candidate"
   ],
-  "lifecycles": ["active","experimental","submission_snapshot","maintenance","legacy","archived"],
-  "portfolio_tiers": ["featured","supporting","evidence","hidden"],
+  "lifecycles": [
+    "active",
+    "experimental",
+    "submission_snapshot",
+    "maintenance",
+    "legacy",
+    "archived"
+  ],
+  "portfolio_tiers": [
+    "featured",
+    "supporting",
+    "evidence",
+    "hidden"
+  ],
   "overrides": {
-    "Rafa-Innerchispa/innerops-agentic-platform": {"role":"featured_system","lifecycle":"active","portfolio_tier":"featured","portfolio_visible":true,"profile_featured":true,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-personal-brain": {"role":"featured_system","lifecycle":"active","portfolio_tier":"featured","portfolio_visible":true,"profile_featured":true,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-physical-guardian-ai-infra-2026": {"role":"featured_system","lifecycle":"active","portfolio_tier":"featured","portfolio_visible":true,"profile_featured":true,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-webmcp": {"role":"featured_system","lifecycle":"active","portfolio_tier":"featured","portfolio_visible":true,"profile_featured":true,"allow_auto_publication":false},
-    "Rafa-Innerchispa/ralphiia-founderos-openai": {"role":"featured_system","lifecycle":"active","portfolio_tier":"featured","portfolio_visible":true,"profile_featured":true,"allow_auto_publication":false},
-    "Rafa-Innerchispa/aegis-forkguard": {"role":"featured_system","lifecycle":"active","portfolio_tier":"featured","portfolio_visible":true,"profile_featured":true,"allow_auto_publication":false},
-
-    "Rafa-Innerchispa/innerspark-workforce-ai": {"role":"active_product","lifecycle":"active","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-voiceops": {"role":"active_product","lifecycle":"active","portfolio_tier":"hidden","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-physical-guardian": {"role":"active_product","lifecycle":"active","portfolio_tier":"hidden","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/innerops-service-ops": {"role":"active_product","lifecycle":"active","portfolio_tier":"hidden","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/innerspark-payroll-ai": {"role":"active_product","lifecycle":"active","portfolio_tier":"hidden","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-
-    "Rafa-Innerchispa/inneros-forensic-replay": {"role":"core_capability","lifecycle":"active","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-dmx-engine": {"role":"core_capability","lifecycle":"active","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-a2a-gateway": {"role":"core_capability","lifecycle":"active","portfolio_tier":"hidden","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/sovereign-multi-agent-devos": {"role":"core_capability","lifecycle":"maintenance","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/innerspark-swarm-os-cursor-local": {"role":"core_capability","lifecycle":"maintenance","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-
-    "Rafa-Innerchispa/inneros-fieldops-agents-for-humans": {"role":"product_extension","lifecycle":"active","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026": {"role":"product_extension","lifecycle":"experimental","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/ralphiia-liveops-intelligence": {"role":"product_extension","lifecycle":"experimental","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/pcdoctor-ai-xprize": {"role":"product_extension","lifecycle":"experimental","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-
-    "Rafa-Innerchispa/hyperloom-r9700-experimental": {"role":"rd_hub","lifecycle":"experimental","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/inneros-amd-act-iii": {"role":"rd_hub","lifecycle":"experimental","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/amd-ralfiia-hybrid-ops-copilot": {"role":"rd_hub","lifecycle":"experimental","portfolio_tier":"supporting","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-
-    "Rafa-Innerchispa/inneros-engineering-journal": {"role":"engineering_evidence","lifecycle":"active","portfolio_tier":"evidence","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/Rafa-Innerchispa": {"role":"engineering_evidence","lifecycle":"active","portfolio_tier":"evidence","portfolio_visible":true,"profile_featured":false,"allow_auto_publication":false},
-
-    "Rafa-Innerchispa/VigilOS_Cursor": {"role":"legacy","lifecycle":"legacy","portfolio_tier":"evidence","successor":"Rafa-Innerchispa/inneros-physical-guardian","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/VigilOS_Cursor---Antigravity": {"role":"legacy","lifecycle":"legacy","portfolio_tier":"evidence","successor":"Rafa-Innerchispa/inneros-physical-guardian","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/innerchispa-linkedin-privacy": {"role":"public_support","lifecycle":"maintenance","portfolio_tier":"hidden","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/cozmo": {"role":"archive_candidate","lifecycle":"maintenance","portfolio_tier":"hidden","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false},
-    "Rafa-Innerchispa/cozmo-alive": {"role":"internal_operations","lifecycle":"maintenance","portfolio_tier":"hidden","portfolio_visible":false,"profile_featured":false,"allow_auto_publication":false}
+    "Rafa-Innerchispa/innerops-agentic-platform": {
+      "role": "featured_system",
+      "lifecycle": "active",
+      "portfolio_tier": "featured",
+      "portfolio_visible": true,
+      "profile_featured": true,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-personal-brain": {
+      "role": "featured_system",
+      "lifecycle": "active",
+      "portfolio_tier": "featured",
+      "portfolio_visible": true,
+      "profile_featured": true,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-physical-guardian-ai-infra-2026": {
+      "role": "featured_system",
+      "lifecycle": "active",
+      "portfolio_tier": "featured",
+      "portfolio_visible": true,
+      "profile_featured": true,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-webmcp": {
+      "role": "featured_system",
+      "lifecycle": "active",
+      "portfolio_tier": "featured",
+      "portfolio_visible": true,
+      "profile_featured": true,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/ralphiia-founderos-openai": {
+      "role": "featured_system",
+      "lifecycle": "active",
+      "portfolio_tier": "featured",
+      "portfolio_visible": true,
+      "profile_featured": true,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/aegis-forkguard": {
+      "role": "featured_system",
+      "lifecycle": "active",
+      "portfolio_tier": "featured",
+      "portfolio_visible": true,
+      "profile_featured": true,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/innerspark-workforce-ai": {
+      "role": "active_product",
+      "lifecycle": "active",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-voiceops": {
+      "role": "active_product",
+      "lifecycle": "active",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-physical-guardian": {
+      "role": "active_product",
+      "lifecycle": "active",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/innerops-service-ops": {
+      "role": "active_product",
+      "lifecycle": "active",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/innerspark-payroll-ai": {
+      "role": "active_product",
+      "lifecycle": "active",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-forensic-replay": {
+      "role": "core_capability",
+      "lifecycle": "active",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-dmx-engine": {
+      "role": "core_capability",
+      "lifecycle": "active",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-a2a-gateway": {
+      "role": "core_capability",
+      "lifecycle": "active",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/sovereign-multi-agent-devos": {
+      "role": "core_capability",
+      "lifecycle": "maintenance",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/innerspark-swarm-os-cursor-local": {
+      "role": "core_capability",
+      "lifecycle": "maintenance",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-fieldops-agents-for-humans": {
+      "role": "product_extension",
+      "lifecycle": "active",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026": {
+      "role": "product_extension",
+      "lifecycle": "experimental",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/ralphiia-liveops-intelligence": {
+      "role": "product_extension",
+      "lifecycle": "experimental",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/pcdoctor-ai-xprize": {
+      "role": "product_extension",
+      "lifecycle": "experimental",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/hyperloom-r9700-experimental": {
+      "role": "rd_hub",
+      "lifecycle": "experimental",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-amd-act-iii": {
+      "role": "rd_hub",
+      "lifecycle": "experimental",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/amd-ralfiia-hybrid-ops-copilot": {
+      "role": "rd_hub",
+      "lifecycle": "experimental",
+      "portfolio_tier": "supporting",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/inneros-engineering-journal": {
+      "role": "engineering_evidence",
+      "lifecycle": "active",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/Rafa-Innerchispa": {
+      "role": "engineering_evidence",
+      "lifecycle": "active",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/VigilOS_Cursor": {
+      "role": "legacy",
+      "lifecycle": "legacy",
+      "portfolio_tier": "evidence",
+      "successor": "Rafa-Innerchispa/inneros-physical-guardian",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/VigilOS_Cursor---Antigravity": {
+      "role": "legacy",
+      "lifecycle": "legacy",
+      "portfolio_tier": "evidence",
+      "successor": "Rafa-Innerchispa/inneros-physical-guardian",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/innerchispa-linkedin-privacy": {
+      "role": "public_support",
+      "lifecycle": "maintenance",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/cozmo": {
+      "role": "archive_candidate",
+      "lifecycle": "maintenance",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/cozmo-alive": {
+      "role": "internal_operations",
+      "lifecycle": "maintenance",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false
+    },
+    "Rafa-Innerchispa/chutes-deposit-agent": {
+      "role": "validation_snapshot",
+      "lifecycle": "submission_snapshot",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "Chutes Hack Malaysia 2026 submission snapshot."
+    },
+    "Rafa-Innerchispa/uipath-copilot": {
+      "role": "validation_snapshot",
+      "lifecycle": "submission_snapshot",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "UiPath AgentHack 2026 submission snapshot."
+    }
   },
   "rules": {
-    "precedence": ["owner_policy","featured_system","active_product","core_capability","product_extension","rd_hub","validation_snapshot","experimental_probe","engineering_evidence","legacy","internal_operations","archive_candidate"],
-    "probe_name_patterns": ["-smoke","-probe","-baseline","-live-ab","-bridge","-runner","-evidence-reader"],
-    "snapshot_name_patterns": ["hackathon","assemblyai","one-day","executable-world","battle-2026"],
-    "internal_name_patterns": ["brand-assets","configurar-","contributorops","service-ops","payroll","mvp-core"],
-    "confidence": {"auto_accept":0.90,"provisional":0.70},
-    "publication": {"taxonomy_can_publish":false,"authority":"repo_publication_policy.json"},
+    "precedence": [
+      "owner_policy",
+      "featured_system",
+      "active_product",
+      "core_capability",
+      "product_extension",
+      "rd_hub",
+      "validation_snapshot",
+      "experimental_probe",
+      "engineering_evidence",
+      "legacy",
+      "internal_operations",
+      "archive_candidate"
+    ],
+    "probe_name_patterns": [
+      "-smoke",
+      "-probe",
+      "-baseline",
+      "-live-ab",
+      "-bridge",
+      "-runner",
+      "-evidence-reader"
+    ],
+    "snapshot_name_patterns": [
+      "hackathon",
+      "assemblyai",
+      "one-day",
+      "executable-world",
+      "battle-2026"
+    ],
+    "internal_name_patterns": [
+      "brand-assets",
+      "configurar-",
+      "contributorops",
+      "service-ops",
+      "payroll",
+      "mvp-core"
+    ],
+    "confidence": {
+      "auto_accept": 0.9,
+      "provisional": 0.7
+    },
+    "publication": {
+      "taxonomy_can_publish": false,
+      "authority": "repo_publication_policy.json"
+    },
     "validation": {
-      "featured_exact_count":6,
-      "featured_requires_main":true,
-      "experimental_probe_requires_parent":true,
-      "legacy_requires_successor":true,
-      "internal_never_auto_public":true
+      "featured_exact_count": 6,
+      "featured_requires_main": true,
+      "experimental_probe_requires_parent": true,
+      "legacy_requires_successor": true,
+      "internal_never_auto_public": true
     }
   }
 }
