@@ -27,6 +27,13 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def parse_repo_list_json(raw: str) -> list[dict[str, Any]]:
+    data = json.loads(raw or "[]")
+    if not isinstance(data, list):
+        raise ValueError("github_repo_list_not_array")
+    return data
+
+
 def git_dir(mirror: Path, args: list[str], timeout: int = 60) -> dict:
     return run(["git", "--git-dir", str(mirror), *args], timeout=timeout)
 
@@ -165,7 +172,10 @@ def main() -> int:
         STATUS_PATH.write_text(json.dumps({"ok": False, "error": "gh_unavailable", "timestamp": now()}, indent=2), encoding="utf-8")
         return 2
 
-    listed = ghp._run([
+    # Structured JSON must not pass through local_github_plane._run().
+    # That helper intentionally bounds stdout to 12KB for safe diagnostics,
+    # which truncates larger gh repo list JSON payloads before json.loads().
+    listed = run([
         gh, "repo", "list", OWNER,
         "--limit", "1000",
         "--json", "name,nameWithOwner,isPrivate,url,defaultBranchRef",
@@ -174,7 +184,23 @@ def main() -> int:
         STATUS_PATH.write_text(json.dumps({"ok": False, "error": "github_list_failed", "detail": listed, "timestamp": now()}, indent=2), encoding="utf-8")
         return 3
 
-    repos = json.loads(listed.get("stdout") or "[]")
+    try:
+        repos = parse_repo_list_json(listed.get("stdout") or "[]")
+    except (json.JSONDecodeError, ValueError) as exc:
+        STATUS_PATH.write_text(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "github_list_json_invalid",
+                    "detail": str(exc),
+                    "stdout_bytes": len((listed.get("stdout") or "").encode("utf-8", errors="replace")),
+                    "timestamp": now(),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        return 4
     rows = []
     failures = []
 
