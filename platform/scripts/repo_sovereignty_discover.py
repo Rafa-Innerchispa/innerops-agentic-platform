@@ -5,6 +5,7 @@ import json
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from inneros_core_runtime import local_github_plane as ghp
 from inneros_core_runtime import local_gitlab_plane as glp
@@ -24,6 +25,132 @@ def run(argv: list[str], timeout: int = 300) -> dict:
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def git_dir(mirror: Path, args: list[str], timeout: int = 60) -> dict:
+    return run(["git", "--git-dir", str(mirror), *args], timeout=timeout)
+
+
+def rev(mirror: Path, ref: str) -> str:
+    result = git_dir(mirror, ["rev-parse", "--verify", ref], timeout=20)
+    return str(result.get("stdout") or "").strip() if result.get("ok") else ""
+
+
+def is_ancestor(mirror: Path, older: str, newer: str) -> bool:
+    if not older or not newer:
+        return False
+    return bool(git_dir(mirror, ["merge-base", "--is-ancestor", older, newer], timeout=30).get("ok"))
+
+
+def local_branches(mirror: Path) -> list[str]:
+    result = git_dir(mirror, ["for-each-ref", "--format=%(refname:strip=2)", "refs/heads"], timeout=30)
+    if not result.get("ok"):
+        return []
+    return sorted({line.strip() for line in str(result.get("stdout") or "").splitlines() if line.strip()})
+
+
+def decide_branch_state(local_sha: str, gitlab_sha: str, gitlab_is_ancestor: bool, local_is_ancestor: bool) -> str:
+    if not local_sha:
+        return "source_missing"
+    if not gitlab_sha:
+        return "create"
+    if local_sha == gitlab_sha:
+        return "equal"
+    if gitlab_is_ancestor:
+        return "fast_forward"
+    if local_is_ancestor:
+        return "gitlab_ahead_preserved"
+    return "diverged_preserved"
+
+
+def reconcile_gitlab(mirror: Path, target: str) -> dict[str, Any]:
+    gitlab_url = f"https://gitlab.com/{target}.git"
+    current_url = git_dir(mirror, ["remote", "get-url", "gitlab"], timeout=20)
+    if current_url.get("ok"):
+        git_dir(mirror, ["remote", "set-url", "gitlab", gitlab_url], timeout=20)
+    else:
+        git_dir(mirror, ["remote", "add", "gitlab", gitlab_url], timeout=20)
+
+    branch_results: list[dict[str, Any]] = []
+    with glp._gitlab_git_auth_env() as env:
+        refresh = glp._run_with_env(
+            [
+                "git", "--git-dir", str(mirror), "fetch", "gitlab",
+                "--prune", "+refs/heads/*:refs/gitlab-snapshot/*",
+            ],
+            env,
+            timeout=600,
+        )
+        if not refresh.get("ok"):
+            return {
+                "ok": False,
+                "gitlab_fetch_ok": False,
+                "branches_ok": False,
+                "tags_ok": False,
+                "branch_results": [],
+                "error": "gitlab_fetch_failed",
+                "stderr": glp._redact(str(refresh.get("stderr") or ""))[:1000],
+            }
+
+        for branch in local_branches(mirror):
+            local_ref = f"refs/heads/{branch}"
+            gitlab_ref = f"refs/gitlab-snapshot/{branch}"
+            local_sha = rev(mirror, local_ref)
+            gitlab_sha = rev(mirror, gitlab_ref)
+            state = decide_branch_state(
+                local_sha,
+                gitlab_sha,
+                is_ancestor(mirror, gitlab_sha, local_sha),
+                is_ancestor(mirror, local_sha, gitlab_sha),
+            )
+
+            if state == "source_missing":
+                branch_results.append({"branch": branch, "ok": False, "state": state})
+                continue
+            if state in {"equal", "gitlab_ahead_preserved"}:
+                branch_results.append({
+                    "branch": branch,
+                    "ok": True,
+                    "state": state,
+                    "github_sha": local_sha,
+                    "gitlab_sha": gitlab_sha,
+                })
+                continue
+
+            destination = branch if state in {"create", "fast_forward"} else f"github-sync/{branch}"
+            push = glp._run_with_env(
+                [
+                    "git", "--git-dir", str(mirror), "push", "gitlab",
+                    f"{local_ref}:refs/heads/{destination}",
+                ],
+                env,
+                timeout=600,
+            )
+            branch_results.append({
+                "branch": branch,
+                "ok": bool(push.get("ok")),
+                "state": state if push.get("ok") else f"{state}_failed",
+                "github_sha": local_sha,
+                "gitlab_sha": gitlab_sha,
+                "preserved_as": destination if state == "diverged_preserved" else None,
+                "stderr": glp._redact(str(push.get("stderr") or ""))[:800],
+            })
+
+        tags = glp._run_with_env(
+            ["git", "--git-dir", str(mirror), "push", "gitlab", "--tags"],
+            env,
+            timeout=600,
+        )
+
+    branches_ok = all(item.get("ok") for item in branch_results)
+    return {
+        "ok": branches_ok and bool(tags.get("ok")),
+        "gitlab_fetch_ok": True,
+        "branches_ok": branches_ok,
+        "tags_ok": bool(tags.get("ok")),
+        "branch_results": branch_results,
+        "tags_stderr": glp._redact(str(tags.get("stderr") or ""))[:1000],
+    }
 
 
 def main() -> int:
@@ -57,7 +184,6 @@ def main() -> int:
         if not name:
             continue
 
-        # Owner-approved explicit promotion policy.
         if name in public_repos and bool(repo.get("isPrivate")):
             edit = ghp._run([
                 gh, "repo", "edit", full,
@@ -70,7 +196,6 @@ def main() -> int:
                 failures.append({"repo": full, "stage": "github_visibility", "detail": edit})
 
         desired_visibility = "private" if bool(repo.get("isPrivate")) else "public"
-
         safe = full.replace("/", "__")
         mirror = MIRROR_ROOT / f"{safe}.git"
 
@@ -83,10 +208,11 @@ def main() -> int:
         else:
             refresh = run(["git", "--git-dir", str(mirror), "fetch", "--prune", "--tags", "origin"], timeout=300)
             if not refresh.get("ok"):
-                # Local copy remains valid even if upstream refresh fails.
                 failures.append({"repo": full, "stage": "local_mirror_refresh", "detail": refresh})
 
         fsck = run(["git", "--git-dir", str(mirror), "fsck", "--full", "--no-dangling"], timeout=300)
+        if not fsck.get("ok"):
+            failures.append({"repo": full, "stage": "local_mirror_fsck", "detail": fsck})
 
         target = f"{GITLAB_NAMESPACE}/{glp._gitlab_safe_project_path(name)}"
         project = glp.project_summary(target)
@@ -118,22 +244,19 @@ def main() -> int:
                 if not changed.get("ok"):
                     failures.append({"repo": full, "stage": "gitlab_visibility", "target": target, "desired": desired_visibility})
 
-        # Push committed refs safely from the bare local mirror.
-        push_ok = False
+        sync = {"ok": False, "gitlab_fetch_ok": False, "branches_ok": False, "tags_ok": False, "branch_results": []}
         if glp.project_summary(target).get("ok"):
-            gitlab_url = f"https://gitlab.com/{target}.git"
-            current_url = run(["git", "--git-dir", str(mirror), "remote", "get-url", "gitlab"], timeout=20)
-            if current_url.get("ok"):
-                run(["git", "--git-dir", str(mirror), "remote", "set-url", "gitlab", gitlab_url], timeout=20)
-            else:
-                run(["git", "--git-dir", str(mirror), "remote", "add", "gitlab", gitlab_url], timeout=20)
-
-            with glp._gitlab_git_auth_env() as env:
-                branches = glp._run_with_env(["git", "--git-dir", str(mirror), "push", "gitlab", "--all"], env, timeout=600)
-                tags = glp._run_with_env(["git", "--git-dir", str(mirror), "push", "gitlab", "--tags"], env, timeout=600)
-            push_ok = bool(branches.get("ok")) and bool(tags.get("ok"))
-            if not push_ok:
-                failures.append({"repo": full, "stage": "gitlab_push", "target": target})
+            sync = reconcile_gitlab(mirror, target)
+            if not sync.get("ok"):
+                failures.append({
+                    "repo": full,
+                    "stage": "gitlab_safe_sync",
+                    "target": target,
+                    "branches_ok": sync.get("branches_ok"),
+                    "tags_ok": sync.get("tags_ok"),
+                    "gitlab_fetch_ok": sync.get("gitlab_fetch_ok"),
+                    "detail": sync.get("error") or sync.get("tags_stderr") or "",
+                })
 
         verified = glp.project_summary(target)
         verified_visibility = (verified.get("project") or {}).get("visibility") if verified.get("ok") else None
@@ -145,9 +268,13 @@ def main() -> int:
             "gitlab_visibility": verified_visibility,
             "mirror": str(mirror),
             "mirror_fsck_ok": bool(fsck.get("ok")),
-            "gitlab_push_ok": push_ok,
+            "gitlab_push_ok": bool(sync.get("ok")),
+            "gitlab_fetch_ok": bool(sync.get("gitlab_fetch_ok")),
+            "gitlab_branches_ok": bool(sync.get("branches_ok")),
+            "gitlab_tags_ok": bool(sync.get("tags_ok")),
+            "branch_results": sync.get("branch_results") or [],
             "created_gitlab": created,
-            "ok": bool(fsck.get("ok")) and verified_visibility == desired_visibility,
+            "ok": bool(fsck.get("ok")) and verified_visibility == desired_visibility and bool(sync.get("ok")),
         })
 
     payload = {
@@ -158,6 +285,11 @@ def main() -> int:
         "rows": rows,
         "failures": failures,
         "policy": policy,
+        "sync_policy": (
+            "Account-wide GitHub->GitLab reconciliation is non-destructive: equal no-op; "
+            "missing branches create; GitLab-behind fast-forwards; GitLab-ahead is preserved; "
+            "true divergence stores GitHub under github-sync/<branch>; no force push or branch deletion."
+        ),
     }
     STATUS_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return 0 if payload["ok"] else 1
