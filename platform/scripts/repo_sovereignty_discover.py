@@ -270,19 +270,18 @@ def main() -> int:
                 if not changed.get("ok"):
                     failures.append({"repo": full, "stage": "gitlab_visibility", "target": target, "desired": desired_visibility})
 
-        sync = {"ok": False, "gitlab_fetch_ok": False, "branches_ok": False, "tags_ok": False, "branch_results": []}
-        if glp.project_summary(target).get("ok"):
-            sync = reconcile_gitlab(mirror, target)
-            if not sync.get("ok"):
-                failures.append({
-                    "repo": full,
-                    "stage": "gitlab_safe_sync",
-                    "target": target,
-                    "branches_ok": sync.get("branches_ok"),
-                    "tags_ok": sync.get("tags_ok"),
-                    "gitlab_fetch_ok": sync.get("gitlab_fetch_ok"),
-                    "detail": sync.get("error") or sync.get("tags_stderr") or "",
-                })
+        # Structural discovery only. Branch/tag reconciliation is handled by
+        # repo_sovereignty_gitlab_sync.py, which runs separately in the same service.
+        # Keeping audit and synchronization separate prevents long-running branch pushes
+        # from blocking account-discovery.json refreshes.
+        sync = {
+            "ok": True,
+            "mode": "delegated_to_repo_sovereignty_gitlab_sync",
+            "gitlab_fetch_ok": None,
+            "branches_ok": None,
+            "tags_ok": None,
+            "branch_results": [],
+        }
 
         verified = glp.project_summary(target)
         verified_visibility = (verified.get("project") or {}).get("visibility") if verified.get("ok") else None
@@ -294,13 +293,14 @@ def main() -> int:
             "gitlab_visibility": verified_visibility,
             "mirror": str(mirror),
             "mirror_fsck_ok": bool(fsck.get("ok")),
-            "gitlab_push_ok": bool(sync.get("ok")),
-            "gitlab_fetch_ok": bool(sync.get("gitlab_fetch_ok")),
-            "gitlab_branches_ok": bool(sync.get("branches_ok")),
-            "gitlab_tags_ok": bool(sync.get("tags_ok")),
+            "gitlab_push_ok": None,
+            "gitlab_sync_mode": sync.get("mode"),
+            "gitlab_fetch_ok": sync.get("gitlab_fetch_ok"),
+            "gitlab_branches_ok": sync.get("branches_ok"),
+            "gitlab_tags_ok": sync.get("tags_ok"),
             "branch_results": sync.get("branch_results") or [],
             "created_gitlab": created,
-            "ok": bool(fsck.get("ok")) and verified_visibility == desired_visibility and bool(sync.get("ok")),
+            "ok": bool(fsck.get("ok")) and verified_visibility == desired_visibility,
         })
 
     payload = {
@@ -312,9 +312,9 @@ def main() -> int:
         "failures": failures,
         "policy": policy,
         "sync_policy": (
-            "Account-wide GitHub->GitLab reconciliation is non-destructive: equal no-op; "
-            "missing branches create; GitLab-behind fast-forwards; GitLab-ahead is preserved; "
-            "true divergence stores GitHub under github-sync/<branch>; no force push or branch deletion."
+            "Structural discovery audits repository presence, visibility, and local mirror integrity. "
+            "Branch/tag synchronization is delegated to repo_sovereignty_gitlab_sync.py, which is "
+            "non-destructive and never force-pushes or deletes branches."
         ),
     }
     STATUS_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
