@@ -63,6 +63,14 @@ PORTFOLIO = {
         "description": "Rafael Lopez / InnerChispa: InnerOS, sovereign local-first agentic infrastructure, operational AI products, and applied R&D.",
         "topics": ["inneros", "agentic-ai", "local-first", "ai-infrastructure", "portfolio"],
     },
+    "ralphiia-founderos-openai": {
+        "description": "FounderOS: an InnerOS operational layer connecting conversation, memory, infrastructure, software delivery and business workflows from anywhere.",
+        "topics": ["inneros", "founderos", "agentic-ai", "mcp", "local-first", "memory", "developer-tools", "operations"],
+    },
+    "aegis-forkguard": {
+        "description": "AEGIS ForkGuard: counterfactual pre-execution firewall for autonomous agents, evaluating safer futures before irreversible action.",
+        "topics": ["inneros", "agent-safety", "counterfactual", "governed-ai", "jaclang", "audit", "human-in-the-loop", "security"],
+    },
 }
 
 HYPERLOOM = {
