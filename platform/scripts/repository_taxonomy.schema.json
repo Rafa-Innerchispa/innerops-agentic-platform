@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://innerchispa.us/schemas/repository-taxonomy.schema.json",
+  "title": "InnerOS Repository Taxonomy",
+  "type": "object",
+  "required": ["schema_version", "featured_repositories", "roles", "lifecycles", "portfolio_tiers", "overrides", "rules"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "featured_repositories": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^Rafa-Innerchispa/.+"}
+    },
+    "roles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["featured_system","active_product","product_extension","core_capability","rd_hub","experimental_probe","validation_snapshot","engineering_evidence","legacy","internal_operations","public_support","archive_candidate"]}
+    },
+    "lifecycles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["active","experimental","submission_snapshot","maintenance","legacy","archived"]}
+    },
+    "portfolio_tiers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["featured","supporting","evidence","hidden"]}
+    },
+    "overrides": {"type": "object", "additionalProperties": {"$ref": "#/$defs/override"}},
+    "rules": {"type": "object"}
+  },
+  "$defs": {
+    "override": {
+      "type": "object",
+      "required": ["role","lifecycle","portfolio_tier"],
+      "properties": {
+        "role": {"enum": ["featured_system","active_product","product_extension","core_capability","rd_hub","experimental_probe","validation_snapshot","engineering_evidence","legacy","internal_operations","public_support","archive_candidate"]},
+        "lifecycle": {"enum": ["active","experimental","submission_snapshot","maintenance","legacy","archived"]},
+        "portfolio_tier": {"enum": ["featured","supporting","evidence","hidden"]},
+        "parent": {"type": ["string","null"]},
+        "successor": {"type": ["string","null"]},
+        "portfolio_visible": {"type": "boolean"},
+        "profile_featured": {"type": "boolean"},
+        "allow_auto_publication": {"const": false},
+        "notes": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  }
+}
