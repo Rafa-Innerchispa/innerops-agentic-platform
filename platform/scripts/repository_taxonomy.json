@@ -297,6 +297,87 @@
       "profile_featured": false,
       "allow_auto_publication": false,
       "notes": "UiPath AgentHack 2026 submission snapshot."
+    },
+    "Rafa-Innerchispa/inneros-alpha-alpaca": {
+      "role": "validation_snapshot",
+      "lifecycle": "submission_snapshot",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "Historical validation snapshot; non-canonical default branch retained as evidence."
+    },
+    "Rafa-Innerchispa/inneros-executable-world-2026": {
+      "role": "validation_snapshot",
+      "lifecycle": "submission_snapshot",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "Executable World 2026 submission snapshot."
+    },
+    "Rafa-Innerchispa/inneros-hackathon-ui": {
+      "role": "validation_snapshot",
+      "lifecycle": "submission_snapshot",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "Historical hackathon UI snapshot."
+    },
+    "Rafa-Innerchispa/inneros-personal-brain-battle-2026": {
+      "role": "validation_snapshot",
+      "lifecycle": "submission_snapshot",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "Private Battle of the Personal Brains 2026 submission snapshot."
+    },
+    "Rafa-Innerchispa/inneros-voiceops-assemblyai": {
+      "role": "validation_snapshot",
+      "lifecycle": "submission_snapshot",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "AssemblyAI VoiceOps validation snapshot."
+    },
+    "Rafa-Innerchispa/inneros-voiceops-one-day-2026": {
+      "role": "validation_snapshot",
+      "lifecycle": "submission_snapshot",
+      "portfolio_tier": "evidence",
+      "portfolio_visible": true,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "One-Day 2026 VoiceOps validation snapshot."
+    },
+    "Rafa-Innerchispa/ralfi-ia-platform": {
+      "role": "internal_operations",
+      "lifecycle": "maintenance",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "Private internal platform repository."
+    },
+    "Rafa-Innerchispa/ralphiia-ecosystem-core": {
+      "role": "internal_operations",
+      "lifecycle": "maintenance",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "Private canonical ecosystem operations repository."
+    },
+    "Rafa-Innerchispa/Swarm-OS": {
+      "role": "internal_operations",
+      "lifecycle": "maintenance",
+      "portfolio_tier": "hidden",
+      "portfolio_visible": false,
+      "profile_featured": false,
+      "allow_auto_publication": false,
+      "notes": "Private internal swarm development workspace."
     }
   },
   "rules": {
