@@ -47,3 +47,10 @@ def test_large_repo_list_json_is_not_truncated_before_parse():
     parsed = mod.parse_repo_list_json(raw)
     assert len(parsed) == 300
     assert parsed[-1]["name"] == "repo-299"
+
+
+def test_discovery_sync_is_delegated():
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "delegated_to_repo_sovereignty_gitlab_sync" in source
+    main_body = source.split("def main()", 1)[1]
+    assert "reconcile_gitlab(mirror, target)" not in main_body
