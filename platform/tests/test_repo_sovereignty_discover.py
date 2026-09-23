@@ -29,3 +29,21 @@ def test_preserve_true_divergence():
 
 def test_missing_source_is_failure():
     assert mod.decide_branch_state("","right",False,True) == "source_missing"
+
+
+def test_large_repo_list_json_is_not_truncated_before_parse():
+    rows = [
+        {
+            "name": f"repo-{i:03d}",
+            "nameWithOwner": f"Rafa-Innerchispa/repo-{i:03d}",
+            "isPrivate": False,
+            "url": f"https://github.com/Rafa-Innerchispa/repo-{i:03d}",
+            "defaultBranchRef": {"name": "main"},
+        }
+        for i in range(300)
+    ]
+    raw = __import__("json").dumps(rows)
+    assert len(raw.encode("utf-8")) > 12000
+    parsed = mod.parse_repo_list_json(raw)
+    assert len(parsed) == 300
+    assert parsed[-1]["name"] == "repo-299"
