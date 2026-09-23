@@ -28,6 +28,8 @@ DEFAULT_ALLOWLIST = (
     "cloud.google.com",
     "console.cloud.google.com",
     "aws.amazon.com",
+    "developer.amazon.com",
+    "amazon.com",
     "portal.azure.com",
     "notion.so",
     "docs.google.com",
