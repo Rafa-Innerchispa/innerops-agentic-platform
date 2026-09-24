@@ -1,0 +1,10 @@
+[Unit]
+Description=Run RalfIA spoken Daily Companion every day at 08:00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+Unit=ralfia-daily-companion.service
+
+[Install]
+WantedBy=timers.target
