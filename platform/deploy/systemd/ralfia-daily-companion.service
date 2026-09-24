@@ -1,0 +1,13 @@
+[Unit]
+Description=RalfIA AG-50 Daily Companion spoken brief
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+Environment=RALFIA_DAILY_COMPANION_ECHO=notify.echo_cuarto_speak
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/run_daily_companion_cycle.py
+
+[Install]
+WantedBy=default.target
