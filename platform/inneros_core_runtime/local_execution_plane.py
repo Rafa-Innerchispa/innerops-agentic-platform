@@ -149,7 +149,6 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("python3", "-m", "unittest"),
         ("python", "-m", "compileall"),
         ("python3", "-m", "compileall"),
-        ("python3", "platform/scripts/gitlab_contributorops_mr.py"),
         ("git", "status", "--short", "--branch"),
         ("git", "diff", "--check"),
         ("git", "diff", "--stat"),
@@ -163,16 +162,6 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("scripts/agy", "--inbox"),
         ("scripts/agy", "--version"),
         ("/home/rlopez/.local/bin/agy", "--status"),
-    ],
-    "ruby-tests-local-only": [
-        ("bundle", "exec", "rspec"),
-        ("bundle", "exec", "rubocop"),
-        ("bin/rspec",),
-        ("bin/rubocop",),
-        ("git", "status", "--short", "--branch"),
-        ("git", "diff", "--check"),
-        ("git", "diff", "--stat"),
-        ("git", "diff", "--name-only"),
     ],
     "node-tests": [
         ("npm", "test"),
@@ -232,6 +221,49 @@ DEFAULT_REPO_PROFILES = {
             "next.config.js",
             "next.config.mjs",
             "vite.config.ts",
+        ],
+    },
+    "Rafa-Innerchispa/innerops-service-ops": {
+        "profile": "node-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-service-ops",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "app",
+            "components",
+            "docs",
+            "lib",
+            "public",
+            "scripts",
+            "src",
+            "tests",
+            "AGENT_CONTRACT.md",
+            "BASELINE_PROVENANCE.md",
+            "DEPLOYMENT.md",
+            "README.md",
+            "package.json",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "tsconfig.json",
+            "next.config.js",
+            "next.config.mjs",
+            "vite.config.ts",
+        ],
+    },
+    "Rafa-Innerchispa/inneros-forensic-replay": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/inneros-forensic-replay",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "docs",
+            "examples",
+            "inneros_forensic_replay",
+            "scripts",
+            "src",
+            "tests",
+            "README.md",
+            "pyproject.toml",
+            "requirements.txt",
+            "setup.py",
         ],
     },
     "Rafa-Innerchispa/innerops-agentic-platform": {
@@ -544,17 +576,27 @@ def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
             safe = prr._safe_path(path)
         except Exception:
             continue
+        known = DEFAULT_REPO_PROFILES.get(repo, {})
+        known_source = str(known.get("source_path") or "").strip()
+        if known_source:
+            try:
+                canonical = Path(known_source).expanduser().resolve()
+                if (canonical / ".git").exists():
+                    safe = canonical
+            except Exception:
+                pass
         detected_profile = "node-tests" if (safe / "package.json").exists() else "python-tests"
         registered_profile = str(entry.get("allowed_commands_profile") or "").strip()
-        if registered_profile in {"python-tests", "node-tests"} and registered_profile != detected_profile:
+        known_profile = str(known.get("profile") or "").strip()
+        if registered_profile in {"python-tests", "node-tests"} and registered_profile != detected_profile and registered_profile != known_profile:
             profile = detected_profile
         else:
-            profile = registered_profile or detected_profile
+            profile = registered_profile or known_profile or detected_profile
         profiles[repo] = {
             "profile": profile,
             "source_path": str(safe),
-            "allowed_paths": entry.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS,
-            "package_roots": entry.get("package_roots") or ["."],
+            "allowed_paths": entry.get("allowed_paths") or known.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS,
+            "package_roots": entry.get("package_roots") or known.get("package_roots") or ["."],
             "worktrees_path": str(_root() / "worktrees" / _slug(repo)),
             "project_id": entry.get("project_id"),
             "registry_backed": True,
@@ -2036,3 +2078,21 @@ def prepare_repo(
 
 local_exec_prepare_repo = prepare_repo
 local_exec_hydrate_repo = prepare_repo
+
+
+# Runtime overlay: GitLab Rails ContributorOps Ruby validation profile.
+# Canonical source merged in Rafa-Innerchispa/innerops-agentic-platform PR #59.
+ALLOWLISTED_COMMANDS["ruby-tests-local-only"] = [
+    ("bundle", "exec", "rspec"),
+    ("bundle", "exec", "rubocop"),
+    ("bin/rspec",),
+    ("bin/rubocop",),
+    ("git", "status", "--short", "--branch"),
+    ("git", "diff", "--check"),
+    ("git", "diff", "--stat"),
+    ("git", "diff", "--name-only"),
+]
+
+# ContributorOps bounded command extension (2026-09-22)
+if ("python3", "platform/scripts/gitlab_contributorops_mr.py") not in ALLOWLISTED_COMMANDS.get("python-tests", []):
+    ALLOWLISTED_COMMANDS.setdefault("python-tests", []).append(("python3", "platform/scripts/gitlab_contributorops_mr.py"))

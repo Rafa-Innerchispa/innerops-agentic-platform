@@ -19,11 +19,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_path_guidance, dev_swarm_watchdog, durable_coordination_spine, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
+from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, durable_coordination_spine, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
-EXECUTOR_VERSION = "autonomous_impl_v12_stream_transport_recovery"
+EXECUTOR_VERSION = "autonomous_impl_v11_strict_output_recovery"
 executor_version = EXECUTOR_VERSION
 DEFAULT_MAX_CONCURRENT = 4
 STALE_WORKER_SECONDS = 3600
@@ -297,26 +297,18 @@ def _worker_objective(worker: dict[str, Any], task: dict[str, Any] | None) -> st
 CANONICAL_REPO_HINTS = {
     "innerops-agentic-platform": SAFE_INNEROS_REPO,
     "innerspark-workforce-ai": "Rafa-Innerchispa/innerspark-workforce-ai",
-    "inneros-ambient-guardian-amazon-2026": "Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026",
+    "hyperloom-r9700-experimental": "Rafa-Innerchispa/hyperloom-r9700-experimental",
+    "inneros-webmcp": "Rafa-Innerchispa/inneros-webmcp",
+    "inneros-physical-guardian": "Rafa-Innerchispa/inneros-physical-guardian",
     "inneros-voiceops-assemblyai": "Rafa-Innerchispa/inneros-voiceops-assemblyai",
-    "inneros-voiceops": "Rafa-Innerchispa/inneros-voiceops",
+    "inneros-forensic-replay": "Rafa-Innerchispa/inneros-forensic-replay",
+    "innerops-service-ops": "Rafa-Innerchispa/innerops-service-ops",
+    "inneros-dmx-engine": "Rafa-Innerchispa/inneros-dmx-engine",
 }
 
 
 WRITE_TASK_CLASSES = {"coding", "code_review", "refactor", "tests", "build", "deployment"}
 LOCAL_DEV_SWARM_LANE = "local_dev_swarm"
-
-
-def _canonical_repo_from_short_name(value: str) -> str | None:
-    item = str(value or "").strip()
-    if not item or "/" in item:
-        return None
-    lowered = item.lower()
-    if lowered in CANONICAL_REPO_HINTS:
-        return CANONICAL_REPO_HINTS[lowered]
-    if project_runtime_registry.PROJECT_ID_RE.match(item):
-        return f"Rafa-Innerchispa/{item}"
-    return None
 
 
 def _registry_resolve_repo(project_id: str = "", repo: str = "") -> str | None:
@@ -335,21 +327,17 @@ def _structured_repo_binding(task: dict[str, Any]) -> str | None:
     repo = str(task.get("repo") or task.get("repository") or "").strip()
     project_id = str(task.get("project_id") or "").strip()
     if repo:
-        if "/" in repo:
-            return _registry_resolve_repo(project_id=project_id, repo=repo) or repo
-        return _registry_resolve_repo(project_id=project_id or repo) or _canonical_repo_from_short_name(repo) or repo
+        return repo
     if project_id:
-        return _registry_resolve_repo(project_id=project_id) or _canonical_repo_from_short_name(project_id)
+        return _registry_resolve_repo(project_id=project_id)
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     if payload:
         repo = str(payload.get("repo") or payload.get("repository") or "").strip()
         project_id = str(payload.get("project_id") or "").strip()
         if repo:
-            if "/" in repo:
-                return _registry_resolve_repo(project_id=project_id, repo=repo) or repo
-            return _registry_resolve_repo(project_id=project_id or repo) or _canonical_repo_from_short_name(repo) or repo
+            return repo
         if project_id:
-            return _registry_resolve_repo(project_id=project_id) or _canonical_repo_from_short_name(project_id)
+            return _registry_resolve_repo(project_id=project_id)
     return None
 
 
@@ -380,6 +368,12 @@ def _execution_lane_for_task(task: dict[str, Any]) -> str:
     assignee = str(task.get("assignee") or "").strip().lower()
     if assignee == "dev_swarm":
         return LOCAL_DEV_SWARM_LANE
+    owner = str(task.get("owner") or "").strip().lower()
+    if owner == "dev_swarm" and task.get("dev_swarm_retry_requested"):
+        return LOCAL_DEV_SWARM_LANE
+    text = _task_search_text(task)
+    if "dev swarm" in text or "devswarm" in text:
+        return LOCAL_DEV_SWARM_LANE
     return ""
 
 
@@ -387,16 +381,10 @@ def _repo_from_related_project(task: dict[str, Any]) -> str | None:
     value = str(task.get("related_project") or "").strip()
     if value.startswith("Rafa-Innerchispa/"):
         return value
-    short = _registry_resolve_repo(project_id=value) or _canonical_repo_from_short_name(value)
-    if short:
-        return short
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     value = str((payload or {}).get("related_project") or "").strip()
     if value.startswith("Rafa-Innerchispa/"):
         return value
-    short = _registry_resolve_repo(project_id=value) or _canonical_repo_from_short_name(value)
-    if short:
-        return short
     return None
 
 
@@ -422,6 +410,9 @@ def _explicit_repo_hint(task: dict[str, Any], text: str) -> str | None:
         for marker, repo in CANONICAL_REPO_HINTS.items():
             if marker in lowered:
                 return repo
+    for marker, repo in CANONICAL_REPO_HINTS.items():
+        if marker in text:
+            return repo
     for match in re.findall(r"\b(?:rafa-innerchispa|Rafa-Innerchispa)/[A-Za-z0-9_.-]+\b", text, flags=re.IGNORECASE):
         owner, name = match.split("/", 1)
         if owner.lower() == "rafa-innerchispa":
@@ -892,6 +883,11 @@ def _reconcile_stale_ops_tasks(db: Any, now: datetime, now_iso: str, reason: str
 def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     db = _db()
     now = datetime.now(timezone.utc)
+    try:
+        from inneros_core_runtime import coordination_liveness
+        liveness_rec = coordination_liveness.reconcile_coordination_liveness(now=now, dry_run=False)
+    except Exception as exc:
+        liveness_rec = {"ok": False, "error": str(exc)}
     now_iso = now.isoformat()
     stale_before = now.timestamp() - STALE_WORKER_SECONDS
     stale_progress_before = now.timestamp() - STALE_PROGRESS_SECONDS
@@ -1029,6 +1025,9 @@ def _ops_auto_retry_allowed(task: dict[str, Any]) -> bool:
 
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     status = str(task.get("status") or "").lower()
+    cooldown = _parse_dt(task.get("cooldown_until"))
+    if cooldown and cooldown > datetime.now(timezone.utc):
+        return False, "coordination_liveness_cooldown_active", None
     retry_allowed = status == "blocked" and _ops_auto_retry_allowed(task)
     if status in OPS_TERMINAL_STATUSES and not retry_allowed:
         return False, "status_not_proposed", None
@@ -1608,9 +1607,8 @@ def create_fixture_tasks(count: int = 2) -> dict[str, Any]:
 # Global path for all owner-approved projects. Structured inputs only.
 
 def _fanout_parse_model_json(text: str) -> dict[str, Any] | None:
+    import json
     raw = str(text or "").strip()
-    if not raw:
-        return None
     candidates = [raw]
     if "```" in raw:
         for part in raw.split("```"):
@@ -1620,69 +1618,25 @@ def _fanout_parse_model_json(text: str) -> dict[str, Any] | None:
                 value = rest.strip()
             elif value.lower().startswith("json"):
                 value = value[4:].strip()
-            if value:
+            if value.startswith("{"):
                 candidates.append(value)
-    stream_parts: list[str] = []
-    for line in raw.splitlines():
-        value = line.strip()
-        if not value.startswith("data:"):
-            continue
-        value = value[5:].strip()
-        if value and value != "[DONE]":
-            stream_parts.append(value)
-    if stream_parts:
-        candidates.append("\n".join(stream_parts))
-
+    first, last = raw.find("{"), raw.rfind("}")
+    if first >= 0 and last > first:
+        candidates.append(raw[first:last + 1])
     decoder = json.JSONDecoder()
-    seen: set[str] = set()
     for candidate in candidates:
-        candidate = candidate.strip()
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
         try:
             obj = json.loads(candidate)
             if isinstance(obj, dict):
                 return obj
-        except (TypeError, ValueError, json.JSONDecodeError):
-            pass
-        # Streaming/model wrappers may prepend prose or append an incomplete
-        # next chunk. Scan for the first complete JSON object and deliberately
-        # ignore suffix data after the decoded object.
-        for match in re.finditer(r"\{", candidate):
+        except Exception:
             try:
-                obj, _end = decoder.raw_decode(candidate[match.start():])
-            except (TypeError, ValueError, json.JSONDecodeError):
+                obj, _end = decoder.raw_decode(candidate.lstrip())
+                if isinstance(obj, dict):
+                    return obj
+            except Exception:
                 continue
-            if isinstance(obj, dict):
-                return obj
     return None
-
-
-def _local_model_failure(model: dict[str, Any]) -> dict[str, str] | None:
-    """Classify provider/transport failures before JSON quality validation."""
-    if bool(model.get("ok")):
-        return None
-    error = str(model.get("error") or model.get("reason") or "local_model_unavailable").strip()
-    lowered = error.lower()
-    transport_markers = (
-        "unreachable",
-        "connection",
-        "refused",
-        "timeout",
-        "timed out",
-        "network",
-        "route",
-        "dns",
-    )
-    kind = "transport" if any(marker in lowered for marker in transport_markers) else "provider"
-    return {
-        "kind": kind,
-        "error": error[:1000],
-        "provider_id": str(model.get("provider_id") or ""),
-        "selected_node": str(model.get("selected_node") or ""),
-        "selected_model": str(model.get("selected_model") or ""),
-    }
 
 
 def _normalize_fanout_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -1839,8 +1793,7 @@ def _normalize_product_scoped_path(
         else:
             return {"ok": False, "raw_path": raw, "reason": "outside_product_root", "product_root": product_root}
         try:
-            allowed_paths = _repo_allowed_paths(repo) or [product_root]
-            local_execution_plane._validate_relative_path(normalized, allowed_paths)
+            local_execution_plane._validate_relative_path(normalized, [product_root])
         except Exception as exc:
             return {
                 "ok": False,
@@ -2181,20 +2134,6 @@ def _normalize_generated_content(content: str) -> str:
     return normalized + ("\n" if content.endswith("\n") or normalized else "")
 
 
-def _repo_allowed_paths(repo: str) -> list[str]:
-    try:
-        return list(local_execution_plane._repo_config(repo).get("allowed_paths") or [])
-    except Exception:
-        return []
-
-
-def _policy_product_path_instruction(repo: str, product_root: str) -> str:
-    return dev_swarm_path_guidance.product_path_instruction(
-        product_root,
-        _repo_allowed_paths(repo),
-    )
-
-
 def _quality_gate_guidance(
     *,
     repo: str,
@@ -2219,7 +2158,10 @@ def _quality_gate_guidance(
     if "missing_files_array" in reasons or "json_parse_failed_or_missing_json_object" in reasons:
         instructions.append("Return only a single JSON object with summary and files; do not wrap it in Markdown.")
     if any(reason in reasons for reason in ("path_not_allowed_for_repo_profile", "path_outside_product_root", "path_traversal_denied")):
-        instructions.append(_policy_product_path_instruction(repo, product_root))
+        if product_root:
+            instructions.append(f"Use paths under {product_root}/src, {product_root}/app, {product_root}/lib, {product_root}/components, {product_root}/infra, or {product_root}/tests.")
+        else:
+            instructions.append("Use repo-relative paths under src, app, lib, components, infra, modules, or tests.")
     if "undeclared_imports_denied" in reasons:
         instructions.append("Do not add imports for packages that are absent from the existing package manifests.")
     if not product_writes:
@@ -2592,13 +2534,13 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
     local_model_ok = False
     last_model_route: dict[str, Any] = {}
     product_root = _primary_product_root(repo, worktree)
-    policy_path_instruction = _policy_product_path_instruction(repo, product_root)
     path_contract = (
-        f"Product root is {product_root}. {policy_path_instruction} "
-        f"The executor normalizes product-relative paths to {product_root}/ only when repo policy permits them. "
+        f"Product root is {product_root}. Return file paths either under {product_root}/... "
+        f"or relative to that product root such as src/..., components/... or tests/.... "
+        f"The executor will normalize product-relative paths to {product_root}/.... "
         "Absolute paths, traversal, sibling services and repo-root writes outside the product root are denied."
         if product_root
-        else policy_path_instruction + " Absolute paths and traversal are denied."
+        else "Return repo-relative file paths under src/, modules/, app/, lib/, components/, infra/ or tests/. Absolute paths and traversal are denied."
     )
     for attempt in range(1, MAX_MODEL_OUTPUT_ATTEMPTS + 1):
         _set_worker_phase(task_id, "inference", attempt_count=attempt, blocker=None)
@@ -2617,7 +2559,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             "Do not import packages, aliases, clients or framework modules that are absent from the repository snapshot. "
             "Use concise code. Prefer the smallest working vertical slice over trying to implement the entire product in one response. "
             f"{path_contract} "
-            "At least one file must be product code under a repo-policy product root listed above. "
+            "At least one file must be product code under src/, modules/, app/, lib/, components/ or infra/ inside the product scope. "
             "Modify/reuse the existing architecture shown below. Do not invent parallel Express/NestJS/Mongoose routes or undeclared dependencies when the repo is Next.js/Firebase or another stack. "
             "Include tests under tests/ when behavior is testable. No secrets, no cloud apply, no production deploy, no markdown-only result.\n\n"
             f"TASK:\n{objective[:1600]}\n\nPREVIOUS FAILURES:\n{failures[:600]}\n\n"
@@ -2636,28 +2578,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             "error": model.get("error"),
         }
         model_text = str(model.get("response") or model.get("text") or model.get("content") or "")
-        model_failure = _local_model_failure(model)
-        if model_failure is not None:
-            failure_kind = model_failure["kind"]
-            failures = f"local_model_{failure_kind}_failure:{model_failure['error']}"
-            attempts.append(
-                {
-                    "attempt": attempt,
-                    "phase": f"model_{failure_kind}",
-                    "model_ok": False,
-                    "model_failure": model_failure,
-                    "error": failures,
-                }
-            )
-            _set_worker_phase(
-                task_id,
-                f"model_{failure_kind}_failure",
-                attempt_count=attempt,
-                blocker=failures,
-                model_output_diagnostics=attempts,
-            )
-            continue
-        payload = _fanout_parse_model_json(model_text)
+        payload = _fanout_parse_model_json(model_text) if model.get("ok") else None
         files, rejected_files = _safe_generated_files(payload, objective, task_id, repo, worktree, model_text=model_text)
         files = _merge_node_scaffold(objective=objective, task_id=task_id, worktree=worktree, files=files, repo=repo)
         if not files:
@@ -2669,7 +2590,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
                 "model_ok": bool(model.get("ok")),
                 "error": "model did not produce valid bounded files",
                 "quality_gate": gate,
-                "path_contract": {"product_root": product_root, "allowed_paths": _repo_allowed_paths(repo)},
+                "path_contract": {"product_root": product_root, "allowed_paths": [product_root] if product_root else list(local_execution_plane._repo_config(repo).get("allowed_paths") or [])},
                 "rejected_files": rejected_files,
                 "model_text_preview": model_text[:1200],
             }
