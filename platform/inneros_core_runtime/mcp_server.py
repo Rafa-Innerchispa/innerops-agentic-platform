@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from starlette.middleware import Middleware as StarletteMiddleware
+
 import json
 import hashlib
 import os
@@ -15,7 +17,6 @@ from typing import Any, TypedDict
 from datetime import datetime, timezone
 
 from fastmcp import FastMCP
-from starlette.middleware import Middleware as StarletteMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -74,7 +75,6 @@ mcp = FastMCP(
 if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
 
-
 class McpCompatibilityProbeMiddleware:
     """Return a harmless 200 for bare GET /mcp probes that are not SSE streams."""
 
@@ -111,68 +111,24 @@ class McpCompatibilityProbeMiddleware:
         await self.app(scope, receive, send)
 
 
+
+
 # --- MOD-A2A (Agent2Agent transport over durable InnerOS control plane) ---
 
 @mcp.tool
-def a2a_status(verbose: bool = False) -> dict[str, Any]:
+def a2a_status() -> dict[str, Any]:
     """A2A: estado del bridge, protocolo, SDK y agentes publicados."""
     from raphiia_openai import a2a_bridge
 
-    status = a2a_bridge.status()
-    if verbose:
-        return status
-    durable = status.get("durable_spine") or {}
-    dependencies = durable.get("dependencies") or {}
-    flags = durable.get("runtime_flags") or {}
-    return {
-        "ok": status.get("ok"),
-        "service": status.get("service"),
-        "bridge_version": status.get("bridge_version"),
-        "protocol_version": status.get("protocol_version"),
-        "sdk": status.get("sdk"),
-        "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
-        "durable_spine": {
-            "ok": durable.get("ok"),
-            "version": durable.get("version"),
-            "event_store": durable.get("default_event_store"),
-            "nats_available": (dependencies.get("nats") or {}).get("available"),
-            "temporal_available": (dependencies.get("temporal") or {}).get("available"),
-            "otel_available": (dependencies.get("opentelemetry") or {}).get("available"),
-            "nats_enabled": flags.get("INNEROS_NATS_ENABLED"),
-            "temporal_probe_enabled": flags.get("INNEROS_TEMPORAL_PROBE_ON_STATUS"),
-            "otel_enabled": flags.get("INNEROS_OTEL_ENABLED"),
-        },
-        "agent_card_count": len(status.get("agent_cards") or status.get("agents") or []),
-        "note": "Resumen compacto para agentes externos. Usa verbose=true solo para diagnostico completo.",
-    }
+    return a2a_bridge.status()
 
 
 @mcp.tool
-def a2a_agent_cards(verbose: bool = False) -> dict[str, Any]:
+def a2a_agent_cards() -> dict[str, Any]:
     """A2A: Agent Cards de los roles disponibles en InnerOS."""
     from raphiia_openai import a2a_bridge
 
-    cards = a2a_bridge.agent_cards()
-    if verbose:
-        return cards
-    agents = cards.get("card_list") or cards.get("agents") or cards.get("agent_cards") or list((cards.get("cards") or {}).values())
-    compact_agents = []
-    for agent in agents[:12]:
-        skills = agent.get("skills") or agent.get("capabilities") or []
-        compact_agents.append({
-            "id": agent.get("id") or agent.get("name") or agent.get("url"),
-            "name": agent.get("name"),
-            "description": agent.get("description"),
-            "skill_count": len(skills) if isinstance(skills, list) else None,
-            "skills": skills[:6] if isinstance(skills, list) else skills,
-        })
-    return {
-        "ok": cards.get("ok", True),
-        "count": cards.get("count") or len(agents),
-        "agents": compact_agents,
-        "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
-        "note": "Resumen compacto para agentes externos. Usa verbose=true para Agent Cards completas.",
-    }
+    return a2a_bridge.agent_cards()
 
 
 @mcp.tool
@@ -351,6 +307,27 @@ def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = True) -> dict
     from raphiia_openai.memory import agent_messages as _am
 
     return _am.poll_agent_inbox(agent=agent, limit=limit, auto_ack=auto_ack)
+
+
+@mcp.tool
+def identify_agent_session(
+    agent: str,
+    account: str = "",
+    host: str = "",
+    lane: str = "",
+    role: str = "",
+) -> dict[str, Any]:
+    """Devuelve identidad estable para coordinar varias cuentas/IDEs en el mismo MCP."""
+    from raphiia_openai import agent_identity
+
+    identity = agent_identity.normalize_actor(
+        agent,
+        account=account or None,
+        host=host or None,
+        lane=lane or None,
+        role=role or None,
+    )
+    return {"ok": True, "identity": identity, **identity}
 
 
 @mcp.tool
@@ -1435,84 +1412,6 @@ def provider_preflight(provider_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
-def assemblyai_provider_status() -> dict[str, Any]:
-    """AssemblyAI reusable provider status; never returns the API key."""
-    from raphiia_openai import assemblyai_provider
-
-    return assemblyai_provider.provider_status()
-
-
-@mcp.tool
-def assemblyai_provider_preflight(live: bool = False) -> dict[str, Any]:
-    """AssemblyAI provider preflight; live=True validates token mint server-side."""
-    from raphiia_openai import assemblyai_provider
-
-    return assemblyai_provider.provider_preflight(live=live)
-
-
-@mcp.tool
-def boson_provider_status() -> dict[str, Any]:
-    """Boson Higgs reusable provider status; never returns the permanent API key."""
-    from raphiia_openai import boson_provider
-
-    return boson_provider.provider_status()
-
-
-@mcp.tool
-def boson_provider_preflight(live: bool = False) -> dict[str, Any]:
-    """Boson provider preflight; live=True validates Realtime client-secret minting."""
-    from raphiia_openai import boson_provider
-
-    return boson_provider.provider_preflight(live=live)
-
-
-@mcp.tool
-def boson_store_api_key_server_side(secret: str, actor: str = "RAFAEL") -> dict[str, Any]:
-    """Store/rotate the permanent Boson API key in Owner Vault."""
-    from raphiia_openai import boson_provider
-
-    return boson_provider.store_api_key_server_side(secret=secret, actor=actor)
-
-
-@mcp.tool
-def boson_create_realtime_client_secret(expires_in_seconds: int = 120) -> dict[str, Any]:
-    """Mint a short-lived Higgs Realtime credential for a consuming project/session."""
-    from raphiia_openai import boson_provider
-
-    return boson_provider.create_realtime_client_secret(expires_in_seconds=expires_in_seconds)
-
-
-@mcp.tool
-def assemblyai_store_api_key_server_side(secret: str, actor: str = "RAFAEL") -> dict[str, Any]:
-    """Store/rotate AssemblyAI API key in Owner Vault; raw value is never returned."""
-    from raphiia_openai import assemblyai_provider
-
-    return assemblyai_provider.store_api_key_server_side(secret=secret, actor=actor)
-
-
-@mcp.tool
-def assemblyai_transcribe_audio_url(
-    audio_url: str,
-    language_code: str = "es",
-    keyterms: list[str] | None = None,
-    enable_guardrails: bool = True,
-    redact_audio: bool = False,
-    timeout_seconds: int = 75,
-) -> dict[str, Any]:
-    """Transcribe channel audio such as WhatsApp voice notes via the global provider."""
-    from raphiia_openai import assemblyai_provider
-
-    return assemblyai_provider.transcribe_audio_url(
-        audio_url=audio_url,
-        language_code=language_code,
-        keyterms=keyterms,
-        enable_guardrails=enable_guardrails,
-        redact_audio=redact_audio,
-        timeout_seconds=timeout_seconds,
-    )
-
-
-@mcp.tool
 def resource_fabric_bootstrap(dry_run: bool = False) -> dict[str, Any]:
     """Resource Fabric: registra providers/model providers globales sin ligarlos a proyectos."""
     from raphiia_openai import resource_fabric
@@ -1529,95 +1428,29 @@ def resource_fabric_status(limit: int = 20) -> dict[str, Any]:
 
 
 @mcp.tool
-def resource_fabric_route(
-    project_id: str,
-    task_class: str,
-    prefer_cloud: bool = False,
-    correlation_id: str = "",
-    tenant_id: str = "",
-    workflow_id: str = "",
-    emit_audit: bool = True,
-) -> dict[str, Any]:
-    """Resource Fabric: selecciona recurso local-first y emite RoutingEvidence auditable."""
+def resource_fabric_route(project_id: str, task_class: str, prefer_cloud: bool = False) -> dict[str, Any]:
+    """Resource Fabric: selecciona recurso por capability/costo/evidencia; local-first."""
     from raphiia_openai import resource_fabric
 
-    return resource_fabric.route_resource_request(
+    return resource_fabric.route_resource_request(project_id=project_id, task_class=task_class, prefer_cloud=prefer_cloud)
+
+
+@mcp.tool
+def resource_fabric_route_development_provider(
+    project_id: str,
+    task_class: str = "coding",
+    preferred_instance: str = "",
+    host_affinity: str = "",
+) -> dict[str, Any]:
+    """Resource Fabric: selecciona instancia de desarrollo por host sin secretos."""
+    from raphiia_openai import resource_fabric
+
+    return resource_fabric.route_development_provider(
         project_id=project_id,
         task_class=task_class,
-        prefer_cloud=prefer_cloud,
-        correlation_id=correlation_id,
-        tenant_id=tenant_id,
-        workflow_id=workflow_id,
-        emit_audit=emit_audit,
+        preferred_instance=preferred_instance,
+        host_affinity=host_affinity,
     )
-
-
-@mcp.tool
-def audit_fabric_status() -> dict[str, Any]:
-    """Audit Fabric: contrato vivo de hooks, HTR y backends de evidencia."""
-    from raphiia_openai import audit_fabric
-
-    return audit_fabric.audit_fabric_status()
-
-
-@mcp.tool
-def audit_fabric_emit_hook(
-    stage: str,
-    actor: str,
-    task_id: str = "",
-    correlation_id: str = "",
-    repo: str = "",
-    tenant_id: str = "",
-    workflow_id: str = "",
-    provider: str = "",
-    model: str = "",
-    status: str = "",
-    evidence_level: int = 1,
-    payload: dict[str, Any] | None = None,
-    dry_run: bool = True,
-) -> dict[str, Any]:
-    """Audit Fabric: emite hook start/route/approval/action/result/quality con dry_run por defecto."""
-    from raphiia_openai import audit_fabric
-
-    body = dict(payload or {})
-    return audit_fabric.emit_audit_hook(
-        stage,
-        actor=actor,
-        task_id=task_id,
-        correlation_id=correlation_id,
-        repo=repo,
-        tenant_id=tenant_id,
-        workflow_id=workflow_id,
-        provider=provider,
-        model=model,
-        status=status,
-        evidence_level=evidence_level,
-        routing_evidence=body.get("routing_evidence"),
-        productivity=body.get("productivity"),
-        htr_record=body.get("htr_record"),
-        decision_evidence=body.get("decision_evidence"),
-        evidence_refs=body.get("evidence_refs"),
-        forensic_bundle_ref=str(body.get("forensic_bundle_ref") or ""),
-        approval=body.get("approval"),
-        action=body.get("action"),
-        result=body.get("result"),
-        quality=body.get("quality"),
-        metadata=body.get("metadata"),
-        dry_run=dry_run,
-    )
-
-
-@mcp.tool
-def audit_fabric_query_events(
-    correlation_id: str = "",
-    tenant_id: str = "",
-    workflow_id: str = "",
-    limit: int = 50,
-) -> dict[str, Any]:
-    """Audit Fabric: consulta read-only de eventos por correlation/tenant/workflow."""
-    from raphiia_openai import audit_fabric
-
-    return audit_fabric.list_audit_events(correlation_id=correlation_id, tenant_id=tenant_id, workflow_id=workflow_id, limit=limit)
 
 
 @mcp.tool
@@ -2021,8 +1854,12 @@ def dispatch_local_agent(
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """AG-49: entrada única — ejecuta por defecto (dry_run=true = solo preview)."""
-    from raphiia_openai.agents import ag49_local_dispatcher as ag49
+    from inneros_core_runtime import session_guard
+    guard_res = session_guard.guard_mutation_operation(agent="generic_agent", operation_name=f"dispatch_local_agent:{task_kind}")
+    if not guard_res.get("allowed", True):
+        return {"ok": False, "error": "session_guard_blocked", "reason": guard_res.get("reason")}
 
+    from raphiia_openai.agents import ag49_local_dispatcher as ag49
     return ag49.dispatch_local_agent(task_kind, client_ref, message, dry_run=dry_run)
 
 
@@ -2166,6 +2003,30 @@ def agent_iskcon_contacts_summary(limit: int = 10) -> dict[str, Any]:
     from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
 
     return ag52.agent_iskcon_contacts_summary(limit)
+
+
+@mcp.tool
+def agent_iskcon_sources() -> dict[str, Any]:
+    """AG-52: fuentes curadas ISKCON usadas para planes y borradores."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_sources()
+
+
+@mcp.tool
+def agent_iskcon_yoga_campaign(message: str = "", days: int = 7, dry_run: bool = True) -> dict[str, Any]:
+    """AG-52: borradores WhatsApp de yoga vaishnava; no envía sin aprobación."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_yoga_campaign(message, days=days, dry_run=dry_run)
+
+
+@mcp.tool
+def agent_iskcon_class_update(message: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """AG-52: borrador seguro para avisos de cambios de clases/eventos."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return ag52.agent_iskcon_class_update(message, dry_run=dry_run)
 
 
 @mcp.tool
@@ -3184,6 +3045,8 @@ def route_mcp_tools(
     granted_scopes: list[str] | None = None,
     max_risk: str = "medium",
     tenant_id: str | None = None,
+    for_model: str | None = None,
+    max_tools: int | None = None,
 ) -> dict[str, Any]:
     """Select a bounded MCP tool profile after scope and risk filtering."""
     from raphiia_openai import capability_router
@@ -3195,6 +3058,8 @@ def route_mcp_tools(
         granted_scopes=granted_scopes,
         max_risk=max_risk,
         tenant_id=tenant_id,
+        for_model=for_model,
+        max_tools=max_tools,
     )
 
 
@@ -3516,42 +3381,6 @@ def ha_get_entity(entity_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
-def solar_history_query(
-    start: str,
-    end: str,
-    limit: int = 2000,
-    timezone_name: str = "America/Guayaquil",
-    include_ha: bool = True,
-) -> dict[str, Any]:
-    """Histórico read-only del inversor Xmart/Breaker y señales Home Assistant."""
-    from raphiia_openai import energy_history
-
-    return energy_history.solar_history_query(
-        start=start,
-        end=end,
-        limit=limit,
-        timezone_name=timezone_name,
-        include_ha=include_ha,
-    )
-
-
-@mcp.tool
-def energy_incident_analyze(
-    timestamp: str,
-    window_minutes: int = 30,
-    timezone_name: str = "America/Guayaquil",
-) -> dict[str, Any]:
-    """Correlación forense read-only de energía/red alrededor de un incidente."""
-    from raphiia_openai import energy_history
-
-    return energy_history.energy_incident_analyze(
-        timestamp=timestamp,
-        window_minutes=window_minutes,
-        timezone_name=timezone_name,
-    )
-
-
-@mcp.tool
 def ha_list_devices(limit: int = 500, integration: str | None = None) -> dict[str, Any]:
     """Lista devices del registry de Home Assistant via WebSocket."""
     from raphiia_openai import homeassistant_client as ha
@@ -3627,6 +3456,102 @@ def ha_turn_off_light(name_or_entity: str) -> dict[str, Any]:
 
 
 @mcp.tool
+def hubitat_discover() -> dict[str, Any]:
+    """Detecta hub Hubitat (Timmy/Juvita) en LAN sin token Maker API."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.discover()
+
+
+@mcp.tool
+def hubitat_ping() -> dict[str, Any]:
+    """Comprueba Hubitat Maker API y cuenta dispositivos expuestos."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.ping()
+
+
+@mcp.tool
+def hubitat_list_devices(limit: int = 100) -> dict[str, Any]:
+    """Lista dispositivos/sensores expuestos vía Maker API."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.list_devices(limit=limit)
+
+
+@mcp.tool
+def hubitat_get_device(device_id: str) -> dict[str, Any]:
+    """Estado detallado de un dispositivo Hubitat por ID."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.get_device(device_id)
+
+
+@mcp.tool
+def hubitat_find_device(query: str, limit: int = 20) -> dict[str, Any]:
+    """Busca dispositivo Hubitat por nombre, tipo o habitación."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.find_device(query, limit=limit)
+
+
+@mcp.tool
+def hubitat_send_command(device_id: str, command: str, capability: str = "Switch") -> dict[str, Any]:
+    """Envía comando Hubitat (on/off/refresh…) sobre una capability."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.send_command(device_id, command, capability=capability)
+
+
+@mcp.tool
+def hubitat_status(limit: int = 40) -> dict[str, Any]:
+    """Resumen AG-32 del hub Hubitat Timmy."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.hub_status(limit=limit)
+
+
+@mcp.tool
+def hubitat_capabilities() -> dict[str, Any]:
+    """Inventario Hubitat: dispositivos, modos, rooms y límites de la API."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.capabilities_summary()
+
+
+@mcp.tool
+def hubitat_list_modes() -> dict[str, Any]:
+    """Lista modos del hub (Day/Evening/Night/Away)."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.list_modes()
+
+
+@mcp.tool
+def hubitat_set_mode(mode_id: int) -> dict[str, Any]:
+    """Activa modo Hubitat por ID."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.set_mode(mode_id)
+
+
+@mcp.tool
+def hubitat_list_rooms() -> dict[str, Any]:
+    """Lista rooms Hubitat y dispositivos asignados."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.list_rooms()
+
+
+@mcp.tool
+def hubitat_device_events(device_id: str, limit: int = 20) -> dict[str, Any]:
+    """Eventos recientes de un dispositivo Hubitat."""
+    from raphiia_openai import hubitat_client as hub
+
+    return hub.get_device_events(device_id, limit=limit)
+
+
+@mcp.tool
 def run_home_ops_cycle() -> dict[str, Any]:
     """Ciclo local: poll email + snapshot HA + digest Ollama (sin cloud)."""
     from raphiia_openai import home_ops_daemon
@@ -3643,11 +3568,17 @@ def dmx_status() -> dict[str, Any]:
 
 
 @mcp.tool
-def dmx_set_scene(scene: str) -> dict[str, Any]:
+def dmx_set_scene(
+    scene: str = "",
+    color: str = "",
+    target: str = "todas",
+    brightness: int = 255,
+    speed: float = 1.0,
+) -> dict[str, Any]:
     """AG-59: aplica solo una escena DMX allowlisted; no acepta canales/universos raw."""
     from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
 
-    return ag59.dmx_set_scene(scene)
+    return ag59.dmx_set_scene(scene, color=color, target=target, brightness=brightness, speed=speed)
 
 
 @mcp.tool
@@ -3944,6 +3875,498 @@ def get_disk_steward_status(include_candidates: bool = True) -> dict[str, Any]:
 
 
 @mcp.tool
+def disk_steward_inventory(include_candidates: bool = True) -> dict[str, Any]:
+    """Disk Steward: inventario multi-disco y candidatos seguros de migración."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.build_status(include_candidates=include_candidates)
+
+
+@mcp.tool
+def disk_steward_plan_migration(reason: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Disk Steward: crea o previsualiza una propuesta de migración de backups."""
+    from raphiia_openai import disk_steward
+
+    if dry_run:
+        status = disk_steward.build_status(include_candidates=True)
+        return {
+            "ok": True,
+            "dry_run": True,
+            "proposal_would_be_created": bool(status.get("move_candidates")),
+            "status": status,
+        }
+    return disk_steward.create_move_proposal(reason=reason or None)
+
+
+@mcp.tool
+def disk_steward_execute_migration(proposal_id: str, sender: str, dry_run: bool = True) -> dict[str, Any]:
+    """Disk Steward: ejecuta una propuesta aprobada; dry_run por defecto."""
+    from raphiia_openai import disk_steward
+
+    if dry_run:
+        return {"ok": True, "dry_run": True, "proposal_id": proposal_id, "would_execute": True}
+    return disk_steward.confirm_move(sender=sender, proposal_id=proposal_id)
+
+
+@mcp.tool
+def disk_steward_verify_migration(include_candidates: bool = True) -> dict[str, Any]:
+    """Disk Steward: verifica estado posterior a migración sin mover archivos."""
+    from raphiia_openai import disk_steward
+
+    status = disk_steward.build_status(include_candidates=include_candidates)
+    return {"ok": True, "verification": "inventory_snapshot", "status": status}
+
+
+@mcp.tool
+def disk_steward_update_backup_policy(policy: dict[str, Any] | None = None, actor: str = "mcp", dry_run: bool = True) -> dict[str, Any]:
+    """Disk Steward: valida/persiste política de backups sin mover archivos."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.update_backup_policy(policy or {}, actor=actor, dry_run=dry_run)
+
+
+@mcp.tool
+def disk_steward_cleanup_verified(proposal_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Disk Steward: verifica y finaliza metadata; no borra archivos."""
+    from raphiia_openai import disk_steward
+
+    return disk_steward.cleanup_verified(proposal_id=proposal_id, dry_run=dry_run)
+
+
+@mcp.tool
+def summarize_self_heal_incidents(limit: int = 500) -> dict[str, Any]:
+    """Resume incidentes de auto-reparación sin escribir baselines ni eventos."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.summarize_self_heal_incidents(limit=limit)
+
+
+@mcp.tool
+def list_self_heal_incidents(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    """Lista incidentes de auto-reparación, opcionalmente filtrados por servicio."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.list_self_heal_incidents(limit=limit, service_id=service_id)
+
+
+@mcp.tool
+def list_self_heal_baselines(limit: int = 50, service_id: str = "") -> dict[str, Any]:
+    """Lista baselines manuales usados para KPI/ROI de self-healing."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.list_self_heal_baselines(limit=limit, service_id=service_id)
+
+
+@mcp.tool
+def save_self_heal_baseline(payload: dict[str, Any]) -> dict[str, Any]:
+    """Guarda baseline auditado; measured+verified exige evidence_refs."""
+    from raphiia_openai import self_heal_metrics
+
+    return self_heal_metrics.save_self_heal_baseline(payload)
+
+
+@mcp.tool
+def editorial_image_providers() -> dict[str, Any]:
+    """Editorial: proveedores de imagen disponibles y politica de uso seguro."""
+    providers = sorted(getattr(editorial_store, "REAL_IMAGE_PROVIDERS", []))
+    return {
+        "ok": True,
+        "providers": providers,
+        "default_provider": getattr(image_gen, "IMAGE_GEN_PROVIDER", "google"),
+        "status": "COMPATIBLE_RESTORED",
+    }
+
+
+def _compat_not_ready(tool: str, *, replacement: str = "", reason: str = "", **params: Any) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "status": "NOT_READY_BACKEND_REMOVED",
+        "tool": tool,
+        "replacement": replacement or None,
+        "reason": reason or "El contrato historico existe, pero su backend fue retirado; no se ejecuta accion simulada.",
+        "params": params,
+    }
+
+
+@mcp.tool
+def agent_iskcon_module_manifest() -> dict[str, Any]:
+    """Compatibilidad AG-52: manifiesto ISKCON actual usando capabilities."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    return {"ok": True, "compatible_alias": True, "manifest": ag52.agent_iskcon_capabilities()}
+
+
+@mcp.tool
+def agent_iskcon_action(intent: str = "", message: str = "", inputs: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
+    """Compatibilidad AG-52: ejecuta acción ISKCON por dispatch seguro."""
+    from raphiia_openai.agents import ag52_iskcon_ops_agent as ag52
+
+    action = intent or (inputs or {}).get("action") or "status"
+    return ag52.agent_iskcon_dispatch(str(action), message=message, dry_run=dry_run)
+
+
+@mcp.tool
+def agent_iskcon_artifact_download(artifact_id: str, tenant_id: str = "ent_iskcon") -> dict[str, Any]:
+    """Compatibilidad AG-52: artifact download retirado hasta restaurar ModuleContract."""
+    try:
+        from raphiia_openai import module_contract
+
+        return module_contract.download_module_artifact(tenant_id, artifact_id)
+    except Exception as exc:
+        return _compat_not_ready(
+            "agent_iskcon_artifact_download",
+            replacement="document_vault_get",
+            reason=str(exc),
+            artifact_id=artifact_id,
+            tenant_id=tenant_id,
+        )
+
+
+@mcp.tool
+def digitalocean_mi325x_deploy_plan(project_id: str = "judge-console", task_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Compatibilidad: plan MI325X en modo seguro; no crea droplets."""
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    status = do.preflight()
+    return {
+        "ok": True,
+        "dry_run": True,
+        "project_id": project_id,
+        "task_id": task_id,
+        "provider_status": status,
+        "replacement": "digitalocean_preflight",
+        "requested_execute": not dry_run,
+        "execute_status": "approval_required_not_executed",
+    }
+
+
+@mcp.tool
+def inneros_agent_fabric_status() -> dict[str, Any]:
+    """Compatibilidad: estado agregado de fabric usando surfaces actuales."""
+    return {
+        "ok": True,
+        "status": "COMPATIBLE_ALIAS",
+        "replacements": ["a2a_status", "provider_execution_fabric_status", "resource_fabric_status"],
+        "note": "La fabric moderna se consulta por A2A/Provider Fabric/Resource Fabric.",
+    }
+
+
+@mcp.tool
+def inneros_dual_deployment_status() -> dict[str, Any]:
+    from raphiia_openai import mcp_fleet
+
+    status = mcp_fleet.fleet_status(force_probe=True)
+    return {
+        "ok": bool(status.get("ok")),
+        "status": "COMPATIBLE_RESTORED",
+        "capability_available": True,
+        "compatibility_mode": "fleet_status_alias",
+        "replacement": "get_mcp_fleet_status",
+        "fleet": status,
+    }
+
+
+@mcp.tool
+def inneros_dual_queue_operation(operation: str = "", payload: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
+    from raphiia_openai import durable_coordination_spine
+
+    event_type = "a2a.dispatched" if operation else "scheduler.selected"
+    result = durable_coordination_spine.publish_event(
+        event_type,
+        actor="inneros_dual_queue_operation",
+        correlation_id=str((payload or {}).get("correlation_id") or "dual-queue-operation"),
+        status=operation or "queued",
+        payload={"operation": operation, "payload": payload or {}},
+        sink=durable_coordination_spine.MemoryEventSink([]) if dry_run else None,
+        live_mode="NON-LIVE" if dry_run else "LIVE",
+    )
+    return {
+        **result,
+        "status": "COMPATIBLE_RESTORED",
+        "capability_available": True,
+        "compatibility_mode": "durable_event_alias",
+        "dry_run": dry_run,
+        "replacement": "durable_coordination_publish_event",
+    }
+
+
+@mcp.tool
+def inneros_dual_reconcile_operations(dry_run: bool = True) -> dict[str, Any]:
+    from raphiia_openai.agents import ag40_runtime_reconciler
+
+    result = ag40_runtime_reconciler.reconcile_runtime_state(dry_run=dry_run)
+    return {
+        **result,
+        "status": "COMPATIBLE_RESTORED",
+        "capability_available": True,
+        "compatibility_mode": "runtime_reconciler_alias",
+        "replacement": "reconcile_runtime_state",
+    }
+
+
+@mcp.tool
+def inneros_dual_deployment_drill(dry_run: bool = True) -> dict[str, Any]:
+    from raphiia_openai.agents import ag43_platform_sync_agent as ag43
+
+    result = ag43.run_failover_dry_run()
+    return {
+        **result,
+        "status": "COMPATIBLE_RESTORED",
+        "capability_available": True,
+        "compatibility_mode": "failover_dry_run_alias",
+        "dry_run": True,
+        "requested_dry_run": dry_run,
+        "replacement": "run_failover_dry_run",
+    }
+
+
+@mcp.tool
+def inneros_ingest_drop_status(limit: int = 20) -> dict[str, Any]:
+    try:
+        from raphiia_openai import ingest_drop_folder
+
+        return ingest_drop_folder.status(limit=limit)
+    except Exception as exc:
+        return _compat_not_ready("inneros_ingest_drop_status", replacement="document_vault_status", reason=str(exc), limit=limit)
+
+
+@mcp.tool
+def inneros_ingest_drop_run(dry_run: bool = True, limit: int = 20) -> dict[str, Any]:
+    try:
+        from raphiia_openai import ingest_drop_folder
+
+        return ingest_drop_folder.run(dry_run=dry_run, limit=limit)
+    except Exception as exc:
+        return _compat_not_ready("inneros_ingest_drop_run", replacement="document_vault_ingest", reason=str(exc), dry_run=dry_run, limit=limit)
+
+
+@mcp.tool
+def module_manifest(tenant_id: str = "", module_id: str = "") -> dict[str, Any]:
+    try:
+        from raphiia_openai import module_contract
+
+        if tenant_id and module_id:
+            return module_contract.get_module_manifest(tenant_id, module_id)
+        return module_contract.list_module_manifests(tenant_id or None)
+    except Exception as exc:
+        return _compat_not_ready("module_manifest", replacement="get_capability_registry_summary", reason=str(exc), tenant_id=tenant_id, module_id=module_id)
+
+
+@mcp.tool
+def module_action(tenant_id: str, module_id: str, intent: str = "", inputs: dict[str, Any] | None = None, dry_run: bool = True) -> dict[str, Any]:
+    try:
+        from raphiia_openai import module_contract
+
+        return module_contract.route_module_action(tenant_id, module_id, intent=intent, inputs=inputs or {}, dry_run=dry_run)
+    except Exception as exc:
+        return _compat_not_ready("module_action", replacement="route_agent_request", reason=str(exc), tenant_id=tenant_id, module_id=module_id, intent=intent, inputs=inputs or {}, dry_run=dry_run)
+
+
+@mcp.tool
+def module_artifact_download(tenant_id: str, artifact_id: str) -> dict[str, Any]:
+    try:
+        from raphiia_openai import module_contract
+
+        return module_contract.download_module_artifact(tenant_id, artifact_id)
+    except Exception as exc:
+        return _compat_not_ready("module_artifact_download", replacement="document_vault_get", reason=str(exc), tenant_id=tenant_id, artifact_id=artifact_id)
+
+
+@mcp.tool
+def judge_workflow_start(message: str = "", intent: str = "auto", fields: dict[str, Any] | None = None, correlation_id: str = "", actor: str = "judge") -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_workflows
+
+        return judge_workflows.start_workflow(message, intent=intent, fields=fields or {}, correlation_id=correlation_id, actor=actor)
+    except Exception as exc:
+        return _compat_not_ready("judge_workflow_start", replacement="a2a_dispatch", reason=str(exc), message=message, intent=intent, fields=fields or {}, correlation_id=correlation_id, actor=actor)
+
+
+@mcp.tool
+def judge_workflow_continue(workflow_id: str, fields: dict[str, Any] | None = None, message: str = "", execute: bool = False, actor: str = "judge") -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_workflows
+
+        return judge_workflows.continue_workflow(workflow_id, fields=fields or {}, message=message, execute=execute, actor=actor)
+    except Exception as exc:
+        return _compat_not_ready("judge_workflow_continue", replacement="a2a_task_status", reason=str(exc), workflow_id=workflow_id, fields=fields or {}, message=message, execute=execute, actor=actor)
+
+
+@mcp.tool
+def judge_workflow_execute(workflow_id: str, actor: str = "judge") -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_workflows
+
+        return judge_workflows.execute_workflow(workflow_id, actor=actor)
+    except Exception as exc:
+        return _compat_not_ready("judge_workflow_execute", replacement="judge_safe_trigger", reason=str(exc), workflow_id=workflow_id, actor=actor)
+
+
+@mcp.tool
+def judge_workflow_get(workflow_id: str) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_workflows
+
+        return judge_workflows.get_workflow(workflow_id)
+    except Exception as exc:
+        return _compat_not_ready("judge_workflow_get", replacement="judge_trace_detail", reason=str(exc), workflow_id=workflow_id)
+
+
+@mcp.tool
+def judge_workflow_list(correlation_id: str = "", limit: int = 50) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_workflows
+
+        return judge_workflows.list_workflows(correlation_id=correlation_id, limit=limit)
+    except Exception as exc:
+        return _compat_not_ready("judge_workflow_list", replacement="judge_trace_history", reason=str(exc), correlation_id=correlation_id, limit=limit)
+
+
+@mcp.tool
+def judge_trace_record(event: dict[str, Any]) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_telemetry
+
+        return judge_telemetry.record_trace_event(event)
+    except Exception as exc:
+        return _compat_not_ready("judge_trace_record", replacement="durable_coordination_publish_event", reason=str(exc), event=event)
+
+
+@mcp.tool
+def judge_trace_current(limit: int = 20) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_telemetry
+
+        return judge_telemetry.current_trace(limit=limit)
+    except Exception as exc:
+        return _compat_not_ready("judge_trace_current", replacement="durable_coordination_spine_status", reason=str(exc), limit=limit)
+
+
+@mcp.tool
+def judge_trace_history(correlation_id: str = "", run_id: str = "", limit: int = 50) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_telemetry
+
+        return judge_telemetry.list_trace_events(correlation_id=correlation_id, run_id=run_id, limit=limit)
+    except Exception as exc:
+        return _compat_not_ready("judge_trace_history", replacement="durable_coordination_spine_status", reason=str(exc), correlation_id=correlation_id, run_id=run_id, limit=limit)
+
+
+@mcp.tool
+def judge_trace_detail(run_id: str) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_telemetry
+
+        return judge_telemetry.trace_detail(run_id)
+    except Exception as exc:
+        return _compat_not_ready("judge_trace_detail", replacement="durable_coordination_spine_status", reason=str(exc), run_id=run_id)
+
+
+@mcp.tool
+def judge_trace_kpis(correlation_id: str = "", limit: int = 500) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_telemetry
+
+        return judge_telemetry.kpis(correlation_id=correlation_id, limit=limit)
+    except Exception as exc:
+        return _compat_not_ready("judge_trace_kpis", replacement="get_ai_usage_report", reason=str(exc), correlation_id=correlation_id, limit=limit)
+
+
+@mcp.tool
+def judge_resource_telemetry() -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_telemetry
+
+        return judge_telemetry.resource_telemetry()
+    except Exception as exc:
+        return _compat_not_ready("judge_resource_telemetry", replacement="resource_fabric_status", reason=str(exc))
+
+
+@mcp.tool
+def judge_safe_trigger(action: str = "", prompt: str = "", correlation_id: str = "", dry_run: bool = True) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_telemetry
+
+        return judge_telemetry.safe_judge_trigger(action=action, prompt=prompt, correlation_id=correlation_id, dry_run=dry_run)
+    except Exception as exc:
+        return _compat_not_ready("judge_safe_trigger", replacement="route_agent_request", reason=str(exc), action=action, prompt=prompt, correlation_id=correlation_id, dry_run=dry_run)
+
+
+@mcp.tool
+def judge_console_content_get(section_id: str = "", refresh: bool = True) -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_console_content
+
+        return judge_console_content.get_content(section_id=section_id, refresh=refresh)
+    except Exception as exc:
+        return _compat_not_ready("judge_console_content_get", replacement="document_vault_search", reason=str(exc), section_id=section_id, refresh=refresh)
+
+
+@mcp.tool
+def judge_model_routing_policy(task_class: str = "", project_id: str = "") -> dict[str, Any]:
+    try:
+        from raphiia_openai import judge_console_content
+
+        return judge_console_content.model_routing_policy(task_class=task_class, project_id=project_id)
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "status": "COMPATIBLE_ALIAS",
+        "replacement": "local_model_router_status",
+        "router": local_model_router.local_model_health(),
+        "task_class": task_class,
+        "project_id": project_id,
+    }
+
+
+@mcp.tool
+def judge_mi325x_deploy(action: str = "preflight", params: dict[str, Any] | None = None) -> dict[str, Any]:
+    from raphiia_openai import digitalocean_amd_provider as do
+
+    safe_params = dict(params or {})
+    if action in {"status", "preflight", "plan", "dry_run", ""}:
+        return {
+            "ok": True,
+            "status": "COMPATIBLE_RESTORED",
+            "capability_available": True,
+            "compatibility_mode": "digitalocean_preflight_plan_alias",
+            "replacement": "digitalocean_preflight",
+            "action": action or "preflight",
+            "provider_status": do.preflight(),
+            "executed": False,
+            "cloud_spend": False,
+        }
+    if action == "create_gpu_droplet":
+        return {
+            **do.create_gpu_droplet(
+                name=str(safe_params.get("name") or "inneros-judge-mi325x-dry-run"),
+                region=str(safe_params.get("region") or ""),
+                size=str(safe_params.get("size") or ""),
+                image=str(safe_params.get("image") or ""),
+                ssh_key_ids=list(safe_params.get("ssh_key_ids") or []),
+                project_id=str(safe_params.get("project_id") or "judge-console"),
+                task_id=str(safe_params.get("task_id") or ""),
+                approval_id=str(safe_params.get("approval_id") or ""),
+                dry_run=True,
+            ),
+            "status": "COMPATIBLE_RESTORED",
+            "capability_available": True,
+            "compatibility_mode": "approval_gated_dry_run_create_alias",
+            "replacement": "digitalocean_create_gpu_droplet",
+            "cloud_spend": False,
+        }
+    return {
+        "ok": False,
+        "status": "unsupported_action",
+        "capability_available": True,
+        "supported_actions": ["status", "preflight", "plan", "dry_run", "create_gpu_droplet"],
+        "action": action,
+        "cloud_spend": False,
+    }
+
+
+@mcp.tool
 def sync_hackathon_portfolio_to_web_content(
     source_path: str | None = None,
     default_status: str = "review",
@@ -3976,28 +4399,9 @@ def preview_whatsapp_agent_reply(message: str, sender: str | None = None) -> dic
 
 
 @mcp.tool
-def mcp_version(session_id: str | None = None, include_tools: bool = False) -> dict[str, Any]:
-    """Version viva del bridge, catalogo y manifest. Por defecto devuelve resumen compacto."""
-    version = mcp_diagnostics.mcp_version(session_id=session_id)
-    if include_tools:
-        return version
-    details = version.get("tool_name_count_details") or {}
-    return {
-        "ok": version.get("ok"),
-        "timestamp": version.get("timestamp"),
-        "server_version": version.get("server_version"),
-        "bridge_version": version.get("bridge_version"),
-        "catalog_version": version.get("catalog_version"),
-        "manifest_version": version.get("manifest_version"),
-        "manifest_hash": version.get("manifest_hash"),
-        "catalog_tool_count": version.get("catalog_tool_count"),
-        "runtime_tool_count": version.get("runtime_tool_count"),
-        "runtime_tool_count_basis": version.get("runtime_tool_count_basis"),
-        "duplicate_tool_name_count": details.get("duplicate_tool_name_count", 0),
-        "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
-        "sample_tools": list(version.get("tool_names") or [])[:12],
-        "note": "Resumen compacto para agentes externos. Usa include_tools=true solo para diagnostico completo.",
-    }
+def mcp_version(session_id: str | None = None) -> dict[str, Any]:
+    """Versión viva del bridge, catálogo y manifest."""
+    return mcp_diagnostics.mcp_version(session_id=session_id)
 
 
 @mcp.tool
@@ -4023,6 +4427,7 @@ def diagnose_mcp_session(
     client_tool_count: int | None = None,
     client_catalog_version: str | None = None,
     client_seen_tools: list[str] | None = None,
+    profile: str | None = None,
     session_id: str | None = None,
     user_agent: str | None = None,
 ) -> dict[str, Any]:
@@ -4031,6 +4436,7 @@ def diagnose_mcp_session(
         client_tool_count=client_tool_count,
         client_catalog_version=client_catalog_version,
         client_seen_tools=client_seen_tools,
+        profile=profile,
         session_id=session_id,
         user_agent=user_agent,
     )
@@ -4708,6 +5114,18 @@ def create_ops_task(
     priority: str = "normal",
     from_agent: str = "RAFAEL",
     correlation_id: str | None = None,
+    project_id: str | None = None,
+    repo: str | None = None,
+    base_ref: str | None = None,
+    work_branch: str | None = None,
+    task_class: str | None = None,
+    execution_lane: str | None = None,
+    provider_transport: str | None = None,
+    runtime_profile: str | None = None,
+    execution_policy: str | None = None,
+    preferred_provider: str | None = None,
+    preferred_model: str | None = None,
+    idempotency_key: str | None = None,
 ) -> OpsTaskToolResult:
     """Orden formal con checklist + evidencia → Mongo ops_tasks + INBOX assignee."""
     from raphiia_openai import coordination_live
@@ -4720,6 +5138,18 @@ def create_ops_task(
         priority=priority,
         from_agent=from_agent,
         correlation_id=correlation_id,
+        project_id=project_id,
+        repo=repo,
+        base_ref=base_ref,
+        work_branch=work_branch,
+        task_class=task_class,
+        execution_lane=execution_lane,
+        provider_transport=provider_transport,
+        runtime_profile=runtime_profile,
+        execution_policy=execution_policy,
+        preferred_provider=preferred_provider,
+        preferred_model=preferred_model,
+        idempotency_key=idempotency_key,
     )
 
 
@@ -4902,6 +5332,92 @@ def product_intelligence(action: str, payload: dict[str, Any] | None = None) -> 
 
 
 @mcp.tool
+
+@mcp.tool
+def acquire_task_lease(
+    task_id: str,
+    worker_id: str,
+    actor: str,
+    lease_seconds: int = 600,
+    retry_budget: int = 3,
+    repo: str | None = None,
+) -> dict[str, Any]:
+    """Authoritative task lease acquisition for agents (AntiGravity, Cursor, Codex, Swarm)."""
+    from inneros_core_runtime import coordination_liveness
+    return coordination_liveness.acquire_task_lease(
+        task_id=task_id,
+        worker_id=worker_id,
+        actor=actor,
+        lease_seconds=lease_seconds,
+        retry_budget=retry_budget,
+        repo=repo,
+    )
+
+
+@mcp.tool
+def renew_task_lease(
+    task_id: str,
+    worker_id: str,
+    actor: str,
+    files_touched: list[str] | None = None,
+    tests_passed: list[str] | int | None = None,
+    git_commit: str | None = None,
+    evidence_summary: str | None = None,
+    next_action: str | None = None,
+    blocker: str | None = None,
+    lease_seconds: int = 600,
+) -> dict[str, Any]:
+    """Renew task lease and report forward progress evidence."""
+    from inneros_core_runtime import coordination_liveness
+    return coordination_liveness.renew_task_lease(
+        task_id=task_id,
+        worker_id=worker_id,
+        actor=actor,
+        files_touched=files_touched,
+        tests_passed=tests_passed,
+        git_commit=git_commit,
+        evidence_summary=evidence_summary,
+        next_action=next_action,
+        blocker=blocker,
+        lease_seconds=lease_seconds,
+    )
+
+
+@mcp.tool
+def release_task_lease(
+    task_id: str,
+    worker_id: str,
+    actor: str,
+    terminal_status: str = "completed",
+    reason: str | None = None,
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Release task lease and associated repo locks upon completion or handoff."""
+    from inneros_core_runtime import coordination_liveness
+    return coordination_liveness.release_task_lease(
+        task_id=task_id,
+        worker_id=worker_id,
+        actor=actor,
+        terminal_status=terminal_status,
+        reason=reason,
+        evidence=evidence,
+    )
+
+
+@mcp.tool
+def reconcile_coordination_liveness(dry_run: bool = False) -> dict[str, Any]:
+    """Execute authoritative liveness reconciliation cycle."""
+    from inneros_core_runtime import coordination_liveness
+    return coordination_liveness.reconcile_coordination_liveness(dry_run=dry_run)
+
+
+@mcp.tool
+def get_coordination_liveness_summary() -> dict[str, Any]:
+    """Return live coordination liveness telemetry and active/frozen counts."""
+    from inneros_core_runtime import coordination_liveness
+    return coordination_liveness.get_coordination_liveness_summary()
+
+
 def list_ops_tasks(assignee: str | None = None, status: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Lista órdenes ops (pending/completed)."""
     from raphiia_openai import coordination_live
@@ -5493,6 +6009,12 @@ def dev_swarm_scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixt
 
 
 @mcp.tool
+def coordination_backlog_hygiene(limit: int = 200, dry_run: bool = True) -> dict[str, Any]:
+    """Clasifica y limpia tareas antiguas/duplicadas sin borrar evidencia; dry-run por defecto."""
+    return dev_swarm_scheduler.reconcile_coordination_backlog_hygiene(limit=limit, dry_run=dry_run)
+
+
+@mcp.tool
 def dev_swarm_watchdog_record_anomaly(anomaly: dict[str, Any], repair_task_id: str = "", dry_run: bool = False) -> dict[str, Any]:
     """Registra una anomalía Dev Swarm y crea/actualiza una ops_task deduplicada."""
     return dev_swarm_watchdog.record_anomaly(anomaly, repair_task_id=repair_task_id, actor="mcp", dry_run=dry_run)
@@ -5847,36 +6369,6 @@ def local_gitlab_list_merge_requests(project_id_or_path: str, state: str = "open
 
 
 @mcp.tool
-def local_gitlab_get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
-    """Local GitLab Plane: lee estado completo de un merge request."""
-    return local_gitlab_plane.get_merge_request(project_id_or_path=project_id_or_path, mr_iid=mr_iid)
-
-
-@mcp.tool
-def local_gitlab_list_merge_request_discussions(project_id_or_path: str, mr_iid: int, limit: int = 100) -> dict[str, Any]:
-    """Local GitLab Plane: lista discusiones y notas de un merge request."""
-    return local_gitlab_plane.list_merge_request_discussions(
-        project_id_or_path=project_id_or_path, mr_iid=mr_iid, limit=limit
-    )
-
-
-@mcp.tool
-def local_gitlab_list_merge_request_pipelines(project_id_or_path: str, mr_iid: int, limit: int = 20) -> dict[str, Any]:
-    """Local GitLab Plane: lista pipelines asociados directamente a un merge request."""
-    return local_gitlab_plane.list_merge_request_pipelines(
-        project_id_or_path=project_id_or_path, mr_iid=mr_iid, limit=limit
-    )
-
-
-@mcp.tool
-def local_gitlab_list_pipeline_jobs(project_id_or_path: str, pipeline_id: int, limit: int = 100) -> dict[str, Any]:
-    """Local GitLab Plane: lista jobs de un pipeline para diagnosticar CI."""
-    return local_gitlab_plane.list_pipeline_jobs(
-        project_id_or_path=project_id_or_path, pipeline_id=pipeline_id, limit=limit
-    )
-
-
-@mcp.tool
 def local_gitlab_create_draft_merge_request(source_project: str, source_branch: str, target_project: str, target_branch: str = "main", title: str = "", description: str = "", dry_run: bool = True) -> dict[str, Any]:
     """Local GitLab Plane: crea un Draft MR allowlisted; por defecto solo simula."""
     return local_gitlab_plane.create_draft_merge_request(
@@ -5894,41 +6386,6 @@ def local_gitlab_create_draft_merge_request(source_project: str, source_branch: 
 def local_gitlab_list_issues(project_id_or_path: str, state: str = "opened", limit: int = 20) -> dict[str, Any]:
     """Local GitLab Plane: lista issues para trazabilidad de proyecto."""
     return local_gitlab_plane.list_issues(project_id_or_path=project_id_or_path, state=state, limit=limit)
-
-
-@mcp.tool
-def local_gitlab_get_issue(project_id_or_path: str, issue_iid: int) -> dict[str, Any]:
-    """Local GitLab Plane: lee una issue puntual con estado, labels y assignees."""
-    return local_gitlab_plane.get_issue(project_id_or_path=project_id_or_path, issue_iid=issue_iid)
-
-
-@mcp.tool
-def local_gitlab_comment_issue(project_id_or_path: str, issue_iid: int, body: str, dry_run: bool = True) -> dict[str, Any]:
-    """Local GitLab Plane: comenta una issue sin quick actions; dry-run por defecto."""
-    return local_gitlab_plane.comment_issue(
-        project_id_or_path=project_id_or_path,
-        issue_iid=issue_iid,
-        body=body,
-        dry_run=dry_run,
-    )
-
-
-@mcp.tool
-def local_gitlab_claim_issue(
-    project_id_or_path: str,
-    issue_iid: int,
-    username: str = "rafagye",
-    require_label: str = "Seeking community contributions",
-    dry_run: bool = True,
-) -> dict[str, Any]:
-    """Local GitLab Plane: autoasigna una issue comunitaria con guardas fail-closed."""
-    return local_gitlab_plane.claim_issue(
-        project_id_or_path=project_id_or_path,
-        issue_iid=issue_iid,
-        username=username,
-        require_label=require_label,
-        dry_run=dry_run,
-    )
 
 
 @mcp.tool
@@ -6587,7 +7044,7 @@ def _systemctl_status(unit: str) -> dict[str, Any]:
 
 
 @mcp.tool
-def system_health(verbose: bool = False) -> dict[str, Any]:
+def system_health() -> dict[str, Any]:
     """Estado de Mongo, MCP, portal, funding-hub, LinkedIn, Gemini y daemon."""
     mongo = mongo_store.ping_mongo()
     mcp_ok = mongo_store.ping_mongo().get("ok", False)
@@ -6606,7 +7063,7 @@ def system_health(verbose: bool = False) -> dict[str, Any]:
     daemon = _systemctl_status("ralfia-coordination-daemon")
     oauth = _url_ok(f"{OAUTH_ISSUER}/health")
     file_access = coordination_docs.list_coordination_files(path="chatgpt")
-    full = {
+    return {
         "ok": bool(mongo.get("ok")),
         "mongodb": mongo,
         "mcp": {"ok": mcp_ok, "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp"},
@@ -6621,40 +7078,6 @@ def system_health(verbose: bool = False) -> dict[str, Any]:
         "daemon": daemon,
         "oauth": oauth,
         "file_access_tools": {"ok": bool(file_access.get("ok")), "count": file_access.get("count", 0)},
-    }
-    if verbose:
-        return full
-
-    def brief(value: Any) -> dict[str, Any]:
-        if not isinstance(value, dict):
-            return {"ok": bool(value)}
-        out = {k: value.get(k) for k in ("ok", "status", "port", "error", "service", "configured", "provider") if k in value}
-        if "preview" in value and not out.get("error"):
-            out["preview_available"] = True
-        return out
-
-    return {
-        "ok": full["ok"],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
-        "mongodb": {
-            "ok": mongo.get("ok"),
-            "db": mongo.get("db"),
-            "mcp_errors": mongo.get("mcp_errors"),
-        },
-        "mcp": full["mcp"],
-        "portal": brief(portal),
-        "ralphia_health": brief(ralphia_health),
-        "funding_hub": brief(funding_hub),
-        "linkedin_connector": brief(linkedin),
-        "gemini_image_api": brief(gemini),
-        "local_model_runtime": brief(local_models),
-        "funding_registry": brief(funding_registry),
-        "watcher": brief(watcher),
-        "daemon": brief(daemon),
-        "oauth": brief(oauth),
-        "file_access_tools": full["file_access_tools"],
-        "note": "Resumen compacto para agentes externos. Usa verbose=true solo para diagnostico completo.",
     }
 
 
@@ -6714,52 +7137,6 @@ async def mcp_capabilities_http(_request: Request) -> JSONResponse:
     )
 
 
-def _mcp_oauth_options_response() -> Response:
-    return Response(
-        status_code=204,
-        headers={
-            "access-control-allow-origin": "*",
-            "access-control-allow-methods": "GET,POST,OPTIONS",
-            "access-control-allow-headers": "authorization,content-type,mcp-protocol-version",
-            "access-control-max-age": "600",
-        },
-    )
-
-
-@mcp.custom_route("/.well-known/oauth-authorization-server", methods=["GET"])
-async def mcp_oauth_authorization_server(request: Request) -> JSONResponse:
-    from raphiia_openai.oauth_metadata import authorization_server_metadata
-
-    return JSONResponse(authorization_server_metadata(request.headers.get("host")))
-
-
-@mcp.custom_route("/.well-known/openid-configuration", methods=["GET"])
-async def mcp_openid_configuration(request: Request) -> JSONResponse:
-    from raphiia_openai.oauth_metadata import authorization_server_metadata
-
-    return JSONResponse(authorization_server_metadata(request.headers.get("host")))
-
-
-@mcp.custom_route("/oauth/authorize", methods=["OPTIONS"])
-async def mcp_oauth_authorize_options(_request: Request) -> Response:
-    return _mcp_oauth_options_response()
-
-
-@mcp.custom_route("/oauth/token", methods=["OPTIONS"])
-async def mcp_oauth_token_options(_request: Request) -> Response:
-    return _mcp_oauth_options_response()
-
-
-@mcp.custom_route("/authorize", methods=["OPTIONS"])
-async def mcp_authorize_options(_request: Request) -> Response:
-    return _mcp_oauth_options_response()
-
-
-@mcp.custom_route("/token", methods=["OPTIONS"])
-async def mcp_token_options(_request: Request) -> Response:
-    return _mcp_oauth_options_response()
-
-
 @mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
 async def mcp_oauth_protected_resource(request: Request) -> JSONResponse:
     from raphiia_openai.oauth_metadata import protected_resource_metadata
@@ -6772,23 +7149,6 @@ async def mcp_oauth_protected_resource_path(request: Request) -> JSONResponse:
     from raphiia_openai.oauth_metadata import protected_resource_metadata
 
     return JSONResponse(protected_resource_metadata(request.headers.get("host")))
-
-
-@mcp.custom_route("/.well-known/mcp.json", methods=["GET"])
-async def mcp_well_known_manifest(request: Request) -> JSONResponse:
-    """Compatibility manifest for MCP clients that probe /.well-known/mcp.json."""
-    manifest = await ralfia_mcp_manifest()
-    origin = str(request.base_url).rstrip("/")
-    manifest.update(
-        {
-            "transport": "streamable-http",
-            "mcp_endpoint": f"{origin}/mcp",
-            "oauth_protected_resource": f"{origin}/.well-known/oauth-protected-resource",
-            "runtime_profile": os.getenv("MCP_TOOL_PROFILE", "") or "full_catalog",
-        }
-    )
-    return JSONResponse(manifest)
-
 
 
 @mcp.custom_route("/notion/webhook", methods=["POST"])
@@ -7036,6 +7396,57 @@ def ide_complete_task(dispatch_id: str, ide: str, result: str = "completed", evi
     return ide_task_bridge.complete_task(dispatch_id, ide, result=result, evidence=evidence or {})
 
 
+# --- GitLab MR observability extension (2026-09-21) ---
+@mcp.tool
+def local_gitlab_get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
+    """Local GitLab Plane: lee estado completo de un merge request."""
+    return local_gitlab_plane.get_merge_request(project_id_or_path=project_id_or_path, mr_iid=mr_iid)
+
+
+@mcp.tool
+def local_gitlab_list_merge_request_discussions(project_id_or_path: str, mr_iid: int, limit: int = 100) -> dict[str, Any]:
+    """Local GitLab Plane: lista discusiones y notas de un merge request."""
+    return local_gitlab_plane.list_merge_request_discussions(
+        project_id_or_path=project_id_or_path, mr_iid=mr_iid, limit=limit
+    )
+
+
+@mcp.tool
+def local_gitlab_list_merge_request_pipelines(project_id_or_path: str, mr_iid: int, limit: int = 20) -> dict[str, Any]:
+    """Local GitLab Plane: lista pipelines asociados directamente a un merge request."""
+    return local_gitlab_plane.list_merge_request_pipelines(
+        project_id_or_path=project_id_or_path, mr_iid=mr_iid, limit=limit
+    )
+
+
+@mcp.tool
+def local_gitlab_list_pipeline_jobs(project_id_or_path: str, pipeline_id: int, limit: int = 100) -> dict[str, Any]:
+    """Local GitLab Plane: lista jobs de un pipeline para diagnosticar CI."""
+    return local_gitlab_plane.list_pipeline_jobs(
+        project_id_or_path=project_id_or_path, pipeline_id=pipeline_id, limit=limit
+    )
+
+
+# --- Universal Bootstrap Discovery Plane (2026-09-21) ---
+@mcp.tool
+def universal_agent_bootstrap(
+    agent: str = "antigravity",
+    project_id: str | None = None,
+    full: bool = True,
+    ack: bool = False,
+    refresh: bool = False
+) -> dict[str, Any]:
+    """Universal Sovereign Bootstrap: descubre en vivo topología de nodos, modelos Ollama/vLLM, MCP tools, storage, integraciones y contexto del agente sin secretos."""
+    from inneros_core_runtime import universal_bootstrap
+    return universal_bootstrap.run_universal_bootstrap(
+        agent=agent,
+        project_id=project_id,
+        full=full,
+        ack=ack,
+        refresh=refresh
+    )
+
+
 # --- GitLab CI job trace observability (2026-09-21) ---
 @mcp.tool
 def local_gitlab_get_job_trace(project_id_or_path: str, job_id: int, max_bytes: int = 12000) -> dict[str, Any]:
@@ -7045,3 +7456,44 @@ def local_gitlab_get_job_trace(project_id_or_path: str, job_id: int, max_bytes: 
         job_id=job_id,
         max_bytes=max_bytes,
     )
+
+
+# --- Session Bootstrap Guard Plane (2026-09-22) ---
+@mcp.tool
+def session_guard_ensure_bootstrap(
+    agent: str = "antigravity",
+    project_id: str | None = None,
+    force_refresh: bool = False,
+    auto_ack: bool = False
+) -> dict[str, Any]:
+    """Session Bootstrap Guard: valida o ejecuta automáticamente el bootstrap canónico para la sesión del agente."""
+    from inneros_core_runtime import session_guard
+    return session_guard.ensure_session_bootstrap(
+        agent=agent,
+        project_id=project_id,
+        force_refresh=force_refresh,
+        auto_ack=auto_ack
+    )
+
+
+@mcp.tool
+def session_guard_check_mutation(
+    agent: str = "antigravity",
+    operation_name: str = "write_code",
+    project_id: str | None = None
+) -> dict[str, Any]:
+    """Session Bootstrap Guard: evalúa si una operación mutante está permitida o bloqueada por falta de bootstrap."""
+    from inneros_core_runtime import session_guard
+    return session_guard.guard_mutation_operation(
+        agent=agent,
+        operation_name=operation_name,
+        project_id=project_id,
+        allow_auto_bootstrap=True
+    )
+
+
+@mcp.tool
+def session_guard_watchdog() -> dict[str, Any]:
+    """Watchdog de sesiones activas: audita sesiones, drift de revisión y estado de bootstrap."""
+    from inneros_core_runtime import session_guard
+    return session_guard.watchdog_audit_sessions()
