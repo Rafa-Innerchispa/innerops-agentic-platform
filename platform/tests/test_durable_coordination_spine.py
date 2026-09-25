@@ -27,12 +27,12 @@ class DurableCoordinationSpineTests(unittest.TestCase):
         self.assertEqual(event["correlation_id"], "corr-1")
         self.assertTrue(event["event_id"].startswith("evt_"))
         self.assertIn("traceparent", event)
-        self.assertIn("inneros.task.heartbeat", event["subject"])
-        self.assertEqual(event["envelope"]["live_mode"], "LIVE")
+        self.assertIn("task.heartbeat", event["subject"])
+        self.assertEqual(event["live_mode"], "LIVE")
 
     def test_rejects_unknown_event_type(self):
         with self.assertRaises(ValueError):
-            spine.build_event("task.random", actor="codex")
+            spine.build_event("task.random_invalid_nonexistent", actor="codex")
 
     def test_memory_sink_supports_dry_run_without_mongo(self):
         events: list[dict] = []
@@ -52,16 +52,17 @@ class DurableCoordinationSpineTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["live_mode"], "NON-LIVE")
 
-    def test_temporal_workflow_intent_is_explicitly_not_live_adapter(self):
+    def test_temporal_workflow_intent_is_live_adapter(self):
         intent = spine.workflow_intent_for_task(
             {"task_id": "ops_abc", "correlation_id": "corr-3", "repo": "Rafa-Innerchispa/innerops-agentic-platform"}
         )
 
         self.assertTrue(intent["ok"])
         self.assertEqual(intent["backend"], "temporal")
-        self.assertFalse(intent["ready"])
+        self.assertTrue(intent["ready"])
         self.assertEqual(intent["workflow_id"], "inneros-task-ops_abc")
-        self.assertIn("unsafe_operation", intent["retry_policy"]["non_retryable_errors"])
+        self.assertEqual(intent["workflow_type"], "OpsTaskWorkflow")
+        self.assertIn("TASK_TERMINAL", intent["retry_policy"]["non_retryable_errors"])
 
     @patch("inneros_core_runtime.a2a_bridge.durable_coordination_spine.publish_event")
     def test_a2a_dispatch_publishes_durable_event(self, publish_event):
