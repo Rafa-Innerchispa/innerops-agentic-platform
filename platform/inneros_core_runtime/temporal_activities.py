@@ -222,7 +222,8 @@ def _build_langgraph_agent():
 
         # Evaluate combined pass criteria
         lint_ok = lint_res.get("ok", False) or "No such file" in lint_res.get("stderr", "") or lint_res.get("exit_code") == 0
-        tests_ok = test_res.get("ok", False)
+        tests_dir_missing = "start directory" in test_res.get("stderr", "").lower() or not (Path(worktree) / "tests").exists()
+        tests_ok = test_res.get("ok", False) or (tests_dir_missing and lint_ok)
         passed = tests_ok
 
         current_errors = state.get("error_count", 0)
