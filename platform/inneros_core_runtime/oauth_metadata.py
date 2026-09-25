@@ -1,4 +1,4 @@
-"""Metadatos OAuth compartidos — URLs públicas (ChatGPT) vs LAN (IP interna)."""
+"""OAuth & OIDC Metadata for InnerOS Unified Identity Plane."""
 
 from __future__ import annotations
 
@@ -37,7 +37,6 @@ def is_private_host(host_header: str | None) -> bool:
 
 
 def resolve_oauth_urls(host_header: str | None = None) -> tuple[str, str]:
-    """Devuelve (issuer, mcp_resource) según cliente LAN o público."""
     if is_private_host(host_header):
         issuer = OAUTH_ISSUER_LAN
         resource = OAUTH_MCP_RESOURCE_LAN
@@ -55,12 +54,16 @@ def authorization_server_metadata(host_header: str | None = None) -> dict[str, A
         "issuer": issuer,
         "authorization_endpoint": f"{issuer}/authorize",
         "token_endpoint": f"{issuer}/token",
+        "userinfo_endpoint": f"{issuer}/userinfo",
+        "introspection_endpoint": f"{issuer}/introspect",
+        "jwks_uri": f"{issuer}/.well-known/jwks.json",
         "registration_endpoint": f"{issuer}/register",
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
         "scopes_supported": list(oauth_store.SCOPES),
+        "claims_supported": ["sub", "preferred_username", "role", "scopes", "name", "email"],
         "client_id_metadata_document_supported": False,
     }
 
