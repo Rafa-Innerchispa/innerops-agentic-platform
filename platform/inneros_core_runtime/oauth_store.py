@@ -1,9 +1,15 @@
-"""Mongo-backed OAuth storage and token validation for RalfIA MCP."""
+"""OAuth & SSO Store for InnerOS Unified Authentication Plane.
+
+Manages OAuth clients, authorization codes, tokens, central SSO sessions,
+and secure memory-hard password verification (scrypt + auto-migration from SHA-256).
+"""
 
 from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -24,7 +30,13 @@ from raphiia_openai.settings import (
     OAUTH_TOKEN_TTL_SECONDS,
 )
 
+COL_SSO_SESSIONS = "oauth_sso_sessions"
+SSO_SESSION_TTL_SECONDS = 7 * 24 * 3600  # 7 days
+
 SCOPES = (
+    "openid",
+    "profile",
+    "email",
     "ralfia:read",
     "ralfia:write",
     "ralfia:agents",
@@ -41,7 +53,7 @@ MEMORY_SCOPES = (
     "ralfia:private_memory",
 )
 CHATGPT_SCOPES = MEMORY_SCOPES + ("ralfia:agents",)
-DEFAULT_SCOPES = ("ralfia:read", "ralfia:write")
+DEFAULT_SCOPES = ("openid", "profile", "ralfia:read", "ralfia:write")
 
 _client: MongoClient | None = None
 
@@ -61,6 +73,122 @@ def now_iso() -> str:
     return now_utc().isoformat()
 
 
+# --- Secure Password Hashing & Migration Plane (scrypt + SHA-256 auto-upgrade) ---
+
+def hash_password(plain_password: str, n: int = 16384, r: int = 8, p: int = 1) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(
+        plain_password.encode("utf-8"),
+        salt=salt,
+        n=n,
+        r=r,
+        p=p,
+        maxmem=32 * 1024 * 1024,
+    )
+    salt_hex = salt.hex()
+    hash_hex = digest.hex()
+    return f"scrypt$N={n},r={r},p={p}${salt_hex}${hash_hex}"
+
+
+def verify_password(stored_hash: str | None, plain_password: str) -> bool:
+    if not stored_hash or not plain_password:
+        return False
+    if stored_hash.startswith("scrypt$"):
+        try:
+            parts = stored_hash.split("$")
+            if len(parts) != 4:
+                return False
+            params_str, salt_hex, hash_hex = parts[1], parts[2], parts[3]
+            params = dict(item.split("=") for item in params_str.split(","))
+            n = int(params.get("N", 16384))
+            r = int(params.get("r", 8))
+            p = int(params.get("p", 1))
+            salt = bytes.fromhex(salt_hex)
+            expected = bytes.fromhex(hash_hex)
+            derived = hashlib.scrypt(
+                plain_password.encode("utf-8"),
+                salt=salt,
+                n=n,
+                r=r,
+                p=p,
+                maxmem=32 * 1024 * 1024,
+            )
+            return hmac.compare_digest(derived, expected)
+        except Exception:
+            return False
+    # Legacy SHA-256 fallback
+    legacy = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(stored_hash, legacy)
+
+
+def verify_and_upgrade_password(
+    user_doc: dict[str, Any] | None,
+    plain_password: str,
+    db: Any | None = None,
+) -> bool:
+    if not user_doc:
+        return False
+    stored_hash = user_doc.get("password_hash")
+    if not verify_password(stored_hash, plain_password):
+        return False
+
+    # Auto-upgrade legacy SHA-256 to modern scrypt
+    if stored_hash and not stored_hash.startswith("scrypt$") and db is not None:
+        try:
+            new_hash = hash_password(plain_password)
+            db.users.update_one(
+                {"_id": user_doc["_id"]},
+                {"$set": {"password_hash": new_hash, "password_upgraded_at": now_iso()}},
+            )
+        except Exception:
+            pass
+    return True
+
+
+# --- Central SSO Session Management ---
+
+def create_sso_session(username: str, role: str = "user", display_name: str | None = None) -> dict[str, Any]:
+    ensure_indexes()
+    session_id = "sso_" + secrets.token_urlsafe(36)
+    expires_at = now_utc() + timedelta(seconds=SSO_SESSION_TTL_SECONDS)
+    doc = {
+        "session_id": session_id,
+        "username": username,
+        "role": role,
+        "display_name": display_name or username,
+        "created_at": now_utc(),
+        "expires_at": expires_at,
+        "status": "active",
+    }
+    get_db()[COL_SSO_SESSIONS].insert_one(doc)
+    return doc
+
+
+def get_sso_session(session_id: str | None) -> dict[str, Any] | None:
+    if not session_id:
+        return None
+    db = get_db()
+    doc = db[COL_SSO_SESSIONS].find_one({"session_id": session_id, "status": "active"})
+    if not doc:
+        return None
+    expires_at = doc.get("expires_at")
+    if expires_at and expires_at.replace(tzinfo=timezone.utc) < now_utc():
+        return None
+    return doc
+
+
+def revoke_sso_session(session_id: str) -> bool:
+    if not session_id:
+        return False
+    res = get_db()[COL_SSO_SESSIONS].update_one(
+        {"session_id": session_id},
+        {"$set": {"status": "revoked", "revoked_at": now_utc()}},
+    )
+    return res.modified_count > 0
+
+
+# --- Database Indexes & Validation ---
+
 def ensure_indexes() -> None:
     db = get_db()
     db[COL_OAUTH_CLIENTS].create_index("client_id", unique=True)
@@ -70,6 +198,8 @@ def ensure_indexes() -> None:
     db[COL_OAUTH_TOKENS].create_index("expires_at", expireAfterSeconds=0)
     db[COL_OAUTH_REFRESH_TOKENS].create_index("refresh_token", unique=True)
     db[COL_OAUTH_REFRESH_TOKENS].create_index("expires_at", expireAfterSeconds=0)
+    db[COL_SSO_SESSIONS].create_index("session_id", unique=True)
+    db[COL_SSO_SESSIONS].create_index("expires_at", expireAfterSeconds=0)
 
 
 def parse_scopes(scope: str | None) -> list[str]:
@@ -268,3 +398,18 @@ def validate_access_token(access_token: str, required_scope: str | None = None) 
     if required_scope and required_scope not in scopes and "ralfia:admin" not in scopes:
         return None
     return doc
+
+
+def introspect_token(token: str) -> dict[str, Any]:
+    doc = validate_access_token(token)
+    if not doc:
+        return {"active": False}
+    exp = int(doc["expires_at"].replace(tzinfo=timezone.utc).timestamp()) if doc.get("expires_at") else 0
+    return {
+        "active": True,
+        "scope": doc.get("scope", ""),
+        "client_id": doc.get("client_id", ""),
+        "username": doc.get("username", ""),
+        "token_type": "Bearer",
+        "exp": exp,
+    }

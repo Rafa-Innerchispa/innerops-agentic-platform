@@ -32,6 +32,9 @@ RUNTIME_FINGERPRINT_FILES = (
     "inneros_core_runtime/coordination_liveness.py",
     "inneros_core_runtime/universal_bootstrap.py",
     "inneros_core_runtime/session_guard.py",
+    "inneros_core_runtime/auth_server.py",
+    "inneros_core_runtime/oauth_store.py",
+    "inneros_core_runtime/inneros_auth_middleware.py",
 )
 
 # Tools que preferentemente ejecuta AMD (GPU, voz, HA proxy, vídeo)
