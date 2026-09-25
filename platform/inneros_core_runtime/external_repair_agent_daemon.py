@@ -24,24 +24,33 @@ def _bool_env(name: str, default: bool = False) -> bool:
 
 
 def tick() -> dict:
-    provider = os.getenv("EXTERNAL_REPAIR_PROVIDER", "codex")
+    providers_str = os.getenv("EXTERNAL_REPAIR_PROVIDERS") or os.getenv("EXTERNAL_REPAIR_PROVIDER", "antigravity,codex")
+    providers = [p.strip().lower() for p in providers_str.split(",") if p.strip()]
+    if "antigravity" not in providers and "EXTERNAL_REPAIR_PROVIDER" not in os.environ:
+        providers.insert(0, "antigravity")
+
     auto_claim = _bool_env("EXTERNAL_REPAIR_AUTO_CLAIM", False)
     node = socket.gethostname()
-    reconcile = external_repair_agent.external_repair_agent_reconcile(
-        provider=provider,
-        auto_claim=auto_claim,
-        dry_run=not auto_claim,
-        limit=10,
-    )
+    reconciles = {}
+    for provider in providers:
+        reconciles[provider] = external_repair_agent.external_repair_agent_reconcile(
+            provider=provider,
+            auto_claim=auto_claim,
+            dry_run=not auto_claim,
+            limit=10,
+        )
+
+    primary_reconcile = reconciles.get("antigravity") or reconciles.get("codex") or next(iter(reconciles.values()))
     payload = {
         "ok": True,
         "node": node,
-        "provider": provider,
+        "providers": providers,
         "auto_claim": auto_claim,
-        "reconcile": reconcile,
-        "status": reconcile.get("status_after"),
-        "recovery": reconcile.get("recovered"),
-        "claim": reconcile.get("claim"),
+        "reconciles": reconciles,
+        "reconcile": primary_reconcile,
+        "status": primary_reconcile.get("status_after"),
+        "recovery": primary_reconcile.get("recovered"),
+        "claim": primary_reconcile.get("claim"),
         "mode": "auto_claim" if auto_claim else "monitor_only",
     }
     mongo_store.upsert_coordination_state(key=f"{STATE_KEY_PREFIX}:{node}", data=payload)
