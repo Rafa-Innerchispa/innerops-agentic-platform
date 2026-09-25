@@ -1606,36 +1606,103 @@ def create_fixture_tasks(count: int = 2) -> dict[str, Any]:
 # --- Generic concurrent fan-out executor v4 (2026-08-23) ---
 # Global path for all owner-approved projects. Structured inputs only.
 
+def _clean_trailing_commas(s: str) -> str:
+    import re
+    pattern = re.compile(r",\s*([\]}])")
+    prev = None
+    curr = s
+    while prev != curr:
+        prev = curr
+        curr = pattern.sub(r"\1", curr)
+    return curr
+
+
+def _extract_balanced_json_candidates(raw_text: str) -> list[str]:
+    import re
+    raw = str(raw_text or "").strip()
+    if not raw:
+        return []
+
+    fenced_blocks: list[str] = []
+    pattern = r"```(?:json|javascript|js)?\s*\n?(.*?)\n?```"
+    fence_matches = re.finditer(pattern, raw, re.DOTALL | re.IGNORECASE)
+    for m in fence_matches:
+        fenced_blocks.append(m.group(1).strip())
+
+    blocks_to_scan = fenced_blocks + [raw]
+    extracted: list[str] = []
+
+    def _scan(s: str):
+        in_string = False
+        escape = False
+        depth = 0
+        start_idx = -1
+        for i, ch in enumerate(s):
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+            else:
+                if ch == '"':
+                    in_string = True
+                elif ch == '{':
+                    if depth == 0:
+                        start_idx = i
+                    depth += 1
+                elif ch == '}':
+                    if depth > 0:
+                        depth -= 1
+                        if depth == 0 and start_idx != -1:
+                            yield s[start_idx : i + 1]
+                            start_idx = -1
+
+    for block in blocks_to_scan:
+        for obj_str in _scan(block):
+            extracted.append(obj_str)
+            cleaned = _clean_trailing_commas(obj_str)
+            if cleaned != obj_str:
+                extracted.append(cleaned)
+
+    if not extracted:
+        extracted.append(raw)
+        cleaned_raw = _clean_trailing_commas(raw)
+        if cleaned_raw != raw:
+            extracted.append(cleaned_raw)
+
+    return extracted
+
+
 def _fanout_parse_model_json(text: str) -> dict[str, Any] | None:
     import json
-    raw = str(text or "").strip()
-    candidates = [raw]
-    if "```" in raw:
-        for part in raw.split("```"):
-            value = part.strip()
-            first_line, _sep, rest = value.partition("\n")
-            if first_line.strip().lower() in {"json", "javascript", "js"}:
-                value = rest.strip()
-            elif value.lower().startswith("json"):
-                value = value[4:].strip()
-            if value.startswith("{"):
-                candidates.append(value)
-    first, last = raw.find("{"), raw.rfind("}")
-    if first >= 0 and last > first:
-        candidates.append(raw[first:last + 1])
-    decoder = json.JSONDecoder()
+    candidates = _extract_balanced_json_candidates(text)
+    decoder = json.JSONDecoder(strict=False)
+
     for candidate in candidates:
-        try:
-            obj = json.loads(candidate)
-            if isinstance(obj, dict):
-                return obj
-        except Exception:
+        candidate_stripped = candidate.strip()
+        if not candidate_stripped:
+            continue
+        for variant in [candidate_stripped, _clean_trailing_commas(candidate_stripped)]:
             try:
-                obj, _end = decoder.raw_decode(candidate.lstrip())
+                obj = json.loads(variant, strict=False)
                 if isinstance(obj, dict):
-                    return obj
+                    norm = _normalize_fanout_payload(obj)
+                    if norm and (isinstance(norm.get("files"), list) or "summary" in norm):
+                        return norm
             except Exception:
-                continue
+                pass
+
+            try:
+                obj, _end = decoder.raw_decode(variant.lstrip())
+                if isinstance(obj, dict):
+                    norm = _normalize_fanout_payload(obj)
+                    if norm and (isinstance(norm.get("files"), list) or "summary" in norm):
+                        return norm
+            except Exception:
+                pass
+
     return None
 
 
@@ -1657,6 +1724,43 @@ def _normalize_fanout_payload(payload: dict[str, Any] | None) -> dict[str, Any] 
             normalized["files"] = value
             return normalized
     return normalized
+
+
+
+def _local_model_failure(model: dict[str, Any]) -> dict[str, str] | None:
+    """Classify provider/transport failures before JSON quality validation."""
+    if bool(model.get("ok")):
+        return None
+    error = str(model.get("error") or model.get("reason") or "local_model_unavailable").strip()
+    lowered = error.lower()
+    transport_markers = (
+        "unreachable",
+        "connection",
+        "refused",
+        "timeout",
+        "timed out",
+        "reset by peer",
+        "broken pipe",
+        "network",
+        "econnrefused",
+        "econnreset",
+        "etimedout",
+        "502",
+        "503",
+        "504",
+    )
+    kind = "transport" if any(marker in lowered for marker in transport_markers) else "provider"
+    out: dict[str, str] = {
+        "kind": kind,
+        "error": error,
+    }
+    if model.get("provider_id"):
+        out["provider_id"] = str(model["provider_id"])
+    if model.get("selected_node"):
+        out["selected_node"] = str(model["selected_node"])
+    if model.get("selected_model"):
+        out["selected_model"] = str(model["selected_model"])
+    return out
 
 
 def _fanout_repo_snapshot(worktree: Path, max_chars: int = 16000) -> str:
@@ -2578,9 +2682,54 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             "error": model.get("error"),
         }
         model_text = str(model.get("response") or model.get("text") or model.get("content") or "")
+        model_failure = _local_model_failure(model)
+        if model_failure is not None:
+            failure_kind = model_failure["kind"]
+            failures = f"local_model_{failure_kind}_failure:{model_failure['error']}"
+            attempts.append(
+                {
+                    "attempt": attempt,
+                    "phase": f"model_{failure_kind}",
+                    "model_ok": False,
+                    "model_failure": model_failure,
+                    "error": failures,
+                }
+            )
+            continue
         payload = _fanout_parse_model_json(model_text) if model.get("ok") else None
         files, rejected_files = _safe_generated_files(payload, objective, task_id, repo, worktree, model_text=model_text)
         files = _merge_node_scaffold(objective=objective, task_id=task_id, worktree=worktree, files=files, repo=repo)
+
+        # Bounded in-model repair loop: feed parse/schema errors back to same local model
+        if model.get("ok") and not files:
+            gate_early = _quality_gate_guidance(repo=repo, product_root=product_root, rejected_files=rejected_files)
+            repair_instructions = "\n".join(gate_early.get("repair_instructions") or ["Return valid JSON matching {summary, files}."])
+            for repair_pass in range(1, 3):
+                repair_prompt = (
+                    f"Your previous code generation attempt for task '{task_id}' could not be parsed into valid file writes.\n"
+                    f"Required Fix:\n{repair_instructions}\n\n"
+                    "Return ONLY a single raw JSON object matching this exact schema (no markdown formatting, no conversational text):\n"
+                    '{\n  "summary": "Brief explanation",\n  "files": [\n    {"path": "repo/relative/path.ext", "content": "full source code"}\n  ]\n}'
+                )
+                repair_model = local_model_router.run_local_model(
+                    task_type="coding",
+                    prompt=repair_prompt,
+                    max_tokens=MODEL_OUTPUT_MAX_TOKENS,
+                    preferred_node=last_model_route.get("selected_node"),
+                    preferred_model=last_model_route.get("selected_model"),
+                )
+                if repair_model.get("ok"):
+                    r_text = str(repair_model.get("response") or repair_model.get("text") or repair_model.get("content") or "")
+                    r_payload = _fanout_parse_model_json(r_text)
+                    if r_payload:
+                        r_files, r_rejected = _safe_generated_files(r_payload, objective, task_id, repo, worktree, model_text=r_text)
+                        r_files = _merge_node_scaffold(objective=objective, task_id=task_id, worktree=worktree, files=r_files, repo=repo)
+                        if r_files:
+                            files = r_files
+                            rejected_files = r_rejected
+                            model_text = r_text
+                            break
+
         if not files:
             gate = _quality_gate_guidance(repo=repo, product_root=product_root, rejected_files=rejected_files)
             failures = _quality_gate_failure_text(gate)
