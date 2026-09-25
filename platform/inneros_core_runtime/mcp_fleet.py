@@ -30,6 +30,8 @@ RUNTIME_FINGERPRINT_FILES = (
     "inneros_core_runtime/agents/ag41_peer_ops_executor.py",
     "inneros_core_runtime/notifications/whatsapp_service_ops.py",
     "inneros_core_runtime/coordination_liveness.py",
+    "inneros_core_runtime/universal_bootstrap.py",
+    "inneros_core_runtime/session_guard.py",
 )
 
 # Tools que preferentemente ejecuta AMD (GPU, voz, HA proxy, vídeo)

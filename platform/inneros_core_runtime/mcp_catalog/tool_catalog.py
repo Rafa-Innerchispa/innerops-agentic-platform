@@ -5166,6 +5166,34 @@ _LIVENESS_TOOLS = {
         "output_schema": {"ok": "bool", "checked_at": "string", "active_progressing": "number", "active_but_frozen": "number", "blocked_tasks_count": "number", "active_locks_count": "number", "total_active_tasks": "number"},
         "example_payload": {},
     },
+
+    "get_universal_bootstrap_plan": {
+        "name": "get_universal_bootstrap_plan",
+        "description": "Universal Bootstrap v3: Resuelve din?micamente el plano de conectividad y endpoints ?ptimos (LAN / Tailscale / Cloudflare HTTPS).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "client_env": {"type": "string", "default": "auto"},
+                "force_tier": {"type": "string", "enum": ["lan", "tailscale", "cloudflare_https"]}
+            }
+        }
+    },
+    "probe_route_access_plane": {
+        "name": "probe_route_access_plane",
+        "description": "Sonda de conectividad en tiempo real a trav?s de LAN, Tailscale y Cloudflare HTTPS edge.",
+        "inputSchema": {"type": "object", "properties": {}}
+    },
+    "enroll_device_bootstrap": {
+        "name": "enroll_device_bootstrap",
+        "description": "Enrola una m?quina cliente para auto-bootstrap permanente y persistente.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "device_name": {"type": "string"},
+                "preferred_tier": {"type": "string", "default": "auto"}
+            }
+        }
+    },
 }
 
 for name, defn in _LIVENESS_TOOLS.items():
