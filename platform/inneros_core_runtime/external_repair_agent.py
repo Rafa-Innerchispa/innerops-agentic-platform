@@ -852,8 +852,57 @@ def _execute_claimed_task_autonomous(provider: str, task: dict[str, Any]) -> dic
         )
         return {"ok": True, "executed": True, "canary": True, "run_id": run_id, "evidence": evidence, "completion": comp_res}
 
-    checkpoint_external_repair_run(run_id, phase="in_progress")
-    return {"ok": True, "executed": True, "canary": False, "run_id": run_id}
+    # Dispatch non-canary task to Temporal durable workflow execution engine
+    try:
+        from inneros_core_runtime.temporal_activities import TaskEnvelopeV1
+        from inneros_core_runtime.temporal_workflows import OpsTaskWorkflow
+        from temporalio.client import Client
+
+        envelope = TaskEnvelopeV1(
+            task_id=task_id,
+            title=str(task.get("title") or task_id),
+            assignee=provider,
+            status="proposed",
+            revision=int(task.get("revision") or 1),
+            repo=repo,
+            objective=str(task.get("objective") or task.get("title") or ""),
+        )
+
+        async def _run_wf():
+            client = await Client.connect("127.0.0.1:7233")
+            handle = await client.start_workflow(
+                OpsTaskWorkflow.run,
+                envelope.to_dict(),
+                id=task_id,
+                task_queue="inneros-general-ops",
+            )
+            return await handle.result()
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            import nest_asyncio
+            nest_asyncio.apply(loop)
+
+        wf_res = loop.run_until_complete(_run_wf())
+        wf_status = wf_res.get("status", "completed")
+        outcome = "completed" if wf_status == "completed" else "blocked"
+        comp_res = complete_external_repair_run(
+            run_id,
+            outcome=outcome,
+            result="PASS" if outcome == "completed" else "CIRCUIT_BREAKER",
+            evidence=wf_res.get("evidence", {}),
+            report_to=task.get("from_agent", "chatgpt"),
+            update_task=True,
+        )
+        return {"ok": True, "executed": True, "durable_workflow": True, "run_id": run_id, "result": wf_res, "completion": comp_res}
+    except Exception as exc:
+        checkpoint_external_repair_run(run_id, phase="in_progress", evidence={"workflow_dispatch_error": str(exc)[:500]})
+        return {"ok": False, "executed": False, "canary": False, "run_id": run_id, "error": str(exc)[:500]}
 
 
 def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = True, limit: int = 10, dry_run: bool = False) -> dict[str, Any]:
