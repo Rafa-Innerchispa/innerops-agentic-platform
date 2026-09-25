@@ -7497,3 +7497,42 @@ def session_guard_watchdog() -> dict[str, Any]:
     """Watchdog de sesiones activas: audita sesiones, drift de revisión y estado de bootstrap."""
     from inneros_core_runtime import session_guard
     return session_guard.watchdog_audit_sessions()
+
+
+# --- Universal Bootstrap v3 Route-Aware Access Plane (2026-09-24) ---
+@mcp.tool
+def get_universal_bootstrap_plan(
+    client_env: str = "auto",
+    force_tier: str | None = None
+) -> dict[str, Any]:
+    """Universal Bootstrap v3: Resuelve din?micamente el plano de conectividad y endpoints ?ptimos (LAN / Tailscale / Cloudflare HTTPS)."""
+    from inneros_core_runtime import universal_bootstrap
+    return universal_bootstrap.resolve_universal_bootstrap(
+        client_env=client_env,
+        force_tier=force_tier
+    )
+
+
+@mcp.tool
+def probe_route_access_plane() -> dict[str, Any]:
+    """Sonda de conectividad en tiempo real a trav?s de LAN, Tailscale y Cloudflare HTTPS edge."""
+    from inneros_core_runtime import universal_bootstrap
+    results = universal_bootstrap.probe_route_access_plane()
+    return {
+        "ok": True,
+        "probes": [universal_bootstrap.asdict(r) for r in results],
+        "topology": universal_bootstrap.TOPOLOGY,
+    }
+
+
+@mcp.tool
+def enroll_device_bootstrap(
+    device_name: str | None = None,
+    preferred_tier: str = "auto"
+) -> dict[str, Any]:
+    """Enrola una m?quina cliente para auto-bootstrap permanente y persistente."""
+    from inneros_core_runtime import universal_bootstrap
+    return universal_bootstrap.enroll_device(
+        device_name=device_name,
+        preferred_tier=preferred_tier
+    )
