@@ -26,6 +26,7 @@ STANDARD_RETRY_POLICY = RetryPolicy(
     backoff_coefficient=2.0,
     maximum_attempts=3,
     maximum_interval=timedelta(seconds=30),
+    non_retryable_error_types=["CIRCUIT_BREAKER_PENDING_HUMAN_REVIEW", "TASK_TERMINAL", "TASK_NOT_ASSIGNED", "STALE_TASK_REVISION"],
 )
 
 
