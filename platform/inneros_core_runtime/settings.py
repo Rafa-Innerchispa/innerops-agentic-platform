@@ -13,7 +13,7 @@ load_dotenv(ROOT / ".env")
 # IP LAN del nodo (primary .4, AMD .5, etc.)
 RALFIA_LAN_IP = os.getenv("RALFIA_LAN_IP", os.getenv("NODE_IP", "192.168.1.4"))
 RALFIA_INTEL_HOST = os.getenv("RALFIA_INTEL_HOST", "192.168.1.4")
-RALFIA_AMD_HOST = os.getenv("RALFIA_AMD_HOST", "192.168.1.5")
+RALFIA_AMD_HOST = os.getenv("RALFIA_AMD_HOST", "100.72.153.124")
 
 # HTTP status / health
 RAPHI_IA_OPENAI_PORT = int(os.getenv("RAPHI_IA_OPENAI_PORT", "8101"))
@@ -51,14 +51,21 @@ OAUTH_ALLOWED_REDIRECT_HOSTS = tuple(
     ).split(",")
     if host.strip()
 )
-_oauth_resource_candidates = [
-    resource.strip()
-    for resource in os.getenv("OAUTH_ACCEPTED_MCP_RESOURCES", OAUTH_MCP_RESOURCE).split(",")
-    if resource.strip()
+
+_default_canonical_resources = [
+    OAUTH_MCP_RESOURCE,
+    OAUTH_MCP_RESOURCE_LAN,
+    "https://mcp-chatgpt.creatorcore.ai",
+    "https://mcp-chatgpt.creatorcore.ai/mcp",
+    "https://sworn-profusely-alongside.ngrok-free.dev/raphiia-mcp",
+    "https://sworn-profusely-alongside.ngrok-free.dev/raphiia-mcp/mcp",
+    f"http://{RALFIA_INTEL_HOST}:8102/mcp",
+    f"http://{RALFIA_INTEL_HOST}:8112/mcp",
+    "http://127.0.0.1:8102/mcp",
+    "http://127.0.0.1:8112/mcp",
 ]
-if OAUTH_MCP_RESOURCE not in _oauth_resource_candidates:
-    _oauth_resource_candidates.append(OAUTH_MCP_RESOURCE)
-OAUTH_ACCEPTED_MCP_RESOURCES = tuple(dict.fromkeys(resource.rstrip("/") for resource in _oauth_resource_candidates))
+_env_accepted = [r.strip() for r in os.getenv("OAUTH_ACCEPTED_MCP_RESOURCES", "").split(",") if r.strip()]
+OAUTH_ACCEPTED_MCP_RESOURCES = tuple(dict.fromkeys(r.rstrip("/") for r in (_default_canonical_resources + _env_accepted)))
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017/")
 MONGO_URI_PRIMARY = os.getenv("MONGO_URI_PRIMARY", "mongodb://192.168.1.4:27017/")
