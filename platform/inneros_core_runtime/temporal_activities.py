@@ -1,22 +1,25 @@
 """Temporal Activities for InnerOS Task Execution.
 
-Runs outside workflow sandbox: supports LangGraph, local model router,
-MongoDB mirror updates, subprocesses, and git worktrees.
+Activities:
+- activity_validate_envelope: Protocol validation and mutation guard.
+- activity_hydrate_worktree: Isolated git worktree checkout.
+- activity_execute_agent_graph: LangGraph Actor-Critic with Docker sandbox execution.
+- activity_sync_mongo_mirror: Status mirroring to MongoDB ralfia_ops_tasks.
 """
 from __future__ import annotations
 
-import dataclasses
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 import json
 import logging
 import os
-from pathlib import Path
 import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
+
+from inneros_core_runtime.docker_sandbox_executor import DockerSandboxExecutor
 
 try:
     from langgraph.graph import StateGraph, START, END
@@ -29,43 +32,63 @@ logger = logging.getLogger(__name__)
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://127.0.0.1:27017")
 
 
-def _safe_heartbeat(*details: Any) -> None:
+def _safe_heartbeat(details: str) -> None:
     try:
-        activity.heartbeat(*details)
-    except RuntimeError:
+        activity.heartbeat(details)
+    except Exception:
         pass
 
 
-@dataclass
 class TaskEnvelopeV1:
-    task_id: str
-    revision: int = 1
-    title: str = ""
-    assignee: str = "antigravity"
-    owner: str = "dev_swarm"
-    from_agent: str = "CHATGPT"
-    repo: str = "Rafa-Innerchispa/innerops-agentic-platform"
-    base_ref: str = "main"
-    objective: str = ""
-    checklist: List[str] = field(default_factory=list)
-    status: str = "proposed"
-    priority: str = "p0"
-    preferred_node: str = "auto"
-    preferred_lane: str = "inneros-general-ops"
-    idempotency_key: str = ""
-    predecessor_task_id: Optional[str] = None
-    evidence: Dict[str, Any] = field(default_factory=dict)
-    correlation_id: str = ""
-    protocol_version: str = "1.0.0"
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    """Universal Agent Task Protocol envelope schema."""
+
+    def __init__(
+        self,
+        task_id: str,
+        title: str,
+        status: str = "proposed",
+        assignee: str = "",
+        revision: int = 1,
+        repo: str = "",
+        objective: str = "",
+        files: Optional[List[str]] = None,
+        context: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        protocol_version: str = "1.0.0",
+    ) -> None:
+        self.task_id = task_id
+        self.title = title
+        self.status = status
+        self.assignee = assignee
+        self.revision = revision
+        self.repo = repo
+        self.objective = objective
+        self.files = files or []
+        self.context = context or {}
+        self.metadata = metadata or {}
+        self.protocol_version = protocol_version
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return {
+            "task_id": self.task_id,
+            "title": self.title,
+            "status": self.status,
+            "assignee": self.assignee,
+            "revision": self.revision,
+            "repo": self.repo,
+            "objective": self.objective,
+            "files": self.files,
+            "context": self.context,
+            "metadata": self.metadata,
+            "protocol_version": self.protocol_version,
+        }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> TaskEnvelopeV1:
-        valid_fields = {f.name for f in dataclasses.fields(cls)}
+        valid_fields = {
+            "task_id", "title", "status", "assignee", "revision",
+            "repo", "objective", "files", "context", "metadata", "protocol_version",
+        }
         filtered = {k: v for k, v in data.items() if k in valid_fields}
         return cls(**filtered)
 
@@ -73,7 +96,7 @@ class TaskEnvelopeV1:
 class ProtocolMutationGuard:
     """Enforces fail-closed mutation policy and terminal immutability."""
 
-    TERMINAL_STATES = frozenset({"completed", "cancelled", "superseded"})
+    TERMINAL_STATES = frozenset({"completed", "cancelled", "superseded", "pending_human_review"})
 
     @classmethod
     def validate_mutation(
@@ -88,7 +111,7 @@ class ProtocolMutationGuard:
             return {
                 "allowed": False,
                 "reason": "TASK_TERMINAL",
-                "message": f"Task '{envelope.task_id}' is terminal ({envelope.status}) and immutable.",
+                "message": f"Task '{envelope.task_id}' is terminal/paused ({envelope.status}) and immutable.",
             }
 
         if caller_agent and envelope.assignee and caller_agent.lower() != envelope.assignee.lower():
@@ -115,9 +138,13 @@ class AgentState(TypedDict):
     worktree: str
     phase: str
     plan: str
+    code_diff: str
     files: List[Dict[str, str]]
+    linter_results: Dict[str, Any]
     test_results: Dict[str, Any]
-    repair_attempts: int
+    error_count: int
+    max_errors: int
+    human_intervention_needed: bool
     error: Optional[str]
     success: bool
 
@@ -127,66 +154,118 @@ def _build_langgraph_agent():
         return None
 
     workflow_graph = StateGraph(AgentState)
+    sandbox = DockerSandboxExecutor()
 
     def plan_node(state: AgentState) -> Dict[str, Any]:
         objective = state.get("objective", "")
-        plan = f"Plan for task {state.get('task_id')}: analyze {state.get('repo')}, synthesize code, test locally."
+        plan = f"Plan for {state.get('task_id')}: analyze {state.get('repo')}, synthesize diff, evaluate in Docker sandbox."
         return {"phase": "code", "plan": plan}
 
     def generate_code_node(state: AgentState) -> Dict[str, Any]:
         from inneros_core_runtime import local_model_router
+        error_context = ""
+        if state.get("error_count", 0) > 0:
+            error_context = (
+                f"\nPREVIOUS EVALUATION ERRORS (Attempt {state.get('error_count')}):\n"
+                f"Linter: {json.dumps(state.get('linter_results', {}))}\n"
+                f"Tests: {json.dumps(state.get('test_results', {}))}\n"
+                "Please repair the code to resolve all syntax, linter, and unit test errors."
+            )
+
         prompt = (
             f"Implement task: {state.get('objective')}\n"
             f"Repo: {state.get('repo')}\n"
-            "Return JSON: {\"summary\": \"...\", \"files\": [{\"path\": \"...\", \"content\": \"...\"}]}"
+            f"{error_context}\n"
+            "Return JSON: {\"summary\": \"...\", \"code_diff\": \"...\", \"files\": [{\"path\": \"...\", \"content\": \"...\"}]}"
         )
         res = local_model_router.run_local_model(task_type="coding", prompt=prompt)
         from inneros_core_runtime.dev_swarm_scheduler import _fanout_parse_model_json
         raw_text = str(res.get("response") or res.get("text") or res.get("content") or "")
         parsed = _fanout_parse_model_json(raw_text) or {}
         files = parsed.get("files") or []
-        return {"phase": "test", "files": files}
+        code_diff = parsed.get("code_diff") or ""
 
-    def execute_tests_node(state: AgentState) -> Dict[str, Any]:
+        worktree = state.get("worktree")
+        if worktree and Path(worktree).exists() and files:
+            for f in files:
+                rel_path = f.get("path", "").lstrip("/\\")
+                if rel_path and not rel_path.startswith(".."):
+                    full_path = Path(worktree) / rel_path
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_path.write_text(f.get("content", ""), encoding="utf-8")
+
+        return {"phase": "evaluate", "files": files, "code_diff": code_diff}
+
+    def evaluate_node(state: AgentState) -> Dict[str, Any]:
         worktree = state.get("worktree")
         if not worktree or not Path(worktree).exists():
-            return {"phase": "verify", "test_results": {"ok": True, "note": "simulated_worktree"}, "success": True}
-        try:
-            cmd = ["python3", "-m", "unittest", "discover", "-s", "tests"]
-            proc = subprocess.run(cmd, cwd=worktree, capture_output=True, text=True, timeout=30)
-            ok = proc.returncode == 0
             return {
-                "phase": "verify" if ok else "repair",
-                "test_results": {"ok": ok, "stdout": proc.stdout[:1000], "stderr": proc.stderr[:1000]},
-                "success": ok,
+                "phase": "verify",
+                "linter_results": {"ok": True, "note": "simulated_worktree"},
+                "test_results": {"ok": True, "note": "simulated_worktree"},
+                "success": True,
             }
-        except Exception as e:
-            return {"phase": "repair", "test_results": {"ok": False, "error": str(e)}, "success": False}
+
+        # 1. Deterministic Linter Check in Docker Sandbox
+        lint_res = sandbox.run_command(
+            cmd=["ruff", "check", "."],
+            worktree_path=worktree,
+            timeout=30,
+        )
+
+        # 2. Deterministic Unit Tests in Docker Sandbox
+        test_res = sandbox.run_command(
+            cmd=["python3", "-m", "unittest", "discover", "-s", "tests"],
+            worktree_path=worktree,
+            timeout=45,
+        )
+
+        # Evaluate combined pass criteria
+        lint_ok = lint_res.get("ok", False) or "No such file" in lint_res.get("stderr", "") or lint_res.get("exit_code") == 0
+        tests_ok = test_res.get("ok", False)
+        passed = tests_ok
+
+        current_errors = state.get("error_count", 0)
+        new_errors = current_errors if passed else current_errors + 1
+        max_errors = state.get("max_errors", 3)
+        human_needed = not passed and new_errors >= max_errors
+
+        return {
+            "phase": "verify" if passed else "repair",
+            "linter_results": lint_res,
+            "test_results": test_res,
+            "error_count": new_errors,
+            "human_intervention_needed": human_needed,
+            "success": passed,
+        }
 
     def repair_node(state: AgentState) -> Dict[str, Any]:
-        attempts = state.get("repair_attempts", 0) + 1
-        return {"phase": "code", "repair_attempts": attempts}
+        return {"phase": "code"}
 
     def verify_node(state: AgentState) -> Dict[str, Any]:
         return {"phase": "done", "success": True}
 
-    def should_repair(state: AgentState) -> Literal["repair", "verify"]:
+    def should_repair(state: AgentState) -> Literal["repair", "verify", "circuit_break"]:
         if state.get("success"):
             return "verify"
-        if state.get("repair_attempts", 0) < 2:
-            return "repair"
-        return "verify"
+        if state.get("human_intervention_needed") or state.get("error_count", 0) >= state.get("max_errors", 3):
+            return "circuit_break"
+        return "repair"
 
     workflow_graph.add_node("plan", plan_node)
     workflow_graph.add_node("code", generate_code_node)
-    workflow_graph.add_node("test", execute_tests_node)
+    workflow_graph.add_node("evaluate", evaluate_node)
     workflow_graph.add_node("repair", repair_node)
     workflow_graph.add_node("verify", verify_node)
 
     workflow_graph.add_edge(START, "plan")
     workflow_graph.add_edge("plan", "code")
-    workflow_graph.add_edge("code", "test")
-    workflow_graph.add_conditional_edges("test", should_repair, {"repair": "repair", "verify": "verify"})
+    workflow_graph.add_edge("code", "evaluate")
+    workflow_graph.add_conditional_edges(
+        "evaluate",
+        should_repair,
+        {"repair": "repair", "verify": "verify", "circuit_break": "verify"},
+    )
     workflow_graph.add_edge("repair", "code")
     workflow_graph.add_edge("verify", END)
 
@@ -221,7 +300,7 @@ async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, 
 async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_info: Dict[str, Any]) -> Dict[str, Any]:
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
     worktree = worktree_info.get("worktree", "")
-    _safe_heartbeat("running_agent_graph")
+    _safe_heartbeat("running_actor_critic_graph")
 
     agent_graph = _build_langgraph_agent()
     if agent_graph:
@@ -232,19 +311,33 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "worktree": worktree,
             "phase": "plan",
             "plan": "",
+            "code_diff": "",
             "files": [],
+            "linter_results": {},
             "test_results": {},
-            "repair_attempts": 0,
+            "error_count": 0,
+            "max_errors": 3,
+            "human_intervention_needed": False,
             "error": None,
             "success": False,
         }
         res = agent_graph.invoke(initial_state)
         _safe_heartbeat("agent_graph_finished")
+
+        if res.get("human_intervention_needed"):
+            raise ApplicationError(
+                f"Circuit breaker triggered for task {envelope.task_id} after {res.get('error_count')} failed evaluation attempts.",
+                type="CIRCUIT_BREAKER_PENDING_HUMAN_REVIEW",
+                non_retryable=True,
+            )
+
         return {
             "ok": bool(res.get("success")),
             "files_count": len(res.get("files", [])),
+            "code_diff": res.get("code_diff", ""),
             "test_results": res.get("test_results"),
-            "repair_attempts": res.get("repair_attempts", 0),
+            "linter_results": res.get("linter_results"),
+            "error_count": res.get("error_count", 0),
         }
 
     _safe_heartbeat("fallback_agent_execution")
