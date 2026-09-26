@@ -1,4 +1,4 @@
-"""Estado vivo de coordinación — revisión única que todas las IAs deben leer."""
+"""Estado vivo de coordinaciÃ³n â€” revisiÃ³n Ãºnica que todas las IAs deben leer."""
 
 from __future__ import annotations
 
@@ -214,12 +214,12 @@ def refresh_estado_vivo() -> dict[str, Any]:
     priority = live.get("current_priority") or {}
 
     lines = [
-        "# ESTADO VIVO — coordinación RalfIA",
+        "# ESTADO VIVO â€” coordinaciÃ³n RalfIA",
         "",
-        f"**Revisión:** `{rev}` · **Actualizado:** {live.get('updated_at_display', '—')} (auto cada ~2 min, daemon AG-25)",
+        f"**RevisiÃ³n:** `{rev}` Â· **Actualizado:** {live.get('updated_at_display', 'â€”')} (auto cada ~2 min, daemon AG-25)",
         "",
-        "> **Rafael / cualquier IA:** si tu revisión leída es menor que esta, **estás desactualizado**.",
-        "> MCP: `get_coordination_live()` · al terminar: `ack_coordination_revision(agent, revision)`.",
+        "> **Rafael / cualquier IA:** si tu revisiÃ³n leÃ­da es menor que esta, **estÃ¡s desactualizado**.",
+        "> MCP: `get_coordination_live()` Â· al terminar: `ack_coordination_revision(agent, revision)`.",
         "",
         "---",
         "",
@@ -228,25 +228,25 @@ def refresh_estado_vivo() -> dict[str, Any]:
     ]
     for i, path in enumerate(MANDATORY_READS, 1):
         lines.append(f"{i}. `{path}`")
-    lines.extend(["", "## 2. Órdenes pendientes (ops_tasks)", ""])
+    lines.extend(["", "## 2. Ã“rdenes pendientes (ops_tasks)", ""])
     if tasks:
         for t in tasks[:8]:
             lines.append(
-                f"- **{t.get('task_id')}** → `{t.get('assignee')}` · {t.get('priority', 'normal')} · {t.get('title', '')[:80]}"
+                f"- **{t.get('task_id')}** â†’ `{t.get('assignee')}` Â· {t.get('priority', 'normal')} Â· {t.get('title', '')[:80]}"
             )
     else:
-        lines.append("_Sin órdenes ops pendientes._")
+        lines.append("_Sin Ã³rdenes ops pendientes._")
     lines.extend(["", "## 3. Mensajes abiertos por agente", ""])
     if unread:
         for agent, count in sorted(unread.items()):
             lines.append(f"- **{agent}**: {count} mensaje(s) `open` en Mongo")
     else:
         lines.append("_Sin mensajes open pendientes._")
-    lines.extend(["", "## 4. Últimos cambios (feed)", ""])
-    lines.extend(feed or ["_Sin líneas recientes._"])
+    lines.extend(["", "## 4. Ãšltimos cambios (feed)", ""])
+    lines.extend(feed or ["_Sin lÃ­neas recientes._"])
     if priority:
         lines.extend(["", "## 5. Prioridad Rafael", ""])
-        lines.append(f"**{priority.get('title', '—')}**")
+        lines.append(f"**{priority.get('title', 'â€”')}**")
         if priority.get("summary"):
             lines.append(priority["summary"])
         if priority.get("tools"):
@@ -257,14 +257,14 @@ def refresh_estado_vivo() -> dict[str, Any]:
         "",
         "---",
         "",
-        "## Cómo funciona (no es webhook entre IAs)",
+        "## CÃ³mo funciona (no es webhook entre IAs)",
         "",
-        "- **Broadcast** = archivo + INBOX + Mongo (tablón; no ejecuta solo).",
-        "- **Webhook Notion** = Notion plataforma → servidor (no Notion AI ↔ Cursor).",
-        "- **Órdenes** = `create_ops_task` → Mongo `ralfia_ops_tasks` + INBOX del assignee.",
+        "- **Broadcast** = archivo + INBOX + Mongo (tablÃ³n; no ejecuta solo).",
+        "- **Webhook Notion** = Notion plataforma â†’ servidor (no Notion AI â†” Cursor).",
+        "- **Ã“rdenes** = `create_ops_task` â†’ Mongo `ralfia_ops_tasks` + INBOX del assignee.",
         "- **Daemon AG-25** = regenera este archivo + HUB/feed cada ~2 min.",
         "",
-        f"_Generado automáticamente · revisión {rev}_",
+        f"_Generado automÃ¡ticamente Â· revisiÃ³n {rev}_",
     ])
     ESTADO_VIVO_PATH.parent.mkdir(parents=True, exist_ok=True)
     ESTADO_VIVO_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -294,8 +294,8 @@ def get_coordination_live() -> dict[str, Any]:
         "current_priority": st.get("current_priority"),
         "daemon": {"name": "AG-25", "interval_sec": 120, "expected": "active"},
         "chatgpt_note": (
-            "Sugerencia ChatGPT jul-2026: correlation_id en órdenes; "
-            "Notion webhook→Mongo; respuestas→Notion comentario (pendiente AG-07)."
+            "Sugerencia ChatGPT jul-2026: correlation_id en Ã³rdenes; "
+            "Notion webhookâ†’Mongo; respuestasâ†’Notion comentario (pendiente AG-07)."
         ),
     }
 
@@ -317,7 +317,7 @@ def ack_coordination_revision(agent: str, revision: int) -> dict[str, Any]:
         "acked_revision": int(revision),
         "current_revision": current,
         "behind": behind,
-        "message": "Desactualizado — relee HUB/ESTADO_VIVO.md" if behind else "Al día",
+        "message": "Desactualizado â€” relee HUB/ESTADO_VIVO.md" if behind else "Al dÃ­a",
     }
 
 
@@ -347,6 +347,10 @@ def create_ops_task(
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     assignee_l = (assignee or "").strip().lower()
+    from inneros_core_runtime import local_model_router
+    agent_routing = local_model_router.route_agent_model(assignee_l)
+    effective_provider = (preferred_provider or "").strip() or agent_routing.get("provider")
+    effective_model = (preferred_model or "").strip() or agent_routing.get("model")
     if assignee_l not in ASSIGNEES:
         return {"ok": False, "error": f"invalid_assignee: {assignee}"}
 
@@ -490,8 +494,8 @@ def create_ops_task(
         "provider_transport": (provider_transport or "").strip() or None,
         "runtime_profile": (resolved_profile or runtime_profile or "").strip() or None,
         "execution_policy": (resolved_policy or execution_policy or "").strip() or "local_first",
-        "preferred_provider": (preferred_provider or "").strip() or None,
-        "preferred_model": (preferred_model or "").strip() or None,
+        "preferred_provider": effective_provider,
+        "preferred_model": effective_model,
         "idempotency_key": (idempotency_key or "").strip() or None,
     }
     # PyMongo mutates the inserted mapping by adding ``_id``. Keep the public
@@ -506,7 +510,7 @@ def create_ops_task(
     )
 
     body = (
-        f"**Orden ops:** `{tid}` · correlation `{cid}`\n\n"
+        f"**Orden ops:** `{tid}` Â· correlation `{cid}`\n\n"
         f"**Prioridad:** {doc['priority']}\n\n"
         f"**Checklist:**\n" + "\n".join(f"- [ ] {x}" for x in items) + "\n\n"
         f"**Evidencia requerida:**\n" + "\n".join(f"- {x}" for x in evidence) + "\n\n"
@@ -543,7 +547,7 @@ def create_ops_task(
         related_project=doc["related_project"],
         tags=["ops_task", tid, cid],
     )
-    bump_revision(reason=f"ops_task {tid} → {assignee_l}", source=from_agent)
+    bump_revision(reason=f"ops_task {tid} â†’ {assignee_l}", source=from_agent)
     return {
         "ok": True,
         "created": True,
@@ -726,7 +730,7 @@ def update_ops_task_state(
         status=str(transition["patch"].get("status") or ""),
         payload={"from": task.get("status"), "to": transition["patch"].get("status"), "revision": transition.get("revision")},
     )
-    bump_revision(reason=f"ops_task {task_id} → {transition['patch']['status']}", source=actor)
+    bump_revision(reason=f"ops_task {task_id} â†’ {transition['patch']['status']}", source=actor)
     return {
         "ok": True,
         "idempotent": False,
