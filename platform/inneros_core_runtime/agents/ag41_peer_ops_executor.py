@@ -40,9 +40,23 @@ ALLOWED_PEER_PACKAGES = (
 
 
 def _node_registry() -> dict[str, Any]:
+    nodes: dict[str, Any] = {}
+    for node, host in whatsapp_service_ops.NODE_HOSTS.items():
+        meta = dict(getattr(whatsapp_service_ops, "NODE_METADATA", {}).get(node, {}))
+        nodes[node] = {"node": node, "host": host, **meta}
+    nodes["intel"] = {**nodes["primary"], "node": "intel", "alias_for": "primary"}
+    return nodes
+
+
+def _unknown_node_result(node: str | None, error: Exception) -> dict[str, Any]:
     return {
-        "primary": {"node": "primary", "role": "primary/intel", "host": "192.168.1.4", "peer_ops": "operative"},
-        "amd": {"node": "amd", "role": "secondary/amd", "host": "192.168.1.5", "peer_ops": "operative"},
+        "ok": False,
+        "agent_id": AGENT_ID,
+        "node": node,
+        "error": "unknown_peer_node",
+        "detail": str(error),
+        "fallback": "denied",
+        "node_registry": _node_registry(),
     }
 
 
@@ -54,6 +68,19 @@ def _run_node(node: str, args: list[str], *, timeout: int = 30, input_text: str 
     node = whatsapp_service_ops.normalize_node(node)
     if node == whatsapp_service_ops._local_node():
         command = args
+    elif node not in whatsapp_service_ops.SSH_TARGETS:
+        return subprocess.CompletedProcess(
+            args,
+            78,
+            "",
+            json.dumps({
+                "ok": False,
+                "error": "peer_transport_unavailable",
+                "node": node,
+                "transport": getattr(whatsapp_service_ops, "NODE_METADATA", {}).get(node, {}).get("transport", "unknown"),
+                "host": whatsapp_service_ops.NODE_HOSTS.get(node),
+            }),
+        )
     else:
         command = [
             "ssh",
@@ -233,7 +260,10 @@ def peer_ops_logs(service_id: str, node: str = "primary", lines: int = 30) -> di
 
 
 def peer_net_interfaces(node: str = "amd") -> dict[str, Any]:
-    node = whatsapp_service_ops.normalize_node(node)
+    try:
+        node = whatsapp_service_ops.normalize_node(node)
+    except ValueError as exc:
+        return _unknown_node_result(node, exc)
     items, meta = _interfaces_raw(node)
     route = peer_route_check(node)
     return {
@@ -252,7 +282,30 @@ def peer_net_interfaces(node: str = "amd") -> dict[str, Any]:
 
 
 def peer_route_check(node: str = "amd") -> dict[str, Any]:
-    node = whatsapp_service_ops.normalize_node(node)
+    requested_node = node
+    try:
+        node = whatsapp_service_ops.normalize_node(node)
+    except ValueError as exc:
+        return _unknown_node_result(requested_node, exc)
+    registry = _node_registry()
+    node_info = registry.get(node, {})
+    if node not in whatsapp_service_ops.SSH_TARGETS:
+        return {
+            "ok": False,
+            "agent_id": AGENT_ID,
+            "node": node,
+            "error": "peer_transport_unavailable",
+            "fallback": "denied",
+            "host": node_info.get("host"),
+            "tailscale_host": node_info.get("tailscale_host") or node_info.get("host"),
+            "lan_host": node_info.get("lan_host"),
+            "gateway": node_info.get("gateway"),
+            "authorized_subnets": node_info.get("authorized_subnets") or [],
+            "transport": node_info.get("transport", "unknown"),
+            "scope": node_info.get("scope"),
+            "node_registry": registry,
+            "raw": {"ok": False, "error": "no_helper_transport_registered"},
+        }
     result = _helper(node, "route_check", timeout=20)
     return {
         "ok": bool(result.get("ok")),
