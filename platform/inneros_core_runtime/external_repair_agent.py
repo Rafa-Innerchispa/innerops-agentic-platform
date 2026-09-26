@@ -931,10 +931,19 @@ def _execute_claimed_task_autonomous(provider: str, task: dict[str, Any]) -> dic
         wf_res = loop.run_until_complete(_run_wf())
         wf_status = wf_res.get("status", "completed")
         outcome = "completed" if wf_status == "completed" else "blocked"
+        nonterminal_result = (
+            wf_res.get("result")
+            or wf_res.get("error_type")
+            or wf_res.get("error")
+            or wf_status
+            or "WORKFLOW_NOT_COMPLETED"
+        )
+        if outcome != "completed" and "CIRCUIT_BREAKER" not in str(nonterminal_result):
+            nonterminal_result = f"WORKFLOW_NOT_COMPLETED:{nonterminal_result}"
         comp_res = complete_external_repair_run(
             run_id,
             outcome=outcome,
-            result="PASS" if outcome == "completed" else "CIRCUIT_BREAKER",
+            result="PASS" if outcome == "completed" else str(nonterminal_result)[:500],
             evidence=wf_res.get("evidence", {}),
             report_to=task.get("from_agent", "chatgpt"),
             update_task=True,
