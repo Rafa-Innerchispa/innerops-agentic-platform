@@ -47,7 +47,7 @@ OAUTH_ALLOWED_REDIRECT_HOSTS = tuple(
     host.strip().lower()
     for host in os.getenv(
         "OAUTH_ALLOWED_REDIRECT_HOSTS",
-        "chatgpt.com,localhost,127.0.0.1,notion.so,www.notion.so,app.notion.com,api.notion.com",
+        "chatgpt.com,localhost,127.0.0.1,notion.so,www.notion.so,app.notion.com,api.notion.com,pitangui.amazon.com,layla.amazon.com,alexa.amazon.co.jp",
     ).split(",")
     if host.strip()
 )
@@ -57,6 +57,7 @@ _default_canonical_resources = [
     OAUTH_MCP_RESOURCE_LAN,
     "https://mcp-chatgpt.creatorcore.ai",
     "https://mcp-chatgpt.creatorcore.ai/mcp",
+    "https://voz.pcdoctor.ai/mcp",
     "https://sworn-profusely-alongside.ngrok-free.dev/raphiia-mcp",
     "https://sworn-profusely-alongside.ngrok-free.dev/raphiia-mcp/mcp",
     f"http://{RALFIA_INTEL_HOST}:8102/mcp",
