@@ -59,7 +59,7 @@ def authorization_server_metadata(host_header: str | None = None) -> dict[str, A
         "jwks_uri": f"{issuer}/.well-known/jwks.json",
         "registration_endpoint": f"{issuer}/register",
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "grant_types_supported": ["client_credentials", "authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
         "scopes_supported": list(oauth_store.SCOPES),

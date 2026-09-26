@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import html
 import secrets
 from typing import Any
@@ -42,6 +44,7 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "openid", "profile", "email", "ralfia:read", "ralfia:write",
         "ralfia:agents", "ralfia:admin", "ralfia:memory:read",
         "ralfia:memory:write", "ralfia:memory:finalize", "ralfia:private_memory",
+        "mcp:tools", "mcp:resources",
     ],
     "tech": [
         "openid", "profile", "email", "ralfia:read", "ralfia:write",
@@ -75,7 +78,11 @@ def _scope_for_user(user: dict[str, Any], requested_scope: str) -> str:
     allowed.update(s for s in (user.get("oauth_scopes") or []) if isinstance(s, str))
     requested = set(oauth_store.parse_scopes(requested_scope))
     granted = sorted(scope for scope in requested if scope in allowed)
-    if "ralfia:write" in allowed and "ralfia:write" not in granted:
+    if (
+        "ralfia:write" in allowed
+        and "ralfia:write" not in granted
+        and not any(scope.startswith("mcp:") for scope in requested)
+    ):
         granted.append("ralfia:write")
         granted = sorted(set(granted))
     if not granted:
@@ -202,6 +209,10 @@ def _validate_authorize_params(params: dict[str, str]) -> tuple[dict[str, Any], 
     redirect_uri = params.get("redirect_uri", "")
     if not oauth_store.redirect_uri_allowed(redirect_uri, client.get("redirect_uris")):
         raise HTTPException(status_code=400, detail="redirect_uri not allowed")
+    resource = str(params.get("resource") or "").rstrip("/")
+    if resource and client.get("resources"):
+        if not oauth_store.resource_allowed(resource, client.get("resources")):
+            raise HTTPException(status_code=400, detail="invalid_target")
     scope = " ".join(oauth_store.parse_scopes(params.get("scope") or client.get("scope")))
     return client, scope
 
@@ -298,29 +309,90 @@ async def authorize_post(
     return redirect
 
 
+def _basic_client_credentials(request: Request) -> tuple[str, str] | None:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Basic "):
+        return None
+    encoded = auth_header[6:].strip()
+    try:
+        decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        raise HTTPException(status_code=401, detail="invalid_client")
+    if ":" not in decoded:
+        raise HTTPException(status_code=401, detail="invalid_client")
+    client_id, client_secret = decoded.split(":", 1)
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=401, detail="invalid_client")
+    return client_id, client_secret
+
+
 @app.post("/token")
 async def token(
+    request: Request,
     grant_type: str = Form(...),
     code: str = Form(""),
     refresh_token: str = Form(""),
     redirect_uri: str = Form(""),
-    client_id: str = Form(...),
+    client_id: str = Form(""),
+    client_secret: str = Form(""),
     code_verifier: str = Form(""),
+    scope: str = Form(""),
+    resource: str = Form(""),
 ) -> JSONResponse:
-    if not oauth_store.get_client(client_id):
-        raise HTTPException(status_code=400, detail="invalid_client")
+    basic = _basic_client_credentials(request)
+    if basic is not None:
+        basic_client_id, basic_client_secret = basic
+        if client_id and client_id != basic_client_id:
+            raise HTTPException(status_code=401, detail="invalid_client")
+        client_id = basic_client_id
+        client_secret = basic_client_secret
+
+    if not client_id:
+        raise HTTPException(status_code=401, detail="invalid_client")
+    client = oauth_store.get_client(client_id)
+    if not client:
+        raise HTTPException(status_code=401, detail="invalid_client")
+    if client.get("client_secret_hash") and client.get("token_endpoint_auth_method") != "none":
+        if not client_secret or not oauth_store.verify_client_secret(client, client_secret):
+            raise HTTPException(status_code=401, detail="invalid_client")
+
+    if grant_type == "client_credentials":
+        if not client_secret:
+            raise HTTPException(status_code=401, detail="invalid_client")
+        try:
+            token_doc = oauth_store.issue_client_credentials_token(
+                client_id=client_id,
+                client_secret=client_secret,
+                scope=scope,
+                resource=resource,
+            )
+        except ValueError as exc:
+            error_name = str(exc)
+            if error_name == "invalid_client":
+                raise HTTPException(status_code=401, detail=error_name) from exc
+            if error_name == "invalid_scope":
+                raise HTTPException(status_code=400, detail=error_name) from exc
+            if error_name == "access_denied":
+                raise HTTPException(status_code=403, detail=error_name) from exc
+            raise
+        return JSONResponse(token_doc)
+
     if grant_type == "authorization_code":
         code_doc = oauth_store.consume_auth_code(
             code=code,
             client_id=client_id,
             redirect_uri=redirect_uri,
             code_verifier=code_verifier,
+            resource=resource or None,
         )
         if not code_doc:
             raise HTTPException(status_code=400, detail="invalid_grant")
         return JSONResponse(oauth_store.issue_access_token(code_doc))
     if grant_type == "refresh_token":
-        token_doc = oauth_store.exchange_refresh_token(refresh_token=refresh_token, client_id=client_id)
+        token_doc = oauth_store.exchange_refresh_token(
+            refresh_token=refresh_token,
+            client_id=client_id,
+        )
         if not token_doc:
             raise HTTPException(status_code=400, detail="invalid_grant")
         return JSONResponse(token_doc)
