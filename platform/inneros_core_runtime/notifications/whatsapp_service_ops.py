@@ -62,8 +62,9 @@ NODE_METADATA = {
         "authorized_subnets": ["192.168.3.0/24"],
         "gateway": "192.168.3.1",
         "scope": "Bellini I-II only",
-        "peer_ops": "windows_transport_pending",
-        "transport": "tailscale_windows",
+        "peer_ops": "tailscale_subnet_ready",
+        "transport": "tailscale_subnet",
+        "transport_note": "Read-only Bellini I-II subnet access through the Tailscale subnet route advertised by desktop-t2jle71.",
     },
 }
 SSH_TARGETS = {"primary": "rlopez@192.168.1.4", "amd": "ralfiia-amd"}

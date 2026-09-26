@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import subprocess
 from typing import Any
 
@@ -57,6 +58,92 @@ def _unknown_node_result(node: str | None, error: Exception) -> dict[str, Any]:
         "detail": str(error),
         "fallback": "denied",
         "node_registry": _node_registry(),
+    }
+
+
+def _run_local_command(args: list[str], *, timeout: int = 8) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
+
+
+def _tcp_open(host: str, port: int, timeout: float = 3.0) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _route_uses_tailscale(route_text: str) -> bool:
+    return "dev tailscale0" in (route_text or "")
+
+
+def _tailscale_subnet_route_check(node: str, node_info: dict[str, Any]) -> dict[str, Any]:
+    gateway = str(node_info.get("gateway") or "")
+    lan_host = str(node_info.get("lan_host") or "")
+    tailscale_host = str(node_info.get("tailscale_host") or node_info.get("host") or "")
+    authorized_subnets = list(node_info.get("authorized_subnets") or [])
+
+    ts_ip_proc = _run_local_command(["tailscale", "ip", "-4"], timeout=5)
+    ts_status_proc = _run_local_command(["tailscale", "status"], timeout=8)
+    route_gateway_proc = _run_local_command(["ip", "route", "get", gateway], timeout=5) if gateway else None
+    route_lan_proc = _run_local_command(["ip", "route", "get", lan_host], timeout=5) if lan_host else None
+    peer_ping_proc = _run_local_command(["ping", "-c", "1", "-W", "2", tailscale_host], timeout=4) if tailscale_host else None
+    gateway_ping_proc = _run_local_command(["ping", "-c", "1", "-W", "2", gateway], timeout=4) if gateway else None
+    lan_ping_proc = _run_local_command(["ping", "-c", "1", "-W", "2", lan_host], timeout=4) if lan_host else None
+
+    route_gateway = (route_gateway_proc.stdout if route_gateway_proc else "") or (route_gateway_proc.stderr if route_gateway_proc else "")
+    route_lan = (route_lan_proc.stdout if route_lan_proc else "") or (route_lan_proc.stderr if route_lan_proc else "")
+    gateway_tcp_80 = _tcp_open(gateway, 80, timeout=3.0) if gateway else False
+    lan_tcp_445 = _tcp_open(lan_host, 445, timeout=3.0) if lan_host else False
+    peer_line = ""
+    for line in (ts_status_proc.stdout or "").splitlines():
+        if tailscale_host and tailscale_host in line:
+            peer_line = line.strip()
+            break
+
+    gateway_route_ok = bool(gateway and _route_uses_tailscale(route_gateway))
+    lan_route_ok = bool(lan_host and _route_uses_tailscale(route_lan))
+    gateway_reachable = bool((gateway_ping_proc and gateway_ping_proc.returncode == 0) or gateway_tcp_80)
+    peer_reachable = bool(peer_ping_proc and peer_ping_proc.returncode == 0)
+    lan_host_probe_ok = bool((lan_ping_proc and lan_ping_proc.returncode == 0) or lan_tcp_445)
+    subnet_scope_ok = authorized_subnets == ["192.168.3.0/24"]
+    ok = bool(peer_reachable and gateway_route_ok and lan_route_ok and gateway_reachable and subnet_scope_ok)
+
+    return {
+        "ok": ok,
+        "agent_id": AGENT_ID,
+        "node": node,
+        "transport": "tailscale_subnet",
+        "fallback": "denied",
+        "host": node_info.get("host"),
+        "tailscale_host": tailscale_host,
+        "source_tailnet_ip": (ts_ip_proc.stdout or "").strip().splitlines(),
+        "lan_host": lan_host,
+        "gateway": gateway,
+        "authorized_subnets": authorized_subnets,
+        "scope": node_info.get("scope"),
+        "tailscale_peer_visible": bool(peer_line),
+        "tailscale_peer_line": peer_line,
+        "tailscale_peer_reachable": peer_reachable,
+        "gateway_route_ok": gateway_route_ok,
+        "gateway_route": route_gateway.strip(),
+        "gateway_reachable": gateway_reachable,
+        "gateway_ping_rc": gateway_ping_proc.returncode if gateway_ping_proc else None,
+        "gateway_tcp_80": gateway_tcp_80,
+        "lan_host_route_ok": lan_route_ok,
+        "lan_host_route": route_lan.strip(),
+        "lan_host_probe_ok": lan_host_probe_ok,
+        "lan_host_ping_rc": lan_ping_proc.returncode if lan_ping_proc else None,
+        "lan_host_tcp_445": lan_tcp_445,
+        "lan_host_probe_note": "Windows host may block ping/SMB; subnet transport is proven by route plus gateway reachability.",
+        "route_limit": "192.168.3.0/24",
+        "raw": {
+            "tailscale_status_rc": ts_status_proc.returncode,
+            "tailscale_ip_rc": ts_ip_proc.returncode,
+            "peer_ping_rc": peer_ping_proc.returncode if peer_ping_proc else None,
+            "route_gateway_rc": route_gateway_proc.returncode if route_gateway_proc else None,
+            "route_lan_host_rc": route_lan_proc.returncode if route_lan_proc else None,
+        },
     }
 
 
@@ -264,6 +351,39 @@ def peer_net_interfaces(node: str = "amd") -> dict[str, Any]:
         node = whatsapp_service_ops.normalize_node(node)
     except ValueError as exc:
         return _unknown_node_result(node, exc)
+    registry = _node_registry()
+    node_info = registry.get(node, {})
+    if node_info.get("transport") == "tailscale_subnet":
+        route = _tailscale_subnet_route_check(node, node_info)
+        return {
+            "ok": bool(route.get("ok")),
+            "agent_id": AGENT_ID,
+            "node": node,
+            "node_registry": registry,
+            "interfaces": [
+                {
+                    "interface": "tailscale0",
+                    "kind": "tailscale_subnet_route",
+                    "authorized_subnets": route.get("authorized_subnets") or [],
+                    "gateway": route.get("gateway"),
+                    "lan_host": route.get("lan_host"),
+                    "route": route.get("gateway_route"),
+                    "mutation_allowed": False,
+                    "source": "linux_route_table",
+                }
+            ],
+            "route_check": route,
+            "meta": {
+                "windows_host_interfaces": "unavailable_without_windows_helper",
+                "transport": "tailscale_subnet",
+                "scope": node_info.get("scope"),
+            },
+            "security": {
+                "read_only": True,
+                "arbitrary_shell": "denied",
+                "subnet_scope": route.get("authorized_subnets") or [],
+            },
+        }
     items, meta = _interfaces_raw(node)
     route = peer_route_check(node)
     return {
@@ -289,6 +409,10 @@ def peer_route_check(node: str = "amd") -> dict[str, Any]:
         return _unknown_node_result(requested_node, exc)
     registry = _node_registry()
     node_info = registry.get(node, {})
+    if node_info.get("transport") == "tailscale_subnet":
+        route = _tailscale_subnet_route_check(node, node_info)
+        route["node_registry"] = registry
+        return route
     if node not in whatsapp_service_ops.SSH_TARGETS:
         return {
             "ok": False,
