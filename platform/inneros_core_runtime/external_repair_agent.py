@@ -7,6 +7,7 @@ explicit approval flag to an execution primitive.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import secrets
@@ -102,6 +103,37 @@ def _auth_probe(provider: str) -> dict[str, Any]:
             },
             "secret_policy": "presence only; secret values are never read or returned",
         }
+    if provider == "cursor":
+        cursor_home = Path.home() / ".cursor"
+        cursor_config = Path.home() / ".config/cursor"
+        api_key = bool(os.getenv("CURSOR_API_KEY"))
+        has_session = False
+        whoami_user = ""
+        cli_path = (
+            shutil.which("cursor-agent")
+            or shutil.which("cursor")
+            or (str(Path.home() / ".local/bin/cursor-agent") if (Path.home() / ".local/bin/cursor-agent").is_file() else "")
+            or (str(Path.home() / ".local/bin/cursor") if (Path.home() / ".local/bin/cursor").is_file() else "")
+        )
+        if cli_path:
+            probe = _run_help([cli_path, "whoami"], timeout=4)
+            stdout = str(probe.get("stdout") or "").strip()
+            if probe.get("ok") and stdout and "not logged in" not in stdout.lower() and "error" not in stdout.lower():
+                has_session = True
+                whoami_user = stdout.splitlines()[0][:80]
+
+        ready = bool(api_key or has_session)
+        return {
+            "auth_ready": ready,
+            "auth_markers": {
+                "cursor_home_present": cursor_home.exists(),
+                "cursor_config_present": cursor_config.exists(),
+                "cursor_api_key_present": api_key,
+                "cursor_session_logged_in": has_session,
+                "cursor_user": whoami_user,
+            },
+            "secret_policy": "presence only; secret values are never read or returned",
+        }
     return {"auth_ready": False, "auth_markers": {}, "secret_policy": "no supported headless auth probe"}
 
 
@@ -141,7 +173,12 @@ def detect_provider(provider: str) -> dict[str, Any]:
             or (str(Path.home() / "bin/agy") if (Path.home() / "bin/agy").is_file() else "")
         )
     elif provider == "cursor":
-        cli = shutil.which("cursor") or shutil.which("cursor-agent")
+        cli = (
+            shutil.which("cursor-agent")
+            or shutil.which("cursor")
+            or (str(Path.home() / ".local/bin/cursor-agent") if (Path.home() / ".local/bin/cursor-agent").is_file() else "")
+            or (str(Path.home() / ".local/bin/cursor") if (Path.home() / ".local/bin/cursor").is_file() else "")
+        )
     else:
         cli = shutil.which(provider)
     installed = bool(cli)
@@ -624,10 +661,10 @@ def _candidate_tasks(provider: str, limit: int) -> list[dict[str, Any]]:
         "assignee": provider,
         "status": "proposed",
         "$or": [
-            {"task_class": {"$in": ["coordination_canary", "agent_runtime_repair", "autonomous_coding"]}},
+            {"task_class": {"$in": ["coordination_canary", "agent_runtime_repair", "autonomous_coding", "full_system_acceptance", "control_plane_reliability", "control_plane_finalization", "peer_network_inventory", "read_only_acceptance"]}},
             {"execution_lane": {"$nin": ["local_manual_antigravity", "manual_interactive"]}},
-            {"correlation_id": {"$regex": "canary|autopick|repair|auto", "$options": "i"}},
-            {"title": {"$regex": "canary|autopick|repair|auto", "$options": "i"}},
+            {"correlation_id": {"$regex": "canary|autopick|repair|auto|audit|acceptance", "$options": "i"}},
+            {"title": {"$regex": "canary|autopick|repair|auto|audit|acceptance", "$options": "i"}},
         ],
     }
     rows = list(
@@ -651,7 +688,7 @@ def _mark_admission_blocked(provider: str, selected: dict[str, Any], admission: 
     now = _now()
     reason = "blocked_by_budget" if not admission.get("budget_ok") else "provider_not_ready"
     claimed = _db()[coordination_live.OPS_TASKS_COL].find_one_and_update(
-        {"task_id": selected["task_id"], "status": "proposed", "owner": None, "revision": selected.get("revision", 1)},
+        {"task_id": selected["task_id"], "status": "proposed", "owner": {"$in": [None, "", provider]}, "revision": int(selected.get("revision", 1))},
         {
             "$set": {
                 "status": "accepted",
@@ -698,42 +735,45 @@ def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = Tr
         candidates = _candidate_tasks(provider, limit)
     if not candidates:
         return {"ok": True, "claimed": False, "provider": provider, "reason": "no_proposed_tasks", "capability": capability, "budget": budget}
-    selected = candidates[0]
-    admission = {
-        "capability_ok": capability.get("status") == "ready",
-        "budget_ok": budget.get("ok"),
-        "local_first": "Dev Swarm/local models should be attempted before external spend unless this is repair/escalation",
-    }
-    if dry_run:
-        return {"ok": True, "dry_run": dry_run, "claimed": False, "provider": provider, "candidate": selected, "admission": admission, "capability": capability, "budget": budget}
-    if not (admission["capability_ok"] and admission["budget_ok"]):
-        return _mark_admission_blocked(provider, selected, admission, capability, budget)
 
-    now = _now()
-    claimed = _db()[coordination_live.OPS_TASKS_COL].find_one_and_update(
-        {"task_id": selected["task_id"], "status": "proposed", "owner": None, "revision": selected.get("revision", 1)},
-        {
-            "$set": {
-                "status": "accepted",
-                "owner": provider,
-                "updated_at": now,
-                "updated_by": "external_repair_agent",
-                "last_heartbeat_at": now,
+    for selected in candidates:
+        admission = {
+            "capability_ok": capability.get("status") == "ready",
+            "budget_ok": budget.get("ok"),
+            "local_first": "Dev Swarm/local models should be attempted before external spend unless this is repair/escalation",
+        }
+        if dry_run:
+            return {"ok": True, "dry_run": dry_run, "claimed": False, "provider": provider, "candidate": selected, "admission": admission, "capability": capability, "budget": budget}
+        if not (admission["capability_ok"] and admission["budget_ok"]):
+            return _mark_admission_blocked(provider, selected, admission, capability, budget)
+
+        now = _now()
+        claimed = _db()[coordination_live.OPS_TASKS_COL].find_one_and_update(
+            {"task_id": selected["task_id"], "status": "proposed", "owner": {"$in": [None, "", provider]}, "revision": int(selected.get("revision", 1))},
+            {
+                "$set": {
+                    "status": "accepted",
+                    "owner": provider,
+                    "updated_at": now,
+                    "updated_by": "external_repair_agent",
+                    "last_heartbeat_at": now,
+                },
+                "$inc": {"revision": 1},
+                "$push": {"state_history": {"at": now, "actor": "external_repair_agent", "from": "proposed", "to": "accepted", "provider": provider}},
             },
-            "$inc": {"revision": 1},
-            "$push": {"state_history": {"at": now, "actor": "external_repair_agent", "from": "proposed", "to": "accepted", "provider": provider}},
-        },
-        return_document=ReturnDocument.AFTER,
-        projection={"_id": 0},
-    )
-    if not claimed:
-        return {"ok": False, "error": "claim_race_lost", "provider": provider, "candidate_task_id": selected["task_id"]}
-    coordination_live.bump_revision(reason=f"external_repair_agent claimed {selected['task_id']}", source="external_repair_agent")
-    promoted = coordination_live.update_ops_task_state(claimed["task_id"], "in_progress", actor=provider, expected_revision=int(claimed.get("revision") or 1))
-    if not promoted.get("ok"):
-        return {"ok": False, "error": "claim_promote_failed", "provider": provider, "task": claimed, "promotion": promoted}
-    task = _db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": claimed["task_id"]}, {"_id": 0}) or claimed
-    return {"ok": True, "claimed": True, "provider": provider, "task": task, "admission": admission, "promotion": promoted}
+            return_document=ReturnDocument.AFTER,
+            projection={"_id": 0},
+        )
+        if not claimed:
+            continue
+        coordination_live.bump_revision(reason=f"external_repair_agent claimed {selected['task_id']}", source="external_repair_agent")
+        promoted = coordination_live.update_ops_task_state(claimed["task_id"], "in_progress", actor=provider, expected_revision=int(claimed.get("revision") or 1))
+        if not promoted.get("ok"):
+            return {"ok": False, "error": "claim_promote_failed", "provider": provider, "task": claimed, "promotion": promoted}
+        task = _db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": claimed["task_id"]}, {"_id": 0}) or claimed
+        return {"ok": True, "claimed": True, "provider": provider, "task": task, "admission": admission, "promotion": promoted}
+
+    return {"ok": False, "error": "claim_race_lost", "provider": provider, "candidate_task_id": candidates[0]["task_id"]}
 
 
 def reconcile_terminal_handoffs(provider: str = "codex", limit: int = 25) -> dict[str, Any]:
