@@ -1,0 +1,8 @@
+{
+  "gate_id": "G17_REPO_HYGIENE",
+  "code": "G17",
+  "status": "PASS",
+  "evidence": {
+    "core_tests_exit_code": 0
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "gate_id": "G13_REAL_ANTIGRAVITY",
+  "code": "G13",
+  "status": "PASS",
+  "evidence": {
+    "antigravity_route": {
+      "ok": true,
+      "agent": "antigravity",
+      "provider": "antigravity",
+      "model": "gemini-3.7",
+      "fallback_model": "gemini-2.5-pro",
+      "transport": "mcp",
+      "vendor": "google",
+      "available_models": [
+        "gemini-3.7",
+        "gemini-3.7-flash",
+        "gemini-2.5-pro"
+      ],
+      "is_external": true
+    }
+  }
+}

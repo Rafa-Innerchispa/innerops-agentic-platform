@@ -1,0 +1,23 @@
+{
+  "gate_id": "G12_REAL_CODEX",
+  "code": "G12",
+  "status": "PASS",
+  "evidence": {
+    "codex_route": {
+      "ok": true,
+      "agent": "codex",
+      "provider": "codex",
+      "model": "gpt-5.6",
+      "fallback_model": "gpt-sol",
+      "transport": "mcp",
+      "vendor": "openai",
+      "available_models": [
+        "gpt-5.6",
+        "gpt-sol",
+        "gpt-4o",
+        "o3-mini"
+      ],
+      "is_external": true
+    }
+  }
+}

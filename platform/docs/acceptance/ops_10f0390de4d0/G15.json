@@ -1,0 +1,13 @@
+{
+  "gate_id": "G15_AMD_CAPACITY",
+  "code": "G15",
+  "status": "PASS",
+  "evidence": {
+    "budget": {
+      "available_cpu_tokens": 23.2,
+      "available_ram_tokens": 40.0,
+      "recommended_concurrency": 4,
+      "max_safe_concurrency": 16
+    }
+  }
+}

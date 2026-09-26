@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "contract_id": "inneros-convergence-task-isolation-20260926",
+  "title": "InnerOS Task Isolation and Control-Plane Convergence Contract G01-G18",
+  "task_id": "ops_10f0390de4d0",
+  "version": "1.0.0",
+  "created_at": "2026-09-26T22:00:00Z",
+  "owner": "antigravity",
+  "verifier": "CHATGPT",
+  "runner_path": "platform/scripts/verify_inneros_convergence_20260926.py",
+  "contract_path": "platform/docs/INNEROS_CONVERGENCE_CONTRACT_20260926.json",
+  "evidence_dir": "platform/docs/acceptance/ops_10f0390de4d0",
+  "gates": [
+    {
+      "gate_id": "G01_IDENTITY_PROVENANCE",
+      "name": "Identity and Provenance",
+      "description": "AG-xx subagents preserve raw identity and origin fields (origin_type, conversation_ref, scope, autonomous_eligible).",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G02_EMAIL_REVIEW_SAFETY",
+      "name": "Email Review Side-Effect Safety",
+      "description": "Email processing with create_task=False produces zero ops_tasks.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G03_EMAIL_MCP_CONTRACT",
+      "name": "Email MCP Contract",
+      "description": "analyze_email_intelligence_payload, process_email_intelligence_mail, email_intelligence_summary work without failure.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G04_CLAIM_ISOLATION",
+      "name": "Task Claim Isolation",
+      "description": "Manual interactive and conversation/email scope tasks remain isolated and excluded from auto-claim.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G05_INDEPENDENT_COMPLETION",
+      "name": "Independent Completion Authority",
+      "description": "Tasks requiring independent verification transition to verification on provider finish, not completed.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G06_FLEET_PARITY",
+      "name": "Fleet Parity",
+      "description": "Intel (.4) and AMD (.5) node reachability and canonical MCP profile status.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G07_SERVICE_DURABLE_HEALTH",
+      "name": "Service Guardian and Durable Health",
+      "description": "Resource service plane live telemetry (CPU, RAM, Swap, PSI, VRAM) and reservations.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G08_NO_IDLE_SCHEDULER",
+      "name": "No-Idle Scheduler",
+      "description": "Preflight evaluation admits eligible tasks with full binding and rejects underspecified tasks.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G09_FIVE_LOCAL_QWEN_E2E",
+      "name": "Five Local Qwen E2E Execution",
+      "description": "Dev swarm routes locally to Qwen3-Coder-30B-AWQ with zero external model spend.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G10_DURABLE_RECOVERY",
+      "name": "Durable Recovery and Safe Repo Reuse",
+      "description": "Safe repository reuse and idempotent worker resumption.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G11_RECONCILIATION_BOUNDED_RETRIES",
+      "name": "Reconciliation and Bounded Retries",
+      "description": "Nonterminal state reconciler and circuit breaker limiting retries.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G12_REAL_CODEX",
+      "name": "Real Codex Canary",
+      "description": "Codex routing pinned to gpt-5.6 / gpt-sol with low reasoning.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G13_REAL_ANTIGRAVITY",
+      "name": "Real Antigravity Model Policy",
+      "description": "Antigravity routing pinned to gemini-3.7 / gemini-3.7-flash, blocking unapproved models.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G14_REAL_CURSOR",
+      "name": "Real Cursor Policy",
+      "description": "Cursor strictly pinned to Composer 2.5 standard, strictly denying Grok/Auto.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "BLOCKED_AUTH", "FAIL"]
+    },
+    {
+      "gate_id": "G15_AMD_CAPACITY",
+      "name": "AMD Capacity and Concurrency Ramp",
+      "description": "Dynamic token budget and multi-request allocation on AMD node.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G16_MIXED_LOAD_FAIRNESS",
+      "name": "Mixed Load SLO and Multi-Project Fairness",
+      "description": "P0/P1 reserves protected and WeightedFairQueue fair scheduling.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G17_REPO_HYGIENE",
+      "name": "Repository Hygiene",
+      "description": "Core test suite passing 100% and git diff check passing.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "G18_REAL_SOAK",
+      "name": "System Stability Soak Test",
+      "description": "Sustained stability monitoring without error loops or runaway retries.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    }
+  ],
+  "exit_policy": {
+    "success_exit_code": 0,
+    "failure_exit_code": 1,
+    "blocked_exit_code": 2,
+    "self_completion_forbidden": true,
+    "completion_authority": "CHATGPT"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "gate_id": "G08_NO_IDLE_SCHEDULER",
+  "code": "G08",
+  "status": "PASS",
+  "evidence": {
+    "preflight": {
+      "ok": true,
+      "executable": true,
+      "reason": "eligible",
+      "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+      "blockers": [],
+      "resolved_binding": {
+        "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+        "base_ref": "main",
+        "task_class": "code_refactor",
+        "execution_lane": "local_dev_swarm",
+        "runtime_profile": "python-tests",
+        "execution_policy": "local_first"
+      }
+    }
+  }
+}

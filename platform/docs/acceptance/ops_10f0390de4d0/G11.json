@@ -1,0 +1,10 @@
+{
+  "gate_id": "G11_RECONCILIATION_BOUNDED_RETRIES",
+  "code": "G11",
+  "status": "PASS",
+  "evidence": {
+    "coordination_tests_exit_code": 0,
+    "circuit_breaker_active": true,
+    "max_repair_cycles": 3
+  }
+}

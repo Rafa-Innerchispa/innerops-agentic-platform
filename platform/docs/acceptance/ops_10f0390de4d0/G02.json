@@ -1,0 +1,9 @@
+{
+  "gate_id": "G02_EMAIL_REVIEW_SAFETY",
+  "code": "G02",
+  "status": "PASS",
+  "evidence": {
+    "task_count_before": 5804,
+    "task_count_after": 5804
+  }
+}

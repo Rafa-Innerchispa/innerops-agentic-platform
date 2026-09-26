@@ -1,0 +1,81 @@
+{
+  "gate_id": "G01_IDENTITY_PROVENANCE",
+  "code": "G01",
+  "status": "PASS",
+  "evidence": {
+    "subagent_routes": {
+      "AG-05": {
+        "ok": true,
+        "agent": "AG-05",
+        "provider": "local",
+        "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+        "fallback_model": "qwen2.5:7b",
+        "transport": "vllm",
+        "vendor": "qwen",
+        "available_models": [
+          "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+          "qwen2.5:7b"
+        ],
+        "is_external": false
+      },
+      "AG-53": {
+        "ok": true,
+        "agent": "AG-53",
+        "provider": "local",
+        "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+        "fallback_model": "qwen2.5:7b",
+        "transport": "vllm",
+        "vendor": "qwen",
+        "available_models": [
+          "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+          "qwen2.5:7b"
+        ],
+        "is_external": false
+      },
+      "ag41": {
+        "ok": true,
+        "agent": "ag41",
+        "provider": "local",
+        "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+        "fallback_model": "qwen2.5:7b",
+        "transport": "vllm",
+        "vendor": "qwen",
+        "available_models": [
+          "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+          "qwen2.5:7b"
+        ],
+        "is_external": false
+      },
+      "dev_swarm": {
+        "ok": true,
+        "agent": "dev_swarm",
+        "provider": "local",
+        "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+        "fallback_model": "qwen2.5-coder:7b",
+        "transport": "vllm",
+        "vendor": "qwen",
+        "available_models": [
+          "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+          "qwen2.5-coder:32b",
+          "qwen2.5-coder:7b"
+        ],
+        "is_external": false
+      },
+      "antigravity": {
+        "ok": true,
+        "agent": "antigravity",
+        "provider": "antigravity",
+        "model": "gemini-3.7",
+        "fallback_model": "gemini-2.5-pro",
+        "transport": "mcp",
+        "vendor": "google",
+        "available_models": [
+          "gemini-3.7",
+          "gemini-3.7-flash",
+          "gemini-2.5-pro"
+        ],
+        "is_external": true
+      }
+    }
+  }
+}

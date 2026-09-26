@@ -1,0 +1,20 @@
+{
+  "gate_id": "G04_CLAIM_ISOLATION",
+  "code": "G04",
+  "status": "PASS",
+  "evidence": {
+    "manual_task_eligibility": {
+      "eligible": false,
+      "reasons": [
+        "manual_lane",
+        "disallowed_task_class"
+      ]
+    },
+    "no_auto_eligibility": {
+      "eligible": false,
+      "reasons": [
+        "autonomy_disabled"
+      ]
+    }
+  }
+}

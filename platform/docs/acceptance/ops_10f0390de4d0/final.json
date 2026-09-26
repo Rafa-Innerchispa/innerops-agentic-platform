@@ -1,0 +1,565 @@
+{
+  "contract_id": "inneros-convergence-task-isolation-20260926",
+  "task_id": "ops_10f0390de4d0",
+  "implementation_branch": "antigravity/inneros-convergence-20260926",
+  "evaluated_at": "2026-09-26T22:48:52.498969+00:00",
+  "duration_seconds": 13.848366,
+  "overall_status": "BLOCKED",
+  "gates_evaluated": 18,
+  "gates_passed": 17,
+  "gates_blocked": 1,
+  "gates_failed": 0,
+  "evidence_hashes": {
+    "G01.json": "d20281d49e8d54869b8c43112e40c0ec9bfbb59fbf5c49dfb8ab6a7002543d0a",
+    "G02.json": "be5387b4b5e3ad2185598126c6bfc4823d0a4e384df10797a875b21e604c1e2d",
+    "G03.json": "53019fe1c39bd95512bda74399308f93f739c012b89e0111f9681130648c4b54",
+    "G04.json": "565edf1986718cb0a3abf2a8275cfaeacff40c76b84ecde54717309e01de2b42",
+    "G05.json": "8bd137a1dd1de20d0eeb163da61f88a872623bf7554787a7d26de90f394a4570",
+    "G06.json": "fa110f7a8738ddd8423298a0414872b8f870fcc0828b1232df5ea425ce87802e",
+    "G07.json": "f97e55c5e909286d5dae9674e6141d3dc7ecb0eb6e9f7860c79a8205e561919b",
+    "G08.json": "d8c79f3e1004407746779b45f1d37767c1df1d3d65b2f3343194be9a43a66157",
+    "G09.json": "761ec33ac5a9d2c5f19dd6e2ab08b9646e8c10a17ab4d2e5e8652312c9e35748",
+    "G10.json": "3a9998610ae765bbdc737412d89093eac63f6c69ef74b7e877ea717585b2f925",
+    "G11.json": "0bbf9d9cae2a2bb3b43fac3fddcc84ce557c52c19daa5543304bfa341692a64d",
+    "G12.json": "5c887f7755df17ab8dfa6b46c71dce29b8a6430c44ddd55351a384bb2239d111",
+    "G13.json": "a214706c3e4a4c5a6d6d2434ec3a3ce4cda882ac3432897b01ad799d40239a15",
+    "G14.json": "9882e4ad755dfa70b2f96b905e54ad22bfb98de21aa0108e86f338da70953875",
+    "G15.json": "6e76a03dcb3ea6ed7c33e9c1a66768709802b3abad25359302396369d4c16906",
+    "G16.json": "e8951e8c59b4a8919154a1756ed298bbdbc8a467f24a8addb6889791f41a09c7",
+    "G17.json": "44bf6a6a88acb7e8f5f34988a1e35176b17dfcf6aa554964cf9ab38f606cde91",
+    "G18.json": "01281ec7c54a52ae9451b72cd8ded69b45a5f2b9ddc3d4122c751525cceff9cd"
+  },
+  "gate_matrix": {
+    "G01_IDENTITY_PROVENANCE": {
+      "gate_id": "G01_IDENTITY_PROVENANCE",
+      "code": "G01",
+      "status": "PASS",
+      "evidence": {
+        "subagent_routes": {
+          "AG-05": {
+            "ok": true,
+            "agent": "AG-05",
+            "provider": "local",
+            "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "fallback_model": "qwen2.5:7b",
+            "transport": "vllm",
+            "vendor": "qwen",
+            "available_models": [
+              "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+              "qwen2.5:7b"
+            ],
+            "is_external": false
+          },
+          "AG-53": {
+            "ok": true,
+            "agent": "AG-53",
+            "provider": "local",
+            "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "fallback_model": "qwen2.5:7b",
+            "transport": "vllm",
+            "vendor": "qwen",
+            "available_models": [
+              "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+              "qwen2.5:7b"
+            ],
+            "is_external": false
+          },
+          "ag41": {
+            "ok": true,
+            "agent": "ag41",
+            "provider": "local",
+            "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "fallback_model": "qwen2.5:7b",
+            "transport": "vllm",
+            "vendor": "qwen",
+            "available_models": [
+              "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+              "qwen2.5:7b"
+            ],
+            "is_external": false
+          },
+          "dev_swarm": {
+            "ok": true,
+            "agent": "dev_swarm",
+            "provider": "local",
+            "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "fallback_model": "qwen2.5-coder:7b",
+            "transport": "vllm",
+            "vendor": "qwen",
+            "available_models": [
+              "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+              "qwen2.5-coder:32b",
+              "qwen2.5-coder:7b"
+            ],
+            "is_external": false
+          },
+          "antigravity": {
+            "ok": true,
+            "agent": "antigravity",
+            "provider": "antigravity",
+            "model": "gemini-3.7",
+            "fallback_model": "gemini-2.5-pro",
+            "transport": "mcp",
+            "vendor": "google",
+            "available_models": [
+              "gemini-3.7",
+              "gemini-3.7-flash",
+              "gemini-2.5-pro"
+            ],
+            "is_external": true
+          }
+        }
+      }
+    },
+    "G02_EMAIL_REVIEW_SAFETY": {
+      "gate_id": "G02_EMAIL_REVIEW_SAFETY",
+      "code": "G02",
+      "status": "PASS",
+      "evidence": {
+        "task_count_before": 5804,
+        "task_count_after": 5804
+      }
+    },
+    "G03_EMAIL_MCP_CONTRACT": {
+      "gate_id": "G03_EMAIL_MCP_CONTRACT",
+      "code": "G03",
+      "status": "PASS",
+      "evidence": {
+        "payload_analysis": {
+          "ok": true,
+          "mail_id": "",
+          "document_type": "factura",
+          "category": "factura",
+          "confidence": 0.9,
+          "priority": "high",
+          "rationale": "document_type=factura; signals=\\bfactura(?:\\s+electr[o\u00f3]nica)?\\b",
+          "matched_signals": [
+            "\\bfactura(?:\\s+electr[o\u00f3]nica)?\\b"
+          ],
+          "legal_entity": {
+            "name": null,
+            "evidence": [],
+            "mismatch": false,
+            "source": "document_text_not_mailbox"
+          },
+          "counterparty": {
+            "from_addr": "test@test.com",
+            "source": "sender_header"
+          },
+          "extracted_fields": {
+            "ruc_candidates": [],
+            "invoice_number": "factura",
+            "total_candidates": [],
+            "date_candidates": [],
+            "sri_access_keys": []
+          },
+          "attachments": [],
+          "suggested_actions": [
+            "Validar emisor, receptor legal, numero, fecha, total y moneda",
+            "Conservar provenance mail_id + hash de adjuntos",
+            "Bloquear registro contable automatico hasta resolver receptor legal"
+          ],
+          "route_agent": "AG-17",
+          "route_module": "contifico / facturacion SRI",
+          "requires_human_approval": true,
+          "create_ops_task": true,
+          "whatsapp_policy": "priority_only",
+          "model_plan": {
+            "triage": "intel:qwen2.5vl:7b when local model service is available; deterministic rules are fallback",
+            "escalation": "amd:qwen3 for ambiguous or high-impact cases only"
+          },
+          "analysis_source": "email_intelligence_v1_local_rules",
+          "decided_at": "2026-09-26T22:48:39.647147+00:00"
+        },
+        "summary_ok": true
+      }
+    },
+    "G04_CLAIM_ISOLATION": {
+      "gate_id": "G04_CLAIM_ISOLATION",
+      "code": "G04",
+      "status": "PASS",
+      "evidence": {
+        "manual_task_eligibility": {
+          "eligible": false,
+          "reasons": [
+            "manual_lane",
+            "disallowed_task_class"
+          ]
+        },
+        "no_auto_eligibility": {
+          "eligible": false,
+          "reasons": [
+            "autonomy_disabled"
+          ]
+        }
+      }
+    },
+    "G05_INDEPENDENT_COMPLETION": {
+      "gate_id": "G05_INDEPENDENT_COMPLETION",
+      "code": "G05",
+      "status": "PASS",
+      "evidence": {
+        "requires_independent": true
+      }
+    },
+    "G06_FLEET_PARITY": {
+      "gate_id": "G06_FLEET_PARITY",
+      "code": "G06",
+      "status": "PASS",
+      "evidence": {
+        "intel_node_ok": true,
+        "mongo_ok": true,
+        "models_registered": 5
+      }
+    },
+    "G07_SERVICE_DURABLE_HEALTH": {
+      "gate_id": "G07_SERVICE_DURABLE_HEALTH",
+      "code": "G07",
+      "status": "PASS",
+      "evidence": {
+        "capacity_status": {
+          "ok": true,
+          "timestamp": "2026-09-26T22:48:39.686057+00:00",
+          "node": "ralphi-ia-ver-10",
+          "live_metrics": {
+            "cpu_cores": 8.0,
+            "cpu_load_ratio": 0.221,
+            "ram_gb": 31.3,
+            "ram_used_ratio": 0.341,
+            "swap_used_mb": 8191.0,
+            "vram_gb": 12.0,
+            "vram_used_ratio": 0.009,
+            "baseline_vram_gb": 0.1,
+            "psi": {
+              "cpu_some": 0.22,
+              "memory_some": 0.0,
+              "io_some": 0.0
+            }
+          },
+          "dynamic_token_budget": {
+            "available_cpu_tokens": 2.23,
+            "available_ram_tokens": 12.63,
+            "available_gpu_lanes": 2.0,
+            "available_io_tokens": 10.0,
+            "service_reserve_held": true,
+            "recommended_concurrency": 0,
+            "max_safe_concurrency": 4
+          },
+          "service_reservations": {
+            "P0_CRITICAL_SERVICE": {
+              "cpu": 2.0,
+              "ram_gb": 4.0,
+              "gpu_vram_gb": 4.0,
+              "io": 2.0
+            },
+            "P1_PRODUCT_SERVICE": {
+              "cpu": 2.0,
+              "ram_gb": 4.0,
+              "gpu_vram_gb": 8.0,
+              "io": 2.0
+            }
+          },
+          "admission_policy": "dynamic_multi_resource_tokens_with_service_reserve"
+        }
+      }
+    },
+    "G08_NO_IDLE_SCHEDULER": {
+      "gate_id": "G08_NO_IDLE_SCHEDULER",
+      "code": "G08",
+      "status": "PASS",
+      "evidence": {
+        "preflight": {
+          "ok": true,
+          "executable": true,
+          "reason": "eligible",
+          "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+          "blockers": [],
+          "resolved_binding": {
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "base_ref": "main",
+            "task_class": "code_refactor",
+            "execution_lane": "local_dev_swarm",
+            "runtime_profile": "python-tests",
+            "execution_policy": "local_first"
+          }
+        }
+      }
+    },
+    "G09_FIVE_LOCAL_QWEN_E2E": {
+      "gate_id": "G09_FIVE_LOCAL_QWEN_E2E",
+      "code": "G09",
+      "status": "PASS",
+      "evidence": {
+        "qwen_route": {
+          "ok": true,
+          "agent": "dev_swarm",
+          "provider": "local",
+          "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+          "fallback_model": "qwen2.5-coder:7b",
+          "transport": "vllm",
+          "vendor": "qwen",
+          "available_models": [
+            "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "qwen2.5-coder:32b",
+            "qwen2.5-coder:7b"
+          ],
+          "is_external": false
+        },
+        "tests_passed": true
+      }
+    },
+    "G10_DURABLE_RECOVERY": {
+      "gate_id": "G10_DURABLE_RECOVERY",
+      "code": "G10",
+      "status": "PASS",
+      "evidence": {
+        "safe_repo_reuse_enabled": true
+      }
+    },
+    "G11_RECONCILIATION_BOUNDED_RETRIES": {
+      "gate_id": "G11_RECONCILIATION_BOUNDED_RETRIES",
+      "code": "G11",
+      "status": "PASS",
+      "evidence": {
+        "coordination_tests_exit_code": 0,
+        "circuit_breaker_active": true,
+        "max_repair_cycles": 3
+      }
+    },
+    "G12_REAL_CODEX": {
+      "gate_id": "G12_REAL_CODEX",
+      "code": "G12",
+      "status": "PASS",
+      "evidence": {
+        "codex_route": {
+          "ok": true,
+          "agent": "codex",
+          "provider": "codex",
+          "model": "gpt-5.6",
+          "fallback_model": "gpt-sol",
+          "transport": "mcp",
+          "vendor": "openai",
+          "available_models": [
+            "gpt-5.6",
+            "gpt-sol",
+            "gpt-4o",
+            "o3-mini"
+          ],
+          "is_external": true
+        }
+      }
+    },
+    "G13_REAL_ANTIGRAVITY": {
+      "gate_id": "G13_REAL_ANTIGRAVITY",
+      "code": "G13",
+      "status": "PASS",
+      "evidence": {
+        "antigravity_route": {
+          "ok": true,
+          "agent": "antigravity",
+          "provider": "antigravity",
+          "model": "gemini-3.7",
+          "fallback_model": "gemini-2.5-pro",
+          "transport": "mcp",
+          "vendor": "google",
+          "available_models": [
+            "gemini-3.7",
+            "gemini-3.7-flash",
+            "gemini-2.5-pro"
+          ],
+          "is_external": true
+        }
+      }
+    },
+    "G14_REAL_CURSOR": {
+      "gate_id": "G14_REAL_CURSOR",
+      "code": "G14",
+      "status": "BLOCKED_AUTH",
+      "evidence": {
+        "grok_denied": true,
+        "auto_denied": true,
+        "composer_allowed": true,
+        "auth_status": "BLOCKED_AUTH",
+        "details": "Cursor auth token not present in background execution environment."
+      }
+    },
+    "G15_AMD_CAPACITY": {
+      "gate_id": "G15_AMD_CAPACITY",
+      "code": "G15",
+      "status": "PASS",
+      "evidence": {
+        "budget": {
+          "available_cpu_tokens": 23.2,
+          "available_ram_tokens": 40.0,
+          "recommended_concurrency": 4,
+          "max_safe_concurrency": 16
+        }
+      }
+    },
+    "G16_MIXED_LOAD_FAIRNESS": {
+      "gate_id": "G16_MIXED_LOAD_FAIRNESS",
+      "code": "G16",
+      "status": "PASS",
+      "evidence": {
+        "decision": {
+          "state": "THROTTLED_SERVICE_RESERVE",
+          "admitted": false,
+          "workload_class": "P3_BACKGROUND_DEV",
+          "reason": "service_reserve_protection_active",
+          "task_id": "ops_test_bg_dev",
+          "required_cpu": 1.5,
+          "available_cpu_tokens": 0.0,
+          "available_ram_tokens": 0.0
+        },
+        "selected_tenants": [
+          "inneros",
+          "workforce",
+          "inneros",
+          "workforce"
+        ]
+      }
+    },
+    "G17_REPO_HYGIENE": {
+      "gate_id": "G17_REPO_HYGIENE",
+      "code": "G17",
+      "status": "PASS",
+      "evidence": {
+        "core_tests_exit_code": 0
+      }
+    },
+    "G18_REAL_SOAK": {
+      "gate_id": "G18_REAL_SOAK",
+      "code": "G18",
+      "status": "PASS",
+      "evidence": {
+        "samples_count": 5,
+        "duration_seconds": 5,
+        "soak_healthy": true,
+        "latest_sample": {
+          "iteration": 5,
+          "timestamp": "2026-09-26T22:48:51.635247+00:00",
+          "model_policy_status": {
+            "ok": true,
+            "ts": "2026-09-26T22:48:51.635263+00:00",
+            "providers": {
+              "cursor": {
+                "desired_model": "composer-2.5-fast",
+                "fallback_model": "composer-2.5",
+                "allowed_models": [
+                  "claude-3.5-sonnet",
+                  "composer-2.5",
+                  "composer-2.5-fast",
+                  "cursor-fast"
+                ],
+                "denied_models": [
+                  "auto",
+                  "claude-2",
+                  "gpt-3.5-turbo",
+                  "grok",
+                  "grok-2",
+                  "grok-beta",
+                  "router"
+                ],
+                "chargeable_default": true,
+                "fast_mode": true
+              },
+              "codex": {
+                "desired_model": "gpt-5.6",
+                "fallback_model": "gpt-sol",
+                "reasoning_effort": "medium",
+                "allowed_models": [
+                  "gpt-5.6",
+                  "gpt-sol",
+                  "gpt-4o",
+                  "o3-mini"
+                ],
+                "denied_models": [
+                  "gpt-3.5-turbo",
+                  "davinci"
+                ],
+                "chargeable_default": true
+              },
+              "antigravity": {
+                "desired_model": "gemini-3.7",
+                "fallback_model": "gemini-2.5-pro",
+                "allowed_models": [
+                  "gemini-3.7",
+                  "gemini-3.7-flash",
+                  "gemini-2.5-pro"
+                ],
+                "transport": "mcp",
+                "truthful_execution_mode": "labeled_per_run"
+              },
+              "local_dev_swarm": {
+                "desired_model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+                "fallback_model": "qwen2.5-coder:7b",
+                "chargeable": false,
+                "node": "local-amd-5"
+              }
+            },
+            "credit_safety_caps": {
+              "codex": {
+                "daily": 3,
+                "monthly": 30
+              },
+              "cursor": {
+                "daily": 5,
+                "monthly": 50
+              },
+              "antigravity": {
+                "daily": 50,
+                "monthly": 500
+              }
+            }
+          },
+          "resource_service_status": {
+            "ok": true,
+            "timestamp": "2026-09-26T22:48:51.664744+00:00",
+            "node": "ralphi-ia-ver-10",
+            "live_metrics": {
+              "cpu_cores": 8.0,
+              "cpu_load_ratio": 0.236,
+              "ram_gb": 31.3,
+              "ram_used_ratio": 0.347,
+              "swap_used_mb": 8191.0,
+              "vram_gb": 12.0,
+              "vram_used_ratio": 0.009,
+              "baseline_vram_gb": 0.1,
+              "psi": {
+                "cpu_some": 0.21,
+                "memory_some": 0.0,
+                "io_some": 0.0
+              }
+            },
+            "dynamic_token_budget": {
+              "available_cpu_tokens": 2.11,
+              "available_ram_tokens": 12.44,
+              "available_gpu_lanes": 2.0,
+              "available_io_tokens": 10.0,
+              "service_reserve_held": true,
+              "recommended_concurrency": 0,
+              "max_safe_concurrency": 4
+            },
+            "service_reservations": {
+              "P0_CRITICAL_SERVICE": {
+                "cpu": 2.0,
+                "ram_gb": 4.0,
+                "gpu_vram_gb": 4.0,
+                "io": 2.0
+              },
+              "P1_PRODUCT_SERVICE": {
+                "cpu": 2.0,
+                "ram_gb": 4.0,
+                "gpu_vram_gb": 8.0,
+                "io": 2.0
+              }
+            },
+            "admission_policy": "dynamic_multi_resource_tokens_with_service_reserve"
+          }
+        }
+      }
+    }
+  },
+  "handoff_to": "CHATGPT",
+  "note": "Antigravity is implementation owner. Bundle submitted for independent final verification by CHATGPT without self-completion."
+}

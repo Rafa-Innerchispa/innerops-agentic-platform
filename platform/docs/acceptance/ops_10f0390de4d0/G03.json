@@ -1,0 +1,54 @@
+{
+  "gate_id": "G03_EMAIL_MCP_CONTRACT",
+  "code": "G03",
+  "status": "PASS",
+  "evidence": {
+    "payload_analysis": {
+      "ok": true,
+      "mail_id": "",
+      "document_type": "factura",
+      "category": "factura",
+      "confidence": 0.9,
+      "priority": "high",
+      "rationale": "document_type=factura; signals=\\bfactura(?:\\s+electr[o\u00f3]nica)?\\b",
+      "matched_signals": [
+        "\\bfactura(?:\\s+electr[o\u00f3]nica)?\\b"
+      ],
+      "legal_entity": {
+        "name": null,
+        "evidence": [],
+        "mismatch": false,
+        "source": "document_text_not_mailbox"
+      },
+      "counterparty": {
+        "from_addr": "test@test.com",
+        "source": "sender_header"
+      },
+      "extracted_fields": {
+        "ruc_candidates": [],
+        "invoice_number": "factura",
+        "total_candidates": [],
+        "date_candidates": [],
+        "sri_access_keys": []
+      },
+      "attachments": [],
+      "suggested_actions": [
+        "Validar emisor, receptor legal, numero, fecha, total y moneda",
+        "Conservar provenance mail_id + hash de adjuntos",
+        "Bloquear registro contable automatico hasta resolver receptor legal"
+      ],
+      "route_agent": "AG-17",
+      "route_module": "contifico / facturacion SRI",
+      "requires_human_approval": true,
+      "create_ops_task": true,
+      "whatsapp_policy": "priority_only",
+      "model_plan": {
+        "triage": "intel:qwen2.5vl:7b when local model service is available; deterministic rules are fallback",
+        "escalation": "amd:qwen3 for ambiguous or high-impact cases only"
+      },
+      "analysis_source": "email_intelligence_v1_local_rules",
+      "decided_at": "2026-09-26T22:48:39.647147+00:00"
+    },
+    "summary_ok": true
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "gate_id": "G05_INDEPENDENT_COMPLETION",
+  "code": "G05",
+  "status": "PASS",
+  "evidence": {
+    "requires_independent": true
+  }
+}

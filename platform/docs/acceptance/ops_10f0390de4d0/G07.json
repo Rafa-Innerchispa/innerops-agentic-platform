@@ -1,0 +1,51 @@
+{
+  "gate_id": "G07_SERVICE_DURABLE_HEALTH",
+  "code": "G07",
+  "status": "PASS",
+  "evidence": {
+    "capacity_status": {
+      "ok": true,
+      "timestamp": "2026-09-26T22:48:39.686057+00:00",
+      "node": "ralphi-ia-ver-10",
+      "live_metrics": {
+        "cpu_cores": 8.0,
+        "cpu_load_ratio": 0.221,
+        "ram_gb": 31.3,
+        "ram_used_ratio": 0.341,
+        "swap_used_mb": 8191.0,
+        "vram_gb": 12.0,
+        "vram_used_ratio": 0.009,
+        "baseline_vram_gb": 0.1,
+        "psi": {
+          "cpu_some": 0.22,
+          "memory_some": 0.0,
+          "io_some": 0.0
+        }
+      },
+      "dynamic_token_budget": {
+        "available_cpu_tokens": 2.23,
+        "available_ram_tokens": 12.63,
+        "available_gpu_lanes": 2.0,
+        "available_io_tokens": 10.0,
+        "service_reserve_held": true,
+        "recommended_concurrency": 0,
+        "max_safe_concurrency": 4
+      },
+      "service_reservations": {
+        "P0_CRITICAL_SERVICE": {
+          "cpu": 2.0,
+          "ram_gb": 4.0,
+          "gpu_vram_gb": 4.0,
+          "io": 2.0
+        },
+        "P1_PRODUCT_SERVICE": {
+          "cpu": 2.0,
+          "ram_gb": 4.0,
+          "gpu_vram_gb": 8.0,
+          "io": 2.0
+        }
+      },
+      "admission_policy": "dynamic_multi_resource_tokens_with_service_reserve"
+    }
+  }
+}

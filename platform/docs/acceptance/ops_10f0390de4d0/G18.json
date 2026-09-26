@@ -1,0 +1,132 @@
+{
+  "gate_id": "G18_REAL_SOAK",
+  "code": "G18",
+  "status": "PASS",
+  "evidence": {
+    "samples_count": 5,
+    "duration_seconds": 5,
+    "soak_healthy": true,
+    "latest_sample": {
+      "iteration": 5,
+      "timestamp": "2026-09-26T22:48:51.635247+00:00",
+      "model_policy_status": {
+        "ok": true,
+        "ts": "2026-09-26T22:48:51.635263+00:00",
+        "providers": {
+          "cursor": {
+            "desired_model": "composer-2.5-fast",
+            "fallback_model": "composer-2.5",
+            "allowed_models": [
+              "claude-3.5-sonnet",
+              "composer-2.5",
+              "composer-2.5-fast",
+              "cursor-fast"
+            ],
+            "denied_models": [
+              "auto",
+              "claude-2",
+              "gpt-3.5-turbo",
+              "grok",
+              "grok-2",
+              "grok-beta",
+              "router"
+            ],
+            "chargeable_default": true,
+            "fast_mode": true
+          },
+          "codex": {
+            "desired_model": "gpt-5.6",
+            "fallback_model": "gpt-sol",
+            "reasoning_effort": "medium",
+            "allowed_models": [
+              "gpt-5.6",
+              "gpt-sol",
+              "gpt-4o",
+              "o3-mini"
+            ],
+            "denied_models": [
+              "gpt-3.5-turbo",
+              "davinci"
+            ],
+            "chargeable_default": true
+          },
+          "antigravity": {
+            "desired_model": "gemini-3.7",
+            "fallback_model": "gemini-2.5-pro",
+            "allowed_models": [
+              "gemini-3.7",
+              "gemini-3.7-flash",
+              "gemini-2.5-pro"
+            ],
+            "transport": "mcp",
+            "truthful_execution_mode": "labeled_per_run"
+          },
+          "local_dev_swarm": {
+            "desired_model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "fallback_model": "qwen2.5-coder:7b",
+            "chargeable": false,
+            "node": "local-amd-5"
+          }
+        },
+        "credit_safety_caps": {
+          "codex": {
+            "daily": 3,
+            "monthly": 30
+          },
+          "cursor": {
+            "daily": 5,
+            "monthly": 50
+          },
+          "antigravity": {
+            "daily": 50,
+            "monthly": 500
+          }
+        }
+      },
+      "resource_service_status": {
+        "ok": true,
+        "timestamp": "2026-09-26T22:48:51.664744+00:00",
+        "node": "ralphi-ia-ver-10",
+        "live_metrics": {
+          "cpu_cores": 8.0,
+          "cpu_load_ratio": 0.236,
+          "ram_gb": 31.3,
+          "ram_used_ratio": 0.347,
+          "swap_used_mb": 8191.0,
+          "vram_gb": 12.0,
+          "vram_used_ratio": 0.009,
+          "baseline_vram_gb": 0.1,
+          "psi": {
+            "cpu_some": 0.21,
+            "memory_some": 0.0,
+            "io_some": 0.0
+          }
+        },
+        "dynamic_token_budget": {
+          "available_cpu_tokens": 2.11,
+          "available_ram_tokens": 12.44,
+          "available_gpu_lanes": 2.0,
+          "available_io_tokens": 10.0,
+          "service_reserve_held": true,
+          "recommended_concurrency": 0,
+          "max_safe_concurrency": 4
+        },
+        "service_reservations": {
+          "P0_CRITICAL_SERVICE": {
+            "cpu": 2.0,
+            "ram_gb": 4.0,
+            "gpu_vram_gb": 4.0,
+            "io": 2.0
+          },
+          "P1_PRODUCT_SERVICE": {
+            "cpu": 2.0,
+            "ram_gb": 4.0,
+            "gpu_vram_gb": 8.0,
+            "io": 2.0
+          }
+        },
+        "admission_policy": "dynamic_multi_resource_tokens_with_service_reserve"
+      }
+    }
+  }
+}

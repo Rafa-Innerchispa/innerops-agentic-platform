@@ -1,0 +1,10 @@
+{
+  "gate_id": "G06_FLEET_PARITY",
+  "code": "G06",
+  "status": "PASS",
+  "evidence": {
+    "intel_node_ok": true,
+    "mongo_ok": true,
+    "models_registered": 5
+  }
+}

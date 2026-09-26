@@ -1,0 +1,12 @@
+{
+  "gate_id": "G14_REAL_CURSOR",
+  "code": "G14",
+  "status": "BLOCKED_AUTH",
+  "evidence": {
+    "grok_denied": true,
+    "auto_denied": true,
+    "composer_allowed": true,
+    "auth_status": "BLOCKED_AUTH",
+    "details": "Cursor auth token not present in background execution environment."
+  }
+}

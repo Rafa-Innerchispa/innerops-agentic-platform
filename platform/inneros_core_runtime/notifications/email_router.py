@@ -452,3 +452,29 @@ def process_email_intelligence(
         "capture": capture,
         "action": routed,
     }
+
+
+def analyze_email_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Email Intelligence sin efectos: clasifica documento, entidad, ruta y gate humano."""
+    from inneros_core_runtime.notifications import email_intelligence
+    return email_intelligence.decide_email(payload)
+
+
+def process_mail_id(mail_id: str, create_task: bool = False, hydrate: bool = True) -> dict[str, Any]:
+    """Reprocesa un correo por mail_id. Por defecto NO crea ops_task."""
+    db = mongo_store.get_db()
+    doc = db.email_messages.find_one({"mail_id": mail_id}, {"_id": 0})
+    if not doc:
+        return {"ok": False, "error": "mail_not_found", "mail_id": mail_id}
+    return process_email_intelligence(doc, create_task=create_task)
+
+
+def intelligence_summary(limit: int = 50) -> dict[str, Any]:
+    """Resumen de clasificacion documental y ruido suprimido para correo."""
+    db = mongo_store.get_db()
+    actions = list(db[ACTIONS_COL].find({}, {"_id": 0}).sort("updated_at", -1).limit(max(1, min(limit, 200))))
+    return {
+        "ok": True,
+        "count": len(actions),
+        "actions": actions,
+    }

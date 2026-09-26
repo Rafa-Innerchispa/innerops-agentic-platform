@@ -1,0 +1,23 @@
+{
+  "gate_id": "G16_MIXED_LOAD_FAIRNESS",
+  "code": "G16",
+  "status": "PASS",
+  "evidence": {
+    "decision": {
+      "state": "THROTTLED_SERVICE_RESERVE",
+      "admitted": false,
+      "workload_class": "P3_BACKGROUND_DEV",
+      "reason": "service_reserve_protection_active",
+      "task_id": "ops_test_bg_dev",
+      "required_cpu": 1.5,
+      "available_cpu_tokens": 0.0,
+      "available_ram_tokens": 0.0
+    },
+    "selected_tenants": [
+      "inneros",
+      "workforce",
+      "inneros",
+      "workforce"
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "gate_id": "G10_DURABLE_RECOVERY",
+  "code": "G10",
+  "status": "PASS",
+  "evidence": {
+    "safe_repo_reuse_enabled": true
+  }
+}
