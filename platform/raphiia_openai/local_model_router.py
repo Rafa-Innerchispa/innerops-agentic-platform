@@ -1178,3 +1178,65 @@ def route_agent_model(agent_name: str, task_type: str | None = None) -> dict[str
         "available_models": mapping.get("available_models", []),
         "is_external": mapping["provider"] in {"codex", "cursor", "antigravity"},
     }
+
+
+# --- Model Policy & Provider Metering (ops_da50a6e23298) ---
+CURSOR_DENIED_MODELS: set[str] = {"auto", "router", "grok", "grok-2", "grok-beta", "claude-2", "gpt-3.5-turbo"}
+CURSOR_ALLOWED_MODELS: set[str] = {"composer-2.5", "composer-2.5-fast", "cursor-fast", "claude-3.5-sonnet"}
+
+
+def validate_cursor_model(model_name: str) -> dict[str, Any]:
+    """Enforce Cursor policy: NEVER use Auto/Router and NEVER use Grok models."""
+    name = (model_name or "").strip().lower()
+    if any(denied in name for denied in CURSOR_DENIED_MODELS):
+        return {
+            "ok": False,
+            "error": "BLOCK_MODEL_POLICY: Cursor model denied by policy (Auto/Router/Grok are forbidden)",
+            "model": model_name,
+            "allowed_models": sorted(list(CURSOR_ALLOWED_MODELS)),
+        }
+    return {"ok": True, "model": model_name, "pinned_variant": "composer-2.5-fast"}
+
+
+def get_model_policy_status() -> dict[str, Any]:
+    """Return model policy status surface showing desired/allowed/denied models and credit safety caps."""
+    return {
+        "ok": True,
+        "ts": _now_iso(),
+        "providers": {
+            "cursor": {
+                "desired_model": "composer-2.5-fast",
+                "fallback_model": "composer-2.5",
+                "allowed_models": sorted(list(CURSOR_ALLOWED_MODELS)),
+                "denied_models": sorted(list(CURSOR_DENIED_MODELS)),
+                "chargeable_default": True,
+                "fast_mode": True,
+            },
+            "codex": {
+                "desired_model": "gpt-5.6",
+                "fallback_model": "gpt-sol",
+                "reasoning_effort": "medium",
+                "allowed_models": ["gpt-5.6", "gpt-sol", "gpt-4o", "o3-mini"],
+                "denied_models": ["gpt-3.5-turbo", "davinci"],
+                "chargeable_default": True,
+            },
+            "antigravity": {
+                "desired_model": "gemini-3.7",
+                "fallback_model": "gemini-2.5-pro",
+                "allowed_models": ["gemini-3.7", "gemini-3.7-flash", "gemini-2.5-pro"],
+                "transport": "mcp",
+                "truthful_execution_mode": "labeled_per_run",
+            },
+            "local_dev_swarm": {
+                "desired_model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+                "fallback_model": "qwen2.5-coder:7b",
+                "chargeable": False,
+                "node": "local-amd-5",
+            },
+        },
+        "credit_safety_caps": {
+            "codex": {"daily": 3, "monthly": 30},
+            "cursor": {"daily": 5, "monthly": 50},
+            "antigravity": {"daily": 50, "monthly": 500},
+        },
+    }

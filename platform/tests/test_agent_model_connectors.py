@@ -51,6 +51,32 @@ def test_cursor_routes_to_composer_25() -> None:
     assert "composer-2.5" in route["available_models"]
 
 
+def test_cursor_blocks_grok_and_auto_models() -> None:
+    """Cursor policy strictly blocks Grok and Auto/Router models."""
+    for bad_model in ["grok", "grok-2", "auto", "router", "grok-beta"]:
+        res = local_model_router.validate_cursor_model(bad_model)
+        assert res["ok"] is False
+        assert "BLOCK_MODEL_POLICY" in res["error"]
+
+
+def test_cursor_accepts_composer_25_fast() -> None:
+    """Cursor policy accepts Composer 2.5 Fast."""
+    res = local_model_router.validate_cursor_model("composer-2.5")
+    assert res["ok"] is True
+    assert res["pinned_variant"] == "composer-2.5-fast"
+
+
+def test_model_policy_status_surface_returns_caps_and_allowlists() -> None:
+    """Model policy status returns desired/allowed/denied models and credit safety caps."""
+    status = local_model_router.get_model_policy_status()
+    assert status["ok"] is True
+    assert "providers" in status
+    assert "credit_safety_caps" in status
+    assert status["credit_safety_caps"]["codex"]["daily"] == 3
+    assert status["credit_safety_caps"]["cursor"]["daily"] == 5
+    assert status["credit_safety_caps"]["antigravity"]["daily"] == 50
+
+
 def test_local_agent_routes_to_local_model() -> None:
     """RalfIA local agent must route to local Qwen coder model."""
     route = local_model_router.route_agent_model("ralfia")
