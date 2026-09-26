@@ -44,7 +44,6 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "openid", "profile", "email", "ralfia:read", "ralfia:write",
         "ralfia:agents", "ralfia:admin", "ralfia:memory:read",
         "ralfia:memory:write", "ralfia:memory:finalize", "ralfia:private_memory",
-        "mcp:tools", "mcp:resources",
     ],
     "tech": [
         "openid", "profile", "email", "ralfia:read", "ralfia:write",
@@ -78,11 +77,7 @@ def _scope_for_user(user: dict[str, Any], requested_scope: str) -> str:
     allowed.update(s for s in (user.get("oauth_scopes") or []) if isinstance(s, str))
     requested = set(oauth_store.parse_scopes(requested_scope))
     granted = sorted(scope for scope in requested if scope in allowed)
-    if (
-        "ralfia:write" in allowed
-        and "ralfia:write" not in granted
-        and not any(scope.startswith("mcp:") for scope in requested)
-    ):
+    if "ralfia:write" in allowed and "ralfia:write" not in granted:
         granted.append("ralfia:write")
         granted = sorted(set(granted))
     if not granted:
@@ -355,27 +350,6 @@ async def token(
     if client.get("client_secret_hash") and client.get("token_endpoint_auth_method") != "none":
         if not client_secret or not oauth_store.verify_client_secret(client, client_secret):
             raise HTTPException(status_code=401, detail="invalid_client")
-
-    if grant_type == "client_credentials":
-        if not client_secret:
-            raise HTTPException(status_code=401, detail="invalid_client")
-        try:
-            token_doc = oauth_store.issue_client_credentials_token(
-                client_id=client_id,
-                client_secret=client_secret,
-                scope=scope,
-                resource=resource,
-            )
-        except ValueError as exc:
-            error_name = str(exc)
-            if error_name == "invalid_client":
-                raise HTTPException(status_code=401, detail=error_name) from exc
-            if error_name == "invalid_scope":
-                raise HTTPException(status_code=400, detail=error_name) from exc
-            if error_name == "access_denied":
-                raise HTTPException(status_code=403, detail=error_name) from exc
-            raise
-        return JSONResponse(token_doc)
 
     if grant_type == "authorization_code":
         code_doc = oauth_store.consume_auth_code(

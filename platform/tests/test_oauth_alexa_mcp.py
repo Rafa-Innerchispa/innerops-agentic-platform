@@ -19,7 +19,8 @@ from inneros_core_runtime import auth_server, oauth_store
 from inneros_core_runtime.oauth_metadata import authorization_server_metadata
 
 
-RESOURCE = "https://owner-mcp.pcdoctor.ai/mcp"
+RESOURCE = "https://voz.pcdoctor.ai/mcp"
+REDIRECT = "https://pitangui.amazon.com/api/skill/link/MTESTVENDOR"
 
 
 class Collection:
@@ -61,18 +62,14 @@ class DB:
         return self.collections.setdefault(name, Collection())
 
 
-def test_metadata_advertises_alexa_two_tier_oauth():
+def test_metadata_matches_official_alexa_authorization_code_flow():
     meta = authorization_server_metadata("auth.pcdoctor.ai")
-    assert "client_credentials" in meta["grant_types_supported"]
-    assert "authorization_code" in meta["grant_types_supported"]
-    assert "refresh_token" in meta["grant_types_supported"]
+    assert meta["grant_types_supported"] == ["authorization_code", "refresh_token"]
+    assert "client_credentials" not in meta["grant_types_supported"]
     assert meta["code_challenge_methods_supported"] == ["S256"]
-    assert "mcp:service" in meta["scopes_supported"]
-    assert "mcp:tools" in meta["scopes_supported"]
-    assert "mcp:resources" in meta["scopes_supported"]
 
 
-def test_alexa_client_registration_returns_secret_but_stores_only_hash():
+def test_static_alexa_client_returns_secret_but_stores_only_hash():
     db = DB()
     with patch.object(oauth_store, "ensure_indexes"), patch.object(
         oauth_store, "get_db", return_value=db
@@ -84,93 +81,52 @@ def test_alexa_client_registration_returns_secret_but_stores_only_hash():
         client = oauth_store.create_client(
             {
                 "client_name": "Alexa Owner MCP",
-                "redirect_uris": ["https://alexa.amazon.com/api/skill/link/fixture"],
-                "grant_types": ["client_credentials", "authorization_code"],
-                "scope": "mcp:service mcp:tools mcp:resources",
+                "redirect_uris": [REDIRECT],
+                "grant_types": ["authorization_code", "refresh_token"],
+                "scope": "ralfia:read",
                 "resources": [RESOURCE],
                 "token_endpoint_auth_method": "client_secret_basic",
             }
         )
 
     stored = db[oauth_store.COL_OAUTH_CLIENTS].docs[0]
-    assert "client_secret" in client
     assert client["client_secret"]
     assert "client_secret" not in stored
     assert stored["client_secret_hash"]
     assert oauth_store.verify_client_secret(stored, client["client_secret"])
-    assert set(client["grant_types"]) == {
-        "client_credentials",
-        "authorization_code",
-        "refresh_token",
-    }
+    assert client["grant_types"] == ["authorization_code", "refresh_token"]
+    assert client["resources"] == [RESOURCE]
 
 
-def test_client_credentials_token_is_service_only_resource_bound_and_short_lived():
-    secret = "service-secret"
-    client = {
-        "client_id": "alexa-client",
-        "client_secret_hash": oauth_store._client_secret_hash(secret),
-        "grant_types": ["client_credentials", "authorization_code", "refresh_token"],
-        "scope": "mcp:service mcp:tools mcp:resources",
-        "resources": [RESOURCE],
-        "token_endpoint_auth_method": "client_secret_basic",
-    }
+def test_client_credentials_grant_is_rejected():
     db = DB()
     with patch.object(oauth_store, "ensure_indexes"), patch.object(
-        oauth_store, "get_client", return_value=client
-    ), patch.object(
         oauth_store, "get_db", return_value=db
+    ), patch.object(
+        oauth_store, "redirect_uri_allowed", return_value=True
     ), patch.object(
         oauth_store, "OAUTH_ACCEPTED_MCP_RESOURCES", (RESOURCE,)
     ):
-        token = oauth_store.issue_client_credentials_token(
-            client_id="alexa-client",
-            client_secret=secret,
-            scope="mcp:service",
-            resource=RESOURCE,
-        )
-
-    assert token["token_type"] == "Bearer"
-    assert token["scope"] == "mcp:service"
-    assert token["expires_in"] <= 3600
-    assert "refresh_token" not in token
-    stored = db[oauth_store.COL_OAUTH_TOKENS].docs[0]
-    assert stored["grant_type"] == "client_credentials"
-    assert stored["username"] is None
-    assert stored["resource"] == RESOURCE
-
-
-def test_client_credentials_rejects_user_scope_and_wrong_resource():
-    secret = "service-secret"
-    client = {
-        "client_id": "alexa-client",
-        "client_secret_hash": oauth_store._client_secret_hash(secret),
-        "grant_types": ["client_credentials"],
-        "scope": "mcp:service",
-        "resources": [RESOURCE],
-    }
-    db = DB()
-    with patch.object(oauth_store, "ensure_indexes"), patch.object(
-        oauth_store, "get_client", return_value=client
-    ), patch.object(
-        oauth_store, "get_db", return_value=db
-    ), patch.object(
-        oauth_store, "OAUTH_ACCEPTED_MCP_RESOURCES", (RESOURCE,)
-    ):
-        with pytest.raises(ValueError, match="invalid_scope"):
-            oauth_store.issue_client_credentials_token(
-                client_id="alexa-client",
-                client_secret=secret,
-                scope="mcp:tools",
-                resource=RESOURCE,
+        with pytest.raises(ValueError, match="Only authorization_code"):
+            oauth_store.create_client(
+                {
+                    "client_name": "Alexa Owner MCP",
+                    "redirect_uris": [REDIRECT],
+                    "grant_types": ["client_credentials", "authorization_code"],
+                    "scope": "ralfia:read",
+                    "resources": [RESOURCE],
+                    "token_endpoint_auth_method": "client_secret_basic",
+                }
             )
-        with pytest.raises(ValueError, match="access_denied"):
-            oauth_store.issue_client_credentials_token(
-                client_id="alexa-client",
-                client_secret=secret,
-                scope="mcp:service",
-                resource="https://other.example/mcp",
-            )
+
+
+def test_registered_redirect_uri_is_exact_not_host_wide():
+    registered = [REDIRECT]
+    assert oauth_store.redirect_uri_allowed(REDIRECT, registered)
+    assert not oauth_store.redirect_uri_allowed(
+        "https://pitangui.amazon.com/api/skill/link/OTHER",
+        registered,
+    )
 
 
 def test_access_token_validation_can_bind_scope_and_resource():
@@ -178,7 +134,7 @@ def test_access_token_validation_can_bind_scope_and_resource():
     db[oauth_store.COL_OAUTH_TOKENS].docs.append(
         {
             "access_token": "fixture-token",
-            "scope": "mcp:service",
+            "scope": "ralfia:read",
             "resource": RESOURCE,
             "expires_at": oauth_store.now_utc() + timedelta(minutes=10),
             "revoked": False,
@@ -187,17 +143,17 @@ def test_access_token_validation_can_bind_scope_and_resource():
     with patch.object(oauth_store, "get_db", return_value=db):
         assert oauth_store.validate_access_token(
             "fixture-token",
-            required_scope="mcp:service",
+            required_scope="ralfia:read",
             required_resource=RESOURCE,
         )
         assert oauth_store.validate_access_token(
             "fixture-token",
-            required_scope="mcp:tools",
+            required_scope="ralfia:write",
             required_resource=RESOURCE,
         ) is None
         assert oauth_store.validate_access_token(
             "fixture-token",
-            required_scope="mcp:service",
+            required_scope="ralfia:read",
             required_resource="https://wrong.example/mcp",
         ) is None
 
@@ -210,8 +166,8 @@ def test_authorization_code_is_bound_to_original_resource():
             "_id": "code-id",
             "code": "auth-code",
             "client_id": "alexa-client",
-            "redirect_uri": "https://alexa.amazon.com/api/skill/link/fixture",
-            "scope": "mcp:tools mcp:resources",
+            "redirect_uri": REDIRECT,
+            "scope": "ralfia:read",
             "username": "owner",
             "code_challenge": oauth_store._pkce_s256(verifier),
             "code_challenge_method": "S256",
@@ -224,14 +180,14 @@ def test_authorization_code_is_bound_to_original_resource():
         assert oauth_store.consume_auth_code(
             code="auth-code",
             client_id="alexa-client",
-            redirect_uri="https://alexa.amazon.com/api/skill/link/fixture",
+            redirect_uri=REDIRECT,
             code_verifier=verifier,
             resource="https://wrong.example/mcp",
         ) is None
         accepted = oauth_store.consume_auth_code(
             code="auth-code",
             client_id="alexa-client",
-            redirect_uri="https://alexa.amazon.com/api/skill/link/fixture",
+            redirect_uri=REDIRECT,
             code_verifier=verifier,
             resource=RESOURCE,
         )
@@ -239,19 +195,10 @@ def test_authorization_code_is_bound_to_original_resource():
     assert accepted["resource"] == RESOURCE
 
 
-def test_basic_client_auth_parser_and_mcp_user_scopes_are_least_privilege():
+def test_basic_client_auth_parser():
     credential = base64.b64encode(b"alexa-client:secret").decode("ascii")
     request = SimpleNamespace(headers={"Authorization": f"Basic {credential}"})
     assert auth_server._basic_client_credentials(request) == (
         "alexa-client",
         "secret",
     )
-
-    granted = set(
-        auth_server._scope_for_user(
-            {"role": "admin", "oauth_enabled": True},
-            "mcp:tools mcp:resources",
-        ).split()
-    )
-    assert granted == {"mcp:tools", "mcp:resources"}
-    assert "ralfia:write" not in granted
