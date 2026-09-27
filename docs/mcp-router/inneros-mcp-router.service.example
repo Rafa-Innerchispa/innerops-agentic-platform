@@ -1,0 +1,20 @@
+# BORRADOR NO INSTALADO: :8103 está ocupado por SSO.
+[Unit]
+Description=InnerOS MCP Router shadow-only
+After=network.target ralfia-mcp.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rlopez/inneros/inneros_core/var/local_execution/worktrees/Rafa-Innerchispa__innerops-agentic-platform/antigravity__mcp-router-20260927/platform
+EnvironmentFile=%h/.config/inneros/mcp-router.env
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m inneros_core_runtime.mcp_router.server
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+UMask=0077
+
+[Install]
+WantedBy=default.target

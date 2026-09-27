@@ -1,0 +1,78 @@
+{
+  "task_id": "ops_68ac0309e069",
+  "correlation_id": "inneros-mcp-router-tool-throttling-20260927",
+  "status": "BLOCKED_NOT_READY_FOR_INDEPENDENT_VERIFICATION",
+  "branch": "antigravity/mcp-router-20260927",
+  "tests": {
+    "passed": 18,
+    "command_run_id": "e93061bc242c781d6c53ec22"
+  },
+  "shadow": {
+    "profile": "profile_coding",
+    "port": 54469,
+    "production_cutover": false,
+    "backend_count": 698,
+    "exposed_count": 15,
+    "direct_bytes": 341278,
+    "filtered_bytes": 8640,
+    "call_parity": true,
+    "denied_not_forwarded": true,
+    "session_survives": true,
+    "cached_list_p50_ms": 2.407622057944536,
+    "cached_list_p95_ms": 2.7960590086877346,
+    "direct_call_p50_ms": 6.483183009549975,
+    "direct_call_p95_ms": 7.093227934092283,
+    "router_call_p50_ms": 10.92335896100849,
+    "router_call_p95_ms": 11.881715035997331,
+    "gateway_overhead_p95_ms": 1.3925639213994145
+  },
+  "live_inventory": {
+    "count": 698,
+    "missing_canonical_tools": [],
+    "gitlab_tools": [
+      "local_gitlab_create_draft_merge_request",
+      "local_gitlab_credit_status",
+      "local_gitlab_discover_contribution_issues",
+      "local_gitlab_get_job_trace",
+      "local_gitlab_get_merge_request",
+      "local_gitlab_glab_preflight",
+      "local_gitlab_list_groups",
+      "local_gitlab_list_issues",
+      "local_gitlab_list_merge_request_discussions",
+      "local_gitlab_list_merge_request_pipelines",
+      "local_gitlab_list_merge_requests",
+      "local_gitlab_list_pipeline_jobs",
+      "local_gitlab_list_pipelines",
+      "local_gitlab_list_projects",
+      "local_gitlab_prepare_github_mirrors",
+      "local_gitlab_project_summary",
+      "local_gitlab_resource_sync",
+      "local_gitlab_status",
+      "local_gitlab_store_pat_server_side",
+      "local_gitlab_user_events",
+      "local_gitlab_user_profile"
+    ],
+    "docker_tools": []
+  },
+  "blockers": [
+    {
+      "code": "PORT_8103_OCCUPIED",
+      "service": "inneros-unified-sso",
+      "issuer": "http://192.168.1.4:8103",
+      "action": "Assign an approved unoccupied shadow port; do not stop or relocate SSO."
+    },
+    {
+      "code": "CANONICAL_LIVE_CATALOG_MISMATCH",
+      "profile": "profile_minimal",
+      "missing_tools": [
+        "list_ops_tasks"
+      ],
+      "action": "Reconcile canonical profile/live tool registration through its owner, or approve an explicit versioned reduced minimal projection. Do not silently omit required tools."
+    }
+  ],
+  "production_cutover": false,
+  "monolith_modified": false,
+  "temporary_router_stopped": true,
+  "federation_enabled": false,
+  "evidence_path_blocker": "Requested platform/docs/acceptance path is denied by Local Execution Plane repo policy; stored here pending authorized policy alignment."
+}
