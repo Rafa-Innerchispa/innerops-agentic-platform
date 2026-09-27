@@ -1,4 +1,7 @@
 """Read-only service identity probe; never touches service state."""
+import os
+import pytest
+pytestmark = pytest.mark.skipif(os.getenv('MCP_ROUTER_RUN_LIVE') != '1', reason='Explicit live shadow test opt-in required')
 import httpx
 def test_identify_existing_8103():
     for path in ("/health","/.well-known/oauth-authorization-server"):

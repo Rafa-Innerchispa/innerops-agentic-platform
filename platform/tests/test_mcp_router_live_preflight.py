@@ -1,6 +1,9 @@
 """Read-only live backend preflight. Never reads secrets or modifies services."""
 import json
 import socket
+import os
+import pytest
+pytestmark = pytest.mark.skipif(os.getenv('MCP_ROUTER_RUN_LIVE') != '1', reason='Explicit live shadow test opt-in required')
 import httpx
 
 def test_live_shadow_prerequisites():

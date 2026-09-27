@@ -9,6 +9,9 @@ import threading
 import time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+import os
+import pytest
+pytestmark = pytest.mark.skipif(os.getenv('MCP_ROUTER_RUN_LIVE') != '1', reason='Explicit live shadow test opt-in required')
 import httpx
 import uvicorn
 from mcp import ClientSession
