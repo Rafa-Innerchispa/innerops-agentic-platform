@@ -1,0 +1,3091 @@
+{
+  "ok": true,
+  "site_id": "home_pcdoctor_lab",
+  "site": {
+    "label": "Casa / PC Doctor Lab",
+    "scope": "Rafael local lab",
+    "transport_peer": "local_or_amd",
+    "authorized_cidr": "192.168.1.0/24",
+    "allow_external_scope": false
+  },
+  "count": 78,
+  "inventory": [
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:04aa65246088b604b7596ab48294e84f",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Sun",
+      "manufacturer": "",
+      "model": "",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "04aa65246088b604b7596ab48294e84f",
+            "entity_count": 9
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:8780b575ae49af979ffff7787ff60c8b",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Backup",
+      "manufacturer": "Home Assistant",
+      "model": "Home Assistant Backup",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "8780b575ae49af979ffff7787ff60c8b",
+            "entity_count": 5
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:c4e03546931dba970a63231e1d7bf52d",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Hey Google proyector",
+      "manufacturer": "onn",
+      "model": "onn. Full HD Streaming Device",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "c4e03546931dba970a63231e1d7bf52d",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:ce71c4daefcc930c14fdcedfece85a0d",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Dormitorio",
+      "manufacturer": "Google Inc.",
+      "model": "Google Home Mini",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "ce71c4daefcc930c14fdcedfece85a0d",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:4ac3afaeb38cc4e0b80d70d817913077",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Chromecast Estudio",
+      "manufacturer": "Google Inc.",
+      "model": "Chromecast",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "4ac3afaeb38cc4e0b80d70d817913077",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:c1d4eda824cdc6ef091e75eb476b4b21",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "TV Compu",
+      "manufacturer": "KTC",
+      "model": "CSV2K",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "c1d4eda824cdc6ef091e75eb476b4b21",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:b9d3f3187a994f60562a4c32d245e4e4",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Disco",
+      "manufacturer": "Google Inc.",
+      "model": "Google Home Mini",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "b9d3f3187a994f60562a4c32d245e4e4",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:82ad15b70d771f8e8d85f50080dbd90f",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Google Translate en com",
+      "manufacturer": "Google",
+      "model": "Google Translate TTS",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "82ad15b70d771f8e8d85f50080dbd90f",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:699a8a89652a83f5d9ba0813c721d1c3",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Canon G3060 series",
+      "manufacturer": "Canon",
+      "model": "G3060 series",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "699a8a89652a83f5d9ba0813c721d1c3",
+            "entity_count": 7
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:bec1e4133c82e8ca1fd8b2c5caa3050d",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "2a:70:4e:8e:1f:d0",
+      "hostname": "UniFi Dream Machine",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UDRULT",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "bec1e4133c82e8ca1fd8b2c5caa3050d",
+            "entity_count": 13
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:f8ced15570348e5af7b917651e6f379d",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "78:0f:77:5a:eb:dd",
+      "hostname": "RM Mini Estudio",
+      "manufacturer": "Broadlink",
+      "model": "RM mini 3",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "f8ced15570348e5af7b917651e6f379d",
+            "entity_count": 3
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:bdf4f744f48b96bcebafafbc78124c10",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "f4:cf:a2:3e:55:1f",
+      "hostname": "Controller RGB IR 3E551F",
+      "manufacturer": "Zengge",
+      "model": "Controller RGB IR (0x33)",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "bdf4f744f48b96bcebafafbc78124c10",
+            "entity_count": 6
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:73dba94e5565edffa8882b1613d9b435",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "78:0f:77:47:36:d1",
+      "hostname": "Tomacorriente Disco PB",
+      "manufacturer": "Broadlink",
+      "model": "SC1",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "73dba94e5565edffa8882b1613d9b435",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:5d60e23608958e3aae40660ad31da8c5",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "34:ea:34:59:82:fe",
+      "hostname": "Broadlink SP Mini sin identificar",
+      "manufacturer": "Broadlink",
+      "model": "SP3",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "5d60e23608958e3aae40660ad31da8c5",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:9ae6f5b9f4bd49c03b317751c8a03911",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "78:0f:77:5a:db:9c",
+      "hostname": "RM Mini Cuarto",
+      "manufacturer": "Broadlink",
+      "model": "RM mini 3",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "9ae6f5b9f4bd49c03b317751c8a03911",
+            "entity_count": 3
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:a5d46da0ce4ddad8b22ff8de35ee25e5",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "78:0f:77:5a:ee:9b",
+      "hostname": "RM Mini Living",
+      "manufacturer": "Broadlink",
+      "model": "RM mini 3",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "a5d46da0ce4ddad8b22ff8de35ee25e5",
+            "entity_count": 3
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:fa3e3b1287f306d6a174b3c2b0985654",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "34:ea:34:50:88:a6",
+      "hostname": "Amplificador Sofa",
+      "manufacturer": "Broadlink",
+      "model": "SP3",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "fa3e3b1287f306d6a174b3c2b0985654",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:54ac6e009a5b6b3e5bc4536ac484a043",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "a0:43:b0:18:ae:7b",
+      "hostname": "RM4 Primer Piso",
+      "manufacturer": "Broadlink",
+      "model": "RM4 pro",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "54ac6e009a5b6b3e5bc4536ac484a043",
+            "entity_count": 6
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:ef6bd6b988e22387435a63b77fafab7f",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "34:ea:34:9d:1b:57",
+      "hostname": "Corona Sala",
+      "manufacturer": "Broadlink",
+      "model": "SP3S-US",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "ef6bd6b988e22387435a63b77fafab7f",
+            "entity_count": 3
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:broadlink:4f127ca966bc7609ca047bd325b0c22d",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "34:ea:34:9d:15:ca",
+      "hostname": "Tomacorriente 3D",
+      "manufacturer": "Broadlink",
+      "model": "SP3S-US",
+      "device_type": "ir_rf_bridge",
+      "provider_ids": [
+        "broadlink",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "4f127ca966bc7609ca047bd325b0c22d",
+            "entity_count": 3
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:generic_network:80f14f044774de0bac3b0093eef3ab0a",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "EPSON L4160 Series",
+      "manufacturer": "EPSON",
+      "model": "L4160 Series",
+      "device_type": "iot_or_unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "80f14f044774de0bac3b0093eef3ab0a",
+            "entity_count": 6
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:2a976c6f6a9592057d8fd7e8d9a00d0e",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Luz Bodega",
+      "manufacturer": "Tuya",
+      "model": "Smart Lamp Q0",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "2a976c6f6a9592057d8fd7e8d9a00d0e",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:1e7ec0123d7ac1a69bd18b6007be0b79",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Laser",
+      "manufacturer": "Tuya",
+      "model": "Smart Plug",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "1e7ec0123d7ac1a69bd18b6007be0b79",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:0f5eca7ac41410e71d87d2f9358ad731",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Piedra Cocina",
+      "manufacturer": "Tuya",
+      "model": "Smart Plug",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "0f5eca7ac41410e71d87d2f9358ad731",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:c12c27f1a2900f21de25e6b1f5df85f9",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Corona",
+      "manufacturer": "Tuya",
+      "model": "smart plug",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "c12c27f1a2900f21de25e6b1f5df85f9",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:77165f083705fc22d0007d89e7a7f111",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Cinta Mural",
+      "manufacturer": "Tuya",
+      "model": "Smart Light Strip",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "77165f083705fc22d0007d89e7a7f111",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:4575d67936c114294b2c1a7dd7ea0258",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Tomacorriente  Doble Mesón",
+      "manufacturer": "Tuya",
+      "model": "Enchufe dual inteligente",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "4575d67936c114294b2c1a7dd7ea0258",
+            "entity_count": 6
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:a0c5ed7c0d39dc45e8ffa9e7a1dd435c",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Tomacorriente doble Pecera",
+      "manufacturer": "Tuya",
+      "model": "Enchufe dual inteligente",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "a0c5ed7c0d39dc45e8ffa9e7a1dd435c",
+            "entity_count": 6
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:5c72562b26906ff438acd6b605562c1b",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Cinta escritorio",
+      "manufacturer": "Tuya",
+      "model": "Smart Light Strip",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "5c72562b26906ff438acd6b605562c1b",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:e20ad39d7c7c619b9df3b9ba47267c82",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Breaker",
+      "manufacturer": "Tuya",
+      "model": "Breaker",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "e20ad39d7c7c619b9df3b9ba47267c82",
+            "entity_count": 5
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:fedfed8dc3215d4d91c3531450fc2b6a",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Luz Estudio Uno",
+      "manufacturer": "Tuya",
+      "model": "Smart Bulb",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "fedfed8dc3215d4d91c3531450fc2b6a",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:e3dbbd15d44acbf6c9d167114561dd06",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Tomacorriente Doble Plantas",
+      "manufacturer": "Tuya",
+      "model": "Enchufe dual inteligente",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "e3dbbd15d44acbf6c9d167114561dd06",
+            "entity_count": 6
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:aabc8ee5c909f96785ad06c91ef08a8c",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Luz Cocina",
+      "manufacturer": "Tuya",
+      "model": "Smart Bulb",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "aabc8ee5c909f96785ad06c91ef08a8c",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:28c9ad393121b82b2d9721a4f1f080c6",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Luz Estudio dos",
+      "manufacturer": "Tuya",
+      "model": "Smart Bulb",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "28c9ad393121b82b2d9721a4f1f080c6",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:3a314767cd9050719c6bb37237c68d75",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Luz Entrada ",
+      "manufacturer": "Tuya",
+      "model": "Alva Smart Light Bulb",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "3a314767cd9050719c6bb37237c68d75",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:tuya:bd291f20a11b9be8403c41d5ca9ba87e",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Sombrilla",
+      "manufacturer": "Tuya",
+      "model": "Smart Multicolor Bulb",
+      "device_type": "tuya_iot",
+      "provider_ids": [
+        "tuya"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "bd291f20a11b9be8403c41d5ca9ba87e",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:11a424ff0d8c63398b6acf99cc02e462",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "f0:9f:c2:6e:31:b4",
+      "hostname": "Estudio",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "U7HD",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "11a424ff0d8c63398b6acf99cc02e462",
+            "entity_count": 9
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:1bc673a9740556ffd7a0678a01be62fe",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "78:8a:20:5c:ca:75",
+      "hostname": "Cuarto",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "U7PG2",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "1bc673a9740556ffd7a0678a01be62fe",
+            "entity_count": 12
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:1d9adcb8b35875d52ad6cdaf8feac079",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "28:70:4e:8e:1f:cf",
+      "hostname": "Cloud Gateway Ultra Ralphi",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UDRULT",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "1d9adcb8b35875d52ad6cdaf8feac079",
+            "entity_count": 25
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:9791507fd05a2e83da77e1d735f197ce",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "0c:ea:14:f0:5b:76",
+      "hostname": "U6+",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UAPL6",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "9791507fd05a2e83da77e1d735f197ce",
+            "entity_count": 9
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:195fcf3f8f5bdc7318e7896b8396fa9a",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "UniFi Network",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UniFi Network Application",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "195fcf3f8f5bdc7318e7896b8396fa9a",
+            "entity_count": 0
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:4b769de359cd2e0cab3c9dc5bde56e9f",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "RafaHome5G",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UniFi WLAN",
+      "device_type": "wlan",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "4b769de359cd2e0cab3c9dc5bde56e9f",
+            "entity_count": 4
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:beb13fc8e01110e52042e7f9e17a2bd5",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "RafaHome2.4G",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UniFi WLAN",
+      "device_type": "wlan",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "beb13fc8e01110e52042e7f9e17a2bd5",
+            "entity_count": 4
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:5af102c91e8178cb713caae0f0e444cc",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "RafaH2.4Ghz",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UniFi WLAN",
+      "device_type": "wlan",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "5af102c91e8178cb713caae0f0e444cc",
+            "entity_count": 4
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:intelbras:385d4717adec4c6c873dbd2c4df7a477",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "d8:36:5f:2b:15:ae",
+      "hostname": "Alarma Interbras",
+      "manufacturer": "Intelbras",
+      "model": "",
+      "device_type": "alarm_or_security_device",
+      "provider_ids": [
+        "intelbras",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "385d4717adec4c6c873dbd2c4df7a477",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:7d038f3f04c6d708b06147818440e210",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "04:d4:c4:ad:ca:c8",
+      "hostname": "Computador Bed Ralphi's",
+      "manufacturer": "ASUSTek COMPUTER INC.",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "7d038f3f04c6d708b06147818440e210",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:dahua:5cef271a32a79acdcd6e30e12340c16f",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "08:ed:ed:7a:15:f1",
+      "hostname": "NVR Dahua",
+      "manufacturer": "Zhejiang Dahua Technology Co., Ltd.",
+      "model": "",
+      "device_type": "camera_or_iot",
+      "provider_ids": [
+        "dahua",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "5cef271a32a79acdcd6e30e12340c16f",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:49315649fff9812d5561c9102a0cb3d1",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "a0:ad:9f:19:0a:9e",
+      "hostname": "ralphiia02",
+      "manufacturer": "",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "49315649fff9812d5561c9102a0cb3d1",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:dahua:b9d4f7408cdc43dda8be3a94aecb7103",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "e4:24:6c:7e:e7:54",
+      "hostname": "Cámara Los Ríos izq  Dahua",
+      "manufacturer": "Zhejiang Dahua Technology Co., Ltd.",
+      "model": "",
+      "device_type": "camera_or_iot",
+      "provider_ids": [
+        "dahua",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "b9d4f7408cdc43dda8be3a94aecb7103",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:dahua:5f201bc5b26f00253c28d9c1441c7951",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "b4:4c:3b:01:2d:d1",
+      "hostname": "Cámara Los Ríos der Dahua",
+      "manufacturer": "Zhejiang Dahua Technology Co., Ltd.",
+      "model": "",
+      "device_type": "camera_or_iot",
+      "provider_ids": [
+        "dahua",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "5f201bc5b26f00253c28d9c1441c7951",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:d77ad6cc182c7c3a38af87edce277707",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "00:e0:4c:33:45:c7",
+      "hostname": "ubuntu-server",
+      "manufacturer": "Realtek Semiconductor Corp.",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "d77ad6cc182c7c3a38af87edce277707",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:13cfae48b2da097d797d7a8b5b062514",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "1c:1b:0d:d5:a3:67",
+      "hostname": "DESKTOP-8OLALRI",
+      "manufacturer": "Giga-Byte Technology Co.,Ltd.",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "13cfae48b2da097d797d7a8b5b062514",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:ce0868407d5eaf9e92adc76e9d795ceb",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "UniFi Network",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UniFi Network",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "ce0868407d5eaf9e92adc76e9d795ceb",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:85f6f3472102aee23170d18f14ef75bb",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "4c:cc:6a:15:6b:16",
+      "hostname": "Computador Recepción",
+      "manufacturer": "Micro-Star INTL CO., LTD.",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "85f6f3472102aee23170d18f14ef75bb",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:38240a27428afff4a76a252b690ff2e2",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "a8:9c:6c:c0:72:75",
+      "hostname": "U7 Living",
+      "manufacturer": "Ubiquiti Networks",
+      "model": "UAPA693",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "38240a27428afff4a76a252b690ff2e2",
+            "entity_count": 9
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:f1b8798dba5e1a2c24937d833805162a",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "34:e1:d1:80:6f:00",
+      "hostname": "",
+      "manufacturer": "IEEE Registration Authority",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "f1b8798dba5e1a2c24937d833805162a",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:799b4d7bdbee1898d981e168cfd0bac8",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "02:4d:48:a8:01:05",
+      "hostname": "",
+      "manufacturer": "",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "799b4d7bdbee1898d981e168cfd0bac8",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:53ffa2460943e51cdd4a76bc6a14a706",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "b8:27:eb:ba:a7:25",
+      "hostname": "InnerSpark-PI-Server",
+      "manufacturer": "Raspberry Pi Foundation",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "53ffa2460943e51cdd4a76bc6a14a706",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:unifi_ubiquiti:c61e7b02fc06f61ef922023b90e5edbd",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "16:e5:8b:3c:c5:f9",
+      "hostname": "Alex-el-inigualable",
+      "manufacturer": "",
+      "model": "",
+      "device_type": "access_point_or_network_device",
+      "provider_ids": [
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "c61e7b02fc06f61ef922023b90e5edbd",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:hikvision:4adb176ef62671096877d4fa0015fe09",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "3c:1b:f8:81:6d:c2",
+      "hostname": "",
+      "manufacturer": "Hangzhou Hikvision Digital Technology Co.,Ltd.",
+      "model": "",
+      "device_type": "camera_or_iot",
+      "provider_ids": [
+        "hikvision",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "4adb176ef62671096877d4fa0015fe09",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:hikvision:3ba103f988c0364ce9606667231002a2",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "dc:07:f8:56:09:f6",
+      "hostname": "",
+      "manufacturer": "Hangzhou Hikvision Digital Technology Co.,Ltd.",
+      "model": "",
+      "device_type": "camera_or_iot",
+      "provider_ids": [
+        "hikvision",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "3ba103f988c0364ce9606667231002a2",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:grandstream_gwn:0aeaea797558106b09e7c83869bb6fbe",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "00:0b:82:86:33:ab",
+      "hostname": "Central IP UCM6104",
+      "manufacturer": "Grandstream Networks, Inc.",
+      "model": "",
+      "device_type": "pbx_or_voice_gateway",
+      "provider_ids": [
+        "grandstream_gwn",
+        "grandstream_ucm",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "0aeaea797558106b09e7c83869bb6fbe",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:intelbras:1f233e80c14d626d300fe088f6d8fdf0",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "La Victoria ",
+      "manufacturer": "Intelbras",
+      "model": "AMT_4010",
+      "device_type": "alarm_or_security_device",
+      "provider_ids": [
+        "intelbras"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "1f233e80c14d626d300fe088f6d8fdf0",
+            "entity_count": 198
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:intelbras:b374fa0252350a83f8b3d935bbe6139d",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Casa Mama",
+      "manufacturer": "Intelbras",
+      "model": "AMT_1000_SMART",
+      "device_type": "alarm_or_security_device",
+      "provider_ids": [
+        "intelbras"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "b374fa0252350a83f8b3d935bbe6139d",
+            "entity_count": 147
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:intelbras:d4b2dd2a007c2a5ce9d31a7144c62394",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Panel Home Ralphi",
+      "manufacturer": "Intelbras",
+      "model": "ANM_24_NET",
+      "device_type": "alarm_or_security_device",
+      "provider_ids": [
+        "intelbras"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "d4b2dd2a007c2a5ce9d31a7144c62394",
+            "entity_count": 78
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:ezviz:a5045c685270db3f50c1eb894cbe3d02",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "EZVIZ Alarm",
+      "manufacturer": "EZVIZ",
+      "model": "EZVIZ Alarm",
+      "device_type": "camera_or_iot",
+      "provider_ids": [
+        "ezviz"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "a5045c685270db3f50c1eb894cbe3d02",
+            "entity_count": 1
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:ezviz:af7fe5f22efe4715230751d071627511",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "64ffffffdbffffff8",
+      "hostname": "Estudio",
+      "manufacturer": "EZVIZ",
+      "model": "C6T",
+      "device_type": "camera_or_iot",
+      "provider_ids": [
+        "ezviz"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "af7fe5f22efe4715230751d071627511",
+            "entity_count": 58
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:8bcbcd2af6369d1db0abb8b09a3d3918",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Fire Cuarto",
+      "manufacturer": "Amazon",
+      "model": "Amazon Fire TV stick",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "8bcbcd2af6369d1db0abb8b09a3d3918",
+            "entity_count": 5
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:da0d612a8788a4ceccbd51bc6b8a52bd",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Echo Disco",
+      "manufacturer": "Amazon",
+      "model": "Echo Dot",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "da0d612a8788a4ceccbd51bc6b8a52bd",
+            "entity_count": 9
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:dc4faeb6a59e90d6e23f4d5b3a1c5735",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Ralphi's home",
+      "manufacturer": "Amazon",
+      "model": "Speaker Group",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "dc4faeb6a59e90d6e23f4d5b3a1c5735",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:9425e2eb5de5bd727c3658568ed33931",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Echo Cuarto",
+      "manufacturer": "Amazon",
+      "model": "Echo Dot",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "9425e2eb5de5bd727c3658568ed33931",
+            "entity_count": 8
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:bd358fcdf605e79cc3c9aef70ec16e52",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Fire Sala",
+      "manufacturer": "Amazon",
+      "model": "Fire TV Stick",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "bd358fcdf605e79cc3c9aef70ec16e52",
+            "entity_count": 5
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:b0ad41ddba0be7f2f445b13a79f71949",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Echo Cocina",
+      "manufacturer": "Amazon",
+      "model": "Echo Flex",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "b0ad41ddba0be7f2f445b13a79f71949",
+            "entity_count": 7
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:725173a7b1102f46884d5d4ac10c2ee3",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Echo Estudio",
+      "manufacturer": "Amazon",
+      "model": "Echo Dot with Clock",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "725173a7b1102f46884d5d4ac10c2ee3",
+            "entity_count": 9
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:6801d361925c69bbcaa25fa4a1b4446b",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Disco",
+      "manufacturer": "Amazon",
+      "model": "Speaker Group",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "6801d361925c69bbcaa25fa4a1b4446b",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:6c18ea59a92e240b42a8fcb222c78c7e",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "Echo Sala",
+      "manufacturer": "Amazon",
+      "model": "Echo Dot",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "6c18ea59a92e240b42a8fcb222c78c7e",
+            "entity_count": 8
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:alexa:e0d0c0c91004bea2636f9818dca30ce7",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "",
+      "hostname": "hrlg@hotmail.com",
+      "manufacturer": "Amazon",
+      "model": "",
+      "device_type": "voice_assistant",
+      "provider_ids": [
+        "alexa"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "e0d0c0c91004bea2636f9818dca30ce7",
+            "entity_count": 11
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    },
+    {
+      "device_id": "home_pcdoctor_lab:hikvision:afdee7ef231c41d722d3c43cb071e000",
+      "site_id": "home_pcdoctor_lab",
+      "ip": "",
+      "mac": "84:9a:40:d2:b3:ab",
+      "hostname": "",
+      "manufacturer": "Hangzhou Hikvision Digital Technology Co.,Ltd.",
+      "model": "",
+      "device_type": "camera_or_iot",
+      "provider_ids": [
+        "hikvision",
+        "unifi_ubiquiti"
+      ],
+      "services": [],
+      "evidence": [
+        {
+          "source": "home_assistant_device_registry",
+          "detail": "Device observed through Home Assistant registry",
+          "confidence": 0.76,
+          "raw": {
+            "device_id": "afdee7ef231c41d722d3c43cb071e000",
+            "entity_count": 2
+          }
+        }
+      ],
+      "confidence": 0.76,
+      "read_only": true,
+      "mutations_attempted": []
+    }
+  ],
+  "delegated": {
+    "unifi": {
+      "ok": true,
+      "mode": "unifi_network_ops",
+      "requested_repair": false,
+      "summary": "UniFi observed: 4 AP(s) connected, 0 unavailable/stale; 36 clients on identified 2.4 GHz WLANs and 9 on identified 5 GHz WLANs.",
+      "findings": [
+        {
+          "severity": "medium",
+          "code": "multiple_24ghz_wlans",
+          "detail": [
+            "RafaHome2.4G",
+            "RafaH2.4Ghz"
+          ]
+        },
+        {
+          "severity": "high",
+          "code": "24ghz_client_pressure",
+          "detail": {
+            "clients": 36,
+            "wlans": 2
+          }
+        },
+        {
+          "severity": "medium",
+          "code": "ap_memory_high",
+          "detail": [
+            {
+              "name": "U7 Living",
+              "memory_percent": 82
+            }
+          ]
+        },
+        {
+          "severity": "medium",
+          "code": "band_imbalance",
+          "detail": {
+            "clients_24": 36,
+            "clients_5": 9
+          }
+        }
+      ],
+      "evidence": {
+        "access_points": [
+          {
+            "name": "Estudio",
+            "device_id": "11a424ff0d8c63398b6acf99cc02e462",
+            "model": "U7HD",
+            "software": "6.8.2.15592",
+            "state": "connected",
+            "uptime": "2026-09-11T23:17:47+00:00",
+            "cpu_percent": 1,
+            "memory_percent": 32,
+            "uplink_mac": "28:70:4e:8e:1f:cf"
+          },
+          {
+            "name": "Cuarto",
+            "device_id": "1bc673a9740556ffd7a0678a01be62fe",
+            "model": "U7PG2",
+            "software": "6.8.2.15592",
+            "state": "connected",
+            "uptime": "2026-09-17T23:59:03+00:00",
+            "cpu_percent": 4,
+            "memory_percent": 44,
+            "uplink_mac": "28:70:4e:8e:1f:cf"
+          },
+          {
+            "name": "U6+",
+            "device_id": "9791507fd05a2e83da77e1d735f197ce",
+            "model": "UAPL6",
+            "software": "6.7.54.15663",
+            "state": "connected",
+            "uptime": "2026-09-22T15:08:22+00:00",
+            "cpu_percent": null,
+            "memory_percent": null,
+            "uplink_mac": "unavailable"
+          },
+          {
+            "name": "U7 Living",
+            "device_id": "38240a27428afff4a76a252b690ff2e2",
+            "model": "UAPA693",
+            "software": "8.7.11.19419",
+            "state": "connected",
+            "uptime": "2026-09-14T05:23:12+00:00",
+            "cpu_percent": 2,
+            "memory_percent": 82,
+            "uplink_mac": "28:70:4e:8e:1f:cf"
+          }
+        ],
+        "gateways": [
+          {
+            "name": "UniFi Dream Machine",
+            "device_id": "bec1e4133c82e8ca1fd8b2c5caa3050d",
+            "model": "UDRULT",
+            "software": null,
+            "state": null,
+            "uptime": null,
+            "cpu_percent": null,
+            "memory_percent": null,
+            "uplink_mac": null
+          },
+          {
+            "name": "Cloud Gateway Ultra Ralphi",
+            "device_id": "1d9adcb8b35875d52ad6cdaf8feac079",
+            "model": "UDRULT",
+            "software": "5.1.33.34087",
+            "state": "connected",
+            "uptime": "2026-09-11T08:10:00+00:00",
+            "cpu_percent": 12,
+            "memory_percent": 66,
+            "uplink_mac": null
+          }
+        ],
+        "wlans": [
+          {
+            "name": "RafaHome5G",
+            "device_id": "4b769de359cd2e0cab3c9dc5bde56e9f",
+            "clients": 9,
+            "enabled": "on",
+            "clients_entity": "sensor.rafahome5g_clients",
+            "enabled_entity": "switch.rafahome5g_enabled"
+          },
+          {
+            "name": "RafaHome2.4G",
+            "device_id": "beb13fc8e01110e52042e7f9e17a2bd5",
+            "clients": 29,
+            "enabled": "on",
+            "clients_entity": "sensor.rafahome2_4g_clients",
+            "enabled_entity": "switch.rafahome2_4g_enabled"
+          },
+          {
+            "name": "RafaH2.4Ghz",
+            "device_id": "5af102c91e8178cb713caae0f0e444cc",
+            "clients": 7,
+            "enabled": "on",
+            "clients_entity": "sensor.rafah2_4ghz_clients",
+            "enabled_entity": "switch.rafah2_4ghz_enabled"
+          }
+        ]
+      },
+      "likely_causes": [
+        "Multiple 2.4 GHz WLANs may duplicate airtime and make client placement harder to reason about.",
+        "2.4 GHz carries a high client count; cameras and IoT compete for limited airtime, especially with weak RSSI or overlapping channels.",
+        "Client distribution is heavily skewed toward 2.4 GHz instead of 5 GHz for capable devices."
+      ],
+      "safe_actions_applied": [],
+      "actions_requiring_approval": [
+        "Read per-radio channel, channel utilization, retry rate and client RSSI from the UniFi controller before RF changes.",
+        "If contention is confirmed, coordinate non-overlapping 2.4 GHz channels, 20 MHz width, and 5 GHz steering/power tuning with rollback evidence."
+      ],
+      "verification": {
+        "performed": true,
+        "source": "home_assistant_unifi_integration",
+        "read_only": true,
+        "consistent": true
+      },
+      "before_after": {
+        "before": {
+          "active_aps": [
+            "Estudio",
+            "Cuarto",
+            "U6+",
+            "U7 Living"
+          ],
+          "offline_or_stale_aps": [],
+          "clients_24ghz": 36,
+          "clients_5ghz": 9,
+          "wlans_24ghz": [
+            "RafaHome2.4G",
+            "RafaH2.4Ghz"
+          ],
+          "wlans_5ghz": [
+            "RafaHome5G"
+          ]
+        },
+        "after": {
+          "active_aps": [
+            "Estudio",
+            "Cuarto",
+            "U6+",
+            "U7 Living"
+          ],
+          "offline_or_stale_aps": [],
+          "clients_24ghz": 36,
+          "clients_5ghz": 9,
+          "wlans_24ghz": [
+            "RafaHome2.4G",
+            "RafaH2.4Ghz"
+          ],
+          "wlans_5ghz": [
+            "RafaHome5G"
+          ]
+        },
+        "changed": false
+      },
+      "limitations": [
+        "Home Assistant exposes UniFi device/WLAN state, client counts, uptime and some resource telemetry, but not RF channel width, channel utilization, RSSI/retry rate, transmit power or interference on this integration surface.",
+        "Channel, power, firmware, password and AP restart changes remain fail-closed until an audited controller adapter can verify the before/after state and rollback."
+      ]
+    },
+    "intelbras": {
+      "ok": true,
+      "mode": "alarm_intelbras_ops",
+      "read_only": true,
+      "requested_write": false,
+      "action_result": {
+        "requested_write": false,
+        "approved": false,
+        "executed": false
+      },
+      "summary": "Intelbras alarm observed on LAN via Home Assistant/UniFi; presence=home, tcp_9009=open. alarm_panel=disarmed (alarm_control_panel.panel_home_ralphi_panel_home_ralphi).",
+      "device": {
+        "declared_model": "AMT24 Net / ANM 24 NET candidate",
+        "ha_name": "Alarma Interbras",
+        "manufacturer": "Intelbras",
+        "model": null,
+        "entity_id": "device_tracker.alarma_interbras",
+        "presence_state": "home",
+        "host": "192.168.1.202",
+        "mac": "d8:36:5f:2b:15:ae",
+        "connections": [
+          [
+            "mac",
+            "d8:36:5f:2b:15:ae"
+          ]
+        ]
+      },
+      "connectivity": {
+        "home_assistant_entities": [
+          "sensor.backup_last_attempted_automatic_backup",
+          "device_tracker.alarma_interbras",
+          "alarm_control_panel.la_victoria_particion_a",
+          "alarm_control_panel.la_victoria_particion_b",
+          "alarm_control_panel.la_victoria_particion_c",
+          "alarm_control_panel.la_victoria_particion_d",
+          "alarm_control_panel.casa_mama_casa_mama",
+          "alarm_control_panel.panel_home_ralphi_panel_home_ralphi",
+          "button.panel_home_ralphi_panico_audivel",
+          "button.panel_home_ralphi_panico_silencioso",
+          "sensor.la_victoria_ultimo_disparo",
+          "sensor.casa_mama_ultimo_disparo",
+          "sensor.panel_home_ralphi_ultimo_disparo",
+          "alarm_control_panel.ezviz_alarm",
+          "binary_sensor.entrada_alarm_schedules_enabled",
+          "binary_sensor.estudio_alarm_schedules_enabled",
+          "sensor.entrada_last_alarm_type_code",
+          "sensor.entrada_last_alarm_type_name",
+          "sensor.estudio_last_alarm_type_code",
+          "sensor.estudio_last_alarm_type_name",
+          "sensor.fire_cuarto_next_alarm",
+          "sensor.echo_disco_next_alarm",
+          "sensor.echo_cuarto_next_alarm",
+          "sensor.fire_sala_next_alarm",
+          "sensor.echo_cocina_next_alarm",
+          "sensor.echo_estudio_next_alarm",
+          "sensor.echo_sala_next_alarm"
+        ],
+        "registry_entities": [
+          "device_tracker.alarma_interbras",
+          "sensor.alarma_interbras_link_speed",
+          "alarm_control_panel.la_victoria_particion_a",
+          "alarm_control_panel.la_victoria_particion_b",
+          "alarm_control_panel.la_victoria_particion_c",
+          "alarm_control_panel.la_victoria_particion_d",
+          "alarm_control_panel.casa_mama_casa_mama",
+          "alarm_control_panel.panel_home_ralphi_panel_home_ralphi",
+          "binary_sensor.la_victoria_zona_1",
+          "binary_sensor.la_victoria_zona_2",
+          "binary_sensor.la_victoria_zona_3",
+          "binary_sensor.la_victoria_zona_4",
+          "binary_sensor.la_victoria_zona_5",
+          "binary_sensor.la_victoria_zona_6",
+          "binary_sensor.la_victoria_zona_7",
+          "binary_sensor.la_victoria_zona_8",
+          "binary_sensor.la_victoria_zona_9",
+          "binary_sensor.la_victoria_zona_10",
+          "binary_sensor.la_victoria_zona_11",
+          "binary_sensor.la_victoria_zona_12",
+          "binary_sensor.la_victoria_zona_13",
+          "binary_sensor.la_victoria_zona_14",
+          "binary_sensor.la_victoria_zona_15",
+          "binary_sensor.la_victoria_zona_16",
+          "binary_sensor.la_victoria_zona_17",
+          "binary_sensor.la_victoria_zona_18",
+          "binary_sensor.la_victoria_zona_19",
+          "binary_sensor.la_victoria_zona_20",
+          "binary_sensor.la_victoria_zona_21",
+          "binary_sensor.la_victoria_zona_22",
+          "binary_sensor.la_victoria_zona_23",
+          "binary_sensor.la_victoria_zona_24",
+          "binary_sensor.la_victoria_zona_25",
+          "binary_sensor.la_victoria_zona_26",
+          "binary_sensor.la_victoria_zona_27",
+          "binary_sensor.la_victoria_zona_28",
+          "binary_sensor.la_victoria_zona_29",
+          "binary_sensor.la_victoria_zona_30",
+          "binary_sensor.la_victoria_zona_31",
+          "binary_sensor.la_victoria_zona_32",
+          "binary_sensor.la_victoria_zona_33",
+          "binary_sensor.la_victoria_zona_34",
+          "binary_sensor.la_victoria_zona_35",
+          "binary_sensor.la_victoria_zona_36",
+          "binary_sensor.la_victoria_zona_37",
+          "binary_sensor.la_victoria_zona_38",
+          "binary_sensor.la_victoria_zona_39",
+          "binary_sensor.la_victoria_zona_40",
+          "binary_sensor.la_victoria_zona_41",
+          "binary_sensor.la_victoria_zona_42",
+          "binary_sensor.la_victoria_zona_43",
+          "binary_sensor.la_victoria_zona_44",
+          "binary_sensor.la_victoria_zona_45",
+          "binary_sensor.la_victoria_zona_46",
+          "binary_sensor.la_victoria_zona_47",
+          "binary_sensor.la_victoria_zona_48",
+          "binary_sensor.la_victoria_zona_49",
+          "binary_sensor.la_victoria_zona_50",
+          "binary_sensor.la_victoria_zona_51",
+          "binary_sensor.la_victoria_zona_52",
+          "binary_sensor.la_victoria_zona_53",
+          "binary_sensor.la_victoria_zona_54",
+          "binary_sensor.la_victoria_zona_55",
+          "binary_sensor.la_victoria_zona_56",
+          "binary_sensor.la_victoria_zona_57",
+          "binary_sensor.la_victoria_zona_58",
+          "binary_sensor.la_victoria_zona_59",
+          "binary_sensor.la_victoria_zona_60",
+          "binary_sensor.la_victoria_zona_61",
+          "binary_sensor.la_victoria_zona_62",
+          "binary_sensor.la_victoria_zona_63",
+          "binary_sensor.la_victoria_zona_64",
+          "binary_sensor.casa_mama_zona_1",
+          "binary_sensor.casa_mama_zona_2",
+          "binary_sensor.casa_mama_zona_3",
+          "binary_sensor.casa_mama_zona_4",
+          "binary_sensor.casa_mama_zona_5",
+          "binary_sensor.casa_mama_zona_6",
+          "binary_sensor.casa_mama_zona_7",
+          "binary_sensor.casa_mama_zona_8",
+          "binary_sensor.casa_mama_zona_9",
+          "binary_sensor.casa_mama_zona_10",
+          "binary_sensor.casa_mama_zona_11",
+          "binary_sensor.casa_mama_zona_12",
+          "binary_sensor.casa_mama_zona_13",
+          "binary_sensor.casa_mama_zona_14",
+          "binary_sensor.casa_mama_zona_15",
+          "binary_sensor.casa_mama_zona_16",
+          "binary_sensor.casa_mama_zona_17",
+          "binary_sensor.casa_mama_zona_18",
+          "binary_sensor.casa_mama_zona_19",
+          "binary_sensor.casa_mama_zona_20",
+          "binary_sensor.casa_mama_zona_21",
+          "binary_sensor.casa_mama_zona_22",
+          "binary_sensor.casa_mama_zona_23",
+          "binary_sensor.casa_mama_zona_24",
+          "binary_sensor.casa_mama_zona_25",
+          "binary_sensor.casa_mama_zona_26",
+          "binary_sensor.casa_mama_zona_27",
+          "binary_sensor.casa_mama_zona_28",
+          "binary_sensor.casa_mama_zona_29",
+          "binary_sensor.casa_mama_zona_30",
+          "binary_sensor.casa_mama_zona_31",
+          "binary_sensor.casa_mama_zona_32",
+          "binary_sensor.casa_mama_zona_33",
+          "binary_sensor.casa_mama_zona_34",
+          "binary_sensor.casa_mama_zona_35",
+          "binary_sensor.casa_mama_zona_36",
+          "binary_sensor.casa_mama_zona_37",
+          "binary_sensor.casa_mama_zona_38",
+          "binary_sensor.casa_mama_zona_39",
+          "binary_sensor.casa_mama_zona_40",
+          "binary_sensor.casa_mama_zona_41",
+          "binary_sensor.casa_mama_zona_42",
+          "binary_sensor.casa_mama_zona_43",
+          "binary_sensor.casa_mama_zona_44",
+          "binary_sensor.casa_mama_zona_45",
+          "binary_sensor.casa_mama_zona_46",
+          "binary_sensor.casa_mama_zona_47",
+          "binary_sensor.casa_mama_zona_48",
+          "binary_sensor.panel_home_ralphi_zona_01",
+          "binary_sensor.panel_home_ralphi_zona_02",
+          "binary_sensor.panel_home_ralphi_zona_03",
+          "binary_sensor.panel_home_ralphi_zona_04",
+          "binary_sensor.panel_home_ralphi_zona_05",
+          "binary_sensor.panel_home_ralphi_zona_06",
+          "binary_sensor.panel_home_ralphi_zona_07",
+          "binary_sensor.panel_home_ralphi_zona_08",
+          "binary_sensor.panel_home_ralphi_zona_09",
+          "binary_sensor.panel_home_ralphi_zona_10",
+          "binary_sensor.panel_home_ralphi_zona_11",
+          "binary_sensor.panel_home_ralphi_zona_12",
+          "binary_sensor.panel_home_ralphi_zona_13",
+          "binary_sensor.panel_home_ralphi_zona_14",
+          "binary_sensor.panel_home_ralphi_zona_15",
+          "binary_sensor.panel_home_ralphi_zona_16",
+          "binary_sensor.panel_home_ralphi_zona_17",
+          "binary_sensor.panel_home_ralphi_zona_18",
+          "binary_sensor.panel_home_ralphi_zona_19",
+          "binary_sensor.panel_home_ralphi_zona_20",
+          "binary_sensor.panel_home_ralphi_zona_21",
+          "binary_sensor.panel_home_ralphi_zona_22",
+          "binary_sensor.panel_home_ralphi_zona_23",
+          "binary_sensor.panel_home_ralphi_zona_24",
+          "button.panel_home_ralphi_desligar_sirene",
+          "button.panel_home_ralphi_panico_audivel",
+          "button.panel_home_ralphi_panico_silencioso",
+          "event.la_victoria_zona_1_evento",
+          "event.la_victoria_zona_2_evento",
+          "event.la_victoria_zona_3_evento",
+          "event.la_victoria_zona_4_evento",
+          "event.la_victoria_zona_5_evento",
+          "event.la_victoria_zona_6_evento",
+          "event.la_victoria_zona_7_evento",
+          "event.la_victoria_zona_8_evento",
+          "event.la_victoria_zona_9_evento",
+          "event.la_victoria_zona_10_evento",
+          "event.la_victoria_zona_11_evento",
+          "event.la_victoria_zona_12_evento",
+          "event.la_victoria_zona_13_evento",
+          "event.la_victoria_zona_14_evento",
+          "event.la_victoria_zona_15_evento",
+          "event.la_victoria_zona_16_evento",
+          "event.la_victoria_zona_17_evento",
+          "event.la_victoria_zona_18_evento",
+          "event.la_victoria_zona_19_evento",
+          "event.la_victoria_zona_20_evento",
+          "event.la_victoria_zona_21_evento",
+          "event.la_victoria_zona_22_evento",
+          "event.la_victoria_zona_23_evento",
+          "event.la_victoria_zona_24_evento",
+          "event.la_victoria_zona_25_evento",
+          "event.la_victoria_zona_26_evento",
+          "event.la_victoria_zona_27_evento",
+          "event.la_victoria_zona_28_evento",
+          "event.la_victoria_zona_29_evento",
+          "event.la_victoria_zona_30_evento",
+          "event.la_victoria_zona_31_evento",
+          "event.la_victoria_zona_32_evento",
+          "event.la_victoria_zona_33_evento",
+          "event.la_victoria_zona_34_evento",
+          "event.la_victoria_zona_35_evento",
+          "event.la_victoria_zona_36_evento",
+          "event.la_victoria_zona_37_evento",
+          "event.la_victoria_zona_38_evento",
+          "event.la_victoria_zona_39_evento",
+          "event.la_victoria_zona_40_evento",
+          "event.la_victoria_zona_41_evento",
+          "event.la_victoria_zona_42_evento",
+          "event.la_victoria_zona_43_evento",
+          "event.la_victoria_zona_44_evento",
+          "event.la_victoria_zona_45_evento",
+          "event.la_victoria_zona_46_evento",
+          "event.la_victoria_zona_47_evento",
+          "event.la_victoria_zona_48_evento",
+          "event.la_victoria_zona_49_evento",
+          "event.la_victoria_zona_50_evento",
+          "event.la_victoria_zona_51_evento",
+          "event.la_victoria_zona_52_evento",
+          "event.la_victoria_zona_53_evento",
+          "event.la_victoria_zona_54_evento",
+          "event.la_victoria_zona_55_evento",
+          "event.la_victoria_zona_56_evento",
+          "event.la_victoria_zona_57_evento",
+          "event.la_victoria_zona_58_evento",
+          "event.la_victoria_zona_59_evento",
+          "event.la_victoria_zona_60_evento",
+          "event.la_victoria_zona_61_evento",
+          "event.la_victoria_zona_62_evento",
+          "event.la_victoria_zona_63_evento",
+          "event.la_victoria_zona_64_evento",
+          "event.casa_mama_zona_1_evento",
+          "event.casa_mama_zona_2_evento",
+          "event.casa_mama_zona_3_evento",
+          "event.casa_mama_zona_4_evento",
+          "event.casa_mama_zona_5_evento",
+          "event.casa_mama_zona_6_evento",
+          "event.casa_mama_zona_7_evento",
+          "event.casa_mama_zona_8_evento",
+          "event.casa_mama_zona_9_evento",
+          "event.casa_mama_zona_10_evento",
+          "event.casa_mama_zona_11_evento",
+          "event.casa_mama_zona_12_evento",
+          "event.casa_mama_zona_13_evento",
+          "event.casa_mama_zona_14_evento",
+          "event.casa_mama_zona_15_evento",
+          "event.casa_mama_zona_16_evento",
+          "event.casa_mama_zona_17_evento",
+          "event.casa_mama_zona_18_evento",
+          "event.casa_mama_zona_19_evento",
+          "event.casa_mama_zona_20_evento",
+          "event.casa_mama_zona_21_evento",
+          "event.casa_mama_zona_22_evento",
+          "event.casa_mama_zona_23_evento",
+          "event.casa_mama_zona_24_evento",
+          "event.casa_mama_zona_25_evento",
+          "event.casa_mama_zona_26_evento",
+          "event.casa_mama_zona_27_evento",
+          "event.casa_mama_zona_28_evento",
+          "event.casa_mama_zona_29_evento",
+          "event.casa_mama_zona_30_evento",
+          "event.casa_mama_zona_31_evento",
+          "event.casa_mama_zona_32_evento",
+          "event.casa_mama_zona_33_evento",
+          "event.casa_mama_zona_34_evento",
+          "event.casa_mama_zona_35_evento",
+          "event.casa_mama_zona_36_evento",
+          "event.casa_mama_zona_37_evento",
+          "event.casa_mama_zona_38_evento",
+          "event.casa_mama_zona_39_evento",
+          "event.casa_mama_zona_40_evento",
+          "event.casa_mama_zona_41_evento",
+          "event.casa_mama_zona_42_evento",
+          "event.casa_mama_zona_43_evento",
+          "event.casa_mama_zona_44_evento",
+          "event.casa_mama_zona_45_evento",
+          "event.casa_mama_zona_46_evento",
+          "event.casa_mama_zona_47_evento",
+          "event.casa_mama_zona_48_evento",
+          "event.panel_home_ralphi_zona_01_evento",
+          "event.panel_home_ralphi_zona_02_evento",
+          "event.panel_home_ralphi_zona_03_evento",
+          "event.panel_home_ralphi_zona_04_evento",
+          "event.panel_home_ralphi_zona_05_evento",
+          "event.panel_home_ralphi_zona_06_evento",
+          "event.panel_home_ralphi_zona_07_evento",
+          "event.panel_home_ralphi_zona_08_evento",
+          "event.panel_home_ralphi_zona_09_evento",
+          "event.panel_home_ralphi_zona_10_evento",
+          "event.panel_home_ralphi_zona_11_evento",
+          "event.panel_home_ralphi_zona_12_evento",
+          "event.panel_home_ralphi_zona_13_evento",
+          "event.panel_home_ralphi_zona_14_evento",
+          "event.panel_home_ralphi_zona_15_evento",
+          "event.panel_home_ralphi_zona_16_evento",
+          "event.panel_home_ralphi_zona_17_evento",
+          "event.panel_home_ralphi_zona_18_evento",
+          "event.panel_home_ralphi_zona_19_evento",
+          "event.panel_home_ralphi_zona_20_evento",
+          "event.panel_home_ralphi_zona_21_evento",
+          "event.panel_home_ralphi_zona_22_evento",
+          "event.panel_home_ralphi_zona_23_evento",
+          "event.panel_home_ralphi_zona_24_evento",
+          "sensor.la_victoria_last_event",
+          "sensor.la_victoria_ultimo_disparo",
+          "sensor.casa_mama_last_event",
+          "sensor.casa_mama_ultimo_disparo",
+          "sensor.panel_home_ralphi_last_event",
+          "sensor.panel_home_ralphi_ultimo_disparo",
+          "switch.la_victoria_zona_1_anular",
+          "switch.la_victoria_zona_2_anular",
+          "switch.la_victoria_zona_3_anular",
+          "switch.la_victoria_zona_4_anular",
+          "switch.la_victoria_zona_5_anular",
+          "switch.la_victoria_zona_6_anular",
+          "switch.la_victoria_zona_7_anular",
+          "switch.la_victoria_zona_8_anular",
+          "switch.la_victoria_zona_9_anular",
+          "switch.la_victoria_zona_10_anular",
+          "switch.la_victoria_zona_11_anular",
+          "switch.la_victoria_zona_12_anular",
+          "switch.la_victoria_zona_13_anular",
+          "switch.la_victoria_zona_14_anular",
+          "switch.la_victoria_zona_15_anular",
+          "switch.la_victoria_zona_16_anular",
+          "switch.la_victoria_zona_17_anular",
+          "switch.la_victoria_zona_18_anular",
+          "switch.la_victoria_zona_19_anular",
+          "switch.la_victoria_zona_20_anular",
+          "switch.la_victoria_zona_21_anular",
+          "switch.la_victoria_zona_22_anular",
+          "switch.la_victoria_zona_23_anular",
+          "switch.la_victoria_zona_24_anular",
+          "switch.la_victoria_zona_25_anular",
+          "switch.la_victoria_zona_26_anular",
+          "switch.la_victoria_zona_27_anular",
+          "switch.la_victoria_zona_28_anular",
+          "switch.la_victoria_zona_29_anular",
+          "switch.la_victoria_zona_30_anular",
+          "switch.la_victoria_zona_31_anular",
+          "switch.la_victoria_zona_32_anular",
+          "switch.la_victoria_zona_33_anular",
+          "switch.la_victoria_zona_34_anular",
+          "switch.la_victoria_zona_35_anular",
+          "switch.la_victoria_zona_36_anular",
+          "switch.la_victoria_zona_37_anular",
+          "switch.la_victoria_zona_38_anular",
+          "switch.la_victoria_zona_39_anular",
+          "switch.la_victoria_zona_40_anular",
+          "switch.la_victoria_zona_41_anular",
+          "switch.la_victoria_zona_42_anular",
+          "switch.la_victoria_zona_43_anular",
+          "switch.la_victoria_zona_44_anular",
+          "switch.la_victoria_zona_45_anular",
+          "switch.la_victoria_zona_46_anular",
+          "switch.la_victoria_zona_47_anular",
+          "switch.la_victoria_zona_48_anular",
+          "switch.la_victoria_zona_49_anular",
+          "switch.la_victoria_zona_50_anular",
+          "switch.la_victoria_zona_51_anular",
+          "switch.la_victoria_zona_52_anular",
+          "switch.la_victoria_zona_53_anular",
+          "switch.la_victoria_zona_54_anular",
+          "switch.la_victoria_zona_55_anular",
+          "switch.la_victoria_zona_56_anular",
+          "switch.la_victoria_zona_57_anular",
+          "switch.la_victoria_zona_58_anular",
+          "switch.la_victoria_zona_59_anular",
+          "switch.la_victoria_zona_60_anular",
+          "switch.la_victoria_zona_61_anular",
+          "switch.la_victoria_zona_62_anular",
+          "switch.la_victoria_zona_63_anular",
+          "switch.la_victoria_zona_64_anular",
+          "switch.casa_mama_zona_1_anular",
+          "switch.casa_mama_zona_2_anular",
+          "switch.casa_mama_zona_3_anular",
+          "switch.casa_mama_zona_4_anular",
+          "switch.casa_mama_zona_5_anular",
+          "switch.casa_mama_zona_6_anular",
+          "switch.casa_mama_zona_7_anular",
+          "switch.casa_mama_zona_8_anular",
+          "switch.casa_mama_zona_9_anular",
+          "switch.casa_mama_zona_10_anular",
+          "switch.casa_mama_zona_11_anular",
+          "switch.casa_mama_zona_12_anular",
+          "switch.casa_mama_zona_13_anular",
+          "switch.casa_mama_zona_14_anular",
+          "switch.casa_mama_zona_15_anular",
+          "switch.casa_mama_zona_16_anular",
+          "switch.casa_mama_zona_17_anular",
+          "switch.casa_mama_zona_18_anular",
+          "switch.casa_mama_zona_19_anular",
+          "switch.casa_mama_zona_20_anular",
+          "switch.casa_mama_zona_21_anular",
+          "switch.casa_mama_zona_22_anular",
+          "switch.casa_mama_zona_23_anular",
+          "switch.casa_mama_zona_24_anular",
+          "switch.casa_mama_zona_25_anular",
+          "switch.casa_mama_zona_26_anular",
+          "switch.casa_mama_zona_27_anular",
+          "switch.casa_mama_zona_28_anular",
+          "switch.casa_mama_zona_29_anular",
+          "switch.casa_mama_zona_30_anular",
+          "switch.casa_mama_zona_31_anular",
+          "switch.casa_mama_zona_32_anular",
+          "switch.casa_mama_zona_33_anular",
+          "switch.casa_mama_zona_34_anular",
+          "switch.casa_mama_zona_35_anular",
+          "switch.casa_mama_zona_36_anular",
+          "switch.casa_mama_zona_37_anular",
+          "switch.casa_mama_zona_38_anular",
+          "switch.casa_mama_zona_39_anular",
+          "switch.casa_mama_zona_40_anular",
+          "switch.casa_mama_zona_41_anular",
+          "switch.casa_mama_zona_42_anular",
+          "switch.casa_mama_zona_43_anular",
+          "switch.casa_mama_zona_44_anular",
+          "switch.casa_mama_zona_45_anular",
+          "switch.casa_mama_zona_46_anular",
+          "switch.casa_mama_zona_47_anular",
+          "switch.casa_mama_zona_48_anular",
+          "switch.panel_home_ralphi_zona_01_anular",
+          "switch.panel_home_ralphi_zona_02_anular",
+          "switch.panel_home_ralphi_zona_03_anular",
+          "switch.panel_home_ralphi_zona_04_anular",
+          "switch.panel_home_ralphi_zona_05_anular",
+          "switch.panel_home_ralphi_zona_06_anular",
+          "switch.panel_home_ralphi_zona_07_anular",
+          "switch.panel_home_ralphi_zona_08_anular",
+          "switch.panel_home_ralphi_zona_09_anular",
+          "switch.panel_home_ralphi_zona_10_anular",
+          "switch.panel_home_ralphi_zona_11_anular",
+          "switch.panel_home_ralphi_zona_12_anular",
+          "switch.panel_home_ralphi_zona_13_anular",
+          "switch.panel_home_ralphi_zona_14_anular",
+          "switch.panel_home_ralphi_zona_15_anular",
+          "switch.panel_home_ralphi_zona_16_anular",
+          "switch.panel_home_ralphi_zona_17_anular",
+          "switch.panel_home_ralphi_zona_18_anular",
+          "switch.panel_home_ralphi_zona_19_anular",
+          "switch.panel_home_ralphi_zona_20_anular",
+          "switch.panel_home_ralphi_zona_21_anular",
+          "switch.panel_home_ralphi_zona_22_anular",
+          "switch.panel_home_ralphi_zona_23_anular",
+          "switch.panel_home_ralphi_zona_24_anular",
+          "alarm_control_panel.ezviz_alarm",
+          "binary_sensor.entrada_alarm_schedules_enabled",
+          "binary_sensor.estudio_alarm_schedules_enabled",
+          "sensor.entrada_alarm_sound_level",
+          "sensor.entrada_last_alarm_time",
+          "sensor.entrada_last_alarm_picture_url",
+          "sensor.entrada_last_alarm_type_code",
+          "sensor.entrada_last_alarm_type_name",
+          "sensor.estudio_alarm_sound_level",
+          "sensor.estudio_last_alarm_time",
+          "sensor.estudio_last_alarm_picture_url",
+          "sensor.estudio_last_alarm_type_code",
+          "sensor.estudio_last_alarm_type_name",
+          "sensor.fire_cuarto_next_alarm",
+          "sensor.echo_disco_next_alarm",
+          "sensor.echo_cuarto_next_alarm",
+          "sensor.fire_sala_next_alarm",
+          "sensor.echo_cocina_next_alarm",
+          "sensor.echo_estudio_next_alarm",
+          "sensor.echo_sala_next_alarm"
+        ],
+        "alarm_control_panel_entities": [
+          "alarm_control_panel.panel_home_ralphi_panel_home_ralphi",
+          "alarm_control_panel.casa_mama_casa_mama",
+          "alarm_control_panel.ezviz_alarm",
+          "alarm_control_panel.la_victoria_particion_a",
+          "alarm_control_panel.la_victoria_particion_b",
+          "alarm_control_panel.la_victoria_particion_c",
+          "alarm_control_panel.la_victoria_particion_d"
+        ],
+        "alarm_control_panels": [
+          {
+            "entity_id": "alarm_control_panel.panel_home_ralphi_panel_home_ralphi",
+            "state": "disarmed",
+            "friendly_name": "Panel Home Ralphi Panel Home Ralphi",
+            "supported_features": 2,
+            "changed_at": "2026-09-27T20:20:14.256909+00:00",
+            "updated_at": "2026-09-27T20:26:35.699096+00:00"
+          },
+          {
+            "entity_id": "alarm_control_panel.casa_mama_casa_mama",
+            "state": "disarmed",
+            "friendly_name": "Casa Mama Casa Mama",
+            "supported_features": 2,
+            "changed_at": "2026-09-25T17:23:53.596670+00:00",
+            "updated_at": "2026-09-25T17:23:53.596670+00:00"
+          },
+          {
+            "entity_id": "alarm_control_panel.ezviz_alarm",
+            "state": "disarmed",
+            "friendly_name": "EZVIZ Alarm",
+            "supported_features": 3,
+            "changed_at": "2026-09-20T23:31:48.053793+00:00",
+            "updated_at": "2026-09-20T23:31:48.053793+00:00"
+          },
+          {
+            "entity_id": "alarm_control_panel.la_victoria_particion_a",
+            "state": "disarmed",
+            "friendly_name": "La Victoria  Partición A",
+            "supported_features": 2,
+            "changed_at": "2026-09-25T17:23:53.596428+00:00",
+            "updated_at": "2026-09-25T17:23:53.596428+00:00"
+          },
+          {
+            "entity_id": "alarm_control_panel.la_victoria_particion_b",
+            "state": "disarmed",
+            "friendly_name": "La Victoria  Partición B",
+            "supported_features": 2,
+            "changed_at": "2026-09-25T17:23:53.596518+00:00",
+            "updated_at": "2026-09-25T17:23:53.596518+00:00"
+          },
+          {
+            "entity_id": "alarm_control_panel.la_victoria_particion_c",
+            "state": "disarmed",
+            "friendly_name": "La Victoria  Partición C",
+            "supported_features": 2,
+            "changed_at": "2026-09-25T17:23:53.596587+00:00",
+            "updated_at": "2026-09-25T17:23:53.596587+00:00"
+          },
+          {
+            "entity_id": "alarm_control_panel.la_victoria_particion_d",
+            "state": "disarmed",
+            "friendly_name": "La Victoria  Partición D",
+            "supported_features": 2,
+            "changed_at": "2026-09-25T17:23:53.596623+00:00",
+            "updated_at": "2026-09-25T17:23:53.596623+00:00"
+          }
+        ],
+        "intelbras_guardian_direct_status": {
+          "ok": false,
+          "error": "intelbras_guardian_device_id_missing"
+        },
+        "tcp_probe": {
+          "ok": true,
+          "host": "192.168.1.202",
+          "port": 9009,
+          "state": "open"
+        },
+        "inferred": [
+          "intelbras_device",
+          "local_tcp_9009_open",
+          "home_assistant_alarm_control_panel_present"
+        ]
+      },
+      "safe_actions_applied": [
+        "verified_tcp_connectivity_9009_without_protocol_frames",
+        "verified_home_assistant_unifi_presence_tracker",
+        "read_home_assistant_alarm_control_panel_state"
+      ],
+      "actions_requiring_approval": [
+        "Validate a mature local Intelbras integration against this exact model before reading zones through protocol frames.",
+        "Configure Home Assistant alarm_control_panel only after credentials/protocol are confirmed.",
+        "Arm/disarm require explicit owner approval and the Home Assistant alarm_control_panel entity.",
+        "Panic, siren and PGM remain blocked until a physical runbook is validated."
+      ],
+      "fieldops_security": {
+        "capability": "read_only_alarm_presence_and_connectivity",
+        "event_source": "home_assistant_alarm_control_panel_or_unifi_device_tracker_plus_tcp_probe",
+        "can_verify_intrusion_state": true,
+        "can_execute_alarm_actions": true,
+        "alarm_actions_guard": "explicit_owner_approval_required"
+      },
+      "limitations": [
+        "Panic, siren and PGM remain blocked until physically validated.",
+        "Arm/disarm are routed only through Home Assistant and require explicit owner approval."
+      ]
+    },
+    "dmx": {
+      "ok": true,
+      "agent_id": "AG-59",
+      "status": "online",
+      "running": false,
+      "current_scene": "rainbow",
+      "safe_scenes": [
+        "rainbow",
+        "frenzy",
+        "police",
+        "fire",
+        "chill_lounge",
+        "morado_uv",
+        "rojo_sangre",
+        "blackout",
+        "aurora_cyan_suave_e2e_final",
+        "aurora_verde_demo",
+        "flash_all_demo",
+        "flash_verde_rapido_demo_e2e",
+        "pulse_morado_suave",
+        "pulse_morado_suave_demo_cursor_ux_final"
+      ],
+      "safe_colors": [
+        "rojo",
+        "verde",
+        "azul",
+        "amarillo",
+        "magenta",
+        "fucsia",
+        "cian",
+        "cyan",
+        "celeste",
+        "turquesa",
+        "naranja",
+        "ambar",
+        "dorado",
+        "violeta",
+        "morado",
+        "purpura",
+        "rosa",
+        "rosado",
+        "blanco",
+        "blanco_calido",
+        "blanco_frio",
+        "neon",
+        "cyberpunk"
+      ],
+      "safe_targets": [
+        "todas",
+        "all",
+        "tachos",
+        "beams",
+        "pulpos",
+        "bola_disco",
+        "tacho_plantas",
+        "tacho_escalera",
+        "tacho_peces",
+        "tacho_central"
+      ],
+      "backend": "local_dmx_engine"
+    }
+  },
+  "blockers": [],
+  "read_only": true,
+  "mutations_attempted": []
+}

@@ -1,0 +1,1838 @@
+{
+  "ok": true,
+  "site_id": "bellini_i_ii",
+  "site": {
+    "label": "Torres Bellini I-II",
+    "scope": "Bellini I-II only",
+    "transport_peer": "desktop-t2jle71",
+    "peer_tailscale_ip": "100.103.151.40",
+    "authorized_cidr": "192.168.3.0/24",
+    "peer_lan_ip": "192.168.3.236",
+    "gateway": "192.168.3.1",
+    "allow_external_scope": false
+  },
+  "count": 10,
+  "inventory": [
+    {
+      "device_id": "bellini_i_ii:generic_network:192.168.3.1",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.1",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "Grandstream",
+      "model": "",
+      "device_type": "router_gateway",
+      "provider_ids": [
+        "generic_network",
+        "grandstream_gwn"
+      ],
+      "services": [
+        {
+          "port": 22,
+          "protocol": "ssh",
+          "state": "open"
+        },
+        {
+          "port": 53,
+          "protocol": "dns",
+          "state": "open"
+        },
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        },
+        {
+          "port": 443,
+          "protocol": "https",
+          "state": "open"
+        },
+        {
+          "port": 8080,
+          "protocol": "http-alt",
+          "state": "open"
+        },
+        {
+          "port": 8443,
+          "protocol": "https-alt",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp_scan",
+          "detail": "6 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              22,
+              53,
+              80,
+              443,
+              8080,
+              8443
+            ]
+          }
+        }
+      ],
+      "confidence": 0.74,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "open",
+            "latency_ms": 277
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "open",
+            "latency_ms": 100
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 143
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 443,
+            "state": "open",
+            "latency_ms": 111
+          },
+          {
+            "port": 554,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8080,
+            "state": "open",
+            "latency_ms": 122
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "open",
+            "latency_ms": 160
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.1:80/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "http_443": {
+          "ok": false,
+          "url": "https://192.168.3.1:443/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "http_8080": {
+          "ok": false,
+          "url": "http://192.168.3.1:8080/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "http_8443": {
+          "ok": false,
+          "url": "https://192.168.3.1:8443/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:grandstream_ucm:192.168.3.2",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.2",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "Grandstream",
+      "model": "",
+      "device_type": "pbx_or_voice_gateway",
+      "provider_ids": [
+        "grandstream_ucm"
+      ],
+      "services": [
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        },
+        {
+          "port": 5060,
+          "protocol": "sip",
+          "state": "open"
+        },
+        {
+          "port": 5061,
+          "protocol": "sips",
+          "state": "open"
+        },
+        {
+          "port": 7547,
+          "protocol": "cwmp",
+          "state": "open"
+        },
+        {
+          "port": 8088,
+          "protocol": "asterisk-http",
+          "state": "open"
+        },
+        {
+          "port": 8089,
+          "protocol": "asterisk-https",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp/http",
+          "detail": "SIP/Asterisk/Grandstream voice ports observed",
+          "confidence": 0.68,
+          "raw": {}
+        },
+        {
+          "source": "tcp_scan",
+          "detail": "6 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              80,
+              5060,
+              5061,
+              7547,
+              8088,
+              8089
+            ]
+          }
+        }
+      ],
+      "confidence": 0.68,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 159
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 554,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5060,
+            "state": "open",
+            "latency_ms": 178
+          },
+          {
+            "port": 5061,
+            "state": "open",
+            "latency_ms": 242
+          },
+          {
+            "port": 7547,
+            "state": "open",
+            "latency_ms": 111
+          },
+          {
+            "port": 8088,
+            "state": "open",
+            "latency_ms": 133
+          },
+          {
+            "port": 8089,
+            "state": "open",
+            "latency_ms": 193
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.2:80/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:hikvision:192.168.3.3",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.3",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "Hikvision",
+      "model": "",
+      "device_type": "camera_or_recorder",
+      "provider_ids": [
+        "hikvision",
+        "rtsp"
+      ],
+      "services": [
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        },
+        {
+          "port": 443,
+          "protocol": "https",
+          "state": "open"
+        },
+        {
+          "port": 554,
+          "protocol": "rtsp",
+          "state": "open"
+        },
+        {
+          "port": 8000,
+          "protocol": "hikvision-sdk",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp",
+          "detail": "RTSP port 554 open",
+          "confidence": 0.55,
+          "raw": {
+            "host": "192.168.3.3"
+          }
+        },
+        {
+          "source": "tcp",
+          "detail": "Hikvision SDK port 8000 open",
+          "confidence": 0.7,
+          "raw": {}
+        },
+        {
+          "source": "tcp_scan",
+          "detail": "4 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              80,
+              443,
+              554,
+              8000
+            ]
+          }
+        }
+      ],
+      "confidence": 0.62,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 158
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 443,
+            "state": "open",
+            "latency_ms": 100
+          },
+          {
+            "port": 554,
+            "state": "open",
+            "latency_ms": 110
+          },
+          {
+            "port": 8000,
+            "state": "open",
+            "latency_ms": 190
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.3:80/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "http_443": {
+          "ok": false,
+          "url": "https://192.168.3.3:443/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "rtsp_554": {
+          "ok": false,
+          "port": 554,
+          "error": "ConnectionRefusedError",
+          "detail": "[Errno 111] Connection refused"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:hikvision:192.168.3.12",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.12",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "Hikvision",
+      "model": "",
+      "device_type": "camera_or_recorder",
+      "provider_ids": [
+        "hikvision",
+        "rtsp"
+      ],
+      "services": [
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        },
+        {
+          "port": 554,
+          "protocol": "rtsp",
+          "state": "open"
+        },
+        {
+          "port": 8000,
+          "protocol": "hikvision-sdk",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp",
+          "detail": "RTSP port 554 open",
+          "confidence": 0.55,
+          "raw": {
+            "host": "192.168.3.12"
+          }
+        },
+        {
+          "source": "tcp",
+          "detail": "Hikvision SDK port 8000 open",
+          "confidence": 0.7,
+          "raw": {}
+        },
+        {
+          "source": "tcp_scan",
+          "detail": "3 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              80,
+              554,
+              8000
+            ]
+          }
+        }
+      ],
+      "confidence": 0.62,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 177
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 554,
+            "state": "open",
+            "latency_ms": 112
+          },
+          {
+            "port": 8000,
+            "state": "open",
+            "latency_ms": 132
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.12:80/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "rtsp_554": {
+          "ok": false,
+          "port": 554,
+          "error": "ConnectionRefusedError",
+          "detail": "[Errno 111] Connection refused"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:hikvision:192.168.3.13",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.13",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "Hikvision",
+      "model": "",
+      "device_type": "camera_or_recorder",
+      "provider_ids": [
+        "hikvision",
+        "rtsp"
+      ],
+      "services": [
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        },
+        {
+          "port": 554,
+          "protocol": "rtsp",
+          "state": "open"
+        },
+        {
+          "port": 8000,
+          "protocol": "hikvision-sdk",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp",
+          "detail": "RTSP port 554 open",
+          "confidence": 0.55,
+          "raw": {
+            "host": "192.168.3.13"
+          }
+        },
+        {
+          "source": "tcp",
+          "detail": "Hikvision SDK port 8000 open",
+          "confidence": 0.7,
+          "raw": {}
+        },
+        {
+          "source": "tcp_scan",
+          "detail": "3 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              80,
+              554,
+              8000
+            ]
+          }
+        }
+      ],
+      "confidence": 0.62,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 176
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 554,
+            "state": "open",
+            "latency_ms": 112
+          },
+          {
+            "port": 8000,
+            "state": "open",
+            "latency_ms": 125
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.13:80/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "rtsp_554": {
+          "ok": false,
+          "port": 554,
+          "error": "ConnectionRefusedError",
+          "detail": "[Errno 111] Connection refused"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:grandstream_ucm:192.168.3.14",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.14",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "Grandstream",
+      "model": "",
+      "device_type": "pbx_or_voice_gateway",
+      "provider_ids": [
+        "grandstream_ucm",
+        "rtsp"
+      ],
+      "services": [
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        },
+        {
+          "port": 443,
+          "protocol": "https",
+          "state": "open"
+        },
+        {
+          "port": 554,
+          "protocol": "rtsp",
+          "state": "open"
+        },
+        {
+          "port": 8088,
+          "protocol": "asterisk-http",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp",
+          "detail": "RTSP port 554 open",
+          "confidence": 0.55,
+          "raw": {
+            "host": "192.168.3.14"
+          }
+        },
+        {
+          "source": "tcp/http",
+          "detail": "SIP/Asterisk/Grandstream voice ports observed",
+          "confidence": 0.68,
+          "raw": {}
+        },
+        {
+          "source": "tcp_scan",
+          "detail": "4 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              80,
+              443,
+              554,
+              8088
+            ]
+          }
+        }
+      ],
+      "confidence": 0.68,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 176
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 443,
+            "state": "open",
+            "latency_ms": 154
+          },
+          {
+            "port": 554,
+            "state": "open",
+            "latency_ms": 174
+          },
+          {
+            "port": 8000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "open",
+            "latency_ms": 159
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.14:80/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "http_443": {
+          "ok": false,
+          "url": "https://192.168.3.14:443/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "rtsp_554": {
+          "ok": false,
+          "port": 554,
+          "error": "ConnectionRefusedError",
+          "detail": "[Errno 111] Connection refused"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:rtsp:192.168.3.15",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.15",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "device_type": "video_stream",
+      "provider_ids": [
+        "rtsp"
+      ],
+      "services": [
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        },
+        {
+          "port": 554,
+          "protocol": "rtsp",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp",
+          "detail": "RTSP port 554 open",
+          "confidence": 0.55,
+          "raw": {
+            "host": "192.168.3.15"
+          }
+        },
+        {
+          "source": "tcp_scan",
+          "detail": "2 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              80,
+              554
+            ]
+          }
+        }
+      ],
+      "confidence": 0.25,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 177
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 554,
+            "state": "open",
+            "latency_ms": 112
+          },
+          {
+            "port": 8000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.15:80/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        },
+        "rtsp_554": {
+          "ok": false,
+          "port": 554,
+          "error": "ConnectionRefusedError",
+          "detail": "[Errno 111] Connection refused"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:generic_network:192.168.3.145",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.145",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "device_type": "unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp_scan",
+          "detail": "1 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              80
+            ]
+          }
+        }
+      ],
+      "confidence": 0.25,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 59
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 554,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.145:80/",
+          "error": "URLError",
+          "detail": "<urlopen error timed out>"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:generic_network:192.168.3.216",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.216",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "device_type": "unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [
+        {
+          "port": 8443,
+          "protocol": "https-alt",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp_scan",
+          "detail": "1 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              8443
+            ]
+          }
+        }
+      ],
+      "confidence": 0.25,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 554,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "open",
+            "latency_ms": 67
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          }
+        ],
+        "http_8443": {
+          "ok": false,
+          "url": "https://192.168.3.216:8443/",
+          "error": "URLError",
+          "detail": "<urlopen error [Errno 111] Connection refused>"
+        }
+      }
+    },
+    {
+      "device_id": "bellini_i_ii:generic_network:192.168.3.217",
+      "site_id": "bellini_i_ii",
+      "ip": "192.168.3.217",
+      "mac": "",
+      "hostname": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "device_type": "unknown",
+      "provider_ids": [
+        "generic_network"
+      ],
+      "services": [
+        {
+          "port": 80,
+          "protocol": "http",
+          "state": "open"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "tcp_scan",
+          "detail": "1 open port(s) observed",
+          "confidence": 0.55,
+          "raw": {
+            "open_ports": [
+              80
+            ]
+          }
+        }
+      ],
+      "confidence": 0.25,
+      "read_only": true,
+      "mutations_attempted": [],
+      "raw_probe": {
+        "tcp": [
+          {
+            "port": 22,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 23,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 53,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 80,
+            "state": "open",
+            "latency_ms": 226
+          },
+          {
+            "port": 81,
+            "state": "closed_or_filtered",
+            "error": "ConnectionRefusedError"
+          },
+          {
+            "port": 443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 554,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8080,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8081,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8443,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5060,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5061,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 7547,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8088,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 8089,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 9009,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37777,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 37778,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5357,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 2020,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          },
+          {
+            "port": 5000,
+            "state": "closed_or_filtered",
+            "error": "TimeoutError"
+          }
+        ],
+        "http_80": {
+          "ok": false,
+          "url": "http://192.168.3.217:80/",
+          "error": "URLError",
+          "detail": "<urlopen error timed out>"
+        }
+      }
+    }
+  ],
+  "transport": {
+    "peer": "desktop-t2jle71",
+    "peer_tailscale_ip": "100.103.151.40",
+    "authorized_cidr": "192.168.3.0/24",
+    "note": "Read-only probes are scoped to the configured CIDR; no device auth or writes are attempted."
+  },
+  "live": true,
+  "read_only": true,
+  "mutations_attempted": [],
+  "generated_at": "2026-09-27T20:24:26.719410+00:00"
+}

@@ -7,10 +7,26 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.5"
+PROFILES_VERSION = "1.4.6"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
+
+    "device_fabric": {
+        "label": "Universal Physical Device Fabric — discovery/inventory read-only",
+        "model_minimum": "small",
+        "max_tools": 8,
+        "tools": [
+            "device_fabric_providers",
+            "device_fabric_discover",
+            "device_fabric_probe",
+            "device_fabric_bind",
+            "device_fabric_inventory",
+            "device_fabric_capabilities",
+            "device_fabric_health",
+            "device_fabric_get",
+        ],
+    },
 
     "chatgpt_compact": {
         "label": "ChatGPT bootstrap compacto — descubrir, coordinar y enrutar",
