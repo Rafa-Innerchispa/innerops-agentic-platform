@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible defect in InnerOS
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove credentials, customer data, private network details, and personal information before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Release tag or exact commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest reproducible sequence.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Logs, traces, task IDs, test output, or screenshots with secrets removed.
