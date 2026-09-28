@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import os
 import re
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from raphiia_openai.agent_auto_log import record_agent_run
@@ -262,6 +264,218 @@ def peer_route_check(node: str = "amd") -> dict[str, Any]:
         "default_routes": result.get("default_routes") or [],
         "raw": result.get("raw") or result,
     }
+
+
+
+def _validate_network_probe_target(target: str, networks: list[ipaddress._BaseNetwork]) -> str:
+    raw = (target or "").strip()
+    if not raw:
+        raise ValueError("empty_network_probe_target")
+    try:
+        address = ipaddress.ip_address(raw)
+    except ValueError as exc:
+        raise ValueError("network_probe_requires_ip_literal") from exc
+    if address.version != 4:
+        raise ValueError("network_probe_ipv4_only")
+    if not any(address in network for network in networks):
+        raise PermissionError("network_probe_target_out_of_scope")
+    return str(address)
+
+
+def _network_probe_scope(
+    project_id: str,
+    node: str,
+) -> tuple[list[ipaddress._BaseNetwork], tuple[str, ...], dict[str, Any]]:
+    """Load read-only network scope from the private project runtime config."""
+    project_key = (project_id or "").strip()
+    if not project_key:
+        raise ValueError("project_id_required_for_network_probe")
+
+    from raphiia_openai import project_runtime_registry as prr
+
+    resolved = prr.resolve_project(project_id=project_key, node=node)
+    project_path = Path(str(resolved.get("project_path") or "")).expanduser().resolve()
+    if not str(project_path):
+        raise FileNotFoundError("network_probe_project_path_missing")
+
+    config_path = (project_path / "config" / "site.json").resolve()
+    if project_path != config_path and project_path not in config_path.parents:
+        raise PermissionError("network_probe_config_path_outside_project")
+    if not config_path.is_file():
+        raise FileNotFoundError("network_probe_site_config_missing")
+
+    try:
+        spec = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ValueError("network_probe_site_config_invalid") from exc
+
+    cidrs = list(spec.get("authorized_subnets") or [])
+    if not cidrs:
+        raise PermissionError("network_probe_no_authorized_subnets")
+
+    networks: list[ipaddress._BaseNetwork] = []
+    for cidr in cidrs:
+        try:
+            network = ipaddress.ip_network(str(cidr), strict=True)
+        except ValueError as exc:
+            raise ValueError("network_probe_invalid_authorized_subnet") from exc
+        if network.version != 4:
+            raise ValueError("network_probe_ipv4_only")
+        if not network.is_private or network.prefixlen < 16:
+            raise PermissionError("network_probe_subnet_not_private_or_too_broad")
+        networks.append(network)
+
+    raw_sentinels = spec.get("diagnostic_sentinels") or {}
+    sentinels: list[str] = []
+    if isinstance(raw_sentinels, dict):
+        for values in raw_sentinels.values():
+            if isinstance(values, str):
+                sentinels.append(values)
+            elif isinstance(values, list):
+                sentinels.extend(str(item) for item in values)
+    elif isinstance(raw_sentinels, list):
+        sentinels.extend(str(item) for item in raw_sentinels)
+
+    normalized_sentinels = tuple(
+        _validate_network_probe_target(item, networks)
+        for item in sentinels
+    )
+    return networks, normalized_sentinels, {
+        "project_id": project_key,
+        "project_path": str(project_path),
+        "site_id": spec.get("site_id") or project_key,
+    }
+
+
+def _parse_ping_output(stdout: str) -> dict[str, Any]:
+    text = stdout or ""
+    packet = re.search(
+        r"(\d+) packets transmitted,\s*(\d+) (?:packets )?received,.*?([\d.]+)% packet loss",
+        text,
+        re.S,
+    )
+    rtt = re.search(
+        r"(?:rtt|round-trip) min/avg/max/(?:mdev|stddev) = "
+        r"([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+) ms",
+        text,
+    )
+    result: dict[str, Any] = {
+        "transmitted": 0,
+        "received": 0,
+        "packet_loss_percent": 100.0,
+        "rtt_ms": None,
+    }
+    if packet:
+        result.update(
+            {
+                "transmitted": int(packet.group(1)),
+                "received": int(packet.group(2)),
+                "packet_loss_percent": float(packet.group(3)),
+            }
+        )
+    if rtt:
+        result["rtt_ms"] = {
+            "min": float(rtt.group(1)),
+            "avg": float(rtt.group(2)),
+            "max": float(rtt.group(3)),
+            "mdev": float(rtt.group(4)),
+        }
+    return result
+
+
+def peer_network_path_probe(
+    project_id: str,
+    targets: list[str] | str | None = None,
+    node: str = "primary",
+    count: int = 3,
+    timeout_seconds: int = 1,
+) -> dict[str, Any]:
+    """Read-only ICMP/route probe constrained by a private project's site config."""
+    node = whatsapp_service_ops.normalize_node(node)
+    networks, default_sentinels, project_meta = _network_probe_scope(project_id, node)
+    requested = targets if targets is not None else list(default_sentinels)
+    if isinstance(requested, str):
+        requested = [part.strip() for part in requested.split(",") if part.strip()]
+    requested = list(requested or [])
+    if not requested:
+        return {
+            "ok": False,
+            "error": "network_probe_targets_required",
+            "project_id": project_meta["project_id"],
+        }
+    if len(requested) > 32:
+        return {"ok": False, "error": "network_probe_target_limit", "max_targets": 32}
+
+    count = max(1, min(int(count or 3), 10))
+    timeout_seconds = max(1, min(int(timeout_seconds or 1), 5))
+    validated = [_validate_network_probe_target(item, networks) for item in requested]
+
+    results: list[dict[str, Any]] = []
+    for target in validated:
+        route_proc = _run_node(node, ["ip", "route", "get", target], timeout=10)
+        ping_proc = _run_node(
+            node,
+            ["ping", "-n", "-c", str(count), "-W", str(timeout_seconds), target],
+            timeout=max(10, count * timeout_seconds + 5),
+        )
+        parsed = _parse_ping_output(ping_proc.stdout or "")
+        reachable = parsed["received"] > 0
+        results.append(
+            {
+                "target": target,
+                "reachable": reachable,
+                "packet_loss_percent": parsed["packet_loss_percent"],
+                "transmitted": parsed["transmitted"],
+                "received": parsed["received"],
+                "rtt_ms": parsed["rtt_ms"],
+                "route": _redact((route_proc.stdout or "").strip())[:1000],
+                "route_ok": route_proc.returncode == 0,
+                "icmp_returncode": ping_proc.returncode,
+                "icmp_error": _redact((ping_proc.stderr or "").strip())[:500] or None,
+            }
+        )
+
+    reachable_count = sum(1 for item in results if item["reachable"])
+    lossy = [item["target"] for item in results if 0 < item["packet_loss_percent"] < 100]
+    down = [item["target"] for item in results if not item["reachable"]]
+    payload = {
+        "ok": True,
+        "agent_id": AGENT_ID,
+        "project_id": project_meta["project_id"],
+        "site_id": project_meta["site_id"],
+        "node": node,
+        "scope": [str(network) for network in networks],
+        "count_per_target": count,
+        "timeout_seconds": timeout_seconds,
+        "results": results,
+        "summary": {
+            "targets": len(results),
+            "reachable": reachable_count,
+            "unreachable": len(results) - reachable_count,
+            "lossy_targets": lossy,
+            "down_targets": down,
+        },
+        "security": {
+            "read_only": True,
+            "ip_literals_only": True,
+            "project_runtime_scope_enforced": True,
+            "private_subnets_only": True,
+            "shell": "not_exposed",
+            "mutation": "denied",
+        },
+    }
+    _audit_peer(
+        "peer_network_path_probe",
+        {
+            "ok": True,
+            "node": node,
+            "project_id": project_meta["project_id"],
+            "targets": len(results),
+            "reachable": reachable_count,
+            "unreachable": len(results) - reachable_count,
+        },
+    )
+    return payload
 
 
 def peer_wifi_scan(node: str = "amd", interface: str = "") -> dict[str, Any]:
