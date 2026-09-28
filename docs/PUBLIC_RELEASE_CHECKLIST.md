@@ -7,10 +7,10 @@ This checklist is the gate for presenting InnerOS Agentic Platform as a reusable
 - [x] Clear README and architecture narrative
 - [x] Contribution policy
 - [x] Security policy
-- [ ] Open-source license selected by owner
+- [x] Open-source license selected by owner: Apache-2.0
 - [ ] Repository topics/description normalized
 - [ ] Release tags and changelog cadence defined
-- [ ] Issue/PR templates
+- [x] Issue/PR templates
 
 ## Reproducibility
 
@@ -72,6 +72,6 @@ Before a public release:
 - [ ] salvage branches converted to PRs or archived;
 - [ ] no branch contains secrets or private operational data.
 
-## License note
+## License
 
-Do not add a permissive open-source license automatically. Choosing MIT, Apache-2.0, AGPL, BSL, or another license changes reuse and commercial rights. The repository owner must make that explicit choice before the first formal open-source release.
+Apache License 2.0 selected by the repository owner. Commercial services and private modules remain compatible with the open-source core; see `docs/OPEN_SOURCE_AND_COMMERCIAL_MODEL.md`.

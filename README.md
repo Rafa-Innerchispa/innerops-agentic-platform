@@ -27,6 +27,19 @@ This public repository is the **single canonical hackathon source of truth**. Ex
 
 ---
 
+
+## Open source, commercially supported
+
+InnerOS Agentic Platform is open source under the **Apache License 2.0**.
+
+You can use, modify, redistribute, and use the open-source core commercially under the license terms. InnerChispa also offers and may develop paid services and products around the platform, including deployment, managed operations, enterprise support, integrations, security hardening, appliances, training, and private customer-specific modules.
+
+The software license does not grant a general right to use InnerOS or InnerChispa trademarks or branding in a way that implies endorsement.
+
+See [LICENSE](LICENSE), [NOTICE](NOTICE), and [Open Source and Commercial Model](docs/OPEN_SOURCE_AND_COMMERCIAL_MODEL.md).
+
+---
+
 ## Why this exists
 
 InnerOS did not start as a hackathon prompt.
@@ -435,6 +448,9 @@ The strongest candidate is the Executive Intelligence workflow built from real i
 - [`docs/AGENTIC_DEFENSE.md`](docs/AGENTIC_DEFENSE.md) - security/governance mapping
 - [`docs/AMD_ROCM_STRATEGY.md`](docs/AMD_ROCM_STRATEGY.md) - AMD Skills and ROCm adoption strategy
 - [`docs/ALL_THINGS_AGENTIC.md`](docs/ALL_THINGS_AGENTIC.md) - submission scope, requirements and evidence checklist
+- [`docs/OPEN_SOURCE_AND_COMMERCIAL_MODEL.md`](docs/OPEN_SOURCE_AND_COMMERCIAL_MODEL.md) - licensing, commercial services, and trademark boundary
+- [`docs/LAUNCH_AND_RELEASE.md`](docs/LAUNCH_AND_RELEASE.md) - public release and hackathon launch guide
+- [`docs/BRANCH_AND_RELEASE_POLICY.md`](docs/BRANCH_AND_RELEASE_POLICY.md) - canonical integration and branch lifecycle
 - `platform/README.md` - legacy/core MCP runtime notes retained for historical/technical context
 
 ---
