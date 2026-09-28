@@ -20,6 +20,7 @@ def _merge(agent_id: str, action: str, result: dict[str, Any]) -> dict[str, Any]
     """Envuelve resultado de módulo ag*.py sin colisión agent_id en **kwargs."""
     payload = dict(result)
     payload.pop("agent_id", None)
+    payload.pop("action", None)
     return _ok(agent_id, action, **payload)
 
 
@@ -382,6 +383,12 @@ def _disk_status() -> dict[str, Any]:
     return disk_steward.build_status(include_candidates=False)
 
 
+def run_ag60(message: str = "", dry_run: bool = True, **_: Any) -> dict[str, Any]:
+    from raphiia_openai import device_fabric
+
+    return _merge("AG-60", "device_fabric", device_fabric.run_device_fabric_agent(message, dry_run=dry_run))
+
+
 POOL_RUNNERS: dict[str, Runner] = {
     "AG-01": run_ag01,
     "AG-02": run_ag02,
@@ -416,6 +423,7 @@ POOL_RUNNERS: dict[str, Runner] = {
     "AG-35": run_ag35,
     "AG-36": run_ag36,
     "AG-45": run_ag45,
+    "AG-60": run_ag60,
 }
 
 
@@ -424,6 +432,7 @@ def get_runner_registry() -> dict[str, Runner]:
     reg.update(_import_dedicated())
     from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
     reg["AG-59"] = lambda message="", dry_run=True, **kw: _merge("AG-59", "dmx", ag59.run_dmx_orchestrator(message, dry_run=dry_run))
+    reg["AG-60"] = run_ag60
     return reg
 
 
