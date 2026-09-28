@@ -737,6 +737,55 @@ def route_ai_task(title: str, body: str, task_type: str | None = None) -> dict[s
     }
 
 
+def _run_ollama_fallback(*, task_type, prompt, requested_model, max_tokens, temperature, reason):
+    """Bounded local-only failover; never pass an AMD model to Ollama blindly."""
+    endpoint = _ollama_url_for_provider("local-intel-4")
+    tags = _http_json(f"{endpoint}/api/tags", timeout=5)
+    available = {
+        item.get("model") or item.get("name")
+        for item in (tags.get("data") or {}).get("models", [])
+    } if tags.get("ok") else set()
+    candidates = [requested_model, "qwen2.5-coder:7b", "deepseek-coder-v2:16b"]
+    selected = next((name for name in candidates if name in available), None)
+    meta = {
+        "runtime": "local_model", "backend": "ollama",
+        "provider_id": "local-intel-4", "selected_node": "intel",
+        "selected_model": selected, "model": selected,
+        "endpoint": f"{endpoint}/api/chat", "task_type": task_type,
+        "fallback_reason": reason, "fallback_silent": False,
+        "fallback_from_provider": "local-amd-5",
+        "fallback_from_model": requested_model, "external_needed": False,
+    }
+    if selected is None:
+        result = {"ok": False, "error": "local_ollama_fallback_unavailable"}
+    else:
+        options = {"temperature": temperature}
+        if max_tokens is not None:
+            options["num_predict"] = int(max_tokens)
+        result = _http_json(
+            f"{endpoint}/api/chat", method="POST", timeout=180,
+            body={"model": selected, "stream": False, "options": options,
+                  "messages": [
+                      {"role": "system", "content": "Responde con precisión. Respeta el formato solicitado."},
+                      {"role": "user", "content": prompt},
+                  ]},
+        )
+    data = result.get("data") or {}
+    content = (data.get("message") or {}).get("content") or ""
+    ok = bool(result.get("ok") and content.strip() and not data.get("error"))
+    log = _log_route(
+        title=task_type, body=prompt, task_type=task_type,
+        runtime="local_model", model=selected, local_ok=ok,
+        external_needed=False, approval_required=False,
+        reason=f"{reason}; provider=local-intel-4; node=intel; model={selected}",
+        decision="executed_local_fallback" if ok else "error",
+    )
+    return {
+        **meta, "ok": ok, "response": content, "routing_log": log,
+        **({} if ok else {"error": result.get("error") or data.get("error") or "local_ollama_empty_response"}),
+    }
+
+
 def run_local_model(
     *,
     task_type: str,
@@ -754,19 +803,11 @@ def run_local_model(
     health = local_model_health()
     provider_health = _http_ok(f"{vllm_url}/v1/models") if backend == "vllm" and provider_id == "local-amd-5" else _http_ok(f"{ollama_url}/api/tags")
     if backend == "vllm" and provider_id == "local-amd-5" and not provider_health.get("ok"):
-        return {
-            "ok": False,
-            "error": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
-            "endpoint": vllm_url,
-            "health": health,
-            "provider_health": provider_health,
-            "recommended_model": selected,
-            "selected_model": selected,
-            "selected_node": "amd",
-            "provider_id": provider_id,
-            "fallback_silent": False,
-            "fallback_reason": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
-        }
+        return _run_ollama_fallback(
+            task_type=classification["task_type"], prompt=prompt,
+            requested_model=selected, max_tokens=max_tokens, temperature=temperature,
+            reason="amd_vllm_unreachable_from_intel" if IS_INTEL_NODE else "amd_vllm_unreachable",
+        )
     if not (health.get("ok") or provider_health.get("ok")):
         return {
             "ok": False,
@@ -815,14 +856,11 @@ def run_local_model(
                 reason="vLLM execution failed; no silent fallback",
                 decision="error",
             )
-            return {
-                **result,
-                "task_type": classification["task_type"],
-                "selected_model": selected,
-                "selected_node": "amd",
-                "provider_id": provider_id,
-                "fallback_silent": False,
-            }
+            return _run_ollama_fallback(
+                task_type=classification["task_type"], prompt=prompt,
+                requested_model=selected, max_tokens=max_tokens, temperature=temperature,
+                reason="amd_vllm_generation_failed",
+            )
         log = _log_route(
             title=classification["task_type"],
             body=prompt,
