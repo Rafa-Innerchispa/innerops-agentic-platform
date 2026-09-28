@@ -40,6 +40,15 @@ See [LICENSE](LICENSE), [NOTICE](NOTICE), and [Open Source and Commercial Model]
 
 ---
 
+
+## Why open source
+
+InnerOS is open source because durable agent operations benefit from inspection, reuse, and shared engineering rather than another opaque black box. The strategic value for InnerChispa is not a hidden code file; it is the combination of deployment experience, integrations, operational reliability, support, brand, customer relationships, and the ability to turn the platform into working outcomes.
+
+See [Why InnerOS is Open Source](docs/WHY_OPEN_SOURCE.md), [Governance](GOVERNANCE.md), [Roadmap](ROADMAP.md), and [Support](SUPPORT.md).
+
+---
+
 ## Why this exists
 
 InnerOS did not start as a hackathon prompt.
