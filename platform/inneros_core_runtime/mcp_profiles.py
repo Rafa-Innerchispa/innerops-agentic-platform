@@ -474,7 +474,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "owner_dev": {
         "label": "Owner development local seguro",
         "model_minimum": "medium",
-        "max_tools": 174,
+        "max_tools": 175,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -532,6 +532,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             "peer_wifi_connect",
             "peer_wifi_disconnect",
             "peer_route_check",
+            "peer_network_path_probe",
             "peer_secret_store_wifi",
             "peer_wifi_forget",
             "peer_package_status",

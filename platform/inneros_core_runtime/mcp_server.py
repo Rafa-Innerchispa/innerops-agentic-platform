@@ -530,6 +530,26 @@ def peer_route_check(node: str = "amd") -> dict[str, Any]:
 
 
 @mcp.tool
+def peer_network_path_probe(
+    project_id: str,
+    targets: list[str] | str | None = None,
+    node: str = "primary",
+    count: int = 3,
+    timeout_seconds: int = 1,
+) -> dict[str, Any]:
+    """AG-41: ICMP/route read-only acotado por config privada del proyecto."""
+    from raphiia_openai.agents import ag41_peer_ops_executor as ag41
+
+    return ag41.peer_network_path_probe(
+        project_id=project_id,
+        targets=targets,
+        node=node,
+        count=count,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+@mcp.tool
 def peer_secret_store_wifi(node: str, ssid: str, secret: str, approval_id: str) -> dict[str, Any]:
     """AG-41: guarda PSK Wi-Fi server-side y devuelve solo credential_ref."""
     from raphiia_openai.agents import ag41_peer_ops_executor as ag41
