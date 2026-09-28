@@ -1,0 +1,13 @@
+# Canonical ownership for high-risk platform areas
+
+# Default repository ownership
+* @Rafa-Innerchispa
+
+# Coordination and durable execution
+/platform/inneros_core_runtime/ @Rafa-Innerchispa
+/platform/raphiia_openai/ @Rafa-Innerchispa
+
+# Security-sensitive public configuration and policies
+/SECURITY.md @Rafa-Innerchispa
+/.github/ @Rafa-Innerchispa
+/platform/.env.example @Rafa-Innerchispa
