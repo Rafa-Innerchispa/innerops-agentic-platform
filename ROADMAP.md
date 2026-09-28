@@ -13,7 +13,8 @@ Goal: make the architecture reproducible and understandable from a clean clone.
 - clean public/private configuration boundary;
 - publish focused integration tests;
 - publish first reproducible demo workflow;
-- cut `v0.1.0`.
+- prepare `v0.1.0` release notes and public landing page;
+- cut `v0.1.0` only after convergence, clean-clone, security/privacy, and MCP-router gates pass.
 
 ## v0.2 - Reliable agent fleet
 
