@@ -40,15 +40,13 @@ path and is not acceptable.
 Run in an isolated environment:
 
 ```bash
-PYTHONPATH=platform python platform/tests/test_coordination_recovery_p0.py -v
-python -m py_compile \
-  platform/inneros_core_runtime/temporal_worker.py \
-  platform/inneros_core_runtime/temporal_workflows.py \
-  platform/inneros_core_runtime/temporal_activities.py \
-  platform/inneros_core_runtime/durable_coordination_spine.py \
-  platform/inneros_core_runtime/coordination_live.py
-git diff --check
+INNEROS_P0_CANARY_ACK=I_UNDERSTAND_NO_DEPLOY \
+  ./scripts/run_p0_coordination_canary.sh
 ```
+
+The script refuses to run on the canonical production checkout, requires a
+clean recovery branch, and does not restart services or connect to production
+databases.
 
 ## Runtime canary plan — no production promotion yet
 
