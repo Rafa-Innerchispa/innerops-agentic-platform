@@ -4634,3 +4634,30 @@ if __name__ == "__main__":
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
     mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp")
+
+def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
+    """Restrict tools advertised and callable by this MCP process to one profile."""
+    from fastmcp.server.transforms import Visibility
+    from raphiia_openai import mcp_profiles
+
+    profile = mcp_profiles.get_profile(profile_name)
+    if not profile.get("ok"):
+        raise RuntimeError(f"unknown MCP tool profile: {profile_name}")
+    names = set(profile["tools"])
+    mcp.add_transform(Visibility(False, components={"tool"}, match_all=True))
+    mcp.add_transform(Visibility(True, components={"tool"}, names=names))
+    return {
+        "profile": profile_name,
+        "tool_count": len(names),
+        "catalog_pin": profile["catalog_pin"],
+        "profiles_version": profile["profiles_version"],
+    }
+
+
+if __name__ == "__main__":
+    runtime_profile = os.getenv("MCP_TOOL_PROFILE", "").strip().lower()
+    if runtime_profile:
+        profile_info = _apply_runtime_tool_profile(runtime_profile)
+        mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
+    mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
+    mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp", middleware=[StarletteMiddleware(McpCompatibilityProbeMiddleware)])
