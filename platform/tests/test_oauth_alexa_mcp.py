@@ -16,7 +16,7 @@ for name in tuple(sys.modules):
         sys.modules.pop(name, None)
 
 from inneros_core_runtime import auth_server, oauth_store, settings
-from inneros_core_runtime.oauth_metadata import authorization_server_metadata
+from inneros_core_runtime.oauth_metadata import authorization_server_metadata, protected_resource_metadata
 
 
 RESOURCE = "https://voz.pcdoctor.ai/mcp"
@@ -68,6 +68,26 @@ def test_small_router_resource_is_canonical_and_exact():
     assert resource in settings.OAUTH_ACCEPTED_MCP_RESOURCES
     assert "https://mcp.pcdoctor.ai/router" not in settings.OAUTH_ACCEPTED_MCP_RESOURCES
     assert "https://mcp.pcdoctor.ai/router/mcp/other" not in settings.OAUTH_ACCEPTED_MCP_RESOURCES
+
+
+def test_router_protected_resource_metadata_is_exact_and_fail_closed():
+    resource = "https://mcp.pcdoctor.ai/router/mcp"
+    meta = protected_resource_metadata(
+        "mcp.pcdoctor.ai",
+        resource_override=resource,
+    )
+    assert meta["resource"] == resource
+    with pytest.raises(ValueError, match="oauth_resource_not_accepted"):
+        protected_resource_metadata(
+            "mcp.pcdoctor.ai",
+            resource_override="https://mcp.pcdoctor.ai/router/mcp/other",
+        )
+
+
+def test_router_protected_resource_metadata_route_is_declared():
+    source = (PLATFORM_DIR / "inneros_core_runtime" / "mcp_server.py").read_text(encoding="utf-8")
+    assert '@mcp.custom_route("/.well-known/oauth-protected-resource/router/mcp"' in source
+    assert 'resource_override="https://mcp.pcdoctor.ai/router/mcp"' in source
 
 def test_metadata_matches_official_alexa_authorization_code_flow():
     meta = authorization_server_metadata("auth.pcdoctor.ai")
