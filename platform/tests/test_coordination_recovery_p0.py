@@ -13,6 +13,7 @@ from unittest.mock import patch
 from inneros_core_runtime import coordination_live
 from inneros_core_runtime import durable_coordination_spine as spine
 from inneros_core_runtime import mcp_diagnostics
+from inneros_core_runtime import agent_identity
 from inneros_core_runtime.memory import agent_messages
 
 
@@ -114,6 +115,14 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
         self.assertIn("profile", signature.parameters)
         source = inspect.getsource(mcp_diagnostics.diagnose_mcp_session)
         self.assertIn("expected_tool_count = len(expected_tools)", source)
+
+    def test_local_agent_mailboxes_do_not_fall_back_to_chatgpt(self):
+        self.assertEqual(agent_identity.canonical_mailbox("qwen-coding"), "qwen_coding")
+        self.assertEqual(agent_identity.canonical_mailbox("codex-repair"), "codex_repair")
+        self.assertEqual(
+            agent_identity.canonical_mailbox("integration-guardian"),
+            "integration_guardian",
+        )
 
 
 if __name__ == "__main__":
