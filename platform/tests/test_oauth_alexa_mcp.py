@@ -15,7 +15,7 @@ for name in tuple(sys.modules):
     if name == "inneros_core_runtime" or name.startswith("inneros_core_runtime."):
         sys.modules.pop(name, None)
 
-from inneros_core_runtime import auth_server, oauth_store
+from inneros_core_runtime import auth_server, oauth_store, settings
 from inneros_core_runtime.oauth_metadata import authorization_server_metadata
 
 
@@ -61,6 +61,13 @@ class DB:
     def __getitem__(self, name):
         return self.collections.setdefault(name, Collection())
 
+
+
+def test_small_router_resource_is_canonical_and_exact():
+    resource = "https://mcp.pcdoctor.ai/router/mcp"
+    assert resource in settings.OAUTH_ACCEPTED_MCP_RESOURCES
+    assert "https://mcp.pcdoctor.ai/router" not in settings.OAUTH_ACCEPTED_MCP_RESOURCES
+    assert "https://mcp.pcdoctor.ai/router/mcp/other" not in settings.OAUTH_ACCEPTED_MCP_RESOURCES
 
 def test_metadata_matches_official_alexa_authorization_code_flow():
     meta = authorization_server_metadata("auth.pcdoctor.ai")
