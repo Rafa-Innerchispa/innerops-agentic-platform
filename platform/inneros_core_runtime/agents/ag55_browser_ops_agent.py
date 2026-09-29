@@ -2,10 +2,12 @@
 
 Tareas puntuales: navegar, captura, rellenar formularios allowlisted, extraer texto.
 Evidencia en data/ralfia/browser_ops/evidence/.
+Subred autorizada para dispositivos: 192.168.3.0/24 (Bellini I-II read-only).
 """
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -45,7 +47,13 @@ DEFAULT_ALLOWLIST = (
     "login.microsoftonline.com",
     "login.live.com",
     "outlook.live.com",
+    "gwn.cloud",
+    "www.gwn.cloud",
+    "grandstream.com",
+    "www.grandstream.com",
 )
+
+BELLINI_SUBNET = ipaddress.ip_network("192.168.3.0/24")
 
 EVIDENCE_ROOT = Path(os.getenv(
     "BROWSER_OPS_EVIDENCE",
@@ -75,17 +83,73 @@ def _allowlist() -> tuple[str, ...]:
     return DEFAULT_ALLOWLIST
 
 
-def _host_allowed(url: str) -> bool:
+def _url_allowed_result(
+    url: str,
+    *,
+    local_preview: bool = False,
+    loopback_ports: list[int] | None = None,
+) -> dict[str, Any]:
+    url = (url or "").strip()
+    if not url:
+        return {"ok": False, "error": "missing_url"}
     try:
-        host = (urlparse(url).hostname or "").lower()
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        port = parsed.port
     except ValueError:
-        return False
+        return {"ok": False, "error": "invalid_url", "url": url}
+
     if not host:
-        return False
+        return {"ok": False, "error": "missing_host", "url": url}
+
+    # 1. Check Bellini Subnet 192.168.3.0/24 (Scope Bellini I-II read-only)
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip in BELLINI_SUBNET:
+            return {
+                "ok": True,
+                "host": host,
+                "scope": "bellini_read_only",
+                "subnet": "192.168.3.0/24",
+                "mutation_policy": "read_only",
+            }
+        # Other private IPs are forbidden unless explicit loopback preview
+        if ip.is_private or ip.is_loopback:
+            if local_preview and host in ("127.0.0.1", "localhost") and loopback_ports and port in loopback_ports:
+                return {"ok": True, "host": host, "scope": "loopback_preview", "port": port}
+            return {
+                "ok": False,
+                "error": "private_network_forbidden",
+                "host": host,
+                "allowed_subnet": "192.168.3.0/24",
+                "reason": "Private IP is outside authorized Bellini 192.168.3.0/24 subnet",
+            }
+    except ValueError:
+        pass
+
+    # 2. Check Domain Allowlist
     for allowed in _allowlist():
         if host == allowed or host.endswith(f".{allowed}"):
-            return True
-    return False
+            return {"ok": True, "host": host, "scope": "domain_allowlisted"}
+
+    # 3. Local preview check for named localhost
+    if local_preview and host in ("127.0.0.1", "localhost"):
+        if loopback_ports and port in loopback_ports:
+            return {"ok": True, "host": host, "scope": "loopback_preview", "port": port}
+        return {"ok": False, "error": "loopback_port_not_allowlisted", "host": host, "port": port}
+
+    return {
+        "ok": False,
+        "error": "domain_not_allowlisted",
+        "host": host,
+        "allowlist": list(_allowlist()),
+        "allowed_subnets": ["192.168.3.0/24"],
+    }
+
+
+def _host_allowed(url: str, local_preview: bool = False, loopback_ports: list[int] | None = None) -> bool:
+    res = _url_allowed_result(url, local_preview=local_preview, loopback_ports=loopback_ports)
+    return res.get("ok", False)
 
 
 def _playwright_available() -> dict[str, Any]:
@@ -118,10 +182,11 @@ def agent_browser_status() -> dict[str, Any]:
         "playwright": pw,
         "headless": os.getenv("BROWSER_OPS_HEADLESS", "1") != "0",
         "allowlist": list(_allowlist()),
+        "allowed_subnets": ["192.168.3.0/24"],
         "evidence_dir": str(EVIDENCE_ROOT),
         "recent_runs": evidence,
         "mission": "Automatización puntual en navegador (formularios, capturas) — local, sin cloud",
-        "entry_tools": ["agent_browser_run_task", "dispatch_local_agent task_kind=browser"],
+        "entry_tools": ["agent_browser_run_task", "browser_session_start", "dispatch_local_agent task_kind=browser"],
     }
 
 
@@ -145,9 +210,12 @@ def agent_browser_run_task(
     profile: str = "",
     dry_run: bool = True,
     timeout_ms: int = 30000,
+    local_preview: bool = False,
+    loopback_ports: list[int] | None = None,
 ) -> dict[str, Any]:
     """Ejecuta tarea browser allowlisted: navigate | screenshot | fill_form | click | extract."""
     task = (task or "navigate").strip().lower()
+
     pw_check = _playwright_available()
     if not pw_check.get("ok"):
         return {"ok": False, "agent_id": AGENT_ID, **pw_check}
@@ -155,12 +223,15 @@ def agent_browser_run_task(
     if task != "status" and not url:
         return {"ok": False, "error": "url_required", "agent_id": AGENT_ID}
 
-    if url and not _host_allowed(url):
+    guard = _url_allowed_result(url, local_preview=local_preview, loopback_ports=loopback_ports)
+    if url and not guard.get("ok"):
         return {
             "ok": False,
-            "error": "domain_not_allowlisted",
+            "error": "domain_or_ip_not_allowlisted",
             "url": url,
+            "url_guard": guard,
             "allowlist": list(_allowlist()),
+            "allowed_subnets": ["192.168.3.0/24"],
             "agent_id": AGENT_ID,
         }
 
@@ -169,6 +240,7 @@ def agent_browser_run_task(
             "ok": True,
             "dry_run": True,
             "agent_id": AGENT_ID,
+            "url_guard": guard,
             "would_run": {
                 "task": task,
                 "url": url,
@@ -191,6 +263,7 @@ def agent_browser_run_task(
         "profile": profile or "",
         "at": _now_iso(),
         "dry_run": False,
+        "url_guard": guard,
     }
     screenshot_path = ""
     context = None

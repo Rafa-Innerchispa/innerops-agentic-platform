@@ -1,0 +1,41 @@
+name: Feature request
+description: Propose a bounded improvement to InnerOS
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operational problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Describe the smallest useful change.
+    validations:
+      required: true
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Primary layer
+      options:
+        - Temporal / durable execution
+        - LangGraph / reasoning
+        - MCP / tools and capability routing
+        - NATS / events
+        - Mongo / projections and evidence
+        - OpenTelemetry / observability
+        - Local model routing
+        - Security / approvals
+        - Documentation / developer experience
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What evidence would prove this is complete?

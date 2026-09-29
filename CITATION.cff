@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use InnerOS Agentic Platform in research, technical writing, demos, or comparative evaluations, please cite the project."
+title: "InnerOS Agentic Platform"
+type: software
+authors:
+  - name: "InnerChispa LLC"
+repository-code: "https://github.com/Rafa-Innerchispa/innerops-agentic-platform"
+url: "https://github.com/Rafa-Innerchispa/innerops-agentic-platform"
+license: Apache-2.0
+version: "0.1.0-dev"
+date-released: "2026-09-28"
+abstract: "A local-first agent operations platform for durable execution, bounded MCP capabilities, human approval, evidence, observability, and local/cloud model routing."
+keywords:
+  - artificial intelligence
+  - agents
+  - temporal
+  - langgraph
+  - mcp
+  - local llm
+  - orchestration
+  - observability
+  - durable execution
