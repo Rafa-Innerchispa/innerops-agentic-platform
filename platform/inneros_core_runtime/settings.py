@@ -58,6 +58,7 @@ _default_canonical_resources = [
     "https://mcp-chatgpt.creatorcore.ai",
     "https://mcp-chatgpt.creatorcore.ai/mcp",
     "https://voz.pcdoctor.ai/mcp",
+    "https://mcp.pcdoctor.ai/router/mcp",
     "https://sworn-profusely-alongside.ngrok-free.dev/raphiia-mcp",
     "https://sworn-profusely-alongside.ngrok-free.dev/raphiia-mcp/mcp",
     f"http://{RALFIA_INTEL_HOST}:8102/mcp",
