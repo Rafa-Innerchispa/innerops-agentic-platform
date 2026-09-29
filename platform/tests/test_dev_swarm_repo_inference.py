@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -829,6 +830,16 @@ class DevSwarmRepoInferenceTests(unittest.TestCase):
         self.assertEqual(classes["diagnostic"], ["platform/src/inneros_dev_swarm/contract.ts"])
         self.assertEqual(classes["other"], ["README.md"])
 
+
+
+    def test_repair_loop_uses_supported_local_model_router_contract(self) -> None:
+        params = inspect.signature(scheduler.local_model_router.run_local_model).parameters
+        source_path = Path(__file__).parents[1] / "inneros_core_runtime" / "dev_swarm_scheduler.py"
+        source = source_path.read_text(encoding="utf-8")
+
+        self.assertIn("model", params)
+        self.assertNotIn("preferred_node=", source)
+        self.assertNotIn("preferred_model=", source)
 
 
 if __name__ == "__main__":

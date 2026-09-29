@@ -2715,8 +2715,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
                     task_type="coding",
                     prompt=repair_prompt,
                     max_tokens=MODEL_OUTPUT_MAX_TOKENS,
-                    preferred_node=last_model_route.get("selected_node"),
-                    preferred_model=last_model_route.get("selected_model"),
+                    model=last_model_route.get("selected_model"),
                 )
                 if repair_model.get("ok"):
                     r_text = str(repair_model.get("response") or repair_model.get("text") or repair_model.get("content") or "")
