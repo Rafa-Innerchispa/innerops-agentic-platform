@@ -15,7 +15,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "chatgpt_compact": {
         "label": "ChatGPT bootstrap compacto — descubrir, coordinar y enrutar",
         "model_minimum": "small",
-        "max_tools": 15,
+        "max_tools": 25,
         "tools": [
             "mcp_version",
             "diagnose_mcp_session",
@@ -32,6 +32,11 @@ PROFILES: dict[str, dict[str, Any]] = {
             "dev_swarm_scope_status",
             "dev_swarm_launch_task",
             "dev_swarm_scheduler_status",
+            "device_fabric_discover",
+            "device_fabric_health",
+            "device_fabric_get",
+            "device_fabric_inventory",
+            "device_fabric_providers",
         ],
     },
 
@@ -800,6 +805,11 @@ PROFILES: dict[str, dict[str, Any]] = {
             "dev_swarm_scope_status",
             "dev_swarm_launch_task",
             "dev_swarm_scheduler_status",
+            "device_fabric_discover",
+            "device_fabric_health",
+            "device_fabric_get",
+            "device_fabric_inventory",
+            "device_fabric_providers",
             "dev_swarm_scheduler_start",
             "dev_swarm_scheduler_stop",
             "dev_swarm_scheduler_tick",
