@@ -5418,11 +5418,34 @@ def get_coordination_liveness_summary() -> dict[str, Any]:
     return coordination_liveness.get_coordination_liveness_summary()
 
 
-def list_ops_tasks(assignee: str | None = None, status: str | None = None, limit: int = 20) -> dict[str, Any]:
-    """Lista órdenes ops (pending/completed)."""
-    from raphiia_openai import coordination_live
+@mcp.tool
+def list_ops_tasks(
+    task_id: str | None = None,
+    correlation_id: str | None = None,
+    project: str | None = None,
+    repo: str | None = None,
+    assignee: str | None = None,
+    status: str | None = None,
+    date: str | None = None,
+    workflow_id: str | None = None,
+    run_id: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Lista órdenes ops con soporte de filtros por task_id, correlation_id, project, repo, assignee, status, date, workflow_id, run_id."""
+    from inneros_core_runtime import coordination_live
 
-    return coordination_live.list_ops_tasks(assignee=assignee, status=status, limit=limit)
+    return coordination_live.list_ops_tasks(
+        task_id=task_id,
+        correlation_id=correlation_id,
+        project=project,
+        repo=repo,
+        assignee=assignee,
+        status=status,
+        date=date,
+        workflow_id=workflow_id,
+        run_id=run_id,
+        limit=limit,
+    )
 
 
 @mcp.tool
