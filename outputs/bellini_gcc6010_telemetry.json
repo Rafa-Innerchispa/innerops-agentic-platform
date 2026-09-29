@@ -1,0 +1,37 @@
+{
+  "device_id": "bellini_gw_gcc6010",
+  "ip": "192.168.3.1",
+  "model": "GCC6010",
+  "firmware": "1.0.3.24",
+  "uptime_seconds": 1845920,
+  "cpu_utilization_pct": 14.2,
+  "ram_utilization_pct": 38.6,
+  "interfaces": {
+    "wan1": {
+      "status": "UP",
+      "speed": "1000M",
+      "duplex": "Full",
+      "ip": "186.42.x.x"
+    },
+    "lan_core": {
+      "status": "UP",
+      "speed": "1000M",
+      "duplex": "Full",
+      "subnet": "192.168.3.0/24"
+    }
+  },
+  "dhcp_server": {
+    "status": "ACTIVE",
+    "scope": "192.168.3.100 - 192.168.3.250",
+    "active_leases": 42
+  },
+  "vlan_summary": {
+    "vlan1": "Default LAN",
+    "vlan10": "Management",
+    "vlan20": "CCTV",
+    "vlan30": "Guest"
+  },
+  "link_health": "OPTIMAL",
+  "mutation_policy": "read_only",
+  "last_sync": "2026-09-29T18:00:00+00:00"
+}

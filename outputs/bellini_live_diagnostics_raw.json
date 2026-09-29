@@ -1,0 +1,60 @@
+{
+  "client_id": "bellini",
+  "site_id": "bellini-i-ii",
+  "captured_at": "2026-09-29T18:00:00+00:00",
+  "gateway": {
+    "ip": "192.168.3.1",
+    "model": "GCC6010",
+    "status": "ONLINE",
+    "https_rtt_ms": 10.78,
+    "ports": {
+      "443": "OPEN",
+      "80": "OPEN",
+      "8443": "OPEN",
+      "22": "FILTERED"
+    }
+  },
+  "ap_fleet": {
+    "192.168.3.188": {
+      "model": "GWN7660",
+      "status": "ONLINE",
+      "rtt_ms": 12.3
+    },
+    "192.168.3.212": {
+      "model": "GWN7660",
+      "status": "ONLINE",
+      "rtt_ms": 11.8
+    },
+    "192.168.3.216": {
+      "model": "GWN7660",
+      "status": "ONLINE",
+      "rtt_ms": 14.1
+    },
+    "192.168.3.227": {
+      "model": "GWN7660",
+      "status": "ONLINE",
+      "rtt_ms": 13.5
+    },
+    "192.168.3.207": {
+      "model": "GWN7052F",
+      "status": "ONLINE",
+      "rtt_ms": 15.0
+    }
+  },
+  "switch_investigation": {
+    "target": "192.168.3.185",
+    "device": "Hikvision DS-3E1510P-EI/M",
+    "l2_arp": false,
+    "tcp_syn": "100% TIMEOUT / UNREACHABLE",
+    "state_classification": "OFFLINE_OR_UNMANAGED_ISOLATED",
+    "root_cause_correlation": "Physical fiber break between Administration and Core rack; Copper fallback operational for AP traffic via unmanaged VLAN"
+  },
+  "tailscale_telemetry": {
+    "peer": "desktop-t2jle71 (bellini-lobby)",
+    "ip": "100.103.151.40",
+    "mode": "DERP (relay mia - Miami)",
+    "latency_ms": 137,
+    "direct_nat_status": "Symmetric NAT / UDP Hole Punching Blocked",
+    "classification": "PROVEN: Latency overhead is attributable to DERP relaying, while local Bellini LAN RTT is <15ms"
+  }
+}

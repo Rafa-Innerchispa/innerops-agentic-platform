@@ -1,0 +1,150 @@
+{
+  "client_id": "bellini",
+  "site_id": "bellini-i-ii",
+  "subnet": "192.168.3.0/24",
+  "scanned_targets": 254,
+  "reachable_hosts": 14,
+  "hosts": [
+    {
+      "ip": "192.168.3.1",
+      "name": "GCC6010 Gateway",
+      "status": "ONLINE",
+      "rtt_ms": 10.78,
+      "ports": [
+        80,
+        443,
+        8443
+      ]
+    },
+    {
+      "ip": "192.168.3.2",
+      "name": "UCM IP-PBX Core",
+      "status": "ONLINE",
+      "rtt_ms": 11.2,
+      "ports": [
+        80,
+        443,
+        5060
+      ]
+    },
+    {
+      "ip": "192.168.3.100",
+      "name": "Dahua NVR",
+      "status": "ONLINE",
+      "rtt_ms": 12.0,
+      "ports": [
+        80,
+        37777,
+        554
+      ]
+    },
+    {
+      "ip": "192.168.3.140",
+      "name": "Hikvision Video Intercom Master",
+      "status": "ONLINE",
+      "rtt_ms": 11.5,
+      "ports": [
+        80,
+        8000,
+        554
+      ]
+    },
+    {
+      "ip": "192.168.3.141",
+      "name": "Yate Intercom Station 1",
+      "status": "ONLINE",
+      "rtt_ms": 13.1,
+      "ports": [
+        80,
+        5060
+      ]
+    },
+    {
+      "ip": "192.168.3.144",
+      "name": "Yate Intercom Station 2",
+      "status": "ONLINE",
+      "rtt_ms": 12.8,
+      "ports": [
+        80,
+        5060
+      ]
+    },
+    {
+      "ip": "192.168.3.145",
+      "name": "Yate Intercom Station 3",
+      "status": "ONLINE",
+      "rtt_ms": 13.4,
+      "ports": [
+        80,
+        5060
+      ]
+    },
+    {
+      "ip": "192.168.3.146",
+      "name": "Yate Intercom Station 4",
+      "status": "ONLINE",
+      "rtt_ms": 12.9,
+      "ports": [
+        80,
+        5060
+      ]
+    },
+    {
+      "ip": "192.168.3.185",
+      "name": "Hikvision DS-3E1510P-EI/M Switch",
+      "status": "OFFLINE_MANAGEMENT",
+      "rtt_ms": null,
+      "ports": []
+    },
+    {
+      "ip": "192.168.3.188",
+      "name": "GWN Wi-Fi AP 1",
+      "status": "ONLINE",
+      "rtt_ms": 12.3,
+      "ports": [
+        80,
+        443
+      ]
+    },
+    {
+      "ip": "192.168.3.207",
+      "name": "GWN7052F Router/AP",
+      "status": "ONLINE",
+      "rtt_ms": 15.0,
+      "ports": [
+        80,
+        443
+      ]
+    },
+    {
+      "ip": "192.168.3.212",
+      "name": "GWN Wi-Fi AP 2",
+      "status": "ONLINE",
+      "rtt_ms": 11.8,
+      "ports": [
+        80,
+        443
+      ]
+    },
+    {
+      "ip": "192.168.3.216",
+      "name": "GWN Wi-Fi AP 3",
+      "status": "ONLINE",
+      "rtt_ms": 14.1,
+      "ports": [
+        80,
+        443
+      ]
+    },
+    {
+      "ip": "192.168.3.227",
+      "name": "GWN Wi-Fi AP 4",
+      "status": "ONLINE",
+      "rtt_ms": 13.5,
+      "ports": [
+        80,
+        443
+      ]
+    }
+  ]
+}
