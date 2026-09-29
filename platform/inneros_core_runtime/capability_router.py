@@ -52,8 +52,6 @@ def route_tools(
     granted_scopes: list[str] | None = None,
     max_risk: str = "medium",
     tenant_id: str | None = None,
-    for_model: str | None = None,
-    max_tools: int | None = None,
 ) -> dict[str, Any]:
     validation = mcp_profiles.validate_profiles()
     if not validation["ok"]:
@@ -98,13 +96,6 @@ def route_tools(
             continue
         selected.append(tool_name)
 
-    profile_limit = int(profile["max_tools"])
-    if max_tools is not None:
-        if isinstance(max_tools, bool) or not isinstance(max_tools, int) or max_tools <= 0:
-            return {"ok": False, "error": "invalid_max_tools"}
-        profile_limit = min(profile_limit, max_tools)
-    selected = selected[:profile_limit]
-
     return {
         "ok": True,
         "profile": profile_name,
@@ -112,11 +103,10 @@ def route_tools(
         "intent_scores": scores,
         "tenant_id": tenant_id,
         "tenant_policy": "context_only_v1",
-        "for_model": for_model,
         "max_risk": max_risk,
         "tools": selected,
         "tool_count": len(selected),
-        "max_tools": profile_limit,
+        "max_tools": profile["max_tools"],
         "excluded": excluded,
         "catalog_pin": profile["catalog_pin"],
         "profile_pin": profile["profile_pin"],

@@ -24,7 +24,6 @@ from raphiia_openai.settings import (
     COL_OAUTH_TOKENS,
     MONGO_DB,
     MONGO_URI,
-    OAUTH_ACCEPTED_MCP_RESOURCES,
     OAUTH_ALLOWED_REDIRECT_HOSTS,
     OAUTH_CODE_TTL_SECONDS,
     OAUTH_REFRESH_TTL_SECONDS,
@@ -212,8 +211,8 @@ def parse_scopes(scope: str | None) -> list[str]:
 
 
 def redirect_uri_allowed(uri: str, registered_uris: list[str] | None = None) -> bool:
-    if registered_uris is not None:
-        return uri in registered_uris
+    if registered_uris and uri in registered_uris:
+        return True
     parsed = urlparse(uri)
     host = (parsed.hostname or "").lower()
     if host in OAUTH_ALLOWED_REDIRECT_HOSTS:
@@ -223,101 +222,31 @@ def redirect_uri_allowed(uri: str, registered_uris: list[str] | None = None) -> 
     return False
 
 
-def resource_allowed(resource: str, registered_resources: list[str] | None = None) -> bool:
-    normalized = (resource or "").rstrip("/")
-    if not normalized:
-        return False
-    accepted = {str(item).rstrip("/") for item in OAUTH_ACCEPTED_MCP_RESOURCES if item}
-    if normalized not in accepted:
-        return False
-    if registered_resources is None:
-        return True
-    registered = {str(item).rstrip("/") for item in registered_resources if item}
-    return normalized in registered
-
-
-def _client_secret_hash(secret: str) -> str:
-    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
-
-
-def verify_client_secret(client: dict[str, Any] | None, secret: str) -> bool:
-    if not client or not secret:
-        return False
-    stored_hash = str(client.get("client_secret_hash") or "")
-    if stored_hash:
-        return hmac.compare_digest(stored_hash, _client_secret_hash(secret))
-    legacy = str(client.get("client_secret") or "")
-    return bool(legacy and hmac.compare_digest(legacy, secret))
-
-
 def create_client(metadata: dict[str, Any]) -> dict[str, Any]:
     ensure_indexes()
-
     redirect_uris = [u for u in metadata.get("redirect_uris", []) if isinstance(u, str)]
     redirect_uris = [u for u in redirect_uris if redirect_uri_allowed(u)]
     if not redirect_uris:
         raise ValueError("No allowed redirect_uris supplied")
 
-    requested_grants = metadata.get("grant_types") or ["authorization_code"]
-    if not isinstance(requested_grants, list):
-        raise ValueError("grant_types must be a list")
-    grant_types = [str(item) for item in requested_grants]
-    if any(item not in {"authorization_code", "refresh_token"} for item in grant_types):
-        raise ValueError("Only authorization_code and refresh_token are supported")
-    if "authorization_code" not in grant_types:
-        raise ValueError("authorization_code grant is required")
-    if "refresh_token" not in grant_types:
-        grant_types.append("refresh_token")
-
-    raw_resources = metadata.get("resources") or []
-    if isinstance(raw_resources, str):
-        raw_resources = [raw_resources]
-    elif not isinstance(raw_resources, list):
-        raise ValueError("resources must be a list")
-    if isinstance(metadata.get("resource"), str):
-        raw_resources = list(raw_resources) + [metadata["resource"]]
-    resources = list(
-        dict.fromkeys(
-            str(value).rstrip("/")
-            for value in raw_resources
-            if isinstance(value, str) and str(value).strip()
-        )
-    )
-    if resources and not all(resource_allowed(item) for item in resources):
-        raise ValueError("OAuth resource is not accepted")
-
     scopes = parse_scopes(metadata.get("scope"))
     if str(metadata.get("client_name") or "").strip().lower() == "chatgpt":
         scopes = sorted(set(scopes).union(CHATGPT_SCOPES))
-
-    auth_method = metadata.get("token_endpoint_auth_method") or "none"
-    if auth_method not in {"none", "client_secret_basic", "client_secret_post"}:
-        raise ValueError("Unsupported token_endpoint_auth_method")
-    client_secret = (
-        secrets.token_urlsafe(32)
-        if auth_method in {"client_secret_basic", "client_secret_post"}
-        else None
-    )
-
-    stored = {
+    client = {
         "client_id": "ralfia_" + secrets.token_urlsafe(18),
+        "client_secret": None,
         "client_name": metadata.get("client_name") or "RalfIA MCP Client",
         "redirect_uris": redirect_uris,
-        "resources": resources,
         "scope": " ".join(scopes),
-        "grant_types": grant_types,
+        "grant_types": ["authorization_code"],
         "response_types": ["code"],
-        "token_endpoint_auth_method": auth_method,
-        "client_secret_hash": _client_secret_hash(client_secret) if client_secret else None,
+        "token_endpoint_auth_method": metadata.get("token_endpoint_auth_method") or "none",
         "created_at": now_iso(),
         "metadata": metadata,
     }
-    get_db()[COL_OAUTH_CLIENTS].insert_one(stored)
+    get_db()[COL_OAUTH_CLIENTS].insert_one(client)
+    return dict(client)
 
-    result = dict(stored)
-    if client_secret:
-        result["client_secret"] = client_secret
-    return result
 
 def get_client(client_id: str) -> dict[str, Any] | None:
     return get_db()[COL_OAUTH_CLIENTS].find_one({"client_id": client_id})
@@ -364,17 +293,12 @@ def consume_auth_code(
     client_id: str,
     redirect_uri: str,
     code_verifier: str,
-    resource: str | None = None,
 ) -> dict[str, Any] | None:
     db = get_db()
     doc = db[COL_OAUTH_CODES].find_one({"code": code, "used": False})
     if not doc:
         return None
     if doc.get("client_id") != client_id or doc.get("redirect_uri") != redirect_uri:
-        return None
-    expected_resource = str(doc.get("resource") or "").rstrip("/")
-    supplied_resource = str(resource or "").rstrip("/")
-    if expected_resource and supplied_resource != expected_resource:
         return None
     if doc.get("expires_at") and doc["expires_at"].replace(tzinfo=timezone.utc) < now_utc():
         return None
@@ -461,11 +385,7 @@ def exchange_refresh_token(*, refresh_token: str, client_id: str) -> dict[str, A
     }
 
 
-def validate_access_token(
-    access_token: str,
-    required_scope: str | None = None,
-    required_resource: str | None = None,
-) -> dict[str, Any] | None:
+def validate_access_token(access_token: str, required_scope: str | None = None) -> dict[str, Any] | None:
     if not access_token:
         return None
     doc = get_db()[COL_OAUTH_TOKENS].find_one({"access_token": access_token, "revoked": {"$ne": True}})
@@ -477,10 +397,6 @@ def validate_access_token(
     scopes = set((doc.get("scope") or "").split())
     if required_scope and required_scope not in scopes and "ralfia:admin" not in scopes:
         return None
-    if required_resource:
-        token_resource = str(doc.get("resource") or "").rstrip("/")
-        if token_resource != str(required_resource).rstrip("/"):
-            return None
     return doc
 
 

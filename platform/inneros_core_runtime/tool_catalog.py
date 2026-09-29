@@ -72,7 +72,6 @@ ALL_MCP_TOOL_NAMES = [
     "peer_wifi_connect",
     "peer_wifi_disconnect",
     "peer_route_check",
-    "peer_network_path_probe",
     "peer_secret_store_wifi",
     "peer_wifi_forget",
     "peer_package_status",

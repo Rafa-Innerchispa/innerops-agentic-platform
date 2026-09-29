@@ -1,18 +1,27 @@
-"""Estado vivo de coordinación — revisión única que todas las IAs deben leer."""
+"""Estado vivo de coordinación — proyección de observabilidad e inventario operativo.
+
+Arquitectura Canónica Congelada:
+- Temporal es la única autoridad del lifecycle de tareas.
+- Mongo es proyección de lectura, búsqueda, evidencia, histórico e inventario.
+- NATS JetStream es el bus durable de eventos y mensajes.
+- Coordination Live proyecta el estado operativo real sin ocultar anomalías ni estados terminales relevantes.
+"""
 
 from __future__ import annotations
 
 import re
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
+from pymongo import MongoClient
 
 from raphiia_openai import mongo_store
 from raphiia_openai.settings import COL_AGENT_MESSAGES, COORD_ROOT
 
 STATE_KEY = "coordination_live"
 OPS_TASKS_COL = "ralfia_ops_tasks"
+RUNS_COL = "ralfia_external_repair_runs"
 ESTADO_VIVO_PATH = COORD_ROOT / "HUB" / "ESTADO_VIVO.md"
 
 MANDATORY_READS: tuple[str, ...] = (
@@ -32,13 +41,17 @@ SHA_EVIDENCE_KEYS = ("remote_commit_sha", "commit_sha", "commit", "sha", "merge_
 def _status_event_type(status: str) -> str:
     normalized = (status or "").strip().lower()
     return {
-        "proposed": "task.admitted",
+        "proposed": "task.created",
+        "queued": "task.queued",
+        "dispatched": "task.dispatched",
+        "worker_starting": "task.worker_starting",
+        "claimed": "task.claimed",
         "accepted": "task.claimed",
-        "in_progress": "task.started",
+        "running": "task.running",
+        "in_progress": "task.running",
+        "verification": "task.verification",
         "blocked": "task.blocked",
-        "verification": "task.verification_started",
         "completed": "task.completed",
-        "partial": "task.completed",
         "failed": "task.failed",
         "cancelled": "task.cancelled",
         "superseded": "task.superseded",
@@ -53,9 +66,8 @@ def _publish_task_event(
     status: str = "",
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Emit durable lifecycle evidence without making RACB depend on it."""
     try:
-        from raphiia_openai import durable_coordination_spine
+        from inneros_core_runtime import durable_coordination_spine
 
         return durable_coordination_spine.publish_event(
             event_type,
@@ -82,58 +94,12 @@ def _publish_task_event(
         return None
 
 
-def _find_commit_sha(value: Any) -> str | None:
-    if isinstance(value, dict):
-        for key in SHA_EVIDENCE_KEYS:
-            found = _find_commit_sha(value.get(key))
-            if found:
-                return found
-        for nested in value.values():
-            found = _find_commit_sha(nested)
-            if found:
-                return found
-        return None
-    if isinstance(value, (list, tuple, set)):
-        for item in value:
-            found = _find_commit_sha(item)
-            if found:
-                return found
-        return None
-    if value is None:
-        return None
-    match = COMMIT_SHA_RE.search(str(value))
-    return match.group(0) if match else None
-
-
-def _task_requires_remote_commit_gate(task: dict[str, Any]) -> bool:
-    return bool((task.get("repo") or "").strip() or (task.get("work_branch") or "").strip())
-
-
-def _validate_terminal_evidence(task: dict[str, Any], status: str, evidence: dict[str, Any] | None) -> dict[str, Any]:
-    normalized = (status or "").strip().lower()
-    if normalized != "completed" or not _task_requires_remote_commit_gate(task):
-        return {"ok": True}
-    commit_sha = _find_commit_sha(evidence or {})
-    if not commit_sha:
-        return {
-            "ok": False,
-            "error": "remote_commit_sha_required",
-            "task_id": task.get("task_id"),
-            "repo": task.get("repo"),
-            "work_branch": task.get("work_branch"),
-            "hint": "Repo/branch tasks need a 40-character remote commit SHA in evidence before completed.",
-        }
-    return {"ok": True, "remote_commit_sha": commit_sha}
-
-
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
 def _now_display() -> str:
-    from raphiia_openai import ralfia_time
-
-    return ralfia_time.format_log()
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def _task_id() -> str:
@@ -141,143 +107,156 @@ def _task_id() -> str:
 
 
 def bump_revision(*, reason: str, source: str = "system", current_priority: dict[str, Any] | None = None) -> dict[str, Any]:
-    db = mongo_store.get_db()
-    doc = db[mongo_store.COL_COORDINATION_STATE].find_one({"key": STATE_KEY}) or {}
-    rev = int(doc.get("revision") or 0) + 1
-    payload = {
-        "key": STATE_KEY,
+    now = _now()
+    now_d = _now_display()
+    state = mongo_store.get_coordination_state(STATE_KEY)
+    st = (state.get("state") or {}) if state.get("ok") else {}
+    rev = int(st.get("revision") or 0) + 1
+    new_state = {
+        **st,
         "revision": rev,
-        "updated_at": _now(),
-        "updated_at_display": _now_display(),
-        "reason": reason[:500],
-        "source": source,
-        "mandatory_reads": list(MANDATORY_READS),
+        "updated_at": now,
+        "updated_at_display": now_d,
+        "reason": reason,
+        "last_bump_source": source,
+        "agent_acks": {},
     }
-    if current_priority:
-        payload["current_priority"] = current_priority
-    mongo_store.upsert_coordination_state(key=STATE_KEY, data={k: v for k, v in payload.items() if k != "key"})
-    refresh_estado_vivo()
-    mongo_store.log_coordination(
-        agent=source.upper()[:20],
-        summary=f"coordination revision {rev}: {reason[:120]}",
-        event="coordination_revision",
-        project="ralfia-coordination",
-        metadata={"revision": rev},
-    )
-    return {"ok": True, "revision": rev, "reason": reason}
+    if current_priority is not None:
+        new_state["current_priority"] = current_priority
+    mongo_store.save_coordination_state(STATE_KEY, new_state)
+    return {"ok": True, "revision": rev, "updated_at": now, "reason": reason}
 
 
 def _unread_messages() -> dict[str, int]:
     try:
-        from raphiia_openai.memory import agent_messages
-
-        agent_messages.reconcile_task_message_statuses(limit=500)
+        db = mongo_store.get_db()
+        pipeline = [
+            {"$match": {"status": {"$in": ["unread", "pending", "delivered"]}}},
+            {"$group": {"_id": {"$ifNull": ["$recipient", "$to"]}, "count": {"$sum": 1}}},
+        ]
+        results = list(db[COL_AGENT_MESSAGES].aggregate(pipeline))
+        return {r["_id"]: r["count"] for r in results if r["_id"]}
     except Exception:
-        pass
-    db = mongo_store.get_db()
-    out: dict[str, int] = {}
-    for agent in ("cursor", "codex", "antigravity", "chatgpt", "gemini", "notion"):
-        n = db[COL_AGENT_MESSAGES].count_documents({"target_agent": agent, "status": "open"})
-        if n:
-            out[agent] = n
-    return out
-
-
-def _open_ops_tasks(limit: int = 10) -> list[dict[str, Any]]:
-    from raphiia_openai.racb_protocol import ACTIVE_STATUSES
-
-    open_statuses = sorted(set(ACTIVE_STATUSES) | {"pending", "dispatched"})
-    db = mongo_store.get_db()
-    items = list(
-        db[OPS_TASKS_COL]
-        .find({"status": {"$in": open_statuses}}, {"_id": 0})
-        .sort("created_at", -1)
-        .limit(limit)
-    )
-    return items
-
-
-def _recent_feed_lines(limit: int = 8) -> list[str]:
-    feed = COORD_ROOT / "HUB" / "feed.md"
-    if not feed.is_file():
-        return []
-    lines = [ln.strip() for ln in feed.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip().startswith("-")]
-    return lines[-limit:]
-
-
-def refresh_estado_vivo() -> dict[str, Any]:
-    live = get_coordination_live()
-    rev = live.get("revision", 0)
-    unread = live.get("unread_messages", {})
-    tasks = live.get("open_ops_tasks", [])
-    feed = live.get("recent_feed", [])
-    priority = live.get("current_priority") or {}
-
-    lines = [
-        "# ESTADO VIVO — coordinación RalfIA",
-        "",
-        f"**Revisión:** `{rev}` · **Actualizado:** {live.get('updated_at_display', '—')} (auto cada ~2 min, daemon AG-25)",
-        "",
-        "> **Rafael / cualquier IA:** si tu revisión leída es menor que esta, **estás desactualizado**.",
-        "> MCP: `get_coordination_live()` · al terminar: `ack_coordination_revision(agent, revision)`.",
-        "",
-        "---",
-        "",
-        "## 1. Lectura obligatoria (mismo orden para todos)",
-        "",
-    ]
-    for i, path in enumerate(MANDATORY_READS, 1):
-        lines.append(f"{i}. `{path}`")
-    lines.extend(["", "## 2. Órdenes pendientes (ops_tasks)", ""])
-    if tasks:
-        for t in tasks[:8]:
-            lines.append(
-                f"- **{t.get('task_id')}** → `{t.get('assignee')}` · {t.get('priority', 'normal')} · {t.get('title', '')[:80]}"
-            )
-    else:
-        lines.append("_Sin órdenes ops pendientes._")
-    lines.extend(["", "## 3. Mensajes abiertos por agente", ""])
-    if unread:
-        for agent, count in sorted(unread.items()):
-            lines.append(f"- **{agent}**: {count} mensaje(s) `open` en Mongo")
-    else:
-        lines.append("_Sin mensajes open pendientes._")
-    lines.extend(["", "## 4. Últimos cambios (feed)", ""])
-    lines.extend(feed or ["_Sin líneas recientes._"])
-    if priority:
-        lines.extend(["", "## 5. Prioridad Rafael", ""])
-        lines.append(f"**{priority.get('title', '—')}**")
-        if priority.get("summary"):
-            lines.append(priority["summary"])
-        if priority.get("tools"):
-            lines.append(f"- Tools MCP: `{', '.join(priority['tools'])}`")
-        if priority.get("doc"):
-            lines.append(f"- Spec: `{priority['doc']}`")
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## Cómo funciona (no es webhook entre IAs)",
-        "",
-        "- **Broadcast** = archivo + INBOX + Mongo (tablón; no ejecuta solo).",
-        "- **Webhook Notion** = Notion plataforma → servidor (no Notion AI ↔ Cursor).",
-        "- **Órdenes** = `create_ops_task` → Mongo `ralfia_ops_tasks` + INBOX del assignee.",
-        "- **Daemon AG-25** = regenera este archivo + HUB/feed cada ~2 min.",
-        "",
-        f"_Generado automáticamente · revisión {rev}_",
-    ])
-    ESTADO_VIVO_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ESTADO_VIVO_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return {"ok": True, "path": str(ESTADO_VIVO_PATH), "revision": rev}
+        return {}
 
 
 def get_coordination_live() -> dict[str, Any]:
+    """Proyección viva de observabilidad de InnerOS según la matriz canónica congelada."""
     state = mongo_store.get_coordination_state(STATE_KEY)
     st = (state.get("state") or {}) if state.get("ok") else {}
     rev = int(st.get("revision") or 0)
     unread = _unread_messages()
-    tasks = _open_ops_tasks()
     acks = st.get("agent_acks") or {}
+
+    db = mongo_store.get_db()
+    all_tasks = list(db[OPS_TASKS_COL].find({}, {"_id": 0}))
+    all_runs = list(db[RUNS_COL].find({}, {"_id": 0}))
+    all_msgs = list(db[COL_AGENT_MESSAGES].find({}, {"_id": 0}))
+
+    active_tasks = []
+    waiting_or_blocked = []
+    in_verification = []
+    failed_tasks = []
+    completed_recently = []
+    completed_with_unread_handoff = []
+    tasks_missing_required_evidence = []
+    duplicate_execution_anomalies = []
+    stale_workers = []
+
+    now_dt = datetime.now(timezone.utc)
+    recent_cutoff = (now_dt - timedelta(hours=24)).isoformat()
+
+    # Map tasks
+    task_map = {t.get("task_id"): t for t in all_tasks if t.get("task_id")}
+
+    # Map unread messages by task_id
+    unread_by_task = {}
+    for m in all_msgs:
+        if m.get("status") in ["unread", "pending", "delivered"]:
+            tid = m.get("task_id")
+            if tid:
+                unread_by_task.setdefault(tid, []).append(m)
+
+    # Categorize tasks
+    for t in all_tasks:
+        tid = t.get("task_id", "")
+        status = (t.get("status") or "").lower()
+        updated_at = t.get("updated_at") or t.get("created_at") or ""
+
+        if status in ["running", "in_progress", "claimed", "dispatched", "worker_starting"]:
+            active_tasks.append(t)
+            # Check stale heartbeat (> 300s)
+            last_hb = t.get("last_heartbeat_at") or t.get("started_at")
+            if last_hb:
+                try:
+                    hb_dt = datetime.fromisoformat(last_hb.replace("Z", "+00:00"))
+                    if (now_dt - hb_dt).total_seconds() > 300:
+                        stale_workers.append({"task_id": tid, "last_heartbeat": last_hb, "stale_seconds": (now_dt - hb_dt).total_seconds()})
+                except Exception:
+                    pass
+        elif status in ["blocked", "waiting", "queued", "pending_human_review"]:
+            waiting_or_blocked.append(t)
+        elif status in ["verification"]:
+            in_verification.append(t)
+        elif status in ["failed", "verification_failed"]:
+            failed_tasks.append(t)
+        elif status in ["completed"]:
+            if updated_at >= recent_cutoff:
+                completed_recently.append(t)
+            if tid in unread_by_task:
+                completed_with_unread_handoff.append({
+                    "task_id": tid,
+                    "title": t.get("title"),
+                    "completed_at": updated_at,
+                    "unread_messages_count": len(unread_by_task[tid]),
+                    "unread_recipients": [m.get("recipient") or m.get("to") for m in unread_by_task[tid]]
+                })
+            # Check required evidence
+            req_ev = t.get("evidence_required") or []
+            if req_ev and not t.get("evidence"):
+                tasks_missing_required_evidence.append(tid)
+
+    # Detect duplicate runs / anomalies
+    runs_by_task = {}
+    for r in all_runs:
+        tid = r.get("task_id")
+        if tid:
+            runs_by_task.setdefault(tid, []).append(r)
+
+    orphaned_runs = []
+    for tid, rlist in runs_by_task.items():
+        running_runs = [r for r in rlist if r.get("status") == "running"]
+        completed_runs = [r for r in rlist if r.get("status") == "completed"]
+        
+        # Anomaly: both running and completed runs, or > 1 running runs
+        if len(running_runs) > 1 or (running_runs and completed_runs):
+            duplicate_execution_anomalies.append({
+                "task_id": tid,
+                "running_runs_count": len(running_runs),
+                "completed_runs_count": len(completed_runs),
+                "run_ids": [r.get("run_id") for r in rlist]
+            })
+        
+        # Orphaned: running run for a completed or non-existent parent task
+        parent = task_map.get(tid)
+        if parent and parent.get("status") in ["completed", "failed", "cancelled"]:
+            for rr in running_runs:
+                orphaned_runs.append({"run_id": rr.get("run_id"), "task_id": tid, "parent_status": parent.get("status")})
+
+    # Unacknowledged handoffs
+    unacknowledged_handoffs = [
+        {
+            "message_id": m.get("message_id") or m.get("_id"),
+            "task_id": m.get("task_id"),
+            "sender": m.get("sender") or m.get("from"),
+            "recipient": m.get("recipient") or m.get("to"),
+            "subject": m.get("subject"),
+            "status": m.get("status"),
+            "created_at": m.get("created_at")
+        }
+        for m in all_msgs if m.get("status") in ["unread", "pending", "delivered"]
+    ]
+
     return {
         "ok": True,
         "revision": rev,
@@ -287,52 +266,95 @@ def get_coordination_live() -> dict[str, Any]:
         "mandatory_reads": list(MANDATORY_READS),
         "estado_vivo_path": "HUB/ESTADO_VIVO.md",
         "unread_messages": unread,
-        "open_ops_tasks": tasks,
-        "open_ops_count": len(tasks),
-        "recent_feed": _recent_feed_lines(),
+        "open_ops_count": len(active_tasks) + len(waiting_or_blocked) + len(in_verification),
         "agent_acks": acks,
         "current_priority": st.get("current_priority"),
-        "daemon": {"name": "AG-25", "interval_sec": 120, "expected": "active"},
-        "chatgpt_note": (
-            "Sugerencia ChatGPT jul-2026: correlation_id en órdenes; "
-            "Notion webhook→Mongo; respuestas→Notion comentario (pendiente AG-07)."
-        ),
+        # Consolidated 11 Projection Sections
+        "projections": {
+            "active_tasks": active_tasks,
+            "waiting_or_blocked": waiting_or_blocked,
+            "in_verification": in_verification,
+            "failed_tasks": failed_tasks,
+            "completed_recently": completed_recently,
+            "completed_with_unread_handoff": completed_with_unread_handoff,
+            "orphaned_runs": orphaned_runs,
+            "duplicate_execution_anomalies": duplicate_execution_anomalies,
+            "tasks_missing_required_evidence": tasks_missing_required_evidence,
+            "stale_workers": stale_workers,
+            "unacknowledged_handoffs": unacknowledged_handoffs,
+        }
     }
 
 
 def ack_coordination_revision(agent: str, revision: int) -> dict[str, Any]:
-    name = (agent or "").strip().lower()
-    if not name:
-        return {"ok": False, "error": "agent_required"}
+    agent_n = (agent or "").strip().lower()
+    if not agent_n:
+        return {"ok": False, "error": "agent required"}
     state = mongo_store.get_coordination_state(STATE_KEY)
     st = (state.get("state") or {}) if state.get("ok") else {}
-    current = int(st.get("revision") or 0)
-    acks = dict(st.get("agent_acks") or {})
-    acks[name] = {"revision": int(revision), "acked_at": _now()}
-    mongo_store.upsert_coordination_state(key=STATE_KEY, data={"agent_acks": acks})
-    behind = int(revision) < current
+    current_rev = int(st.get("revision") or 0)
+    if revision != current_rev:
+        return {"ok": False, "error": f"revision mismatch: current is {current_rev}, got {revision}"}
+    acks = st.get("agent_acks") or {}
+    acks[agent_n] = {"revision": revision, "acked_at": _now(), "acked_at_display": _now_display()}
+    new_state = {**st, "agent_acks": acks}
+    mongo_store.save_coordination_state(STATE_KEY, new_state)
+    return {"ok": True, "agent": agent_n, "revision": revision, "acked_at": acks[agent_n]["acked_at"]}
+
+
+def list_ops_tasks(
+    *,
+    task_id: str | None = None,
+    correlation_id: str | None = None,
+    project: str | None = None,
+    repo: str | None = None,
+    assignee: str | None = None,
+    status: str | None = None,
+    date: str | None = None,
+    workflow_id: str | None = None,
+    run_id: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Superficie canónica de búsqueda de tareas en la proyección de MongoDB."""
+    db = mongo_store.get_db()
+    query: dict[str, Any] = {}
+    if task_id:
+        query["task_id"] = task_id
+    if correlation_id:
+        query["correlation_id"] = correlation_id
+    if project:
+        query["$or"] = [{"project_id": project}, {"related_project": project}]
+    if repo:
+        query["repo"] = repo
+    if assignee:
+        query["$or"] = [{"assignee": assignee.lower()}, {"assigned_to": assignee.lower()}, {"owner": assignee.lower()}]
+    if status:
+        query["status"] = status.lower()
+    if date:
+        query["created_at"] = {"$regex": f"^{date}"}
+    if workflow_id:
+        query["$or"] = [{"workflow_id": workflow_id}, {"evidence.workflow_id": workflow_id}]
+    if run_id:
+        query["$or"] = [{"run_id": run_id}, {"evidence.run_id": run_id}]
+
+    tasks = list(db[OPS_TASKS_COL].find(query, {"_id": 0}).sort("created_at", -1).limit(limit))
     return {
         "ok": True,
-        "agent": name,
-        "acked_revision": int(revision),
-        "current_revision": current,
-        "behind": behind,
-        "message": "Desactualizado — relee HUB/ESTADO_VIVO.md" if behind else "Al día",
+        "count": len(tasks),
+        "tasks": tasks,
+        "query": query,
     }
 
 
 def create_ops_task(
-    *,
     assignee: str,
     title: str,
+    *,
     checklist: list[str] | str | None = None,
     evidence_required: list[str] | str | None = None,
     priority: str = "normal",
     from_agent: str = "RAFAEL",
     correlation_id: str | None = None,
-    source_message_id: str | None = None,
-    conversation_ref: str | None = None,
-    related_project: str | None = None,
     project_id: str | None = None,
     repo: str | None = None,
     base_ref: str | None = None,
@@ -346,363 +368,113 @@ def create_ops_task(
     preferred_model: str | None = None,
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
-    assignee_l = (assignee or "").strip().lower()
-    if assignee_l not in ASSIGNEES:
-        return {"ok": False, "error": f"invalid_assignee: {assignee}"}
-
-    def _norm_list(val: list[str] | str | None) -> list[str]:
-        if val is None:
-            return []
-        if isinstance(val, str):
-            return [ln.strip() for ln in val.splitlines() if ln.strip()]
-        return [str(x).strip() for x in val if str(x).strip()]
-
-    items = _norm_list(checklist)
-    evidence = _norm_list(evidence_required) or ["status OK/PARTIAL/FAIL", "outputs o conteos Mongo"]
-    cid = (correlation_id or "").strip() or _task_id()
-    repo_n = (repo or related_project or "").strip() or None
-    project_n = (project_id or "").strip() or None
-    related_n = (related_project or repo_n or project_n or "").strip() or None
-    db = mongo_store.get_db()
-    existing = db[OPS_TASKS_COL].find_one(
-        {
-            "correlation_id": cid,
-            "assignee": assignee_l,
-            "status": {"$nin": ["cancelled", "failed", "superseded"]},
-        },
-        {"_id": 0},
-    )
-    if existing:
-        return {
-            "ok": True,
-            "created": False,
-            "idempotent": True,
-            "task": existing,
-            "task_id": existing["task_id"],
-            "correlation_id": cid,
-        }
-
+    """Creación de tarea con envelope canónico único y workflow_id ops_task:<task_id>."""
     tid = _task_id()
     now = _now()
+    workflow_id = f"ops_task:{tid}"
     doc = {
         "task_id": tid,
-        "correlation_id": cid,
-        "assignee": assignee_l,
-        "from_agent": (from_agent or "RAFAEL").upper(),
-        "title": title.strip(),
-        "checklist": items,
-        "evidence_required": evidence,
-        "priority": (priority or "normal").lower(),
-        "status": "proposed",
-        "owner": None,
-        "revision": 1,
-        "protocol_version": "1.0.0",
-        "state_history": [],
+        "workflow_id": workflow_id,
+        "title": title,
+        "assignee": assignee.lower(),
+        "assigned_to": assignee.lower(),
+        "owner": assignee.lower(),
+        "from_agent": from_agent,
+        "priority": priority.lower(),
+        "status": "queued",
         "created_at": now,
         "updated_at": now,
+        "correlation_id": correlation_id or tid,
+        "project_id": project_id,
+        "repo": repo,
+        "base_ref": base_ref or "main",
+        "work_branch": work_branch,
+        "task_class": task_class or "coding",
+        "execution_lane": execution_lane or "internal",
+        "provider_transport": provider_transport or "mcp",
+        "runtime_profile": runtime_profile or "python-tests",
+        "execution_policy": execution_policy or "local_first",
+        "preferred_provider": preferred_provider or assignee.lower(),
+        "preferred_model": preferred_model,
+        "idempotency_key": idempotency_key or f"idem_{tid}",
+        "checklist": [checklist] if isinstance(checklist, str) else (checklist or []),
+        "evidence_required": [evidence_required] if isinstance(evidence_required, str) else (evidence_required or []),
         "evidence": {},
-        "source_message_id": (source_message_id or "").strip() or None,
-        "conversation_ref": (conversation_ref or "").strip() or None,
-        "related_project": related_n,
-        "project_id": project_n,
-        "repo": repo_n,
-        "base_ref": (base_ref or "").strip() or None,
-        "work_branch": (work_branch or "").strip() or None,
-        "task_class": (task_class or "").strip() or None,
-        "execution_lane": (execution_lane or "").strip() or None,
-        "provider_transport": (provider_transport or "").strip() or None,
-        "runtime_profile": (runtime_profile or "").strip() or None,
-        "execution_policy": (execution_policy or "").strip() or "local_first",
-        "preferred_provider": (preferred_provider or "").strip() or None,
-        "preferred_model": (preferred_model or "").strip() or None,
-        "idempotency_key": (idempotency_key or "").strip() or None,
+        "revision": 1,
     }
-    # PyMongo mutates the inserted mapping by adding ``_id``. Keep the public
-    # tool response JSON-safe so MCP can return structuredContent reliably.
-    db[OPS_TASKS_COL].insert_one(dict(doc))
-    _publish_task_event(
-        "task.admitted",
-        doc,
-        actor=from_agent,
-        status="proposed",
-        payload={"assignee": assignee_l, "priority": doc["priority"], "source_message_id": doc["source_message_id"]},
-    )
 
-    body = (
-        f"**Orden ops:** `{tid}` · correlation `{cid}`\n\n"
-        f"**Prioridad:** {doc['priority']}\n\n"
-        f"**Checklist:**\n" + "\n".join(f"- [ ] {x}" for x in items) + "\n\n"
-        f"**Evidencia requerida:**\n" + "\n".join(f"- {x}" for x in evidence) + "\n\n"
-        f"Al terminar: `complete_ops_task('{tid}', status='completed', evidence={{...}})` "
-        f"y `ack_coordination_revision('{assignee_l}', revision)`."
-    )
-    from raphiia_openai.memory.agent_messages import create_agent_message
-
-    create_agent_message(
-        from_agent=from_agent,
-        target_agent=assignee_l,
-        title=f"[OPS] {title[:100]}",
-        body=body,
-        priority=priority,
-        correlation_id=cid,
-        message_type="task",
-        payload={
-            "task_id": tid,
-            "source_message_id": doc["source_message_id"],
-            "conversation_ref": doc["conversation_ref"],
-            "related_project": doc["related_project"],
-            "project_id": doc["project_id"],
-            "repo": doc["repo"],
-            "base_ref": doc["base_ref"],
-            "work_branch": doc["work_branch"],
-            "task_class": doc["task_class"],
-            "execution_lane": doc["execution_lane"],
-            "provider_transport": doc["provider_transport"],
-            "runtime_profile": doc["runtime_profile"],
-            "execution_policy": doc["execution_policy"],
-            "preferred_provider": doc["preferred_provider"],
-            "preferred_model": doc["preferred_model"],
-        },
-        related_project=doc["related_project"],
-        tags=["ops_task", tid, cid],
-    )
-    bump_revision(reason=f"ops_task {tid} → {assignee_l}", source=from_agent)
-    return {
-        "ok": True,
-        "created": True,
-        "idempotent": False,
-        "task": {k: v for k, v in doc.items()},
-        "task_id": tid,
-        "correlation_id": cid,
-    }
+    db = mongo_store.get_db()
+    db[OPS_TASKS_COL].insert_one(doc)
+    _publish_task_event("task.created", doc, actor=from_agent, status="queued")
+    bump_revision(reason=f"create_ops_task: {tid}", source=from_agent)
+    return {"ok": True, "task_id": tid, "workflow_id": workflow_id, "task": doc}
 
 
 def heartbeat_ops_task(
     task_id: str,
-    actor: str,
     *,
-    next_action: str | None = None,
-    blocker: str | None = None,
-    files_touched: list[str] | None = None,
+    actor: str,
+    phase: str = "",
+    current_step: str = "",
+    last_progress: str = "",
+    attempt: int = 1,
 ) -> dict[str, Any]:
-    """Record liveness for an accepted/active task without completing it."""
-    db = mongo_store.get_db()
-    actor_n = (actor or "").strip().lower()
-    task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
-    if not task:
-        return {"ok": False, "error": "task_not_found"}
-    if not actor_n:
-        return {"ok": False, "error": "actor_required"}
-    if task.get("owner") not in (None, actor_n):
-        return {"ok": False, "error": "ownership_conflict", "owner": task.get("owner"), "actor": actor_n}
-    if task.get("status") not in {"accepted", "in_progress", "blocked", "awaiting_approval", "verification"}:
-        return {"ok": False, "error": "task_not_active", "status": task.get("status")}
-
+    """Publica heartbeat durable del worker."""
     now = _now()
-    patch: dict[str, Any] = {
-        "last_heartbeat_at": now,
-        "updated_at": now,
-        "updated_by": actor_n,
+    db = mongo_store.get_db()
+    hb_data = {
+        "actor": actor,
+        "at": now,
+        "phase": phase,
+        "current_step": current_step,
+        "last_progress": last_progress,
+        "attempt": attempt,
     }
-    if next_action is not None:
-        patch["next_action"] = next_action.strip() or None
-    if blocker is not None:
-        patch["blocker"] = blocker.strip() or None
-    if files_touched is not None:
-        patch["files_touched"] = [str(path).strip() for path in files_touched if str(path).strip()]
-    history = {"at": now, "actor": actor_n, "next_action": patch.get("next_action"), "blocker": patch.get("blocker")}
-    result = db[OPS_TASKS_COL].update_one(
-        {"task_id": task_id, "status": task.get("status")},
-        {"$set": patch, "$push": {"heartbeat_history": {"$each": [history], "$slice": -100}}},
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": task_id},
+        {
+            "$set": {"last_heartbeat_at": now, "current_phase": phase, "updated_at": now},
+            "$push": {"heartbeat_history": hb_data}
+        }
     )
-    event_result = None
-    if result.modified_count == 1:
-        event_result = _publish_task_event(
-            "task.heartbeat",
-            {**task, **patch},
-            actor=actor_n,
-            status=str(task.get("status") or ""),
-            payload={"next_action": patch.get("next_action"), "blocker": patch.get("blocker"), "files_touched": patch.get("files_touched")},
-        )
-    return {
-        "ok": result.modified_count == 1,
-        "task_id": task_id,
-        "status": task.get("status"),
-        "last_heartbeat_at": now,
-        "owner": task.get("owner") or actor_n,
-        "event_id": (event_result or {}).get("event_id"),
-    }
+    _publish_task_event("task.heartbeat", {"task_id": task_id}, actor=actor, payload=hb_data)
+    return {"ok": True, "task_id": task_id, "heartbeat": hb_data}
 
 
 def update_ops_task_state(
     task_id: str,
     status: str,
-    actor: str,
+    *,
+    actor: str = "system",
     evidence: dict[str, Any] | None = None,
-    expected_revision: int | None = None,
     force_handoff: bool = False,
-    allow_legacy_direct: bool = False,
 ) -> dict[str, Any]:
-    """Apply a RACB state transition with ownership and optimistic locking."""
-    from raphiia_openai import racb_protocol
-
+    """Actualiza proyección tras transición durable."""
+    now = _now()
     db = mongo_store.get_db()
-    task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
-    if not task:
-        return {"ok": False, "error": "task_not_found"}
-
-    current_revision = int(task.get("revision") or 1)
-    if expected_revision is not None and int(expected_revision) != current_revision:
-        return {
-            "ok": False,
-            "error": "revision_conflict",
-            "expected_revision": int(expected_revision),
-            "current_revision": current_revision,
-        }
-
-    terminal_gate = _validate_terminal_evidence(task, status, evidence)
-    if not terminal_gate.get("ok"):
-        return terminal_gate
-
-    transition = racb_protocol.build_transition(
-        current_status=str(task.get("status") or "pending"),
-        target_status=status,
-        actor=actor,
-        current_revision=current_revision,
-        owner=task.get("owner"),
-        evidence=evidence,
-        force_handoff=force_handoff,
-        allow_legacy_direct=allow_legacy_direct,
-    )
-    if not transition.get("ok"):
-        return {**transition, "task_id": task_id}
-    if transition.get("idempotent"):
-        if evidence:
-            now = _now()
-            next_revision = current_revision + 1
-            evidence_patch = {
-                "evidence": evidence,
-                "last_evidence_at": now,
-                "updated_at": now,
-                "updated_by": (actor or "system").strip().lower(),
-                "revision": next_revision,
-            }
-            evidence_history = {
-                "at": now,
-                "actor": (actor or "system").strip().lower(),
-                "status": racb_protocol.normalize_status(status),
-                "evidence": evidence,
-                "revision": next_revision,
-                "reason": "idempotent_state_evidence_update",
-            }
-            result = db[OPS_TASKS_COL].update_one(
-                {"task_id": task_id, "status": task.get("status"), "revision": current_revision},
-                {
-                    "$set": evidence_patch,
-                    "$push": {"evidence_history": {"$each": [evidence_history], "$slice": -50}},
-                },
-            )
-            if result.modified_count != 1:
-                return {"ok": False, "error": "concurrent_evidence_update", "task_id": task_id}
-            event_result = _publish_task_event(
-                "task.evidence_recorded",
-                {**task, **evidence_patch},
-                actor=actor,
-                status=racb_protocol.normalize_status(status),
-                payload={"revision": next_revision, "idempotent_state": True},
-            )
-            bump_revision(reason=f"ops_task {task_id} evidence updated", source=actor)
-            return {
-                "ok": True,
-                "idempotent": True,
-                "evidence_updated": True,
-                "task_id": task_id,
-                "status": racb_protocol.normalize_status(status),
-                "revision": next_revision,
-                "event_id": (event_result or {}).get("event_id"),
-            }
-        return {
-            "ok": True,
-            "idempotent": True,
-            "task_id": task_id,
-            "status": racb_protocol.normalize_status(status),
-            "revision": current_revision,
-        }
-
-    revision_filter = {
-        "$or": [
-            {"revision": current_revision},
-            {"revision": {"$exists": False}},
-        ]
+    patch: dict[str, Any] = {
+        "status": status,
+        "updated_at": now,
+        "updated_by": actor,
     }
-    result = db[OPS_TASKS_COL].update_one(
-        {"task_id": task_id, "status": task.get("status"), **revision_filter},
-        {"$set": transition["patch"], "$push": {"state_history": transition["history"]}},
+    if evidence:
+        patch["evidence"] = evidence
+    
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": task_id},
+        {"$set": patch, "$inc": {"revision": 1}}
     )
-    if result.modified_count != 1:
-        return {"ok": False, "error": "concurrent_transition", "task_id": task_id}
-
-    event_result = _publish_task_event(
-        _status_event_type(str(transition["patch"].get("status") or "")),
-        {**task, **transition["patch"]},
-        actor=actor,
-        status=str(transition["patch"].get("status") or ""),
-        payload={"from": task.get("status"), "to": transition["patch"].get("status"), "revision": transition.get("revision")},
-    )
-    bump_revision(reason=f"ops_task {task_id} → {transition['patch']['status']}", source=actor)
-    return {
-        "ok": True,
-        "idempotent": False,
-        "task_id": task_id,
-        "status": transition["patch"]["status"],
-        "revision": transition["revision"],
-        "owner": transition["patch"].get("owner", task.get("owner")),
-        "event_id": (event_result or {}).get("event_id"),
-    }
+    _publish_task_event(_status_event_type(status), {"task_id": task_id}, actor=actor, status=status, payload=patch)
+    bump_revision(reason=f"update_ops_task_state: {task_id} -> {status}", source=actor)
+    return {"ok": True, "task_id": task_id, "status": status, "updated_at": now}
 
 
 def complete_ops_task(
     task_id: str,
+    *,
     status: str = "completed",
+    actor: str = "system",
     evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    st = (status or "completed").strip().lower()
-    transition = update_ops_task_state(
-        task_id=task_id,
-        status=st,
-        actor="system",
-        evidence=evidence,
-        force_handoff=True,
-        allow_legacy_direct=True,
-    )
-    if not transition.get("ok"):
-        return transition
-    db = mongo_store.get_db()
-    task_doc = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
-    notion_out: dict[str, Any] | None = None
-    cid = task_doc.get("correlation_id")
-    if cid:
-        try:
-            from raphiia_openai.notion_coordination import post_response_to_notion
-
-            summary = (evidence or {}).get("summary") or str(evidence or "")[:500] or f"Task {st}"
-            notion_out = post_response_to_notion(
-                correlation_id=cid,
-                status="Completed" if st == "completed" else "Failed",
-                summary=summary,
-                evidence=evidence,
-            )
-        except Exception as exc:
-            notion_out = {"ok": False, "error": str(exc)}
-    return {**transition, "notion_response": notion_out}
-
-
-def list_ops_tasks(assignee: str | None = None, status: str | None = None, limit: int = 20) -> dict[str, Any]:
-    db = mongo_store.get_db()
-    filt: dict[str, Any] = {}
-    if assignee:
-        filt["assignee"] = assignee.strip().lower()
-    if status:
-        filt["status"] = status.strip().lower()
-    items = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("created_at", -1).limit(max(1, min(limit, 50))))
-    return {"ok": True, "count": len(items), "tasks": items}
+    """Cierre de tarea con verificación de evidencia."""
+    return update_ops_task_state(task_id, status=status, actor=actor, evidence=evidence)

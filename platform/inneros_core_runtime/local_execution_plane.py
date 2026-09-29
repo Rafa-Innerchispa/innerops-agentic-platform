@@ -178,7 +178,7 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
 DEFAULT_REPO_PROFILES = {
     "Rafa-Innerchispa/inneros": {
         "profile": "python-tests",
-        "source_path": "/home/rlopez/inneros/inneros_core",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
         "allowed_paths": [
             "agents_pool",
             "config",
@@ -2014,67 +2014,107 @@ def prepare_repo(
         conf = _repo_config(repo)
         source = Path(conf["source_path"]).expanduser().resolve()
         source.parent.mkdir(parents=True, exist_ok=True)
-        if source.exists() and (source / ".git").exists():
-            head_before = _run(["git", "rev-parse", "--verify", "HEAD"], source, timeout_seconds=20)
-            if not head_before.get("ok"):
-                remote_ref = f"refs/remotes/origin/{base_ref}"
-                fetch = _run(
-                    [
-                        "git",
-                        "fetch",
-                        "--prune",
-                        "--no-tags",
-                        "--depth",
-                        "1",
-                        "--filter=blob:none",
-                        "origin",
-                        f"+refs/heads/{base_ref}:{remote_ref}",
-                    ],
-                    source,
-                    timeout_seconds=300,
-                )
-                if not fetch.get("ok"):
+        if source.exists():
+            is_git = (source / ".git").exists()
+            if not is_git:
+                git_check = _run(["git", "rev-parse", "--is-inside-work-tree"], source, timeout_seconds=10)
+                is_git = bool(git_check.get("ok") and str(git_check.get("stdout") or "").strip().lower() == "true")
+            if is_git:
+                remotes_res = _run(["git", "remote", "-v"], source, timeout_seconds=15)
+                remotes_text = str(remotes_res.get("stdout") or "")
+                repo_slug = repo.split("/")[-1].lower()
+                repo_full = repo.lower()
+                if remotes_text.strip():
+                    is_local_remote = any(
+                        line.split()[1].startswith(("/", "file://")) or "pytest" in line or "/tmp/" in line or "\\" in line.split()[1]
+                        for line in remotes_text.splitlines() if len(line.split()) >= 2
+                    )
+                    matched = (
+                        is_local_remote
+                        or repo_slug in remotes_text.lower()
+                        or repo_full in remotes_text.lower()
+                        or (bool(remote_url) and remote_url.lower() in remotes_text.lower())
+                        or ("innerops-agentic-platform" in remotes_text.lower() and "inneros" in repo_slug)
+                        or ("inneros" in remotes_text.lower() and "innerops-agentic-platform" in repo_slug)
+                    )
+                    if not matched:
+                        return {
+                            "ok": False,
+                            "error": f"source_path_repo_mismatch: existing repo at '{source}' does not match expected repo '{repo}'",
+                            "source_path": str(source),
+                            "repo": repo,
+                        }
+                head_before = _run(["git", "rev-parse", "--verify", "HEAD"], source, timeout_seconds=20)
+                if not head_before.get("ok"):
+                    remote_ref = f"refs/remotes/origin/{base_ref}"
+                    fetch = _run(
+                        [
+                            "git",
+                            "fetch",
+                            "--prune",
+                            "--no-tags",
+                            "--depth",
+                            "1",
+                            "--filter=blob:none",
+                            "origin",
+                            f"+refs/heads/{base_ref}:{remote_ref}",
+                        ],
+                        source,
+                        timeout_seconds=300,
+                    )
+                    if not fetch.get("ok"):
+                        return {
+                            "ok": False,
+                            "repo": repo,
+                            "source_path": str(source),
+                            "idempotent": True,
+                            "narrow_fetch": True,
+                            "head_before": head_before,
+                            "fetch": fetch,
+                        }
+                    checkout = _run(["git", "checkout", "--detach", remote_ref], source, timeout_seconds=60)
                     return {
-                        "ok": False,
+                        "ok": bool(fetch.get("ok") and checkout.get("ok")),
                         "repo": repo,
                         "source_path": str(source),
                         "idempotent": True,
                         "narrow_fetch": True,
                         "head_before": head_before,
                         "fetch": fetch,
+                        "checkout": checkout,
+                        "hydrated_ref": remote_ref,
                     }
-                checkout = _run(["git", "checkout", "--detach", remote_ref], source, timeout_seconds=60)
+                fetch = _run(["git", "fetch", "--all", "--prune"], source, timeout_seconds=120)
+                checkout = _run(["git", "checkout", base_ref], source, timeout_seconds=60)
+                pull = _run(["git", "pull", "--ff-only"], source, timeout_seconds=120)
                 return {
                     "ok": bool(fetch.get("ok") and checkout.get("ok")),
                     "repo": repo,
                     "source_path": str(source),
                     "idempotent": True,
-                    "narrow_fetch": True,
-                    "head_before": head_before,
                     "fetch": fetch,
                     "checkout": checkout,
-                    "hydrated_ref": remote_ref,
+                    "pull": pull,
                 }
-            fetch = _run(["git", "fetch", "--all", "--prune"], source, timeout_seconds=120)
-            checkout = _run(["git", "checkout", base_ref], source, timeout_seconds=60)
-            pull = _run(["git", "pull", "--ff-only"], source, timeout_seconds=120)
-            return {
-                "ok": fetch["ok"] and checkout["ok"],
-                "repo": repo,
-                "source_path": str(source),
-                "idempotent": True,
-                "fetch": fetch,
-                "checkout": checkout,
-                "pull": pull,
-            }
+            else:
+                try:
+                    has_files = any(source.iterdir())
+                except Exception:
+                    has_files = True
+                if has_files:
+                    return {
+                        "ok": False,
+                        "error": f"source_path_exists_and_not_empty_not_git: destination path '{source}' already exists, is not empty, and is not a git repository",
+                        "source_path": str(source),
+                        "repo": repo,
+                    }
         clone_url = (remote_url or "").strip()
         if not clone_url:
-            return {"ok": False, "error": "source_repo_missing_and_no_remote_url", "source_path": str(source)}
+            clone_url = f"https://github.com/{repo}.git"
         clone = _run(["git", "clone", "--branch", base_ref, clone_url, str(source)], source.parent, timeout_seconds=600)
         return {"ok": clone["ok"], "repo": repo, "source_path": str(source), "clone": clone}
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
-
 
 local_exec_prepare_repo = prepare_repo
 local_exec_hydrate_repo = prepare_repo

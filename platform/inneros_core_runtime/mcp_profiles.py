@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.6"
+PROFILES_VERSION = "1.4.5"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -272,21 +272,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "dmx_blackout",
         ],
     },
-    "device_fabric": {
-        "label": "Universal Physical Device Fabric - inventario read-only",
-        "model_minimum": "small",
-        "max_tools": 8,
-        "tools": [
-            "device_fabric_providers",
-            "device_fabric_discover",
-            "device_fabric_probe",
-            "device_fabric_bind",
-            "device_fabric_inventory",
-            "device_fabric_capabilities",
-            "device_fabric_health",
-            "device_fabric_get",
-        ],
-    },
     "browser_ops": {
         "label": "Navegador humano asistido",
         "model_minimum": "small",
@@ -489,7 +474,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "owner_dev": {
         "label": "Owner development local seguro",
         "model_minimum": "medium",
-        "max_tools": 175,
+        "max_tools": 174,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
@@ -547,7 +532,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "peer_wifi_connect",
             "peer_wifi_disconnect",
             "peer_route_check",
-            "peer_network_path_probe",
             "peer_secret_store_wifi",
             "peer_wifi_forget",
             "peer_package_status",

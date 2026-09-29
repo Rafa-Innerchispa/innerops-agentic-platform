@@ -13,7 +13,6 @@ from raphiia_openai.settings import (
     OAUTH_ISSUER_LAN,
     OAUTH_MCP_RESOURCE,
     OAUTH_MCP_RESOURCE_LAN,
-    OAUTH_ACCEPTED_MCP_RESOURCES,
     RALFIA_INTEL_HOST,
 )
 
@@ -69,16 +68,8 @@ def authorization_server_metadata(host_header: str | None = None) -> dict[str, A
     }
 
 
-def protected_resource_metadata(
-    host_header: str | None = None,
-    resource_override: str | None = None,
-) -> dict[str, Any]:
+def protected_resource_metadata(host_header: str | None = None) -> dict[str, Any]:
     issuer, resource = resolve_oauth_urls(host_header)
-    if resource_override is not None:
-        candidate = resource_override.rstrip("/")
-        if candidate not in OAUTH_ACCEPTED_MCP_RESOURCES:
-            raise ValueError("oauth_resource_not_accepted")
-        resource = candidate
     return {
         "resource": resource,
         "authorization_servers": [issuer],

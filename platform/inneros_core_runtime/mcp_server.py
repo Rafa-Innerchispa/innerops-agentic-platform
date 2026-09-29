@@ -530,26 +530,6 @@ def peer_route_check(node: str = "amd") -> dict[str, Any]:
 
 
 @mcp.tool
-def peer_network_path_probe(
-    project_id: str,
-    targets: list[str] | str | None = None,
-    node: str = "primary",
-    count: int = 3,
-    timeout_seconds: int = 1,
-) -> dict[str, Any]:
-    """AG-41: ICMP/route read-only acotado por config privada del proyecto."""
-    from raphiia_openai.agents import ag41_peer_ops_executor as ag41
-
-    return ag41.peer_network_path_probe(
-        project_id=project_id,
-        targets=targets,
-        node=node,
-        count=count,
-        timeout_seconds=timeout_seconds,
-    )
-
-
-@mcp.tool
 def peer_secret_store_wifi(node: str, ssid: str, secret: str, approval_id: str) -> dict[str, Any]:
     """AG-41: guarda PSK Wi-Fi server-side y devuelve solo credential_ref."""
     from raphiia_openai.agents import ag41_peer_ops_executor as ag41
@@ -2125,17 +2105,6 @@ def agent_browser_run_task(
     """AG-55: tarea browser local (navigate|screenshot|fill_form|click|extract). dry_run=True por defecto."""
     from raphiia_openai.agents import ag55_browser_ops_agent as ag55
 
-    if local_preview or loopback_ports:
-        return {
-            "ok": False,
-            "error": "unsupported_browser_run_task_options",
-            "unsupported": [
-                name for name, enabled in (
-                    ("local_preview", bool(local_preview)),
-                    ("loopback_ports", bool(loopback_ports)),
-                ) if enabled
-            ],
-        }
     return ag55.agent_browser_run_task(
         task,
         url,
@@ -2145,6 +2114,8 @@ def agent_browser_run_task(
         extract_selector=extract_selector,
         dry_run=dry_run,
         timeout_ms=timeout_ms,
+        local_preview=local_preview,
+        loopback_ports=loopback_ports,
     )
 
 
@@ -3616,94 +3587,6 @@ def dmx_blackout() -> dict[str, Any]:
     from raphiia_openai.agents import ag59_dmx_artnet_orchestrator as ag59
 
     return ag59.dmx_blackout()
-
-
-@mcp.tool
-def device_fabric_providers() -> dict[str, Any]:
-    """AG-60: matriz de proveedores del Universal Physical Device Fabric."""
-    from raphiia_openai import device_fabric
-
-    return device_fabric.device_fabric_providers()
-
-
-@mcp.tool
-def device_fabric_discover(
-    site_id: str = "bellini_i_ii",
-    cidr: str = "",
-    limit_hosts: int = 254,
-    live: bool = True,
-    timeout_seconds: float = 0.35,
-) -> dict[str, Any]:
-    """AG-60: descubrimiento read-only dentro del alcance autorizado de un sitio."""
-    from raphiia_openai import device_fabric
-
-    return device_fabric.device_fabric_discover(
-        site_id=site_id,
-        cidr=cidr,
-        limit_hosts=limit_hosts,
-        live=live,
-        timeout_seconds=timeout_seconds,
-    )
-
-
-@mcp.tool
-def device_fabric_probe(target: str, provider_id: str = "", site_id: str = "bellini_i_ii") -> dict[str, Any]:
-    """AG-60: probe read-only de un host autorizado."""
-    from raphiia_openai import device_fabric
-
-    return device_fabric.device_fabric_probe(target=target, provider_id=provider_id, site_id=site_id)
-
-
-@mcp.tool
-def device_fabric_bind(
-    device_ref: str,
-    provider_id: str,
-    credential_ref: str = "",
-    site_id: str = "",
-    dry_run: bool = True,
-) -> dict[str, Any]:
-    """AG-60: previsualiza un bind proveedor/dispositivo; live bind esta deshabilitado."""
-    from raphiia_openai import device_fabric
-
-    return device_fabric.device_fabric_bind(
-        device_ref=device_ref,
-        provider_id=provider_id,
-        credential_ref=credential_ref,
-        site_id=site_id,
-        dry_run=dry_run,
-    )
-
-
-@mcp.tool
-def device_fabric_inventory(site_id: str = "", live: bool = False) -> dict[str, Any]:
-    """AG-60: inventario normalizado por sitio o multi-sitio."""
-    from raphiia_openai import device_fabric
-
-    return device_fabric.device_fabric_inventory(site_id=site_id, live=live)
-
-
-@mcp.tool
-def device_fabric_capabilities(device_ref: str = "", provider_id: str = "") -> dict[str, Any]:
-    """AG-60: capacidades y limites read-only por proveedor o dispositivo."""
-    from raphiia_openai import device_fabric
-
-    return device_fabric.device_fabric_capabilities(device_ref=device_ref, provider_id=provider_id)
-
-
-@mcp.tool
-def device_fabric_health(site_id: str = "") -> dict[str, Any]:
-    """AG-60: salud de proveedores, adaptadores delegados y blockers."""
-    from raphiia_openai import device_fabric
-
-    return device_fabric.device_fabric_health(site_id=site_id)
-
-
-@mcp.tool
-def device_fabric_get(device_ref: str) -> dict[str, Any]:
-    """AG-60: obtiene metadata de fabric, sitio, proveedor o dispositivo."""
-    from raphiia_openai import device_fabric
-
-    return device_fabric.device_fabric_get(device_ref=device_ref)
 
 
 # --- MOD-AUTODEV (SRE Autonomous Development and Project Approval) ---
@@ -5535,11 +5418,34 @@ def get_coordination_liveness_summary() -> dict[str, Any]:
     return coordination_liveness.get_coordination_liveness_summary()
 
 
-def list_ops_tasks(assignee: str | None = None, status: str | None = None, limit: int = 20) -> dict[str, Any]:
-    """Lista órdenes ops (pending/completed)."""
-    from raphiia_openai import coordination_live
+@mcp.tool
+def list_ops_tasks(
+    task_id: str | None = None,
+    correlation_id: str | None = None,
+    project: str | None = None,
+    repo: str | None = None,
+    assignee: str | None = None,
+    status: str | None = None,
+    date: str | None = None,
+    workflow_id: str | None = None,
+    run_id: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Lista órdenes ops con soporte de filtros por task_id, correlation_id, project, repo, assignee, status, date, workflow_id, run_id."""
+    from inneros_core_runtime import coordination_live
 
-    return coordination_live.list_ops_tasks(assignee=assignee, status=status, limit=limit)
+    return coordination_live.list_ops_tasks(
+        task_id=task_id,
+        correlation_id=correlation_id,
+        project=project,
+        repo=repo,
+        assignee=assignee,
+        status=status,
+        date=date,
+        workflow_id=workflow_id,
+        run_id=run_id,
+        limit=limit,
+    )
 
 
 @mcp.tool
@@ -7266,18 +7172,6 @@ async def mcp_oauth_protected_resource_path(request: Request) -> JSONResponse:
     from raphiia_openai.oauth_metadata import protected_resource_metadata
 
     return JSONResponse(protected_resource_metadata(request.headers.get("host")))
-
-
-@mcp.custom_route("/.well-known/oauth-protected-resource/router/mcp", methods=["GET"])
-async def mcp_oauth_protected_resource_router_path(request: Request) -> JSONResponse:
-    from raphiia_openai.oauth_metadata import protected_resource_metadata
-
-    return JSONResponse(
-        protected_resource_metadata(
-            request.headers.get("host"),
-            resource_override="https://mcp.pcdoctor.ai/router/mcp",
-        )
-    )
 
 
 @mcp.custom_route("/notion/webhook", methods=["POST"])

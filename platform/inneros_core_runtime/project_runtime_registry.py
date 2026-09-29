@@ -241,8 +241,6 @@ def bootstrap_runtime(
     project_id: str = "",
     repo: str = "",
     remote_url: str = "",
-    base_ref: str = "",
-    expected_sha: str = "",
     actor: str = "chatgpt",
     task_id: str = "",
     correlation_id: str = "",
@@ -253,7 +251,7 @@ def bootstrap_runtime(
     remote = (remote_url or "").strip()
     if remote and not SAFE_REMOTE_RE.match(remote):
         return {"ok": False, "error": "remote_url_not_allowlisted"}
-    payload = json.dumps({"project_path": path, "repo": resolved["project"]["repo"], "remote_url": remote, "base_ref": base_ref, "expected_sha": expected_sha, "dry_run": dry_run})
+    payload = json.dumps({"project_path": path, "repo": resolved["project"]["repo"], "remote_url": remote, "dry_run": dry_run})
     proc = _run_node(resolved["node"], [NODE_HELPER, "project_bootstrap"], input_text=payload, timeout=300)
     try:
         result = json.loads(proc.stdout or "{}")

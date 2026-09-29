@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
 import html
 import secrets
 from typing import Any
@@ -161,17 +159,17 @@ def _authorize_form(params: dict[str, str], issuer: str, active_user: str | None
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>InnerOS Unified SSO</title>
   <style>
-    body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f172a; color: #e5e7eb; }}
-    main {{ max-width: 440px; margin: 8vh auto; padding: 32px; background: #111827; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }}
-    h1 {{ font-size: 1.4rem; margin-bottom: 0.5rem; text-align: center; color: #38bdf8; }}
-    .muted {{ color: #94a3b8; font-size: 0.88rem; margin-bottom: 1.25rem; text-align: center; }}
-    .sso-banner {{ background: #1e293b; border: 1px solid #0284c7; padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; text-align: center; color: #bae6fd; }}
-    label {{ display: block; margin: 12px 0 4px; font-size: 0.88rem; font-weight: 500; }}
-    input {{ width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; font-size: 0.95rem; }}
-    input:focus {{ outline: none; border-color: #38bdf8; }}
-    button {{ width: 100%; margin-top: 20px; padding: 12px; border-radius: 6px; border: none; background: #2563eb; color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; }}
-    button:hover {{ background: #1d4ed8; }}
-    .error {{ color: #f87171; font-size: 0.85rem; margin-bottom: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 4px; }}
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f172a; color: #e5e7eb; }
+    main { max-width: 440px; margin: 8vh auto; padding: 32px; background: #111827; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; text-align: center; color: #38bdf8; }
+    .muted { color: #94a3b8; font-size: 0.88rem; margin-bottom: 1.25rem; text-align: center; }
+    .sso-banner { background: #1e293b; border: 1px solid #0284c7; padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; text-align: center; color: #bae6fd; }
+    label { display: block; margin: 12px 0 4px; font-size: 0.88rem; font-weight: 500; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; font-size: 0.95rem; }
+    input:focus { outline: none; border-color: #38bdf8; }
+    button { width: 100%; margin-top: 20px; padding: 12px; border-radius: 6px; border: none; background: #2563eb; color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .error { color: #f87171; font-size: 0.85rem; margin-bottom: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -204,10 +202,6 @@ def _validate_authorize_params(params: dict[str, str]) -> tuple[dict[str, Any], 
     redirect_uri = params.get("redirect_uri", "")
     if not oauth_store.redirect_uri_allowed(redirect_uri, client.get("redirect_uris")):
         raise HTTPException(status_code=400, detail="redirect_uri not allowed")
-    resource = str(params.get("resource") or "").rstrip("/")
-    if resource and client.get("resources"):
-        if not oauth_store.resource_allowed(resource, client.get("resources")):
-            raise HTTPException(status_code=400, detail="invalid_target")
     scope = " ".join(oauth_store.parse_scopes(params.get("scope") or client.get("scope")))
     return client, scope
 
@@ -304,69 +298,29 @@ async def authorize_post(
     return redirect
 
 
-def _basic_client_credentials(request: Request) -> tuple[str, str] | None:
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Basic "):
-        return None
-    encoded = auth_header[6:].strip()
-    try:
-        decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
-    except (binascii.Error, UnicodeDecodeError):
-        raise HTTPException(status_code=401, detail="invalid_client")
-    if ":" not in decoded:
-        raise HTTPException(status_code=401, detail="invalid_client")
-    client_id, client_secret = decoded.split(":", 1)
-    if not client_id or not client_secret:
-        raise HTTPException(status_code=401, detail="invalid_client")
-    return client_id, client_secret
-
-
 @app.post("/token")
 async def token(
-    request: Request,
     grant_type: str = Form(...),
     code: str = Form(""),
     refresh_token: str = Form(""),
     redirect_uri: str = Form(""),
-    client_id: str = Form(""),
-    client_secret: str = Form(""),
+    client_id: str = Form(...),
     code_verifier: str = Form(""),
-    scope: str = Form(""),
-    resource: str = Form(""),
 ) -> JSONResponse:
-    basic = _basic_client_credentials(request)
-    if basic is not None:
-        basic_client_id, basic_client_secret = basic
-        if client_id and client_id != basic_client_id:
-            raise HTTPException(status_code=401, detail="invalid_client")
-        client_id = basic_client_id
-        client_secret = basic_client_secret
-
-    if not client_id:
-        raise HTTPException(status_code=401, detail="invalid_client")
-    client = oauth_store.get_client(client_id)
-    if not client:
-        raise HTTPException(status_code=401, detail="invalid_client")
-    if client.get("client_secret_hash") and client.get("token_endpoint_auth_method") != "none":
-        if not client_secret or not oauth_store.verify_client_secret(client, client_secret):
-            raise HTTPException(status_code=401, detail="invalid_client")
-
+    if not oauth_store.get_client(client_id):
+        raise HTTPException(status_code=400, detail="invalid_client")
     if grant_type == "authorization_code":
         code_doc = oauth_store.consume_auth_code(
             code=code,
             client_id=client_id,
             redirect_uri=redirect_uri,
             code_verifier=code_verifier,
-            resource=resource or None,
         )
         if not code_doc:
             raise HTTPException(status_code=400, detail="invalid_grant")
         return JSONResponse(oauth_store.issue_access_token(code_doc))
     if grant_type == "refresh_token":
-        token_doc = oauth_store.exchange_refresh_token(
-            refresh_token=refresh_token,
-            client_id=client_id,
-        )
+        token_doc = oauth_store.exchange_refresh_token(refresh_token=refresh_token, client_id=client_id)
         if not token_doc:
             raise HTTPException(status_code=400, detail="invalid_grant")
         return JSONResponse(token_doc)

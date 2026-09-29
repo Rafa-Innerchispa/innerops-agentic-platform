@@ -1,8 +1,8 @@
 """Pure Temporal Workflow Definition for InnerOS Tasks.
 
 Deterministic workflow code: coordinates validation, worktree, LangGraph
-Actor-Critic agent execution in Docker sandbox, and completion evidence or
-Circuit Breaker transitions to PENDING_HUMAN_REVIEW.
+Actor-Critic agent execution in Docker sandbox, strict gated verification,
+and completion evidence or Circuit Breaker transitions to PENDING_HUMAN_REVIEW.
 """
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ with workflow.unsafe.imports_passed_through():
         activity_hydrate_worktree,
         activity_execute_agent_graph,
         activity_sync_mongo_mirror,
+        activity_publish_nats_event,
+        activity_validate_completion_gate,
     )
 
 STANDARD_RETRY_POLICY = RetryPolicy(
@@ -26,42 +28,92 @@ STANDARD_RETRY_POLICY = RetryPolicy(
     backoff_coefficient=2.0,
     maximum_attempts=3,
     maximum_interval=timedelta(seconds=30),
-    non_retryable_error_types=["CIRCUIT_BREAKER_PENDING_HUMAN_REVIEW", "TASK_TERMINAL", "TASK_NOT_ASSIGNED", "STALE_TASK_REVISION"],
+    non_retryable_error_types=[
+        "CIRCUIT_BREAKER_PENDING_HUMAN_REVIEW",
+        "TASK_TERMINAL",
+        "TASK_NOT_ASSIGNED",
+        "STALE_TASK_REVISION",
+        "VERIFICATION_FAILED_NO_COMPLETION",
+    ],
 )
 
 
 @workflow.defn
 class OpsTaskWorkflow:
     def __init__(self) -> None:
-        self.status = "running"
+        self.status = "queued"
         self.phase = "init"
         self.approved = True
         self.cancelled = False
         self.cancel_reason = ""
         self.evidence: Dict[str, Any] = {}
+        self.attempt = 1
+        self.last_heartbeat: Dict[str, Any] = {}
+        self.worker_id = ""
+        self.provider = ""
+        self.candidate_result = ""
 
     @workflow.run
     async def run(self, envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
         self.phase = "validation"
+        self.status = "dispatched"
+        self.attempt = 1
 
         # 1. Validate envelope and protocol
-        await workflow.execute_activity(
+        val_res = await workflow.execute_activity(
             activity_validate_envelope,
             envelope_dict,
             start_to_close_timeout=timedelta(seconds=30),
             retry_policy=STANDARD_RETRY_POLICY,
         )
 
-        # 2. Mirror in-progress to Mongo
+        # 2. Publish dispatched event & mirror to Mongo
+        await workflow.execute_activity(
+            activity_publish_nats_event,
+            args=["task.dispatched", envelope_dict, "dispatched", {"attempt": self.attempt}],
+            start_to_close_timeout=timedelta(seconds=15),
+            retry_policy=STANDARD_RETRY_POLICY,
+        )
         await workflow.execute_activity(
             activity_sync_mongo_mirror,
-            args=[envelope_dict, "in_progress", {"phase": "hydrating"}],
+            args=[envelope_dict, "dispatched", {"phase": "dispatched", "attempt": self.attempt}],
             start_to_close_timeout=timedelta(seconds=30),
             retry_policy=STANDARD_RETRY_POLICY,
         )
 
-        # 3. Hydrate worktree
+        # 3. Transition to running state with real parameters
+        self.status = "running"
         self.phase = "worktree_hydration"
+        self.worker_id = envelope_dict.get("preferred_provider") or envelope_dict.get("assignee") or "dev_swarm_worker"
+        self.provider = envelope_dict.get("preferred_provider") or "local"
+
+        await workflow.execute_activity(
+            activity_publish_nats_event,
+            args=["task.running", envelope_dict, "running", {
+                "worker_id": self.worker_id,
+                "provider": self.provider,
+                "workflow_id": workflow.info().workflow_id,
+                "run_id": workflow.info().run_id,
+                "attempt": self.attempt,
+            }],
+            start_to_close_timeout=timedelta(seconds=15),
+            retry_policy=STANDARD_RETRY_POLICY,
+        )
+        await workflow.execute_activity(
+            activity_sync_mongo_mirror,
+            args=[envelope_dict, "running", {
+                "phase": "hydrating",
+                "worker_id": self.worker_id,
+                "provider": self.provider,
+                "workflow_id": workflow.info().workflow_id,
+                "run_id": workflow.info().run_id,
+                "attempt": self.attempt,
+            }],
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=STANDARD_RETRY_POLICY,
+        )
+
+        # 4. Hydrate worktree
         wt = await workflow.execute_activity(
             activity_hydrate_worktree,
             envelope_dict,
@@ -69,9 +121,15 @@ class OpsTaskWorkflow:
             retry_policy=STANDARD_RETRY_POLICY,
         )
 
-        # 4. Check for cancellation
+        # 5. Check for cancellation
         if self.cancelled:
             self.status = "cancelled"
+            await workflow.execute_activity(
+                activity_publish_nats_event,
+                args=["task.cancelled", envelope_dict, "cancelled", {"reason": self.cancel_reason}],
+                start_to_close_timeout=timedelta(seconds=15),
+                retry_policy=STANDARD_RETRY_POLICY,
+            )
             await workflow.execute_activity(
                 activity_sync_mongo_mirror,
                 args=[envelope_dict, "cancelled", {"reason": self.cancel_reason}],
@@ -80,7 +138,7 @@ class OpsTaskWorkflow:
             )
             return {"status": "cancelled", "reason": self.cancel_reason}
 
-        # 5. Run LangGraph agent execution graph in Docker sandbox
+        # 6. Run LangGraph / Agent Execution
         self.phase = "agent_execution"
         try:
             agent_res = await workflow.execute_activity(
@@ -91,7 +149,6 @@ class OpsTaskWorkflow:
                 retry_policy=STANDARD_RETRY_POLICY,
             )
         except ActivityError as ae:
-            # Circuit breaker: 3 activity failures or explicit human intervention request
             self.status = "pending_human_review"
             self.phase = "circuit_breaker"
             self.evidence = {
@@ -102,6 +159,12 @@ class OpsTaskWorkflow:
                 "review_required": True,
             }
             await workflow.execute_activity(
+                activity_publish_nats_event,
+                args=["circuit_breaker.triggered", envelope_dict, "pending_human_review", self.evidence],
+                start_to_close_timeout=timedelta(seconds=15),
+                retry_policy=STANDARD_RETRY_POLICY,
+            )
+            await workflow.execute_activity(
                 activity_sync_mongo_mirror,
                 args=[envelope_dict, "pending_human_review", self.evidence],
                 start_to_close_timeout=timedelta(seconds=30),
@@ -109,7 +172,41 @@ class OpsTaskWorkflow:
             )
             return {"status": "pending_human_review", "evidence": self.evidence}
 
-        # 6. Complete and mirror terminal state
+        # 7. Verification Gate
+        self.phase = "verification"
+        self.status = "verification"
+        gate_res = await workflow.execute_activity(
+            activity_validate_completion_gate,
+            args=[envelope_dict, agent_res],
+            start_to_close_timeout=timedelta(seconds=45),
+            retry_policy=STANDARD_RETRY_POLICY,
+        )
+
+        if not gate_res.get("passed"):
+            self.status = "failed"
+            self.phase = "verification_failed"
+            self.evidence = {
+                "failed_at": workflow.now().isoformat(),
+                "workflow_id": workflow.info().workflow_id,
+                "run_id": workflow.info().run_id,
+                "verification_error": gate_res.get("error", "Verification criteria not met"),
+                "agent_result": agent_res,
+            }
+            await workflow.execute_activity(
+                activity_publish_nats_event,
+                args=["task.failed", envelope_dict, "failed", self.evidence],
+                start_to_close_timeout=timedelta(seconds=15),
+                retry_policy=STANDARD_RETRY_POLICY,
+            )
+            await workflow.execute_activity(
+                activity_sync_mongo_mirror,
+                args=[envelope_dict, "failed", self.evidence],
+                start_to_close_timeout=timedelta(seconds=30),
+                retry_policy=STANDARD_RETRY_POLICY,
+            )
+            return {"status": "failed", "evidence": self.evidence}
+
+        # 8. Completed successfully
         self.status = "completed"
         self.phase = "completed"
         self.evidence = {
@@ -117,7 +214,14 @@ class OpsTaskWorkflow:
             "workflow_id": workflow.info().workflow_id,
             "run_id": workflow.info().run_id,
             "agent_result": agent_res,
+            "gate_verification": gate_res,
         }
+        await workflow.execute_activity(
+            activity_publish_nats_event,
+            args=["task.completed", envelope_dict, "completed", self.evidence],
+            start_to_close_timeout=timedelta(seconds=15),
+            retry_policy=STANDARD_RETRY_POLICY,
+        )
         await workflow.execute_activity(
             activity_sync_mongo_mirror,
             args=[envelope_dict, "completed", self.evidence],
@@ -126,6 +230,16 @@ class OpsTaskWorkflow:
         )
 
         return {"status": "completed", "evidence": self.evidence}
+
+    @workflow.signal
+    def heartbeat(self, hb_dict: Dict[str, Any]) -> None:
+        self.last_heartbeat = hb_dict
+
+    @workflow.signal
+    def record_candidate_result(self, res_dict: Dict[str, Any]) -> None:
+        self.candidate_result = res_dict.get("result", "")
+        if res_dict.get("evidence"):
+            self.evidence.update(res_dict.get("evidence"))
 
     @workflow.signal
     def approve(self, approval_payload: Dict[str, Any]) -> None:
@@ -141,6 +255,11 @@ class OpsTaskWorkflow:
         return {
             "status": self.status,
             "phase": self.phase,
+            "attempt": self.attempt,
+            "worker_id": self.worker_id,
+            "provider": self.provider,
+            "candidate_result": self.candidate_result,
+            "last_heartbeat": self.last_heartbeat,
             "approved": self.approved,
             "cancelled": self.cancelled,
             "evidence": self.evidence,

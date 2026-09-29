@@ -19,8 +19,53 @@ import httpx
 from raphiia_openai.notifications import settings as notification_settings
 
 UP_STATES = frozenset({"active", "up", "open", "unauthorized_alive"})
-NODE_HOSTS = {"primary": "192.168.1.4", "amd": "192.168.1.5"}
-NODE_LABELS = {"primary": ".4", "amd": ".5"}
+NODE_HOSTS = {
+    "primary": "192.168.1.4",
+    "amd": "192.168.1.5",
+    "desktop-t2jle71": "100.103.151.40",
+}
+NODE_LABELS = {
+    "primary": ".4",
+    "amd": ".5",
+    "desktop-t2jle71": "Bellini I-II",
+}
+NODE_ALIASES = {
+    "primary": "primary",
+    "intel": "primary",
+    "principal": "primary",
+    "4": "primary",
+    ".4": "primary",
+    "1.4": "primary",
+    "192.168.1.4": "primary",
+    "amd": "amd",
+    "backup": "amd",
+    "5": "amd",
+    ".5": "amd",
+    "1.5": "amd",
+    "192.168.1.5": "amd",
+    "desktop-t2jle71": "desktop-t2jle71",
+    "bellini": "desktop-t2jle71",
+    "bellini-lobby": "desktop-t2jle71",
+    "bellini-i-ii": "desktop-t2jle71",
+    "bellini-1-2": "desktop-t2jle71",
+    "100.103.151.40": "desktop-t2jle71",
+    "192.168.3.236": "desktop-t2jle71",
+}
+NODE_METADATA = {
+    "primary": {"role": "primary/intel", "lan_host": "192.168.1.4", "peer_ops": "operative"},
+    "amd": {"role": "secondary/amd", "lan_host": "192.168.1.5", "peer_ops": "operative"},
+    "desktop-t2jle71": {
+        "role": "bellini-i-ii/windows-peer",
+        "tailscale_host": "100.103.151.40",
+        "lan_host": "192.168.3.236",
+        "lan_cidr": "192.168.3.236/24",
+        "authorized_subnets": ["192.168.3.0/24"],
+        "gateway": "192.168.3.1",
+        "scope": "Bellini I-II only",
+        "peer_ops": "windows_transport_pending",
+        "transport": "tailscale_windows",
+    },
+}
 SSH_TARGETS = {"primary": "rlopez@192.168.1.4", "amd": "ralfiia-amd"}
 SSH_IDENTITY_FILE = "/home/rlopez/.ssh/ralfia_peer_ops_ed25519"
 _SECRET_RE = re.compile(r"(?i)(token|password|secret|apikey|api_key|authorization|cookie)\s*[=:]\s*\S+")
@@ -60,9 +105,13 @@ SERVICE_BY_ID = {service.service_id: service for service in SERVICES}
 
 def normalize_node(value: str | None) -> str:
     text = (value or "").strip().lower()
-    if text in {"amd", "backup", "5", ".5", "1.5", "192.168.1.5"}:
-        return "amd"
-    return "primary"
+    if not text:
+        return "primary"
+    if text in NODE_ALIASES:
+        return NODE_ALIASES[text]
+    if text in NODE_HOSTS:
+        return text
+    raise ValueError(f"unknown_peer_node:{text}")
 
 
 def node_from_text(text: str, default: str = "primary") -> str:
@@ -93,6 +142,19 @@ def _run_node(node: str, args: list[str], *, timeout: int = 45) -> subprocess.Co
     node = normalize_node(node)
     if node == _local_node():
         command = args
+    elif node not in SSH_TARGETS:
+        return subprocess.CompletedProcess(
+            args,
+            78,
+            "",
+            json.dumps({
+                "ok": False,
+                "error": "peer_transport_unavailable",
+                "node": node,
+                "transport": NODE_METADATA.get(node, {}).get("transport", "unknown"),
+                "host": NODE_HOSTS.get(node),
+            }),
+        )
     else:
         command = [
             "ssh",

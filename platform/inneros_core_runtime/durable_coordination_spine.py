@@ -5,6 +5,7 @@ Provides:
 - Optional NATS JetStream event publishing.
 - OpenTelemetry trace propagation and spans.
 - Temporal workflow adapter and execution contracts.
+- Transactional message lifecycle and compaction-resilient lookups.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from urllib.parse import urlparse
 
 from pymongo import MongoClient
 
-SPINE_VERSION = "2.2.0"
+SPINE_VERSION = "2.3.0"
 EVENTS_COL = "coordination_events"
 DEFAULT_STREAM = "INNEROS_EVENTS"
 DEFAULT_SUBJECT_PREFIX = "inneros.events"
@@ -29,17 +30,29 @@ DEFAULT_SUBJECT_PREFIX = "inneros.events"
 VALID_EVENT_TYPES = frozenset(
     {
         "task.created",
+        "task.queued",
+        "task.dispatched",
+        "task.worker_starting",
         "task.claimed",
+        "task.running",
         "task.heartbeat",
+        "task.verification",
         "task.state_changed",
         "task.completed",
         "task.failed",
         "task.cancelled",
+        "task.blocked",
         "scheduler.selected",
         "a2a.dispatched",
         "a2a.status_projected",
         "circuit_breaker.triggered",
         "coordination.checkpoint",
+        "message.created",
+        "message.published",
+        "message.delivered",
+        "message.unread",
+        "message.acknowledged",
+        "message.consumed",
         "task_created",
         "task_claimed",
         "task_state_changed",
@@ -328,11 +341,11 @@ def temporal_connection_status(
 
 
 def workflow_intent_for_task(task: dict[str, Any]) -> dict[str, Any]:
-    """Build a Temporal-ready workflow descriptor for active execution."""
+    """Build a Temporal-ready workflow descriptor for active execution with canonical workflow_id ops_task:<task_id>."""
     task_id = str(task.get("task_id") or "")
     correlation_id = str(task.get("correlation_id") or task_id)
     repo = str(task.get("repo") or task.get("related_project") or "")
-    workflow_id = f"inneros-task-{task_id or hashlib.sha1(correlation_id.encode()).hexdigest()[:12]}"
+    workflow_id = f"ops_task:{task_id}" if task_id else f"ops_task:{hashlib.sha1(correlation_id.encode()).hexdigest()[:12]}"
     return {
         "ok": bool(task_id or correlation_id),
         "backend": "temporal",
@@ -344,6 +357,122 @@ def workflow_intent_for_task(task: dict[str, Any]) -> dict[str, Any]:
         "search_attributes": {"task_id": task_id, "correlation_id": correlation_id, "repo": repo},
         "retry_policy": {"maximum_attempts": 3, "non_retryable_errors": ["CIRCUIT_BREAKER_PENDING_HUMAN_REVIEW", "TASK_TERMINAL", "TASK_NOT_ASSIGNED"]},
     }
+
+
+# Message lifecycle helpers
+def create_durable_message(
+    *,
+    task_id: str,
+    workflow_id: str,
+    run_id: str = "",
+    correlation_id: str = "",
+    sender: str,
+    recipient: str,
+    subject: str,
+    content: str,
+    metadata: dict[str, Any] | None = None,
+    mongo_uri: str = "mongodb://127.0.0.1:27017"
+) -> dict[str, Any]:
+    now = datetime.now(timezone.utc).isoformat()
+    raw_id = f"{task_id}:{sender}:{recipient}:{now}"
+    msg_id = f"msg_{hashlib.sha256(raw_id.encode()).hexdigest()[:16]}"
+    doc = {
+        "_id": msg_id,
+        "message_id": msg_id,
+        "task_id": task_id,
+        "workflow_id": workflow_id or f"ops_task:{task_id}",
+        "run_id": run_id,
+        "correlation_id": correlation_id,
+        "sender": sender,
+        "from": sender,
+        "recipient": recipient,
+        "to": recipient,
+        "subject": subject,
+        "content": content,
+        "body": content,
+        "status": "unread",
+        "created_at": now,
+        "published_at": now,
+        "delivered_at": now,
+        "acknowledged_at": None,
+        "acknowledged_by": None,
+        "consumed_at": None,
+        "metadata": metadata or {}
+    }
+    try:
+        client: MongoClient = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
+        client["pcdoctor_swarm"]["ralfia_agent_messages"].insert_one(doc)
+    except Exception:
+        pass
+    publish_event(
+        "message.published",
+        actor=sender,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        status="unread",
+        payload={"message_id": msg_id, "recipient": recipient, "subject": subject}
+    )
+    return doc
+
+
+def ack_durable_message(
+    message_id: str,
+    *,
+    actor: str,
+    mongo_uri: str = "mongodb://127.0.0.1:27017"
+) -> dict[str, Any]:
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        client: MongoClient = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
+        db = client["pcdoctor_swarm"]
+        res = db["ralfia_agent_messages"].update_one(
+            {"$or": [{"_id": message_id}, {"message_id": message_id}]},
+            {"$set": {
+                "status": "consumed",
+                "acknowledged_at": now,
+                "acknowledged_by": actor,
+                "consumed_at": now
+            }}
+        )
+        publish_event(
+            "message.consumed",
+            actor=actor,
+            status="consumed",
+            payload={"message_id": message_id, "acknowledged_by": actor}
+        )
+        return {"ok": True, "message_id": message_id, "status": "consumed", "acknowledged_at": now}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def query_durable_messages(
+    *,
+    task_id: str = "",
+    message_id: str = "",
+    correlation_id: str = "",
+    workflow_id: str = "",
+    recipient: str = "",
+    status: str = "",
+    mongo_uri: str = "mongodb://127.0.0.1:27017"
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {}
+    if task_id:
+        query["task_id"] = task_id
+    if message_id:
+        query["$or"] = [{"_id": message_id}, {"message_id": message_id}]
+    if correlation_id:
+        query["correlation_id"] = correlation_id
+    if workflow_id:
+        query["workflow_id"] = workflow_id
+    if recipient:
+        query["$or"] = [{"recipient": recipient}, {"to": recipient}]
+    if status:
+        query["status"] = status
+    try:
+        client: MongoClient = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
+        return list(client["pcdoctor_swarm"]["ralfia_agent_messages"].find(query, {"_id": 0}))
+    except Exception:
+        return []
 
 
 def status() -> dict[str, Any]:

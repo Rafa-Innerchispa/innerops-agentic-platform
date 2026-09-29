@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "contract_id": "inneros-ops59-executable-acceptance-contract-20260925",
+  "title": "InnerOS Autonomous Execution Final Closure Acceptance Contract A-O",
+  "task_id": "ops_59c1cad0f03a",
+  "successor_task_id": "ops_e31303e02ab9",
+  "version": "1.0.0",
+  "created_at": "2026-09-26T04:30:00Z",
+  "owner": "antigravity",
+  "verifier": "CHATGPT",
+  "runner_path": "platform/scripts/verify_ops_59c1cad0f03a.py",
+  "contract_path": "platform/docs/OPS_59C1CAD0F03A_ACCEPTANCE_CONTRACT.json",
+  "gates": [
+    {
+      "gate_id": "GATE_A_FLEET_CONSISTENCY",
+      "name": "Fleet Consistency and MCP Status",
+      "description": "Verify Intel (.4) and AMD (.5) node reachability, MCP server topology, and model catalog registration.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_B_SERVICE_GUARDIAN_HEALTH",
+      "name": "Service Guardian Semantic Health",
+      "description": "Verify core systemd and daemon services (Temporal, MongoDB, vLLM/Ollama, Dev Swarm) are healthy.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_C_SCHEDULER_AUTOSTART",
+      "name": "Scheduler Auto-Start on Eligible Task with Residual Capacity",
+      "description": "Verify dev swarm scheduler accurately claims eligible tasks when capacity tokens are available and respects preflight.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_D_LOCAL_QWEN_CONSECUTIVE_RUNS",
+      "name": "5 Consecutive Local Qwen Tasks through Temporal + LangGraph",
+      "description": "Verify 5 consecutive representative coding canaries execute locally on AMD node .5 with zero external spend and terminal PASS.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_E_WORKER_RECOVERY",
+      "name": "Worker Restart and Recovery without Duplicate Writers",
+      "description": "Verify worker recovery mechanisms resume task progress cleanly without duplicate DB writers or lost leases.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_F_STATE_RECONCILIATION",
+      "name": "Inconsistent Task/Run State Reconciliation",
+      "description": "Verify nonterminal reconciler resolves stale leases, orphaned tasks, and out-of-sync run records.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_G_BOUNDED_RETRY_STOP",
+      "name": "Bounded Retry Stop on Model/Test Failures",
+      "description": "Verify circuit breaker halts runaway retries and transitions to review/failed on exhausted budgets.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_H_CODEX_CANARY",
+      "name": "Codex Read-Only Canary with Pinned GPT-5.6",
+      "description": "Verify Codex runs on gpt-5.6 / gpt-sol with explicit reasoning tier and strict spend caps.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_I_ANTIGRAVITY_CANARY",
+      "name": "Antigravity Gemini 3.7 Canary",
+      "description": "Verify Antigravity executes with gemini-3.7 / gemini-3.7-flash and fails closed on unapproved models.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_J_CURSOR_AUTH_PROBE",
+      "name": "Cursor Auth Probe and Grok/Auto Policy Rejection",
+      "description": "Verify Cursor is strictly pinned to Composer 2.5 and immediately blocks Grok and Auto/Router requests before execution.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "BLOCKED_AUTH", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_K_AMD_CONCURRENCY_BENCHMARK",
+      "name": "AMD ROCm Concurrency Benchmark Ramp",
+      "description": "Verify AMD node .5 vLLM inference latency and throughput under multi-request concurrency.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_L_MIXED_WORKFORCE_SLO",
+      "name": "Mixed WorkForce/Development Load SLO Verification",
+      "description": "Verify P0/P1 production service reservations protect latency while background development tasks run.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_M_MULTI_PROJECT_FAIRNESS",
+      "name": "Multi-Project Fair Queueing Verification",
+      "description": "Verify WeightedFairQueue allocates execution slots fairly without starvation of low-frequency projects.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_N_CLEAN_REPOSITORY_MAIN",
+      "name": "Canonical Repository Clean Main Verification",
+      "description": "Verify all canonical runtime code passes linting/tests and main tracking is synchronized.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    },
+    {
+      "gate_id": "GATE_O_SOAK_TEST",
+      "name": "System Stability Soak Test",
+      "description": "Verify multi-cycle scheduling and execution stability over sustained operation without error loops.",
+      "mandatory": true,
+      "allowed_statuses": ["PASS", "FAIL"]
+    }
+  ],
+  "exit_policy": {
+    "success_exit_code": 0,
+    "failure_exit_code": 1,
+    "blocked_exit_code": 2,
+    "self_completion_forbidden": true,
+    "completion_authority": "CHATGPT"
+  }
+}
