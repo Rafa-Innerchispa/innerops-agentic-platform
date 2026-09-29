@@ -88,6 +88,49 @@ def _host_allowed(url: str) -> bool:
     return False
 
 
+
+def _url_allowed_result(
+    url: str,
+    *,
+    local_preview: bool = False,
+    loopback_ports: list[int] | None = None,
+) -> dict[str, Any]:
+    """Fail-closed URL guard shared by one-shot and human browser sessions."""
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        scheme = (parsed.scheme or "").lower()
+        port = parsed.port
+    except (ValueError, TypeError):
+        return {"ok": False, "reason": "invalid_url"}
+    if scheme not in {"http", "https"} or not host:
+        return {"ok": False, "reason": "invalid_url"}
+    if _host_allowed(url):
+        return {"ok": True, "reason": "domain_allowlist", "host": host}
+    if host in {"127.0.0.1", "localhost", "::1"}:
+        if not local_preview:
+            return {"ok": False, "reason": "loopback_preview_disabled", "host": host}
+        effective_port = port or (443 if scheme == "https" else 80)
+        allowed_ports = {
+            int(item) for item in (loopback_ports or [])
+            if isinstance(item, int) and not isinstance(item, bool) and 1 <= item <= 65535
+        }
+        if effective_port in allowed_ports:
+            return {
+                "ok": True,
+                "reason": "loopback_port_allowlist",
+                "host": host,
+                "port": effective_port,
+            }
+        return {
+            "ok": False,
+            "reason": "loopback_port_not_allowlisted",
+            "host": host,
+            "port": effective_port,
+        }
+    return {"ok": False, "reason": "domain_not_allowlisted", "host": host}
+
+
 def _playwright_available() -> dict[str, Any]:
     try:
         import playwright  # noqa: F401
