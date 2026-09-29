@@ -7268,6 +7268,18 @@ async def mcp_oauth_protected_resource_path(request: Request) -> JSONResponse:
     return JSONResponse(protected_resource_metadata(request.headers.get("host")))
 
 
+@mcp.custom_route("/.well-known/oauth-protected-resource/router/mcp", methods=["GET"])
+async def mcp_oauth_protected_resource_router_path(request: Request) -> JSONResponse:
+    from raphiia_openai.oauth_metadata import protected_resource_metadata
+
+    return JSONResponse(
+        protected_resource_metadata(
+            request.headers.get("host"),
+            resource_override="https://mcp.pcdoctor.ai/router/mcp",
+        )
+    )
+
+
 @mcp.custom_route("/notion/webhook", methods=["POST"])
 async def notion_webhook_http(request: Request) -> JSONResponse:
     """Endpoint público HTTPS para webhooks Notion (vía ngrok)."""
