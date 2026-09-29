@@ -229,3 +229,25 @@ def test_basic_client_auth_parser():
         "alexa-client",
         "secret",
     )
+
+
+
+def test_authorize_form_renders_css_and_hidden_fields():
+    html_text = auth_server._authorize_form(
+        {
+            "response_type": "code",
+            "client_id": "alexa-client",
+            "redirect_uri": REDIRECT,
+            "scope": "ralfia:read",
+            "code_challenge": "challenge",
+            "code_challenge_method": "S256",
+            "resource": RESOURCE,
+            "state": "state-1",
+        },
+        "https://auth.pcdoctor.ai",
+    )
+    assert "InnerOS Unified SSO" in html_text
+    assert "font-family:" in html_text
+    assert 'name="client_id" value="alexa-client"' in html_text
+    assert 'action="https://auth.pcdoctor.ai/authorize"' in html_text
+
