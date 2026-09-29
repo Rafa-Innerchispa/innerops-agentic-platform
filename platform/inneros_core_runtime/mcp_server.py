@@ -2125,6 +2125,17 @@ def agent_browser_run_task(
     """AG-55: tarea browser local (navigate|screenshot|fill_form|click|extract). dry_run=True por defecto."""
     from raphiia_openai.agents import ag55_browser_ops_agent as ag55
 
+    if local_preview or loopback_ports:
+        return {
+            "ok": False,
+            "error": "unsupported_browser_run_task_options",
+            "unsupported": [
+                name for name, enabled in (
+                    ("local_preview", bool(local_preview)),
+                    ("loopback_ports", bool(loopback_ports)),
+                ) if enabled
+            ],
+        }
     return ag55.agent_browser_run_task(
         task,
         url,
@@ -2134,8 +2145,6 @@ def agent_browser_run_task(
         extract_selector=extract_selector,
         dry_run=dry_run,
         timeout_ms=timeout_ms,
-        local_preview=local_preview,
-        loopback_ports=loopback_ports,
     )
 
 
