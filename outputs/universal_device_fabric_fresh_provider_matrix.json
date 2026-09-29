@@ -1,0 +1,547 @@
+{
+  "agent_id": "AG-60",
+  "fabric_version": "2026.09.28",
+  "mutation_policy": {
+    "allowed": [
+      "tcp_connect",
+      "http_get_safe_root",
+      "rtsp_options",
+      "home_assistant_registry_read",
+      "unifi_inventory_read_when_authorized",
+      "dmx_status_read"
+    ],
+    "forbidden": [
+      "brute_force",
+      "credential_printing",
+      "dhcp_change",
+      "vlan_change",
+      "firewall_change",
+      "firmware_update",
+      "device_reboot",
+      "camera_or_recorder_write",
+      "pbx_write",
+      "alarm_action",
+      "dmx_raw_channel_write"
+    ],
+    "mode": "read_only"
+  },
+  "ok": true,
+  "provider_count": 19,
+  "providers": [
+    {
+      "auth": "not_required_for_discovery",
+      "capabilities": [
+        "discover",
+        "probe",
+        "inventory",
+        "health"
+      ],
+      "delegated_to": [],
+      "families": [
+        "unknown",
+        "router",
+        "switch",
+        "pc",
+        "iot"
+      ],
+      "label": "Generic network discovery",
+      "notes": [],
+      "protocols": [
+        "tcp",
+        "http",
+        "https",
+        "dns"
+      ],
+      "provider_id": "generic_network",
+      "support_state": "ready"
+    },
+    {
+      "auth": "required_for_authenticated_profile_details",
+      "capabilities": [
+        "identify",
+        "profiles",
+        "stream_uri",
+        "capabilities"
+      ],
+      "delegated_to": [
+        "inneros-physical-guardian"
+      ],
+      "families": [
+        "camera",
+        "nvr",
+        "dvr",
+        "video_intercom"
+      ],
+      "label": "Generic ONVIF",
+      "notes": [],
+      "protocols": [
+        "onvif",
+        "ws-discovery"
+      ],
+      "provider_id": "generic_onvif",
+      "support_state": "partial"
+    },
+    {
+      "auth": "not_required_for_discovery",
+      "capabilities": [
+        "probe",
+        "inventory",
+        "stream_presence"
+      ],
+      "delegated_to": [
+        "inneros-physical-guardian"
+      ],
+      "families": [
+        "camera",
+        "nvr",
+        "dvr",
+        "video_stream"
+      ],
+      "label": "Generic RTSP",
+      "notes": [],
+      "protocols": [
+        "rtsp"
+      ],
+      "provider_id": "generic_rtsp",
+      "support_state": "ready"
+    },
+    {
+      "auth": "not_required_for_discovery",
+      "capabilities": [
+        "discover",
+        "correlate"
+      ],
+      "delegated_to": [],
+      "families": [
+        "iot",
+        "printer",
+        "speaker",
+        "camera",
+        "network"
+      ],
+      "label": "UPnP / SSDP / mDNS",
+      "notes": [
+        "Passive broadcast discovery is exposed as provider metadata; active UDP discovery is only used when authorized."
+      ],
+      "protocols": [
+        "ssdp",
+        "mdns",
+        "upnp"
+      ],
+      "provider_id": "upnp_ssdp_mdns",
+      "support_state": "partial"
+    },
+    {
+      "auth": "homeassistant_token_required",
+      "capabilities": [
+        "inventory",
+        "dedupe",
+        "capabilities",
+        "health"
+      ],
+      "delegated_to": [
+        "Home Assistant",
+        "AG-32"
+      ],
+      "families": [
+        "iot",
+        "camera",
+        "alarm",
+        "light",
+        "voice_assistant",
+        "network"
+      ],
+      "label": "Home Assistant registry",
+      "notes": [],
+      "protocols": [
+        "home_assistant_ws",
+        "home_assistant_rest"
+      ],
+      "provider_id": "home_assistant_registry",
+      "support_state": "ready"
+    },
+    {
+      "auth": "required_for_isapi_model_serial_firmware",
+      "capabilities": [
+        "discover",
+        "probe",
+        "identity",
+        "capabilities",
+        "inventory"
+      ],
+      "delegated_to": [
+        "inneros-physical-guardian"
+      ],
+      "families": [
+        "camera",
+        "ip_camera",
+        "nvr",
+        "dvr",
+        "video_intercom",
+        "access_control",
+        "biometric_device",
+        "network_device"
+      ],
+      "label": "Hikvision",
+      "notes": [],
+      "protocols": [
+        "rtsp",
+        "onvif",
+        "isapi",
+        "hikvision_sdk"
+      ],
+      "provider_id": "hikvision",
+      "support_state": "partial"
+    },
+    {
+      "auth": "required_for_authenticated_cgi_details",
+      "capabilities": [
+        "discover",
+        "probe",
+        "identity",
+        "analog_child_channels",
+        "inventory"
+      ],
+      "delegated_to": [
+        "inneros-physical-guardian"
+      ],
+      "families": [
+        "camera",
+        "ip_camera",
+        "nvr",
+        "dvr",
+        "xvr",
+        "analog_channel"
+      ],
+      "label": "Dahua",
+      "notes": [],
+      "protocols": [
+        "rtsp",
+        "onvif",
+        "cgi",
+        "eventManager",
+        "dahua_private"
+      ],
+      "provider_id": "dahua",
+      "support_state": "partial"
+    },
+    {
+      "auth": "auth_required_for_cloud_or_account_only_models",
+      "capabilities": [
+        "discover",
+        "probe",
+        "inventory"
+      ],
+      "delegated_to": [
+        "Home Assistant",
+        "inneros-physical-guardian"
+      ],
+      "families": [
+        "camera",
+        "plug",
+        "iot"
+      ],
+      "label": "TP-Link / Tapo",
+      "notes": [],
+      "protocols": [
+        "rtsp",
+        "onvif",
+        "home_assistant",
+        "vendor_lan"
+      ],
+      "provider_id": "tp_link_tapo",
+      "support_state": "partial"
+    },
+    {
+      "auth": "owner_account_or_local_onvif_required",
+      "capabilities": [
+        "onboarding",
+        "probe",
+        "inventory"
+      ],
+      "delegated_to": [
+        "inneros-physical-guardian",
+        "VigiLOS"
+      ],
+      "families": [
+        "camera",
+        "nvr"
+      ],
+      "label": "Imou",
+      "notes": [],
+      "protocols": [
+        "rtsp",
+        "onvif",
+        "official_api"
+      ],
+      "provider_id": "imou",
+      "support_state": "auth_required"
+    },
+    {
+      "auth": "auth_required_for_cloud_details",
+      "capabilities": [
+        "inventory",
+        "probe",
+        "health"
+      ],
+      "delegated_to": [
+        "inneros-physical-guardian",
+        "Home Assistant"
+      ],
+      "families": [
+        "camera",
+        "doorbell",
+        "alarm"
+      ],
+      "label": "EZVIZ",
+      "notes": [],
+      "protocols": [
+        "home_assistant",
+        "rtsp",
+        "vendor_api"
+      ],
+      "provider_id": "ezviz",
+      "support_state": "partial"
+    },
+    {
+      "auth": "managed_by_workforce_secret_store",
+      "capabilities": [
+        "identity",
+        "health",
+        "capabilities"
+      ],
+      "delegated_to": [
+        "innerspark-workforce-ai"
+      ],
+      "families": [
+        "attendance",
+        "access_control",
+        "biometric_terminal"
+      ],
+      "label": "ZKTeco ADMS/iClock",
+      "notes": [],
+      "protocols": [
+        "adms",
+        "iclock"
+      ],
+      "provider_id": "zkteco",
+      "support_state": "partial"
+    },
+    {
+      "auth": "required_for_authenticated_pbx_details",
+      "capabilities": [
+        "probe",
+        "identity",
+        "health",
+        "pbx_capabilities"
+      ],
+      "delegated_to": [
+        "inneros-voiceops"
+      ],
+      "families": [
+        "pbx",
+        "voice_gateway",
+        "telephony"
+      ],
+      "label": "Grandstream UCM",
+      "notes": [],
+      "protocols": [
+        "sip",
+        "ami",
+        "cgi",
+        "http"
+      ],
+      "provider_id": "grandstream_ucm",
+      "support_state": "partial"
+    },
+    {
+      "auth": "required_for_authenticated_network_details",
+      "capabilities": [
+        "probe",
+        "identity",
+        "network_capabilities"
+      ],
+      "delegated_to": [],
+      "families": [
+        "router",
+        "switch",
+        "access_point",
+        "controller"
+      ],
+      "label": "Grandstream GWN/GCC",
+      "notes": [
+        "UCM support is intentionally separate from GWN/GCC management."
+      ],
+      "protocols": [
+        "http",
+        "https",
+        "snmp_optional"
+      ],
+      "provider_id": "grandstream_gwn",
+      "support_state": "partial"
+    },
+    {
+      "auth": "guardian_or_homeassistant_token_required_for_state",
+      "capabilities": [
+        "inventory",
+        "alarm_read_only",
+        "health"
+      ],
+      "delegated_to": [
+        "Home Assistant",
+        "AG-32",
+        "inneros-physical-guardian",
+        "intelbras_guardian"
+      ],
+      "families": [
+        "alarm",
+        "camera",
+        "nvr",
+        "router"
+      ],
+      "label": "Intelbras",
+      "notes": [],
+      "protocols": [
+        "home_assistant",
+        "guardian",
+        "tcp_probe"
+      ],
+      "provider_id": "intelbras",
+      "support_state": "partial"
+    },
+    {
+      "auth": "controller_or_homeassistant_token_required",
+      "capabilities": [
+        "inventory",
+        "wifi_health",
+        "client_correlation"
+      ],
+      "delegated_to": [
+        "Home Assistant",
+        "AG-32",
+        "UniFi Controller"
+      ],
+      "families": [
+        "gateway",
+        "switch",
+        "access_point",
+        "wlan",
+        "client"
+      ],
+      "label": "UniFi / Ubiquiti",
+      "notes": [],
+      "protocols": [
+        "home_assistant",
+        "unifi_controller"
+      ],
+      "provider_id": "unifi",
+      "support_state": "partial"
+    },
+    {
+      "auth": "not_required_for_status",
+      "capabilities": [
+        "status",
+        "targets",
+        "safe_scenes"
+      ],
+      "delegated_to": [
+        "AG-59",
+        "local_dmx_engine"
+      ],
+      "families": [
+        "lighting",
+        "controller",
+        "scene"
+      ],
+      "label": "DMX / Art-Net",
+      "notes": [
+        "Raw channel mutation remains hidden behind AG-59 allowlisted tools."
+      ],
+      "protocols": [
+        "artnet",
+        "local_dmx_engine"
+      ],
+      "provider_id": "dmx",
+      "support_state": "ready"
+    },
+    {
+      "auth": "homeassistant_token_required",
+      "capabilities": [
+        "inventory",
+        "capabilities",
+        "health"
+      ],
+      "delegated_to": [
+        "Home Assistant",
+        "AG-32"
+      ],
+      "families": [
+        "ir_remote",
+        "rf_remote",
+        "plug"
+      ],
+      "label": "Broadlink",
+      "notes": [],
+      "protocols": [
+        "home_assistant",
+        "broadlink_lan"
+      ],
+      "provider_id": "broadlink",
+      "support_state": "partial"
+    },
+    {
+      "auth": "tuya_or_homeassistant_credentials_required",
+      "capabilities": [
+        "inventory",
+        "capabilities",
+        "health"
+      ],
+      "delegated_to": [
+        "Home Assistant",
+        "AG-32"
+      ],
+      "families": [
+        "iot",
+        "camera",
+        "plug",
+        "light",
+        "sensor"
+      ],
+      "label": "Tuya",
+      "notes": [],
+      "protocols": [
+        "home_assistant",
+        "tuya_cloud_or_local"
+      ],
+      "provider_id": "tuya",
+      "support_state": "partial"
+    },
+    {
+      "auth": "integration_token_required",
+      "capabilities": [
+        "inventory",
+        "capabilities",
+        "health"
+      ],
+      "delegated_to": [
+        "Home Assistant",
+        "inneros-voiceops"
+      ],
+      "families": [
+        "voice_assistant",
+        "speaker",
+        "display",
+        "iot_bridge"
+      ],
+      "label": "Alexa devices",
+      "notes": [],
+      "protocols": [
+        "home_assistant",
+        "alexa_media",
+        "voiceops"
+      ],
+      "provider_id": "alexa_devices",
+      "support_state": "partial"
+    }
+  ]
+}
