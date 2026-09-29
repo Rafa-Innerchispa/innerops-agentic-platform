@@ -48,6 +48,15 @@ The script refuses to run on the canonical production checkout, requires a
 clean recovery branch, and does not restart services or connect to production
 databases.
 
+After the offline gate passes, run the read-only dependency preflight:
+
+```bash
+.venv-p0-canary/bin/python scripts/preflight_p0_coordination_live.py
+```
+
+This probes local TCP listeners, Temporal connectivity, Mongo `ping`, Docker
+container metadata, the free canary port, and Git state. It performs no writes.
+
 ## Runtime canary plan — no production promotion yet
 
 ### Intel `.4` canary
