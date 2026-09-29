@@ -333,8 +333,8 @@ def list_agent_messages(
     return {"ok": True, "count": len(items), "messages": items, "role": role}
 
 
-def poll_agent_inbox(*, agent: str, limit: int = 20, auto_ack: bool = True) -> dict[str, Any]:
-    """Poll open inbox messages and atomically acknowledge those delivered to the caller."""
+def poll_agent_inbox(*, agent: str, limit: int = 20, auto_ack: bool = False) -> dict[str, Any]:
+    """Poll inbox messages without consuming them unless explicitly requested."""
     result = list_agent_messages(agent=agent, status="open", limit=limit, role="inbox")
     if not result.get("ok") or not auto_ack:
         return {**result, "auto_ack": False, "acknowledged": []}

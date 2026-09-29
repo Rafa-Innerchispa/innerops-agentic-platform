@@ -81,10 +81,22 @@ async def activity_publish_nats_event(event_type: str, envelope_dict: Dict[str, 
             payload=payload,
             envelope=envelope_dict,
         )
-        return {"ok": True, "event_id": res.get("event_id")}
+        if not res.get("ok"):
+            raise ApplicationError(
+                f"Durable event publication failed: {res.get('reason') or res}",
+                type="DURABLE_EVENT_PUBLICATION_FAILED",
+                non_retryable=False,
+            )
+        return {"ok": True, "event_id": res.get("event_id"), "backend": res.get("backend")}
     except Exception as exc:
-        logger.warning(f"Publish NATS event error (non-fatal): {exc}")
-        return {"ok": False, "error": str(exc)}
+        if isinstance(exc, ApplicationError):
+            raise
+        logger.exception("Durable event publication failed")
+        raise ApplicationError(
+            f"Durable event publication failed: {exc}",
+            type="DURABLE_EVENT_PUBLICATION_FAILED",
+            non_retryable=False,
+        ) from exc
 
 
 @activity.defn
@@ -155,17 +167,27 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "error_count": 0
         }
 
-    # Real local model execution
+    # Local models may produce a candidate response, but they do not constitute
+    # proof that code changed or tests passed.  Evidence must come from the
+    # bounded execution plane / worktree verifier.  Never manufacture a diff,
+    # file count or successful test result here.
     res = local_model_router.run_local_model(
         task_type=envelope.task_class or "coding",
         prompt=f"Task {envelope.task_id}: {envelope.objective or envelope.title}"
     )
     return {
         "ok": bool(res.get("ok")),
-        "files_count": 1,
-        "code_diff": "+ implemented logic",
-        "test_results": {"exit_code": 0, "ok": True},
+        "files_count": 0,
+        "code_diff": "",
+        "test_results": {
+            "exit_code": None,
+            "ok": False,
+            "reason": "execution_evidence_not_provided",
+        },
         "response": res.get("response") or res.get("text") or "",
+        "worktree": worktree,
+        "candidate_only": True,
+        "requires_bounded_executor": True,
     }
 
 
@@ -196,5 +218,9 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
         )
         return {"ok": True, "mirrored": True}
     except Exception as e:
-        logger.warning(f"Mongo mirror update non-fatal error: {e}")
-        return {"ok": False, "error": str(e)}
+        logger.exception("Mongo projection update failed")
+        raise ApplicationError(
+            f"Mongo projection update failed: {e}",
+            type="MONGO_PROJECTION_FAILED",
+            non_retryable=False,
+        ) from e
