@@ -1,0 +1,3022 @@
+{
+  "blockers": [
+    {
+      "provider_id": "tp_link_tapo",
+      "reason": "not_observable_in_current_read_only_sources_or_auth_required",
+      "support_state": "partial"
+    },
+    {
+      "provider_id": "imou",
+      "reason": "not_observable_in_current_read_only_sources_or_auth_required",
+      "support_state": "auth_required"
+    },
+    {
+      "provider_id": "zkteco",
+      "reason": "not_observable_in_current_read_only_sources_or_auth_required",
+      "support_state": "partial"
+    }
+  ],
+  "count": 12,
+  "generated_at": "2026-09-28T19:03:28.742378+00:00",
+  "inventory": [
+    {
+      "capabilities": [
+        "read_only_probe"
+      ],
+      "confidence": 0.76,
+      "control_route": {
+        "read": "grandstream_gwn",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:grandstream_gwn:69bd086c7634",
+      "device_type": "router_gateway",
+      "evidence": [
+        {
+          "confidence": 0.76,
+          "detail": "Bellini documented gateway",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "6 open ports observed",
+          "open_ports": [
+            22,
+            53,
+            80,
+            443,
+            8080,
+            8443
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          22,
+          53,
+          80,
+          443,
+          8080,
+          8443
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.1",
+      "hostname": "",
+      "ip": "192.168.3.1",
+      "last_seen": "2026-09-28T19:03:14.572661+00:00",
+      "mac": "",
+      "manufacturer": "Grandstream",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.1",
+      "protocols": [
+        "dns",
+        "http",
+        "https",
+        "ssh"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.76,
+          "detail": "Bellini documented gateway",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "6 open ports observed",
+          "open_ports": [
+            22,
+            53,
+            80,
+            443,
+            8080,
+            8443
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "grandstream_gwn"
+      ],
+      "raw_probe": {
+        "http_443": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "https://192.168.3.1:443/"
+        },
+        "http_80": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.1:80/"
+        },
+        "http_8080": {
+          "body_preview": "",
+          "headers": {
+            "Connection": "close",
+            "Content-Length": "157",
+            "Content-Type": "text/html",
+            "Date": "Mon, 28 Sep 2026 19:03:14 GMT",
+            "Server": "nginx/1.17.7"
+          },
+          "ok": true,
+          "status": 502,
+          "url": "http://192.168.3.1:8080/"
+        },
+        "http_8443": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "https://192.168.3.1:8443/"
+        },
+        "tcp": [
+          {
+            "latency_ms": 24,
+            "port": 22,
+            "protocol": "ssh",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 82,
+            "port": 53,
+            "protocol": "dns",
+            "state": "open"
+          },
+          {
+            "latency_ms": 28,
+            "port": 80,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 21,
+            "port": 443,
+            "protocol": "https",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 22,
+            "port": 8080,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 32,
+            "port": 8443,
+            "protocol": "https",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "pbx_read_only_candidate",
+        "read_only_probe"
+      ],
+      "confidence": 0.68,
+      "control_route": {
+        "read": "grandstream_ucm",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:grandstream_ucm:da8d2674a85c",
+      "device_type": "pbx_or_voice_gateway",
+      "evidence": [
+        {
+          "confidence": 0.68,
+          "detail": "SIP/Asterisk/UCM ports observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "6 open ports observed",
+          "open_ports": [
+            80,
+            8088,
+            8089,
+            5060,
+            5061,
+            7547
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          80,
+          8088,
+          8089,
+          5060,
+          5061,
+          7547
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.2",
+      "hostname": "",
+      "ip": "192.168.3.2",
+      "last_seen": "2026-09-28T19:03:14.582917+00:00",
+      "mac": "",
+      "manufacturer": "Grandstream",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.2",
+      "protocols": [
+        "asterisk_http",
+        "asterisk_https",
+        "cwmp",
+        "http",
+        "sip",
+        "sips"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.68,
+          "detail": "SIP/Asterisk/UCM ports observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "6 open ports observed",
+          "open_ports": [
+            80,
+            8088,
+            8089,
+            5060,
+            5061,
+            7547
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "grandstream_ucm"
+      ],
+      "raw_probe": {
+        "http_80": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.2:80/"
+        },
+        "http_8088": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.2:8088/"
+        },
+        "http_8089": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.2:8089/"
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 131,
+            "port": 80,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 66,
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "open"
+          },
+          {
+            "latency_ms": 14,
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 37,
+            "port": 5060,
+            "protocol": "sip",
+            "state": "open"
+          },
+          {
+            "latency_ms": 41,
+            "port": 5061,
+            "protocol": "sips",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 12,
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "read_only_probe",
+        "rtsp",
+        "vendor_probe",
+        "video",
+        "video_intercom_candidate",
+        "video_stream_presence"
+      ],
+      "confidence": 0.84,
+      "control_route": {
+        "read": "generic_rtsp",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:generic_rtsp:501ca104830f",
+      "device_type": "camera_or_video_intercom",
+      "evidence": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.7,
+          "detail": "Hikvision SDK port 8000 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.84,
+          "detail": "Hikvision/DS intercom fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "4 open ports observed",
+          "open_ports": [
+            80,
+            443,
+            554,
+            8000
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          80,
+          443,
+          554,
+          8000
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.3",
+      "hostname": "",
+      "ip": "192.168.3.3",
+      "last_seen": "2026-09-28T19:03:15.222541+00:00",
+      "mac": "",
+      "manufacturer": "Hikvision",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.3",
+      "protocols": [
+        "hikvision_sdk",
+        "http",
+        "https",
+        "rtsp"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.7,
+          "detail": "Hikvision SDK port 8000 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.84,
+          "detail": "Hikvision/DS intercom fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "4 open ports observed",
+          "open_ports": [
+            80,
+            443,
+            554,
+            8000
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "generic_rtsp",
+        "hikvision"
+      ],
+      "raw_probe": {
+        "http_443": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "https://192.168.3.3:443/"
+        },
+        "http_80": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.3:80/"
+        },
+        "rtsp_554": {
+          "detail": "[Errno 111] Connection refused",
+          "error": "ConnectionRefusedError",
+          "ok": false,
+          "port": 554
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 131,
+            "port": 80,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 29,
+            "port": 443,
+            "protocol": "https",
+            "state": "open"
+          },
+          {
+            "latency_ms": 23,
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "open"
+          },
+          {
+            "latency_ms": 60,
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "onvif_or_ws_discovery_candidate",
+        "read_only_probe",
+        "video_stream_presence"
+      ],
+      "confidence": 0.52,
+      "control_route": {
+        "read": "generic_onvif",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:generic_onvif:fd10a1c55f4e",
+      "device_type": "video_stream",
+      "evidence": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "4 open ports observed",
+          "open_ports": [
+            80,
+            443,
+            554,
+            5357
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          80,
+          443,
+          554,
+          5357
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.5",
+      "hostname": "",
+      "ip": "192.168.3.5",
+      "last_seen": "2026-09-28T19:03:14.610893+00:00",
+      "mac": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.5",
+      "protocols": [
+        "http",
+        "https",
+        "rtsp",
+        "ws_discovery"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "4 open ports observed",
+          "open_ports": [
+            80,
+            443,
+            554,
+            5357
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "generic_onvif",
+        "generic_rtsp"
+      ],
+      "raw_probe": {
+        "http_443": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "https://192.168.3.5:443/"
+        },
+        "http_80": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.5:80/"
+        },
+        "rtsp_554": {
+          "detail": "[Errno 111] Connection refused",
+          "error": "ConnectionRefusedError",
+          "ok": false,
+          "port": 554
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 145,
+            "port": 80,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 94,
+            "port": 443,
+            "protocol": "https",
+            "state": "open"
+          },
+          {
+            "latency_ms": 24,
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 63,
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "read_only_probe",
+        "rtsp",
+        "vendor_probe",
+        "video",
+        "video_intercom_candidate",
+        "video_stream_presence"
+      ],
+      "confidence": 0.84,
+      "control_route": {
+        "read": "generic_rtsp",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:generic_rtsp:bb23fab253a3",
+      "device_type": "camera_or_video_intercom",
+      "evidence": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.7,
+          "detail": "Hikvision SDK port 8000 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.84,
+          "detail": "Hikvision/DS intercom fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "3 open ports observed",
+          "open_ports": [
+            80,
+            554,
+            8000
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          80,
+          554,
+          8000
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.12",
+      "hostname": "",
+      "ip": "192.168.3.12",
+      "last_seen": "2026-09-28T19:03:14.873248+00:00",
+      "mac": "",
+      "manufacturer": "Hikvision",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.12",
+      "protocols": [
+        "hikvision_sdk",
+        "http",
+        "rtsp"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.7,
+          "detail": "Hikvision SDK port 8000 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.84,
+          "detail": "Hikvision/DS intercom fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "3 open ports observed",
+          "open_ports": [
+            80,
+            554,
+            8000
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "generic_rtsp",
+        "hikvision"
+      ],
+      "raw_probe": {
+        "http_80": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.12:80/"
+        },
+        "rtsp_554": {
+          "detail": "[Errno 111] Connection refused",
+          "error": "ConnectionRefusedError",
+          "ok": false,
+          "port": 554
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 129,
+            "port": 80,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 53,
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "open"
+          },
+          {
+            "latency_ms": 21,
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "read_only_probe",
+        "rtsp",
+        "vendor_probe",
+        "video",
+        "video_intercom_candidate",
+        "video_stream_presence"
+      ],
+      "confidence": 0.84,
+      "control_route": {
+        "read": "generic_rtsp",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:generic_rtsp:655195d03a32",
+      "device_type": "camera_or_video_intercom",
+      "evidence": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.7,
+          "detail": "Hikvision SDK port 8000 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.84,
+          "detail": "Hikvision/DS intercom fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "3 open ports observed",
+          "open_ports": [
+            80,
+            554,
+            8000
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          80,
+          554,
+          8000
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.13",
+      "hostname": "",
+      "ip": "192.168.3.13",
+      "last_seen": "2026-09-28T19:03:14.863822+00:00",
+      "mac": "",
+      "manufacturer": "Hikvision",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.13",
+      "protocols": [
+        "hikvision_sdk",
+        "http",
+        "rtsp"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.7,
+          "detail": "Hikvision SDK port 8000 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.84,
+          "detail": "Hikvision/DS intercom fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "3 open ports observed",
+          "open_ports": [
+            80,
+            554,
+            8000
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "generic_rtsp",
+        "hikvision"
+      ],
+      "raw_probe": {
+        "http_80": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.13:80/"
+        },
+        "rtsp_554": {
+          "detail": "[Errno 111] Connection refused",
+          "error": "ConnectionRefusedError",
+          "ok": false,
+          "port": 554
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 129,
+            "port": 80,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 77,
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "open"
+          },
+          {
+            "latency_ms": 17,
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "analog_child_channels_possible",
+        "pbx_read_only_candidate",
+        "read_only_probe",
+        "recorder_or_camera",
+        "video",
+        "video_stream_presence"
+      ],
+      "confidence": 0.82,
+      "control_route": {
+        "read": "dahua",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:dahua:8c83b93282bb",
+      "device_type": "pbx_or_voice_gateway",
+      "evidence": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.82,
+          "detail": "Dahua private/control fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.68,
+          "detail": "SIP/Asterisk/UCM ports observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "5 open ports observed",
+          "open_ports": [
+            80,
+            443,
+            554,
+            8088,
+            37777
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          80,
+          443,
+          554,
+          8088,
+          37777
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.14",
+      "hostname": "",
+      "ip": "192.168.3.14",
+      "last_seen": "2026-09-28T19:03:14.520561+00:00",
+      "mac": "",
+      "manufacturer": "Grandstream",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.14",
+      "protocols": [
+        "asterisk_http",
+        "dahua_private",
+        "http",
+        "https",
+        "rtsp"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.82,
+          "detail": "Dahua private/control fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.68,
+          "detail": "SIP/Asterisk/UCM ports observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "5 open ports observed",
+          "open_ports": [
+            80,
+            443,
+            554,
+            8088,
+            37777
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "dahua",
+        "generic_rtsp",
+        "grandstream_ucm"
+      ],
+      "raw_probe": {
+        "http_443": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "https://192.168.3.14:443/"
+        },
+        "http_80": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.14:80/"
+        },
+        "http_8088": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.14:8088/"
+        },
+        "rtsp_554": {
+          "detail": "[Errno 111] Connection refused",
+          "error": "ConnectionRefusedError",
+          "ok": false,
+          "port": 554
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 128,
+            "port": 80,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 28,
+            "port": 443,
+            "protocol": "https",
+            "state": "open"
+          },
+          {
+            "latency_ms": 23,
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 26,
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 24,
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "open"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "read_only_probe",
+        "video_stream_presence"
+      ],
+      "confidence": 0.52,
+      "control_route": {
+        "read": "generic_rtsp",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:generic_rtsp:e8a7f309d976",
+      "device_type": "video_stream",
+      "evidence": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "2 open ports observed",
+          "open_ports": [
+            80,
+            554
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          80,
+          554
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.15",
+      "hostname": "",
+      "ip": "192.168.3.15",
+      "last_seen": "2026-09-28T19:03:14.882776+00:00",
+      "mac": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.15",
+      "protocols": [
+        "http",
+        "rtsp"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "2 open ports observed",
+          "open_ports": [
+            80,
+            554
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "generic_rtsp"
+      ],
+      "raw_probe": {
+        "http_80": {
+          "detail": "<urlopen error [Errno 111] Connection refused>",
+          "error": "URLError",
+          "ok": false,
+          "url": "http://192.168.3.15:80/"
+        },
+        "rtsp_554": {
+          "detail": "[Errno 111] Connection refused",
+          "error": "ConnectionRefusedError",
+          "ok": false,
+          "port": 554
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 134,
+            "port": 80,
+            "protocol": "http",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 77,
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "open"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "read_only_probe",
+        "rtsp",
+        "vendor_probe",
+        "video",
+        "video_intercom_candidate"
+      ],
+      "confidence": 0.84,
+      "control_route": {
+        "read": "hikvision",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:hikvision:4db5fb82b5b4",
+      "device_type": "camera_or_video_intercom",
+      "evidence": [
+        {
+          "confidence": 0.7,
+          "detail": "Hikvision SDK port 8000 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.84,
+          "detail": "Hikvision/DS intercom fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "1 open ports observed",
+          "open_ports": [
+            8000
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          8000
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.112",
+      "hostname": "",
+      "ip": "192.168.3.112",
+      "last_seen": "2026-09-28T19:03:15.140054+00:00",
+      "mac": "",
+      "manufacturer": "Hikvision",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.112",
+      "protocols": [
+        "hikvision_sdk"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.7,
+          "detail": "Hikvision SDK port 8000 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.84,
+          "detail": "Hikvision/DS intercom fingerprint observed",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "1 open ports observed",
+          "open_ports": [
+            8000
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "hikvision"
+      ],
+      "raw_probe": {
+        "tcp": [
+          {
+            "error": "ConnectionRefusedError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 80,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 9,
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "open"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "read_only_probe"
+      ],
+      "confidence": 0.25,
+      "control_route": {
+        "read": "generic_network",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:generic_network:3d0292a61ede",
+      "device_type": "unknown",
+      "evidence": [
+        {
+          "confidence": 0.55,
+          "detail": "1 open ports observed",
+          "open_ports": [
+            22
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          22
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.141",
+      "hostname": "",
+      "ip": "192.168.3.141",
+      "last_seen": "2026-09-28T19:03:15.791112+00:00",
+      "mac": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.141",
+      "protocols": [
+        "ssh"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.55,
+          "detail": "1 open ports observed",
+          "open_ports": [
+            22
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "generic_network"
+      ],
+      "raw_probe": {
+        "tcp": [
+          {
+            "latency_ms": 60,
+            "port": 22,
+            "protocol": "ssh",
+            "state": "open"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 80,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "read_only_probe",
+        "video_stream_presence"
+      ],
+      "confidence": 0.52,
+      "control_route": {
+        "read": "generic_rtsp",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:generic_rtsp:418869d87cfd",
+      "device_type": "video_stream",
+      "evidence": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "1 open ports observed",
+          "open_ports": [
+            554
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          554
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.143",
+      "hostname": "",
+      "ip": "192.168.3.143",
+      "last_seen": "2026-09-28T19:03:15.730243+00:00",
+      "mac": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.143",
+      "protocols": [
+        "rtsp"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.52,
+          "detail": "RTSP port 554 open",
+          "source": "fingerprint"
+        },
+        {
+          "confidence": 0.55,
+          "detail": "1 open ports observed",
+          "open_ports": [
+            554
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "generic_rtsp"
+      ],
+      "raw_probe": {
+        "rtsp_554": {
+          "detail": "[Errno 111] Connection refused",
+          "error": "ConnectionRefusedError",
+          "ok": false,
+          "port": 554
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 80,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 28,
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "open"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    },
+    {
+      "capabilities": [
+        "read_only_probe"
+      ],
+      "confidence": 0.25,
+      "control_route": {
+        "read": "generic_network",
+        "write": "disabled_read_only_task"
+      },
+      "credential_ref_present": "[REDACTED]",
+      "device_id": "bellini_i_ii:generic_network:df6cd5d83773",
+      "device_type": "unknown",
+      "evidence": [
+        {
+          "confidence": 0.55,
+          "detail": "1 open ports observed",
+          "open_ports": [
+            443
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "firmware": "",
+      "health": {
+        "open_ports": [
+          443
+        ],
+        "reachable": true
+      },
+      "host": "192.168.3.208",
+      "hostname": "",
+      "ip": "192.168.3.208",
+      "last_seen": "2026-09-28T19:03:23.183072+00:00",
+      "mac": "",
+      "manufacturer": "unknown",
+      "model": "",
+      "mutation_policy": {
+        "allowed": [
+          "tcp_connect",
+          "http_get_safe_root",
+          "rtsp_options",
+          "home_assistant_registry_read",
+          "unifi_inventory_read_when_authorized",
+          "dmx_status_read"
+        ],
+        "forbidden": [
+          "brute_force",
+          "credential_printing",
+          "dhcp_change",
+          "vlan_change",
+          "firewall_change",
+          "firmware_update",
+          "device_reboot",
+          "camera_or_recorder_write",
+          "pbx_write",
+          "alarm_action",
+          "dmx_raw_channel_write"
+        ],
+        "mode": "read_only"
+      },
+      "name": "bellini_i_ii-192.168.3.208",
+      "protocols": [
+        "https"
+      ],
+      "provenance": [
+        {
+          "confidence": 0.55,
+          "detail": "1 open ports observed",
+          "open_ports": [
+            443
+          ],
+          "source": "tcp_probe"
+        }
+      ],
+      "provider_ids": [
+        "generic_network"
+      ],
+      "raw_probe": {
+        "http_443": {
+          "detail": "<urlopen error timed out>",
+          "error": "URLError",
+          "ok": false,
+          "url": "https://192.168.3.208:443/"
+        },
+        "tcp": [
+          {
+            "error": "TimeoutError",
+            "port": 22,
+            "protocol": "ssh",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 23,
+            "protocol": "telnet",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 53,
+            "protocol": "dns",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 80,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 81,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "latency_ms": 174,
+            "port": 443,
+            "protocol": "https",
+            "state": "open"
+          },
+          {
+            "error": "ConnectionRefusedError",
+            "port": 554,
+            "protocol": "rtsp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8000,
+            "protocol": "hikvision_sdk",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8080,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8081,
+            "protocol": "http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8088,
+            "protocol": "asterisk_http",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8089,
+            "protocol": "asterisk_https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 8443,
+            "protocol": "https",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5060,
+            "protocol": "sip",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5061,
+            "protocol": "sips",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 5357,
+            "protocol": "ws_discovery",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 7547,
+            "protocol": "cwmp",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 9009,
+            "protocol": "intelbras_candidate",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 37777,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          },
+          {
+            "error": "TimeoutError",
+            "port": 37778,
+            "protocol": "dahua_private",
+            "state": "closed_or_filtered"
+          }
+        ]
+      },
+      "serial": "",
+      "site_id": "bellini_i_ii",
+      "tenant_id": "pcdoctor",
+      "transport": "tailscale_subnet"
+    }
+  ],
+  "mutation_policy": {
+    "allowed": [
+      "tcp_connect",
+      "http_get_safe_root",
+      "rtsp_options",
+      "home_assistant_registry_read",
+      "unifi_inventory_read_when_authorized",
+      "dmx_status_read"
+    ],
+    "forbidden": [
+      "brute_force",
+      "credential_printing",
+      "dhcp_change",
+      "vlan_change",
+      "firewall_change",
+      "firmware_update",
+      "device_reboot",
+      "camera_or_recorder_write",
+      "pbx_write",
+      "alarm_action",
+      "dmx_raw_channel_write"
+    ],
+    "mode": "read_only"
+  },
+  "mutations_attempted": [],
+  "ok": true,
+  "site": {
+    "authorized_cidr": "192.168.3.0/24",
+    "exclude": [
+      "Bellini III-IV"
+    ],
+    "gateway": "192.168.3.1",
+    "label": "Torres Bellini I-II",
+    "peer_lan_ip": "192.168.3.236",
+    "peer_tailscale_ip": "100.103.151.40",
+    "scope": "Bellini I-II only",
+    "site_id": "bellini_i_ii",
+    "tenant_id": "pcdoctor",
+    "transport": "tailscale_subnet",
+    "transport_peer": "desktop-t2jle71"
+  },
+  "site_id": "bellini_i_ii",
+  "transport": {
+    "authorized_cidr": "192.168.3.0/24",
+    "peer": "desktop-t2jle71",
+    "peer_tailscale_ip": "100.103.151.40"
+  }
+}
