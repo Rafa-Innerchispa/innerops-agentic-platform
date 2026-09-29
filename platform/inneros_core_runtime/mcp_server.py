@@ -7559,3 +7559,109 @@ def enroll_device_bootstrap(
         device_name=device_name,
         preferred_tier=preferred_tier
     )
+
+
+# ==========================================
+# AG-60 UNIVERSAL DEVICE FABRIC MCP TOOLS
+# ==========================================
+
+@mcp.tool
+def device_fabric_providers() -> dict[str, Any]:
+    """AG-60: Lista todos los providers y capacidades soportadas por el Device Fabric."""
+    from inneros_core_runtime import device_fabric
+    return device_fabric.device_fabric_providers()
+
+
+@mcp.tool
+def device_fabric_discover(
+    site_id: str = "bellini-i-ii",
+    cidr: str = "",
+    limit_hosts: int = 254,
+    live: bool = True,
+    timeout_seconds: float = 0.35,
+) -> dict[str, Any]:
+    """AG-60: Descubre dispositivos en un sitio o subred autorizada (read-only)."""
+    from inneros_core_runtime import device_fabric
+    return device_fabric.device_fabric_discover(
+        site_id=site_id,
+        cidr=cidr,
+        limit_hosts=limit_hosts,
+        live=live,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+@mcp.tool
+def device_fabric_probe(
+    target: str,
+    provider_id: str = "",
+    site_id: str = "bellini-i-ii",
+) -> dict[str, Any]:
+    """AG-60: Ejecuta sondeo TCP/HTTP/RTSP read-only sobre un host de la subred autorizada."""
+    from inneros_core_runtime import device_fabric
+    return device_fabric.device_fabric_probe(
+        target=target,
+        provider_id=provider_id,
+        site_id=site_id,
+    )
+
+
+@mcp.tool
+def device_fabric_bind(
+    device_ref: str,
+    provider_id: str,
+    credential_ref: str = "",
+    site_id: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """AG-60: Vincula un dispositivo a un provider (fail-closed read-only en dry_run)."""
+    from inneros_core_runtime import device_fabric
+    return device_fabric.device_fabric_bind(
+        device_ref=device_ref,
+        provider_id=provider_id,
+        credential_ref=credential_ref,
+        site_id=site_id,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
+def device_fabric_inventory(
+    client_id: str = "",
+    site_id: str = "",
+    live: bool = False,
+) -> dict[str, Any]:
+    """AG-60: Retorna el inventario segmentado por cliente y sitio multi-tenant de GWN Cloud y AG-60."""
+    from inneros_core_runtime import device_fabric
+    return device_fabric.device_fabric_inventory(
+        client_id=client_id,
+        site_id=site_id,
+        live=live,
+    )
+
+
+@mcp.tool
+def device_fabric_capabilities(
+    device_ref: str = "",
+    provider_id: str = "",
+) -> dict[str, Any]:
+    """AG-60: Retorna capacidades soportadas para un dispositivo o provider."""
+    from inneros_core_runtime import device_fabric
+    return device_fabric.device_fabric_capabilities(
+        device_ref=device_ref,
+        provider_id=provider_id,
+    )
+
+
+@mcp.tool
+def device_fabric_health(site_id: str = "") -> dict[str, Any]:
+    """AG-60: Retorna la salud agregada del fabric y estado de proveedores."""
+    from inneros_core_runtime import device_fabric
+    return device_fabric.device_fabric_health(site_id=site_id)
+
+
+@mcp.tool
+def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
+    """AG-60: Consulta un dispositivo especifico por IP, MAC, serial, asset_id o provider."""
+    from inneros_core_runtime import device_fabric
+    return device_fabric.device_fabric_get(device_ref=device_ref)
