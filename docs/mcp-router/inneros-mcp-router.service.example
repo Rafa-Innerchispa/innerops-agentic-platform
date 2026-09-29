@@ -1,0 +1,21 @@
+# Shadow-only example. Port 8103 is occupied by SSO in the current deployment.
+[Unit]
+Description=InnerOS MCP Router shadow-only
+After=network.target ralfia-mcp.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+EnvironmentFile=%h/.config/inneros/mcp-router.env
+Environment=MCP_ROUTER_PORT=8113
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m inneros_core_runtime.mcp_router.server
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+UMask=0077
+
+[Install]
+WantedBy=default.target
