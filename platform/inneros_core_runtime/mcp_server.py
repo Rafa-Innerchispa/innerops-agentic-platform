@@ -1735,6 +1735,22 @@ def cloudflare_tunnel_ingress_status(hostname: str = "", config_path: str = "") 
 
 
 @mcp.tool
+def cloudflare_tunnel_ingress_upsert(
+    hostname: str,
+    service: str,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """AG-44: crea/actualiza un ingress cloudflared local; dry-run por defecto."""
+    from raphiia_openai.agents import ag44_cloud_deployer as ag44
+
+    return ag44.cloudflare_tunnel_ingress_upsert(
+        hostname,
+        service,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool
 def cloudflare_hostname_health_check(hostname: str, path: str = "/", timeout: float = 12.0) -> dict[str, Any]:
     """AG-44: verifica HTTPS público y header cf-mitigated para un hostname."""
     from raphiia_openai.agents import ag44_cloud_deployer as ag44
