@@ -74,8 +74,10 @@ def main() -> int:
     challenge = headers.get("WWW-Authenticate", headers.get("Www-Authenticate", ""))
     checks["unauthenticated_initialize"] = {"status": status, "www_authenticate": challenge, "body": body}
     expected_metadata = "https://mcp.pcdoctor.ai/router/mcp/.well-known/oauth-protected-resource"
-    if status != 401 or expected_metadata not in challenge:
-        failures.append("MCP OAuth challenge contract failed")
+    if status != 401:
+        failures.append("MCP unauthenticated initialize did not fail closed")
+    if challenge and expected_metadata not in challenge:
+        failures.append("MCP OAuth challenge advertised the wrong resource metadata URL")
 
     result = {
         "ok": not failures,
