@@ -26,8 +26,10 @@ case "$ROOT" in
     ;;
 esac
 
-if [[ -n "$(git status --porcelain)" ]]; then
+DIRTY="$(git status --porcelain | grep -vE '^\?\? (\.venv-p0-canary|\.canary)/' || true)"
+if [[ -n "$DIRTY" ]]; then
   echo "REFUSED: canary checkout must be clean" >&2
+  printf '%s\n' "$DIRTY" >&2
   exit 5
 fi
 
@@ -47,6 +49,7 @@ fi
 export PYTHONPATH="$ROOT/platform"
 
 "$VENV/bin/python" platform/tests/test_coordination_recovery_p0.py -v
+"$VENV/bin/python" platform/tests/test_dual_node_parity_p0.py -v
 "$VENV/bin/python" -m py_compile \
   platform/inneros_core_runtime/mcp_diagnostics.py \
   platform/inneros_core_runtime/temporal_worker.py \
@@ -56,7 +59,9 @@ export PYTHONPATH="$ROOT/platform"
   platform/inneros_core_runtime/coordination_live.py \
   platform/inneros_core_runtime/memory/agent_messages.py \
   platform/inneros_core_runtime/mcp_server.py \
-  platform/tests/test_coordination_recovery_p0.py
+  platform/tests/test_coordination_recovery_p0.py \
+  platform/tests/test_dual_node_parity_p0.py \
+  scripts/audit_p0_dual_node.py
 git diff --check
 
 printf '%s\n' \
