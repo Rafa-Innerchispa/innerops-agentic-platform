@@ -2,7 +2,7 @@
 """Read-only P0 parity audit for Intel .4, AMD .5, and MCP Small.
 
 This script never restarts services, changes files, writes databases, or deploys.
-It compares the live HTTP metadata, deployed Git state, and critical runtime file
+It compares live HTTP metadata, deployed Git state, and critical runtime file
 hashes on both InnerOS nodes. Secrets and environment values are not printed.
 """
 from __future__ import annotations
@@ -12,7 +12,6 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import urllib.error
 import urllib.request
 from typing import Any
 
@@ -54,7 +53,7 @@ CRITICAL_FILES = (
 
 
 def http_json(url: str, timeout: float = 6) -> dict[str, Any]:
-    request = urllib.request.Request(url, headers={"User-Agent": "inneros-p0-parity-audit/1.0"})
+    request = urllib.request.Request(url, headers={"User-Agent": "inneros-p0-parity-audit/1.1"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return {
@@ -124,6 +123,7 @@ def local_git_and_hashes() -> dict[str, Any]:
     hashes = {rel: sha256_file(LIVE_REPO / rel) for rel in CRITICAL_FILES}
     return {
         "reachable": LIVE_REPO.is_dir(),
+        "git_metadata_available": bool(head.get("ok")),
         "head": head.get("stdout") or None,
         "branch": branch.get("stdout") or None,
         "clean": bool(status.get("ok") and not status.get("stdout")),
@@ -146,6 +146,7 @@ def remote_git_and_hashes(host: str) -> dict[str, Any]:
             hashes[parts[1]] = parts[0]
     return {
         "reachable": bool(head.get("ok") or sums.get("stdout")),
+        "git_metadata_available": bool(head.get("ok")),
         "host": host,
         "head": head.get("stdout") or None,
         "branch": branch.get("stdout") or None,
@@ -156,7 +157,7 @@ def remote_git_and_hashes(host: str) -> dict[str, Any]:
     }
 
 
-def first_reachable_amd() -> dict[str, Any]:
+def first_reachable_amd_runtime() -> dict[str, Any]:
     attempts = []
     for host in AMD_HOSTS:
         snapshot = remote_git_and_hashes(host)
@@ -166,6 +167,7 @@ def first_reachable_amd() -> dict[str, Any]:
             return snapshot
     return {
         "reachable": False,
+        "git_metadata_available": False,
         "host": None,
         "head": None,
         "branch": None,
@@ -191,16 +193,31 @@ def mcp_snapshot(host: str) -> dict[str, Any]:
     }
 
 
+def first_healthy_amd_mcp() -> dict[str, Any]:
+    attempts = []
+    first = None
+    for host in AMD_HOSTS:
+        snapshot = mcp_snapshot(host)
+        attempts.append({"host": host, "ok": snapshot["ok"], "error": snapshot.get("error")})
+        if first is None:
+            first = snapshot
+        if snapshot["ok"]:
+            snapshot["attempts"] = attempts
+            return snapshot
+    result = first or mcp_snapshot(AMD_HOSTS[0])
+    result["attempts"] = attempts
+    return result
+
+
 def same_nonempty(left: Any, right: Any) -> bool:
     return left is not None and right is not None and left == right
 
 
 def main() -> None:
     intel_runtime = local_git_and_hashes()
-    amd_runtime = first_reachable_amd()
-    amd_host = amd_runtime.get("host") or AMD_HOSTS[0]
+    amd_runtime = first_reachable_amd_runtime()
     intel_mcp = mcp_snapshot(INTEL_HOST)
-    amd_mcp = mcp_snapshot(amd_host)
+    amd_mcp = first_healthy_amd_mcp()
     public_probe = http_json(PUBLIC_MCP_SMALL)
     oauth_probe = http_json(OAUTH_METADATA_URL)
 
@@ -219,6 +236,9 @@ def main() -> None:
         "same_catalog_version": same_nonempty(intel_mcp["catalog_version"], amd_mcp["catalog_version"]),
         "same_tool_count": same_nonempty(intel_mcp["tool_count"], amd_mcp["tool_count"]),
         "same_manifest_hash": same_nonempty(intel_mcp["manifest_hash"], amd_mcp["manifest_hash"]),
+        "git_metadata_available": bool(
+            intel_runtime["git_metadata_available"] and amd_runtime["git_metadata_available"]
+        ),
         "same_git_head": same_nonempty(intel_runtime["head"], amd_runtime["head"]),
         "clean_checkouts": bool(intel_runtime["clean"] and amd_runtime["clean"]),
         "same_critical_hashes": not divergences,
