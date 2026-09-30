@@ -8,8 +8,9 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from inneros_core_runtime import coordination_ingest
 from inneros_core_runtime import coordination_live
 from inneros_core_runtime import durable_coordination_spine as spine
 from inneros_core_runtime import mcp_diagnostics
@@ -93,6 +94,64 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["task"]["source_message_id"], "msg_test_source")
         self.assertEqual(captured[0]["source_message_id"], "msg_test_source")
+
+    def test_task_message_full_flow_reaches_temporal_with_source_linkage(self):
+        captured: list[dict] = []
+        message_id = "msg_full_flow"
+        collection = MagicMock()
+
+        def fake_start(task: dict) -> dict:
+            captured.append(task)
+            return {
+                "ok": True,
+                "workflow_id": task["workflow_id"],
+                "run_id": "run-full-flow",
+            }
+
+        with (
+            patch(
+                "raphiia_openai.memory.agent_messages.create_agent_message",
+                return_value={
+                    "ok": True,
+                    "created": True,
+                    "message_id": message_id,
+                    "correlation_id": "corr-full-flow",
+                },
+            ),
+            patch.object(
+                coordination_ingest.mongo_store,
+                "get_db",
+                return_value={coordination_ingest.COL_AGENT_MESSAGES: collection},
+            ),
+            patch.object(spine, "start_task_workflow", side_effect=fake_start),
+            patch.object(coordination_ingest.coordination_live, "_publish_task_event", return_value={"ok": True}),
+            patch.object(coordination_ingest.coordination_live, "bump_revision", return_value={"ok": True}),
+        ):
+            result = coordination_ingest.ingest_agent_message(
+                from_agent="CHATGPT",
+                target_agent="qwen-coding",
+                title="[P0] Full message task flow",
+                body=(
+                    "repo: Rafa-Innerchispa/innerops-agentic-platform\n"
+                    "related_project: coordination-recovery\n"
+                    "conversation_ref: session-regression\n"
+                    "- Preserve source linkage\n"
+                    "- Admit only through Temporal"
+                ),
+                message_type="task",
+                idempotency_key="message:msg_full_flow",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["normalization"]["ok"])
+        self.assertEqual(len(captured), 1)
+        admitted = captured[0]
+        self.assertEqual(admitted["source_message_id"], message_id)
+        self.assertEqual(admitted["conversation_ref"], "session-regression")
+        self.assertEqual(admitted["related_project"], "coordination-recovery")
+        self.assertEqual(admitted["repo"], "Rafa-Innerchispa/innerops-agentic-platform")
+        self.assertEqual(result["normalization"]["authority"], "temporal")
+        collection.update_one.assert_called_once()
 
     def test_revision_bump_uses_current_coordination_state_api(self):
         with (
