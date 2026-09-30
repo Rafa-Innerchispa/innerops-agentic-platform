@@ -35,8 +35,8 @@ def listening(port: int) -> bool:
 if not listening(18102):
     print("REFUSED: monolith canary 127.0.0.1:18102 is not listening", file=sys.stderr)
     raise SystemExit(5)
-if listening(18103):
-    print("REFUSED: MCP Small canary port 18103 is already in use", file=sys.stderr)
+if listening(18112):
+    print("REFUSED: MCP Small canary port 18112 is already in use", file=sys.stderr)
     raise SystemExit(6)
 if not listening(8102):
     print("REFUSED: production MCP 127.0.0.1:8102 is not listening", file=sys.stderr)
@@ -98,7 +98,7 @@ printf '%s\n' \
   "P0_MCP_SMALL_CANARY=STARTING_FOREGROUND" \
   "branch=${BRANCH}" \
   "head=$(git rev-parse HEAD)" \
-  "bind=127.0.0.1:18103" \
+  "bind=127.0.0.1:18112" \
   "backend=http://127.0.0.1:18102/mcp" \
   "profile=profile_minimal" \
   "admin_profile=false" \
@@ -108,6 +108,6 @@ printf '%s\n' \
 exec env PYTHONPATH="${ROOT}/platform" \
   "${PYTHON}" -m inneros_core_runtime.mcp_gateway.server \
   --host 127.0.0.1 \
-  --port 18103 \
+  --port 18112 \
   --profile profile_minimal \
   --config "${ROOT}/.canary/mcp-small-profiles.json"

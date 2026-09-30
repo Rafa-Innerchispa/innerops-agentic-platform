@@ -8,7 +8,7 @@ import socket
 import urllib.request
 from typing import Any
 
-BASE = "http://127.0.0.1:18103/mcp"
+BASE = "http://127.0.0.1:18112/mcp"
 
 
 def listening(port: int) -> bool:
@@ -52,7 +52,7 @@ def require(condition: bool, message: str) -> None:
 def main() -> None:
     require(listening(8102), "production MCP port 8102 is not listening")
     require(listening(18102), "monolith canary port 18102 is not listening")
-    require(listening(18103), "MCP Small canary port 18103 is not listening")
+    require(listening(18112), "MCP Small canary port 18112 is not listening")
 
     initialized = rpc(
         "initialize",
@@ -114,7 +114,7 @@ def main() -> None:
         "mode": "isolated_mcp_small_gateway_smoke",
         "production_port_8102": "listening_untouched",
         "monolith_canary_port_18102": "listening",
-        "small_canary_port_18103": "listening",
+        "small_canary_port_18112": "listening",
         "exposed_tool_count": len(names),
         "exposed_tools": names,
         "search_capabilities": "pass",
