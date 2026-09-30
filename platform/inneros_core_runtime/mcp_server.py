@@ -5142,6 +5142,9 @@ def create_ops_task(
     preferred_provider: str | None = None,
     preferred_model: str | None = None,
     idempotency_key: str | None = None,
+    source_message_id: str | None = None,
+    conversation_ref: str | None = None,
+    related_project: str | None = None,
 ) -> OpsTaskToolResult:
     """Admite una orden formal mediante el workflow canónico de Temporal."""
     from raphiia_openai import coordination_live
@@ -5166,6 +5169,9 @@ def create_ops_task(
         preferred_provider=preferred_provider,
         preferred_model=preferred_model,
         idempotency_key=idempotency_key,
+        source_message_id=source_message_id,
+        conversation_ref=conversation_ref,
+        related_project=related_project,
     )
 
 

@@ -52,6 +52,8 @@ def route_tools(
     granted_scopes: list[str] | None = None,
     max_risk: str = "medium",
     tenant_id: str | None = None,
+    for_model: str | None = None,
+    max_tools: int | None = None,
 ) -> dict[str, Any]:
     validation = mcp_profiles.validate_profiles()
     if not validation["ok"]:
@@ -78,6 +80,18 @@ def route_tools(
     if not profile.get("ok"):
         return profile
 
+    profile_max_tools = int(profile["max_tools"])
+    if max_tools is not None:
+        try:
+            requested_max = int(max_tools)
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "invalid_max_tools"}
+        if requested_max < 1:
+            return {"ok": False, "error": "invalid_max_tools"}
+        effective_max_tools = min(requested_max, profile_max_tools)
+    else:
+        effective_max_tools = profile_max_tools
+
     granted = set(granted_scopes or [])
     admin = "ralfia:admin" in granted
     risk_ceiling = _RISK_RANK[max_risk]
@@ -96,6 +110,12 @@ def route_tools(
             continue
         selected.append(tool_name)
 
+    if len(selected) > effective_max_tools:
+        overflow = selected[effective_max_tools:]
+        selected = selected[:effective_max_tools]
+        for tool_name in overflow:
+            excluded.append({"tool": tool_name, "reason": "max_tools_cap"})
+
     return {
         "ok": True,
         "profile": profile_name,
@@ -104,9 +124,11 @@ def route_tools(
         "tenant_id": tenant_id,
         "tenant_policy": "context_only_v1",
         "max_risk": max_risk,
+        "for_model": for_model,
         "tools": selected,
         "tool_count": len(selected),
-        "max_tools": profile["max_tools"],
+        "max_tools": max_tools if max_tools is not None else profile_max_tools,
+        "profile_max_tools": profile_max_tools,
         "excluded": excluded,
         "catalog_pin": profile["catalog_pin"],
         "profile_pin": profile["profile_pin"],

@@ -5,6 +5,7 @@ They validate the contracts that must be true before a runtime canary deploy.
 """
 from __future__ import annotations
 
+import ast
 import inspect
 from pathlib import Path
 import unittest
@@ -67,6 +68,31 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
         self.assertEqual(first["authority"], "temporal")
         self.assertEqual(first["task_id"], second["task_id"])
         self.assertEqual(captured[0]["workflow_id"], f"ops_task:{first['task_id']}")
+
+    def test_mcp_create_ops_task_exposes_and_forwards_message_linkage_fields(self):
+        source = (ROOT / "inneros_core_runtime" / "mcp_server.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        fn = next(
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "create_ops_task"
+        )
+        params = [arg.arg for arg in fn.args.args]
+        for param in ("source_message_id", "conversation_ref", "related_project"):
+            self.assertIn(param, params)
+
+        calls = [
+            node
+            for node in ast.walk(fn)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "create_ops_task"
+        ]
+        self.assertEqual(len(calls), 1)
+        forwarded = {kw.arg for kw in calls[0].keywords if kw.arg}
+        for param in ("source_message_id", "conversation_ref", "related_project"):
+            self.assertIn(param, forwarded)
 
     def test_task_admission_preserves_source_message_id(self):
         captured: list[dict] = []
