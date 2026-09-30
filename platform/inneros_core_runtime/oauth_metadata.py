@@ -36,14 +36,18 @@ def is_private_host(host_header: str | None) -> bool:
         return False
 
 
-def resolve_oauth_urls(host_header: str | None = None) -> tuple[str, str]:
+def resolve_oauth_urls(host_header: str | None = None, request_path: str | None = None) -> tuple[str, str]:
     if is_private_host(host_header):
         issuer = OAUTH_ISSUER_LAN
         resource = OAUTH_MCP_RESOURCE_LAN
     else:
         issuer = OAUTH_ISSUER
         resource = OAUTH_MCP_RESOURCE
-    if not resource.endswith("/mcp"):
+    path = (request_path or "").lower()
+    if "/router" in path or path.rstrip("/").endswith("/router/mcp"):
+        public_base = OAUTH_MCP_RESOURCE.rsplit("/mcp", 1)[0].rstrip("/")
+        resource = f"{public_base}/router/mcp"
+    elif not resource.endswith("/mcp"):
         resource = f"{resource.rstrip('/')}/mcp"
     return issuer.rstrip("/"), resource
 
