@@ -499,8 +499,33 @@ class MCPGateway:
         prof_config: dict[str, Any],
         headers: dict[str, str],
     ) -> dict[str, Any]:
-        """Execute a capability with server-side sandboxing, throttling, and backend routing."""
-        # 1. Sandboxing and Path Validation
+        """Execute a capability with server-side authorization, sandboxing, throttling, and routing."""
+        # 1. Fail closed before sandboxing or upstream dispatch.
+        # Broker discovery may describe the full catalog, but execution is restricted
+        # to the explicit allowlist of the authenticated active profile.
+        if not self.profile_mgr.is_tool_allowed(capability_id, active_profile):
+            logger.warning(
+                "Capability '%s' denied under profile '%s'.",
+                capability_id,
+                active_profile,
+            )
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {
+                    "code": -32003,
+                    "message": (
+                        f"ProfileDeniedError: Capability '{capability_id}' "
+                        f"is not authorized for profile '{active_profile}'."
+                    ),
+                    "data": {
+                        "capability_id": capability_id,
+                        "profile": active_profile,
+                    },
+                },
+            }
+
+        # 2. Sandboxing and Path Validation
         sb_check = validate_tool_call_safety(
             capability_id,
             arguments,

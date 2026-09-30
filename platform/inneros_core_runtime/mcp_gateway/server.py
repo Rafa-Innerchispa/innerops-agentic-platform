@@ -35,7 +35,8 @@ def create_gateway_app(gateway: MCPGateway | None = None) -> Starlette:
     async def handle_mcp_post(request: Request) -> Response:
         """Handle JSON-RPC MCP POST requests."""
         profile_override = request.query_params.get("profile") or request.headers.get("X-MCP-Profile") or request.headers.get("x-mcp-profile")
-        admin_secret = request.query_params.get("admin_secret") or request.headers.get("X-MCP-Admin-Secret") or request.headers.get("x-mcp-admin-secret")
+        # Secrets are accepted only through headers, never URL query parameters.
+        admin_secret = request.headers.get("X-MCP-Admin-Secret") or request.headers.get("x-mcp-admin-secret")
 
         try:
             body = await request.json()
