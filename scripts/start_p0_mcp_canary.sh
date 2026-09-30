@@ -45,7 +45,7 @@ PY
 
 PRODUCTION_PYTHON="/home/rlopez/inneros/inneros_core/platform/venv/bin/python"
 PYTHON_BIN="${INNEROS_CANARY_PYTHON:-$PRODUCTION_PYTHON}"
-if [[ ! -x "$PYTHON_BIN" ]]; then
+if [[ ! -x "$PYTHON_BIN" ]];nthen
   echo "REFUSED: Python runtime not executable: $PYTHON_BIN" >&2
   exit 6
 fi
@@ -79,7 +79,8 @@ printf '%s\n' \
   "mongo_db=pcdoctor_swarm_canary" \
   "coordination_root=$AI_COORDINATION_ROOT" \
   "nats_enabled=false" \
+  "runtime_fallback=production_checkout_import_only" \
   "production_port=8102_untouched" \
   "stop=Ctrl+C"
 
-exec "$PYTHON_BIN" -m inneros_core_runtime.mcp_server
+exec "$PYTHON_BIN" scripts/launch_p0_mcp_canary.py
