@@ -1,0 +1,104 @@
+{
+  "metadata": {
+    "audit_timestamp": "2026-09-30T15:07:48.258751+00:00",
+    "policy": "STRICT_RAW_EVIDENCE_GATE"
+  },
+  "switches": [
+    {
+      "switch_id": "SW_CONSOLA",
+      "location": "Rack Principal Consola",
+      "vendor": "UNKNOWN (Unmanaged or Non-IP Managed)",
+      "model": "UNKNOWN",
+      "management_ip": "UNKNOWN",
+      "port_count": "16-24 estimated",
+      "sfp_ownership": "UNVERIFIED",
+      "observed_downstream_hosts": [
+        {
+          "ip": "192.168.3.1",
+          "device": "GCC6010 Router Host",
+          "port": "LAN1 / Trunk",
+          "confidence": 1.0
+        },
+        {
+          "ip": "192.168.3.2",
+          "device": "UCM PBX Subsystem",
+          "port": "Internal Interconnect",
+          "confidence": 1.0
+        },
+        {
+          "ip": "192.168.3.100",
+          "device": "Dahua NVR",
+          "port": "Direct Copper",
+          "confidence": 0.9
+        },
+        {
+          "ip": "100.103.151.40",
+          "device": "Tailscale Gateway PC (DESKTOP-T2JLE71)",
+          "port": "Direct Copper",
+          "confidence": 0.9
+        }
+      ],
+      "state": "OBSERVED",
+      "confidence": 0.85
+    },
+    {
+      "switch_id": "SW_ADMIN",
+      "location": "Oficina de Administraci\u00f3n",
+      "vendor": "Hikvision",
+      "model": "DS-3E1510P-EI/M Smart Managed PoE Switch",
+      "management_ip": "192.168.3.185",
+      "uplink": "SFP1 Fiber (Consola \u2194 Admin) / Currently Isolated",
+      "port_count": 10,
+      "poe_budget": "110W",
+      "downstream_devices": [
+        {
+          "ip": "192.168.3.207",
+          "device": "GWN7052F Router/AP",
+          "status": "OFFLINE_DUE_TO_UPLINK"
+        },
+        {
+          "device": "Admin Cameras & PC Workstations",
+          "status": "OFFLINE_DUE_TO_UPLINK"
+        }
+      ],
+      "state": "CONFIGURED",
+      "confidence": 1.0
+    },
+    {
+      "switch_id": "SW_T1_P0",
+      "location": "Torre 1 Piso 0 (Shaft Distribuci\u00f3n)",
+      "vendor": "UNKNOWN",
+      "model": "UNKNOWN (PoE Distribution Switch)",
+      "management_ip": "UNKNOWN",
+      "uplink": "SFP2 Fiber + Contingency Copper UTP",
+      "downstream_devices": [
+        {
+          "ip": "192.168.3.212",
+          "device": "AP-212 (GWN7660)",
+          "status": "ONLINE"
+        },
+        {
+          "ip": "192.168.3.213",
+          "device": "AP-213 (GWN7660)",
+          "status": "OFFLINE_FLAP"
+        },
+        {
+          "ip": "192.168.3.216",
+          "device": "AP-216 (GWN7660)",
+          "status": "ONLINE"
+        },
+        {
+          "ip": "192.168.3.227",
+          "device": "AP-227 (GWN7660)",
+          "status": "ONLINE"
+        },
+        {
+          "device": "Torre 1 & 2 Elevator Shaft Switches",
+          "status": "ONLINE"
+        }
+      ],
+      "state": "OBSERVED",
+      "confidence": 0.85
+    }
+  ]
+}

@@ -17,6 +17,12 @@
 
 **All Things Agentic Hackathon 2026 - Fortified Enterprise Fleet**
 
+## Recovery and cross-agent continuity
+
+For MCP Small/Full, dual-node coordination, local agents, and Bellini recovery, **start here**: [`docs/CANONICAL_CONTINUITY_HANDOFF_20260930.md`](docs/CANONICAL_CONTINUITY_HANDOFF_20260930.md). Do not rely on chat history alone; verify Git state and live runtime evidence.
+
+---
+
 ## Judges
 
 **Start here:** [`JUDGES_START_HERE.md`](JUDGES_START_HERE.md)  

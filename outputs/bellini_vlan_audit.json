@@ -1,0 +1,68 @@
+{
+  "metadata": {
+    "title": "Bellini I-II Comprehensive VLAN Audit",
+    "audit_timestamp": "2026-09-30T15:07:48.258751+00:00",
+    "policy": "STRICT_PROVENANCE_AND_CLASSIFICATION"
+  },
+  "vlans": [
+    {
+      "vlan_id": 1,
+      "name": "Default_Campus_LAN",
+      "classification": "A. Campus VLAN (Flat L2 Baseline)",
+      "source_device": "GCC6010 (192.168.3.1)",
+      "subnet": "192.168.3.0/24",
+      "gateway": "192.168.3.1",
+      "dhcp_enabled": true,
+      "dhcp_scope": "192.168.3.10 - 192.168.3.250",
+      "tagged_ports": [],
+      "untagged_ports": [
+        "LAN1",
+        "LAN2",
+        "LAN3",
+        "LAN4",
+        "SFP1",
+        "SFP2",
+        "All Switch Ports"
+      ],
+      "pvid": 1,
+      "associated_ssids": [
+        "Bellini_Corp",
+        "Bellini_Residentes",
+        "Bellini_Invitados"
+      ],
+      "observed_devices_count": 54,
+      "routing_policy": "Direct L2 Broadcast Domain / Default Route via WAN1",
+      "state": "CONFIGURED",
+      "confidence": 1.0,
+      "source_file": "outputs/raw/gcc/gcc6010_config_raw.json",
+      "json_pointer": "/getComponentSetting/response/component_settings"
+    },
+    {
+      "vlan_id": 3,
+      "name": "UCM_InterContainer_VLAN",
+      "classification": "B. Internal GCC/UCM Virtual Interconnect",
+      "source_device": "GCC6010 Host OS -> UCM FP12 Subsystem",
+      "subnet": "192.168.3.2/32 (Host Interconnect)",
+      "gateway": "192.168.3.1",
+      "dhcp_enabled": false,
+      "tagged_ports": [],
+      "untagged_ports": [
+        "Internal Virtual Bridge (br0/veth)"
+      ],
+      "pvid": 3,
+      "associated_ssids": [],
+      "observed_devices_count": 1,
+      "routing_policy": "Internal Host-to-Container Bridge (No 802.1Q tagging on campus switches)",
+      "state": "MEASURED",
+      "confidence": 1.0,
+      "source_file": "outputs/raw/gcc/gcc6010_config_raw.json",
+      "json_pointer": "/getComponentSetting/response/component_settings/ucm_vlan_id"
+    }
+  ],
+  "summary": {
+    "total_campus_vlans": 1,
+    "total_internal_vlans": 1,
+    "is_campus_flat": true,
+    "note": "Currently all physical campus traffic (PCs, APs, Dahua NVR, cameras, Hikvision intercoms, switches) operates over a single flat L2 broadcast domain (VLAN 1 Default)."
+  }
+}

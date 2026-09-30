@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "title": "Bellini Incident & Flap Event Timeline",
+    "generated_at": "2026-09-30T15:07:48.258751+00:00"
+  },
+  "events": [
+    {
+      "timestamp": "2026-09-24T17:23:38Z",
+      "source": "Tailscale Subnet Router",
+      "device": "DESKTOP-T2JLE71",
+      "event": "SUBNET_ROUTE_ADVERTISED",
+      "severity": "INFO",
+      "affected_segment": "Tailscale Mesh",
+      "correlated_devices": [
+        "ralphi-ia-ver-10",
+        "192.168.3.0/24"
+      ],
+      "probable_root_cause": "Initial deployment of Bellini Tailscale subnet bridge.",
+      "confidence": 1.0
+    },
+    {
+      "timestamp": "2026-09-29T18:00:00Z",
+      "source": "Guardian Telemetry Daemon",
+      "device": "Switch Admin (192.168.3.185)",
+      "event": "L2_REACHABILITY_LOSS (SFP1_LOS)",
+      "severity": "CRITICAL",
+      "affected_segment": "Admin Subnet & AP-207",
+      "correlated_devices": [
+        "192.168.3.185",
+        "192.168.3.207"
+      ],
+      "probable_root_cause": "SFP1 optical fiber transceiver fault or physical fiber break.",
+      "confidence": 0.95
+    },
+    {
+      "timestamp": "2026-09-30T12:00:00Z",
+      "source": "GWN Cloud & Guardian Probes",
+      "device": "AP-213 (192.168.3.213)",
+      "event": "PERIODIC_FLAP_AND_DROPS",
+      "severity": "WARNING",
+      "affected_segment": "Torre 1 Wi-Fi",
+      "correlated_devices": [
+        "192.168.3.213",
+        "SW_T1_P0"
+      ],
+      "probable_root_cause": "PoE voltage fluctuation on long cable run or faulty RJ45 patch.",
+      "confidence": 0.85
+    },
+    {
+      "timestamp": "2026-09-30T13:13:58Z",
+      "source": "Systemd User Manager",
+      "device": "ralphi-ia-ver-10",
+      "event": "GUARDIAN_SERVICE_START",
+      "severity": "INFO",
+      "affected_segment": "Monitoring Plane",
+      "correlated_devices": [
+        "bellini-network-guardian.service"
+      ],
+      "probable_root_cause": "Continuous 10s health telemetry daemon initialized.",
+      "confidence": 1.0
+    }
+  ]
+}

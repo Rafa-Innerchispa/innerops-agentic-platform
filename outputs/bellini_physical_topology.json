@@ -1,0 +1,100 @@
+{
+  "metadata": {
+    "title": "Bellini I-II Physical Infrastructure Topology",
+    "type": "PHYSICAL_TOPOLOGY",
+    "captured_at": "2026-09-30T15:07:48.258751+00:00"
+  },
+  "nodes": [
+    {
+      "id": "GCC6010",
+      "type": "ROUTER_GATEWAY",
+      "location": "Rack Consola",
+      "model": "Grandstream GCC6010",
+      "ports": [
+        "WAN1",
+        "LAN1",
+        "LAN2-4",
+        "SFP1",
+        "SFP2"
+      ]
+    },
+    {
+      "id": "SW_CONSOLA",
+      "type": "CORE_DISTRIBUTION_SWITCH",
+      "location": "Rack Consola",
+      "model": "UNKNOWN",
+      "ports": [
+        "Uplink GCC",
+        "PBX",
+        "NVR",
+        "Tailscale PC",
+        "SFP Cages"
+      ]
+    },
+    {
+      "id": "SW_ADMIN",
+      "type": "POE_SWITCH",
+      "location": "Oficina Admin",
+      "model": "Hikvision DS-3E1510P-EI/M",
+      "status": "OFFLINE_L2_ISOLATED"
+    },
+    {
+      "id": "SW_T1_P0",
+      "type": "POE_DISTRIBUTION_SWITCH",
+      "location": "Torre 1 Piso 0",
+      "model": "UNKNOWN",
+      "status": "ONLINE"
+    },
+    {
+      "id": "NVR_DAHUA",
+      "type": "CCTV_RECORDER",
+      "location": "Rack Consola",
+      "model": "Dahua DNVRS-Webs",
+      "ip": "192.168.3.100"
+    },
+    {
+      "id": "PC_TAILSCALE",
+      "type": "SUBNET_ROUTER_PC",
+      "location": "Consola Lobby",
+      "model": "DESKTOP-T2JLE71",
+      "tailscale_ip": "100.103.151.40"
+    }
+  ],
+  "links": [
+    {
+      "source": "GCC6010",
+      "target": "SW_CONSOLA",
+      "media": "Copper UTP Cat6 (LAN1)",
+      "speed": "1000BASE-T",
+      "status": "UP"
+    },
+    {
+      "source": "SW_CONSOLA",
+      "target": "SW_ADMIN",
+      "media": "Single-Mode Fiber (SFP1)",
+      "speed": "1000BASE-LX",
+      "status": "DOWN (LOS True)"
+    },
+    {
+      "source": "SW_CONSOLA",
+      "target": "SW_T1_P0",
+      "media": "Multi-Mode Fiber (SFP2) + Copper Contingency",
+      "speed": "1000BASE-SX",
+      "status": "UP"
+    },
+    {
+      "source": "SW_CONSOLA",
+      "target": "NVR_DAHUA",
+      "media": "Copper UTP Cat6",
+      "speed": "1000BASE-T",
+      "status": "UP"
+    },
+    {
+      "source": "SW_CONSOLA",
+      "target": "PC_TAILSCALE",
+      "media": "Copper UTP Cat6",
+      "speed": "1000BASE-T",
+      "status": "UP"
+    }
+  ]
+}

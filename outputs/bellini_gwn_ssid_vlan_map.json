@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "tenant": "bellini",
+    "site_id": "bellini-i-ii",
+    "controller": "GWN Cloud (https://www.gwn.cloud)",
+    "local_controller_status": "DISABLED (manager_status=shutdown in GCC6010)",
+    "dual_management_detected": false,
+    "captured_at": "2026-09-30T15:07:48.258751+00:00"
+  },
+  "ssids": [
+    {
+      "ssid_name": "Bellini_Corp",
+      "vlan_id": 1,
+      "security": "WPA2/WPA3-Enterprise / PSK",
+      "client_isolation": false,
+      "captive_portal": false,
+      "bandwidth_limit": "Unlimited",
+      "radios": [
+        "2.4GHz",
+        "5GHz"
+      ],
+      "broadcast_on_aps": [
+        "AP-188",
+        "AP-212",
+        "AP-216",
+        "AP-227",
+        "AP-177",
+        "AP-192",
+        "AP-208"
+      ],
+      "network_segment": "Admin / Staff",
+      "state": "CONFIGURED",
+      "confidence": 1.0
+    },
+    {
+      "ssid_name": "Bellini_Residentes",
+      "vlan_id": 1,
+      "security": "WPA2-PSK",
+      "client_isolation": false,
+      "captive_portal": false,
+      "bandwidth_limit": "Standard",
+      "radios": [
+        "2.4GHz",
+        "5GHz"
+      ],
+      "broadcast_on_aps": [
+        "AP-188",
+        "AP-212",
+        "AP-216",
+        "AP-227",
+        "AP-177",
+        "AP-192",
+        "AP-208"
+      ],
+      "network_segment": "Residential Wi-Fi",
+      "state": "CONFIGURED",
+      "confidence": 1.0
+    },
+    {
+      "ssid_name": "Bellini_Invitados",
+      "vlan_id": 1,
+      "security": "Open / Portal Guest",
+      "client_isolation": true,
+      "captive_portal": true,
+      "bandwidth_limit": "5Mbps Down / 2Mbps Up",
+      "radios": [
+        "2.4GHz",
+        "5GHz"
+      ],
+      "broadcast_on_aps": [
+        "AP-188",
+        "AP-212",
+        "AP-216",
+        "AP-227",
+        "AP-177",
+        "AP-192",
+        "AP-208"
+      ],
+      "network_segment": "Guest Wi-Fi",
+      "state": "CONFIGURED",
+      "confidence": 1.0
+    }
+  ],
+  "ap_radio_matrix": [
+    {
+      "ap": "AP-188",
+      "ip": "192.168.3.188",
+      "model": "GWN7660",
+      "2.4G_channel": 1,
+      "5G_channel": 36,
+      "clients": 8,
+      "status": "ONLINE",
+      "uplink_switch": "UNKNOWN"
+    },
+    {
+      "ap": "AP-207",
+      "ip": "192.168.3.207",
+      "model": "GWN7052F",
+      "2.4G_channel": 6,
+      "5G_channel": 149,
+      "clients": 0,
+      "status": "REGISTERED_ZEROCONFIG (L2 OFFLINE)",
+      "uplink_switch": "UNKNOWN"
+    },
+    {
+      "ap": "AP-212",
+      "ip": "192.168.3.212",
+      "model": "GWN7660",
+      "2.4G_channel": 11,
+      "5G_channel": 48,
+      "clients": 6,
+      "status": "ONLINE",
+      "uplink_switch": "UNKNOWN"
+    },
+    {
+      "ap": "AP-213",
+      "ip": "192.168.3.213",
+      "model": "GWN7660",
+      "2.4G_channel": 6,
+      "5G_channel": 157,
+      "clients": 0,
+      "status": "OFFLINE_FLAP",
+      "uplink_switch": "UNKNOWN"
+    },
+    {
+      "ap": "AP-216",
+      "ip": "192.168.3.216",
+      "model": "GWN7660",
+      "2.4G_channel": 1,
+      "5G_channel": 40,
+      "clients": 11,
+      "status": "ONLINE",
+      "uplink_switch": "UNKNOWN"
+    },
+    {
+      "ap": "AP-227",
+      "ip": "192.168.3.227",
+      "model": "GWN7660",
+      "2.4G_channel": 11,
+      "5G_channel": 161,
+      "clients": 9,
+      "status": "ONLINE",
+      "uplink_switch": "UNKNOWN"
+    }
+  ],
+  "vlan_separation_verdict": "NO_L2_SEPARATION: All SSIDs currently terminate onto Flat VLAN 1 at the AP ethernet port. Client isolation on Guest SSID is enforced only at L2 802.11 ebtables layer inside the AP firmware."
+}

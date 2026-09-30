@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "title": "Bellini I-II Logical Network & Service Topology",
+    "type": "LOGICAL_TOPOLOGY",
+    "captured_at": "2026-09-30T15:07:48.258751+00:00"
+  },
+  "subnets": [
+    {
+      "name": "Flat_Campus_Network",
+      "cidr": "192.168.3.0/24",
+      "vlan_id": 1,
+      "gateway": "192.168.3.1",
+      "dhcp_server": "GCC6010 Host (192.168.3.1)",
+      "dns_forwarders": [
+        "192.168.3.1",
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "active_devices": 54
+    },
+    {
+      "name": "UCM_InterContainer_Bridge",
+      "cidr": "192.168.3.2/32 (Host Link)",
+      "vlan_id": 3,
+      "gateway": "192.168.3.1",
+      "dhcp_server": "None (Static Interconnect)",
+      "purpose": "Internal inter-process communication between GCC6010 host router and UCM telephony container"
+    }
+  ],
+  "services": [
+    {
+      "name": "SIP Voice & Intercom PBX",
+      "host": "192.168.3.2:5060/8089",
+      "subsystem": "UCM FP12",
+      "registered_extensions": [
+        1000,
+        1001,
+        1005,
+        1006,
+        1007
+      ]
+    },
+    {
+      "name": "CCTV Video Management",
+      "host": "192.168.3.100:80/37777",
+      "subsystem": "Dahua NVR",
+      "active_camera_channels": 20
+    },
+    {
+      "name": "Campus Wi-Fi Management",
+      "host": "GWN Cloud Tenant (bellini)",
+      "ssids": [
+        "Bellini_Corp",
+        "Bellini_Residentes",
+        "Bellini_Invitados"
+      ]
+    },
+    {
+      "name": "Remote Operations & Guardian Gateway",
+      "host": "100.103.151.40 (DESKTOP-T2JLE71)",
+      "protocol": "Tailscale WireGuard"
+    }
+  ]
+}
