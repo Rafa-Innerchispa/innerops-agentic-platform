@@ -32,6 +32,13 @@ except ImportError:
 
 logger = logging.getLogger("temporal_activities")
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://127.0.0.1:27017")
+MONGODB_DB = os.environ.get("INNEROS_MONGO_DB", "pcdoctor_swarm")
+WORKTREE_BASE = Path(
+    os.environ.get(
+        "INNEROS_WORKTREE_BASE",
+        "/home/rlopez/inneros/inneros_core/worktrees",
+    )
+)
 
 
 def _safe_heartbeat(details: str):
@@ -59,8 +66,7 @@ async def activity_validate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str,
 async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("hydrating_worktree")
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
-    worktree_base = Path("/home/rlopez/inneros/inneros_core/worktrees")
-    worktree_path = worktree_base / f"temporal-{envelope.task_id}"
+    worktree_path = WORKTREE_BASE / f"temporal-{envelope.task_id}"
     worktree_path.mkdir(parents=True, exist_ok=True)
     return {"ok": True, "worktree": str(worktree_path)}
 
@@ -197,7 +203,7 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
     try:
         from pymongo import MongoClient
         client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=2000)
-        db = client["pcdoctor_swarm"]
+        db = client[MONGODB_DB]
         col = db["ralfia_ops_tasks"]
         task_id = envelope_dict.get("task_id")
         now = datetime.now(timezone.utc).isoformat()

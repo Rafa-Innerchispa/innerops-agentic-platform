@@ -74,6 +74,10 @@ def _env_enabled(var_name: str, default: bool = False) -> bool:
     return val in {"1", "true", "yes", "on"}
 
 
+def _mongo_db_name() -> str:
+    return os.getenv("INNEROS_MONGO_DB", "pcdoctor_swarm")
+
+
 def _clean_subject(subject: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9._-]", "_", subject)
     return cleaned.strip(".")
@@ -164,13 +168,13 @@ class MemoryEventSink(EventSink):
 @dataclass
 class MongoEventSink(EventSink):
     mongo_uri: str = ""
-    db_name: str = "pcdoctor_swarm"
+    db_name: str = ""
     collection_name: str = EVENTS_COL
 
     def _get_coll(self) -> Any:
         uri = self.mongo_uri or os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
         client: MongoClient = MongoClient(uri, serverSelectionTimeoutMS=2000)
-        return client[self.db_name][self.collection_name]
+        return client[self.db_name or _mongo_db_name()][self.collection_name]
 
     def publish(self, event: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -352,7 +356,10 @@ def workflow_intent_for_task(task: dict[str, Any]) -> dict[str, Any]:
         "ready": True,
         "reason": "temporal_runtime_adapter_active",
         "workflow_id": workflow_id,
-        "task_queue": "inneros-general-ops",
+        "task_queue": os.getenv(
+            "INNEROS_TEMPORAL_TASK_QUEUE",
+            "inneros-general-ops",
+        ),
         "workflow_type": "OpsTaskWorkflow",
         "search_attributes": {"task_id": task_id, "correlation_id": correlation_id, "repo": repo},
         "retry_policy": {"maximum_attempts": 3, "non_retryable_errors": ["CIRCUIT_BREAKER_PENDING_HUMAN_REVIEW", "TASK_TERMINAL", "TASK_NOT_ASSIGNED"]},
@@ -484,7 +491,7 @@ def create_durable_message(
     }
     try:
         with MongoClient(mongo_uri, serverSelectionTimeoutMS=2000) as client:
-            coll = client["pcdoctor_swarm"]["ralfia_agent_messages"]
+            coll = client[_mongo_db_name()]["ralfia_agent_messages"]
             if idempotency_key:
                 existing = coll.find_one({"idempotency_key": idempotency_key}, {"_id": 0})
                 if existing:
@@ -524,7 +531,7 @@ def ack_durable_message(
     now = datetime.now(timezone.utc).isoformat()
     try:
         with MongoClient(mongo_uri, serverSelectionTimeoutMS=2000) as client:
-            db = client["pcdoctor_swarm"]
+            db = client[_mongo_db_name()]
             message = db["ralfia_agent_messages"].find_one(
                 {"$or": [{"_id": message_id}, {"message_id": message_id}]}
             )
@@ -587,7 +594,7 @@ def query_durable_messages(
     try:
         with MongoClient(mongo_uri, serverSelectionTimeoutMS=2000) as client:
             return list(
-                client["pcdoctor_swarm"]["ralfia_agent_messages"]
+                client[_mongo_db_name()]["ralfia_agent_messages"]
                 .find(query, {"_id": 0})
                 .sort("created_at", -1)
             )
