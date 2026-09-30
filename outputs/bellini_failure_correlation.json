@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "title": "Bellini Failure Domain Analysis",
+    "generated_at": "2026-09-30T15:07:48.258751+00:00"
+  },
+  "failure_domains": [
+    {
+      "incident_id": "INC_01_ADMIN_ISOLATION",
+      "symptom": "Switch Administraci\u00f3n (192.168.3.185) and AP-207 (192.168.3.207) unreachable at L2.",
+      "tested_hypotheses": {
+        "WAN_ISP_FAILURE": "REFUTED: WAN1 is UP and internet is fully functional across the rest of campus.",
+        "GCC_ROUTER_CRASH": "REFUTED: GCC6010 host and UCM are active with normal uptime.",
+        "FIBER_SFP1_FAULT": "CONFIRMED: SFP1 link is down, LOS asserted, resulting in total physical partition of the Admin building."
+      },
+      "primary_root_cause": "FIBER_OR_TRANSCEIVER_FAULT (SFP1)",
+      "recommended_action": "Clean LC connectors, test optical power with VFL/power meter, replace SFP transceiver."
+    },
+    {
+      "incident_id": "INC_02_AP213_FLAP",
+      "symptom": "AP-213 experiences periodic flaps between ONLINE and OFFLINE.",
+      "tested_hypotheses": {
+        "GWN_CLOUD_DISCONNECT": "REFUTED: Other APs on same site remain stable in GWN Cloud.",
+        "POE_OR_CABLE_DEGRADATION": "PROBABLE: Port on SW_T1_P0 experiencing link flaps or PoE current trip.",
+        "IP_CONFLICT": "POSSIBLE: Requires checking static IP overlaps in 192.168.3.213."
+      },
+      "primary_root_cause": "POE_PORT_OR_CABLE_DEGRADATION",
+      "recommended_action": "Recrimp RJ45 terminations on AP-213 patch cord, test PoE port on SW_T1_P0."
+    },
+    {
+      "incident_id": "INC_03_FLAT_BROADCAST_DOMAIN",
+      "symptom": "All 54 active devices (intercoms, CCTV cameras, residential Wi-Fi, admin PCs, PBX) share a single /24 broadcast domain.",
+      "primary_root_cause": "PRE_REDESIGN_FLAT_L2_TOPOLOGY",
+      "risk": "High broadcast traffic, security exposure of CCTV/intercoms to guest Wi-Fi clients, lack of QoS for SIP voice.",
+      "recommended_action": "Implement 802.1Q VLAN segmentation (VLAN 10 Admin, VLAN 20 Wi-Fi, VLAN 30 CCTV, VLAN 40 Voice/Intercom, VLAN 50 Guest) during network redesign phase."
+    }
+  ]
+}
