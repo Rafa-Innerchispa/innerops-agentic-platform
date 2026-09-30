@@ -1,0 +1,212 @@
+{
+  "version": "p0-runtime-recovery-v1",
+  "generated_at": "2026-09-30T01:57:24.167986+00:00",
+  "source_report": ".canary/runtime-recovery/20260930T015216Z/report.json",
+  "production_mutated": false,
+  "deployment_performed": false,
+  "policy": {
+    "common_modules": "identical on Intel and AMD, absent from branch",
+    "intel_only_modules": "only mcp_gateway/* preserved; requires independent canary",
+    "overwrites": "forbidden"
+  },
+  "modules": [
+    {
+      "module": "agents/ag57_dmx_orchestrator.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "3588e737645ab4314499f15652a21fb1880b214630daf2404adcafb395a47fe9",
+      "amd_sha256": "3588e737645ab4314499f15652a21fb1880b214630daf2404adcafb395a47fe9"
+    },
+    {
+      "module": "agents/ag58_acp_deliverable_tracker.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "56ef7d1e3f85d5c30e64b03e13ecf227fa9621734fc9838fff0f1943fe439ecb",
+      "amd_sha256": "56ef7d1e3f85d5c30e64b03e13ecf227fa9621734fc9838fff0f1943fe439ecb"
+    },
+    {
+      "module": "agents/ag59_dmx_orchestrator.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "bbe760247d112e3180f6d875b51233e8243d4c58e8c33c54371bdc10dead0d4e",
+      "amd_sha256": "bbe760247d112e3180f6d875b51233e8243d4c58e8c33c54371bdc10dead0d4e"
+    },
+    {
+      "module": "brightdata_provider.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "b014e7d7798a1d9af93937b2fbf486caa79f3d61f06431786b4b1f4e98bdda02",
+      "amd_sha256": "b014e7d7798a1d9af93937b2fbf486caa79f3d61f06431786b4b1f4e98bdda02"
+    },
+    {
+      "module": "document_vault.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "43601467e356732462a6a4b470026f1d27c20988d22e24c31d8d1967a71082c8",
+      "amd_sha256": "43601467e356732462a6a4b470026f1d27c20988d22e24c31d8d1967a71082c8"
+    },
+    {
+      "module": "google_extra_models.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "041ee269f97b90ef5d142abab74dc8d6c43dd1cb4f2e32a030648c951413fd5a",
+      "amd_sha256": "041ee269f97b90ef5d142abab74dc8d6c43dd1cb4f2e32a030648c951413fd5a"
+    },
+    {
+      "module": "hubitat_client.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "e0b40ad8d6f9e7895b66ed4b24032afbda5cc9b281e7fc417800a5852b29b316",
+      "amd_sha256": "e0b40ad8d6f9e7895b66ed4b24032afbda5cc9b281e7fc417800a5852b29b316"
+    },
+    {
+      "module": "hubitat_mobile_watch.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "88e524f346d4bde6351b726d2f503661dea1744d390f69051049e5c8dd25be3a",
+      "amd_sha256": "88e524f346d4bde6351b726d2f503661dea1744d390f69051049e5c8dd25be3a"
+    },
+    {
+      "module": "hubitat_motion_watcher.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "41db95d66f5718460bed10018dcc990941d9f5ad07e550572964a1ef91067753",
+      "amd_sha256": "41db95d66f5718460bed10018dcc990941d9f5ad07e550572964a1ef91067753"
+    },
+    {
+      "module": "ingest_drop_folder.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "ead8c9e3a349ffd4b429da8ce0f57448d3f6a5716fbba757d84c55bc14253c32",
+      "amd_sha256": "ead8c9e3a349ffd4b429da8ce0f57448d3f6a5716fbba757d84c55bc14253c32"
+    },
+    {
+      "module": "inneros_agent_fabric.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "cab2e45de0b26f7d090821ce2bab5daed8b7396780ec7dddc47a48ed48cae0b3",
+      "amd_sha256": "cab2e45de0b26f7d090821ce2bab5daed8b7396780ec7dddc47a48ed48cae0b3"
+    },
+    {
+      "module": "judge_console_content.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "39df1d7ace813e98bfb9f4a2164b39fcb33979a85bf57be420df8047a0b8bb10",
+      "amd_sha256": "39df1d7ace813e98bfb9f4a2164b39fcb33979a85bf57be420df8047a0b8bb10"
+    },
+    {
+      "module": "judge_multimodel_e2e.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "3944b76d92f4bf496163a254fa334ced7b695a22c4471607d2b2a530f3050264",
+      "amd_sha256": "3944b76d92f4bf496163a254fa334ced7b695a22c4471607d2b2a530f3050264"
+    },
+    {
+      "module": "judge_telemetry.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "58c85d300ed03b50f3845fc62e7dafc80e940b44a5233281e3ce0da05f9439b8",
+      "amd_sha256": "58c85d300ed03b50f3845fc62e7dafc80e940b44a5233281e3ce0da05f9439b8"
+    },
+    {
+      "module": "judge_workflows.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "98f07b0f269340492f022e643e3374aac599c24ae8a65cac078a8f77e3b8b7cc",
+      "amd_sha256": "98f07b0f269340492f022e643e3374aac599c24ae8a65cac078a8f77e3b8b7cc"
+    },
+    {
+      "module": "kpi_telemetry.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "8dfe1292935b0021749caab868aa9abbb10ca2c8b699d21333f4a6a4fadc5f92",
+      "amd_sha256": "8dfe1292935b0021749caab868aa9abbb10ca2c8b699d21333f4a6a4fadc5f92"
+    },
+    {
+      "module": "local_model_manager.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "fa18043226133057d1a7319b489a96421f4283d4d90c6b10599efb2f8d8e8482",
+      "amd_sha256": "fa18043226133057d1a7319b489a96421f4283d4d90c6b10599efb2f8d8e8482"
+    },
+    {
+      "module": "local_model_worker.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "e0569da778ae5a1dff35d6943b393ece3e7f46756f8910dd97c1289ab268b28e",
+      "amd_sha256": "e0569da778ae5a1dff35d6943b393ece3e7f46756f8910dd97c1289ab268b28e"
+    },
+    {
+      "module": "mcp_gateway/__init__.py",
+      "classification": "runtime_only_intel",
+      "sha256": "53cdde00342830499ed1cae039aafcaf868bafaa0aa2d8f8aa9b312ed14a502d",
+      "amd_sha256": null
+    },
+    {
+      "module": "mcp_gateway/federation.py",
+      "classification": "runtime_only_intel",
+      "sha256": "477987e821afe26d0aeab777c47e99ce0c555d37ffdd19f562c27206824e9e68",
+      "amd_sha256": null
+    },
+    {
+      "module": "mcp_gateway/gateway.py",
+      "classification": "runtime_only_intel",
+      "sha256": "a3dc6edd294769770ee1538e8b63987d64d5a5903197822b7ffa15eb6547a7d0",
+      "amd_sha256": null
+    },
+    {
+      "module": "mcp_gateway/profiles.py",
+      "classification": "runtime_only_intel",
+      "sha256": "33ef6223a8d27987eda7f549b9c27281a23ffcebf100393e754702a5358d4041",
+      "amd_sha256": null
+    },
+    {
+      "module": "mcp_gateway/sandboxing.py",
+      "classification": "runtime_only_intel",
+      "sha256": "18f953f6c6b1c710fd3744379e63b6491028395ef8405119c51abd8d71d2783f",
+      "amd_sha256": null
+    },
+    {
+      "module": "mcp_gateway/server.py",
+      "classification": "runtime_only_intel",
+      "sha256": "3457d3ab1305afabc516f9a1b8de418c3364b9d09f8c888f6fcd2d26d91034b9",
+      "amd_sha256": null
+    },
+    {
+      "module": "mcp_gateway/throttling.py",
+      "classification": "runtime_only_intel",
+      "sha256": "77fd01ec6052b427985550725a6be9a4d6648e2e982b408030861c8e9d076c06",
+      "amd_sha256": null
+    },
+    {
+      "module": "notifications/email_intelligence.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "5cba34f91b2789ff2bfa6175ab2b51b7e551f5924cf3efd0fca48911fdbe23fb",
+      "amd_sha256": "5cba34f91b2789ff2bfa6175ab2b51b7e551f5924cf3efd0fca48911fdbe23fb"
+    },
+    {
+      "module": "notifications/ops_task_alerts.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "27b49155316ada7fae2e8f32700f68a9ac9f02389e9f8a5f34001d7d22b4a8bc",
+      "amd_sha256": "27b49155316ada7fae2e8f32700f68a9ac9f02389e9f8a5f34001d7d22b4a8bc"
+    },
+    {
+      "module": "pool_agent_runners.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "e2defc29dda25f132c6b46ca132770a30d9b4104553214705b0513f1644c128f",
+      "amd_sha256": "e2defc29dda25f132c6b46ca132770a30d9b4104553214705b0513f1644c128f"
+    },
+    {
+      "module": "tenant_reconciliation.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "652232598edfac51468aa8c7b7f4fda47aee3c4b39f5cd510400ac839c07db9e",
+      "amd_sha256": "652232598edfac51468aa8c7b7f4fda47aee3c4b39f5cd510400ac839c07db9e"
+    },
+    {
+      "module": "tests/test_ag55_browser_loopback.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "6656bc2e56b84602dfc6c8ac67b2888475839367066012d2930e94e85068c0e0",
+      "amd_sha256": "6656bc2e56b84602dfc6c8ac67b2888475839367066012d2930e94e85068c0e0"
+    },
+    {
+      "module": "tests/test_document_vault.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "ee3c23b0433bcd2e60df490515c4d781b14484decddc4dee98d57c02f591439a",
+      "amd_sha256": "ee3c23b0433bcd2e60df490515c4d781b14484decddc4dee98d57c02f591439a"
+    },
+    {
+      "module": "tests/test_hubitat_client.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "ae593ed0f562311e81c23dd09a971a7618cc257c7acc70ab5e69909b9607d0d5",
+      "amd_sha256": "ae593ed0f562311e81c23dd09a971a7618cc257c7acc70ab5e69909b9607d0d5"
+    },
+    {
+      "module": "unified_provider_fabric.py",
+      "classification": "runtime_only_common_identical",
+      "sha256": "e6e3491b238967d82938f32a131514178388f4ef6b8ec78e2ac4a6e8f7fea619",
+      "amd_sha256": "e6e3491b238967d82938f32a131514178388f4ef6b8ec78e2ac4a6e8f7fea619"
+    }
+  ]
+}
