@@ -50,6 +50,18 @@ class TemporalCanaryIsolationP0Tests(unittest.TestCase):
             source,
         )
 
+    def test_success_fixture_is_restricted_to_isolated_canary(self) -> None:
+        source = Path(
+            "platform/inneros_core_runtime/temporal_activities.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('canary_test_type") == "successful_diff"', source)
+        self.assertIn('envelope.execution_lane != "canary"', source)
+        self.assertIn('MONGODB_DB != "pcdoctor_swarm_canary"', source)
+        self.assertIn('"/.canary/worktrees" not in worktree', source)
+        self.assertIn("CANARY_ISOLATION_VIOLATION", source)
+        self.assertIn("p0-success-evidence.txt", source)
+
     def test_durable_spine_has_no_direct_production_db_index(self) -> None:
         source = Path(
             "platform/inneros_core_runtime/durable_coordination_spine.py"

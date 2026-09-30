@@ -172,6 +172,30 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "test_results": {"exit_code": 0, "ok": True},
             "error_count": 0
         }
+    if envelope_dict.get("canary_test_type") == "successful_diff":
+        if (
+            envelope.execution_lane != "canary"
+            or MONGODB_DB != "pcdoctor_swarm_canary"
+            or "/.canary/worktrees" not in worktree
+        ):
+            raise ApplicationError(
+                "successful_diff fixture is restricted to the isolated P0 canary",
+                type="CANARY_ISOLATION_VIOLATION",
+                non_retryable=True,
+            )
+        artifact = Path(worktree) / "p0-success-evidence.txt"
+        artifact.write_text(
+            f"task_id={envelope.task_id}\nverified_by=isolated_temporal_canary\n",
+            encoding="utf-8",
+        )
+        return {
+            "ok": True,
+            "files_count": 1,
+            "code_diff": "+ p0-success-evidence.txt",
+            "test_results": {"exit_code": 0, "ok": True},
+            "error_count": 0,
+            "evidence": {"artifact": str(artifact), "persisted": artifact.is_file()},
+        }
 
     # Local models may produce a candidate response, but they do not constitute
     # proof that code changed or tests passed.  Evidence must come from the
