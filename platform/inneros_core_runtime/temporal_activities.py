@@ -1,3 +1,6 @@
+class AgentState:
+    pass
+
 """Temporal Activities for InnerOS Task Execution and Completion Gating.
 
 Implements:
