@@ -9,12 +9,16 @@ from pathlib import Path
 import shlex
 import socket
 import subprocess
+import sys
 import time
 import urllib.request
 from typing import Any
 
 EXPECTED_ACK = "I_UNDERSTAND_SELF_CONTAINED_DUAL_NODE_CANARY"
-if os.environ.get("INNEROS_P0_DUAL_NODE_ACK") != EXPECTED_ACK:
+if (
+    os.environ.get("INNEROS_P0_DUAL_NODE_ACK") != EXPECTED_ACK
+    and EXPECTED_ACK not in sys.argv[1:]
+):
     raise SystemExit(f"REFUSED: set INNEROS_P0_DUAL_NODE_ACK={EXPECTED_ACK}")
 
 AMD_HOST = os.environ.get("RALFIA_AMD_HOST", "100.72.153.124")
@@ -173,7 +177,15 @@ def main() -> None:
             "scripts/launch_p0_mcp_canary.py",
             f"> {shlex.quote(amd_log)} 2>&1 < /dev/null & echo $!",
         ])
-        amd_pid = int(remote(start_command, timeout=30).splitlines()[-1])
+        try:
+            start_output = remote(start_command, timeout=30)
+        except subprocess.TimeoutExpired as exc:
+            captured = exc.output or b""
+            if isinstance(captured, bytes):
+                captured = captured.decode("utf-8", errors="replace")
+            require(bool(captured.strip()), "AMD start timed out without returning a PID")
+            start_output = captured
+        amd_pid = int(start_output.splitlines()[-1])
 
         tunnel = subprocess.Popen(
             [
