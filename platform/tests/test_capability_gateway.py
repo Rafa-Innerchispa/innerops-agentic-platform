@@ -5,7 +5,7 @@ from inneros_core_runtime.capability_gateway import (
     capability_describe,
     capability_invoke,
     capability_execution,
-    NETWORK_DEVICE_QUERY_MANIFEST
+    NETWORK_DEVICE_QUERY_MANIFEST,
 )
 
 def test_capability_search():
@@ -20,14 +20,31 @@ def test_capability_describe():
     assert res["capability"]["title"] == "Network Device Unified Query Capability"
     assert res["capability"]["mode"] == "read_only"
 
-def test_capability_invoke_read_only():
+def test_capability_invoke_read_only(monkeypatch):
+    monkeypatch.setattr(
+        "inneros_core_runtime.device_fabric.device_fabric_health",
+        lambda site_id="": {"ok": True, "site_filter": site_id, "providers": []},
+    )
+    monkeypatch.setattr(
+        "inneros_core_runtime.device_fabric.device_fabric_inventory",
+        lambda client_id="", site_id="", live=False: {
+            "ok": True,
+            "provider": "grandstream_gwn",
+            "inventory": [{"device_ref": "192.168.3.1"}],
+        },
+    )
     res = capability_invoke(
         capability_id="network.device.query.v1",
-        parameters={"tenant_id": "bellini", "sections": ["health", "inventory"]},
-        idempotency_key="test-idem-pytest-01"
+        parameters={
+            "tenant_id": "bellini",
+            "site_id": "bellini-i-ii",
+            "sections": ["health", "inventory"],
+        },
+        idempotency_key="test-idem-pytest-01",
     )
     assert res["ok"] is True
     assert res["status"] == "COMPLETED"
+    assert res["result"]["provenance"]["source"] == "device_fabric"
     assert "health" in res["result"]["data"]
     assert "inventory" in res["result"]["data"]
 

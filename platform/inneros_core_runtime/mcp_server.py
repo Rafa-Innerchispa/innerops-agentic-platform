@@ -20,7 +20,7 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from raphiia_openai.auth_middleware import ApiKeyMiddleware
+from raphiia_openai.auth_middleware import ApiKeyMiddleware, ToolCallIsolationMiddleware
 from raphiia_openai import quoteops_mcp_bridge
 from raphiia_openai import coordination_docs, dev_swarm_scheduler, dev_swarm_watchdog, discord_interaction_gateway, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
 from raphiia_openai.operational import accounting_store, inventory_store, pcdoctor_store, party_store, procurement_store
@@ -72,6 +72,7 @@ mcp = FastMCP(
     ),
 )
 
+mcp.add_middleware(ToolCallIsolationMiddleware())
 if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
 
@@ -4503,6 +4504,7 @@ def diagnose_mcp_session(
     client_tool_count: int | None = None,
     client_catalog_version: str | None = None,
     client_seen_tools: list[str] | None = None,
+    client_profile_pin: str | None = None,
     profile: str | None = None,
     session_id: str | None = None,
     user_agent: str | None = None,
@@ -4512,6 +4514,7 @@ def diagnose_mcp_session(
         client_tool_count=client_tool_count,
         client_catalog_version=client_catalog_version,
         client_seen_tools=client_seen_tools,
+        client_profile_pin=client_profile_pin,
         profile=profile,
         session_id=session_id,
         user_agent=user_agent,

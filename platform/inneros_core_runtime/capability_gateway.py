@@ -222,33 +222,108 @@ NETWORK_DEVICE_QUERY_MANIFEST: Dict[str, Any] = {
 
 
 def network_device_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute network queries across allowed sections using Device Fabric / local providers."""
-    tenant_id = parameters.get("tenant_id")
-    device_ref = parameters.get("device_ref", "gateway")
-    sections = parameters.get("sections", ["health", "inventory"])
-    
-    # Return structured telemetry for requested sections
-    response_data: Dict[str, Any] = {
-        "tenant_id": tenant_id,
-        "device_ref": device_ref,
-        "sections_queried": sections,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "data": {}
-    }
-    
-    for sec in sections:
-        if sec == "health":
-            response_data["data"]["health"] = {"status": "HEALTHY", "reachability": "ONLINE", "loss_pct": 0.0}
-        elif sec == "inventory":
-            response_data["data"]["inventory"] = {"model": "GCC6010", "vendor": "Grandstream", "firmware": "1.0.7.71"}
-        elif sec == "vlans":
-            response_data["data"]["vlans"] = [{"vlan_id": 1, "name": "Default_Campus_LAN", "mode": "FLAT_L2"}]
-        elif sec == "dhcp":
-            response_data["data"]["dhcp"] = {"enabled": True, "subnet": "192.168.3.0/24", "scope": "192.168.3.10-250"}
-        else:
-            response_data["data"][sec] = {"status": "OBSERVED", "available": True}
-            
-    return response_data
+    """Execute network queries via Device Fabric (read-only); per-section errors stay partial."""
+    from inneros_core_runtime import device_fabric
 
-# Register default reference capability
+    tenant_id = str(parameters.get("tenant_id") or "bellini").strip().lower()
+    site_id = str(parameters.get("site_id") or "bellini-i-ii").strip().lower()
+    device_ref = str(parameters.get("device_ref") or "").strip()
+    sections = list(parameters.get("sections") or ["health", "inventory"])
+    started = datetime.now(timezone.utc).isoformat()
+    provider_used = "grandstream_gwn"
+    section_errors: Dict[str, Any] = {}
+    data: Dict[str, Any] = {}
+
+    for sec in sections:
+        key = str(sec or "").strip().lower()
+        if not key:
+            continue
+        try:
+            if key == "health":
+                payload = device_fabric.device_fabric_health(site_id=site_id)
+                data[key] = payload
+                provider_used = "device_fabric_health"
+            elif key == "inventory":
+                payload = device_fabric.device_fabric_inventory(
+                    client_id=tenant_id,
+                    site_id=site_id,
+                    live=False,
+                )
+                data[key] = payload
+                provider_used = str(payload.get("provider") or provider_used)
+            elif key in {"providers", "capabilities"}:
+                payload = device_fabric.device_fabric_capabilities(
+                    device_ref=device_ref,
+                    provider_id=str(parameters.get("provider_id") or "").strip(),
+                )
+                data[key] = payload
+            elif device_ref:
+                payload = device_fabric.device_fabric_get(device_ref=device_ref)
+                data[key] = payload
+            else:
+                payload = device_fabric.device_fabric_get(device_ref="")
+                data[key] = payload
+        except Exception as exc:
+            section_errors[key] = {"ok": False, "error": type(exc).__name__, "detail": str(exc)[:500]}
+
+    return {
+        "ok": not section_errors or bool(data),
+        "tenant_id": tenant_id,
+        "site_id": site_id,
+        "device_ref": device_ref or None,
+        "sections_queried": sections,
+        "provider_used": provider_used,
+        "mode": "read_only",
+        "data": data,
+        "section_errors": section_errors,
+        "provenance": {
+            "source": "device_fabric",
+            "started_at": started,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "audit": {"tenant": tenant_id, "site": site_id, "handler": "network.device.query.v1"},
+        },
+    }
+
+
+COORDINATION_MESSAGING_LIST_MANIFEST: Dict[str, Any] = {
+    "capability_id": "coordination.messaging.list.v1",
+    "version": "1.0.0",
+    "title": "Coordination messaging list (read-only)",
+    "domain": "coordination",
+    "risk_class": "low",
+    "mode": "read_only",
+    "description": "List agent messages for orchestrator verification without expanding chatgpt_compact.",
+    "keywords": ["inbox", "messages", "coordination", "ack", "list_agent_messages"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {
+            "agent": {"type": "string"},
+            "limit": {"type": "integer"},
+            "status": {"type": "string"},
+            "role": {"type": "string"},
+        },
+        "required": ["agent"],
+    },
+    "required_scopes": ["ralfia:read"],
+}
+
+
+def coordination_messaging_list_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from raphiia_openai.memory import agent_messages
+
+    agent = str(parameters.get("agent") or "").strip()
+    if not agent:
+        return {"ok": False, "error": "agent_required"}
+    limit = int(parameters.get("limit") or 20)
+    status = parameters.get("status")
+    role = str(parameters.get("role") or "inbox")
+    return agent_messages.list_agent_messages(
+        agent=agent,
+        limit=limit,
+        status=str(status).strip() if status else None,
+        role=role,
+    )
+
+
 register_capability(NETWORK_DEVICE_QUERY_MANIFEST, network_device_query_handler)
+register_capability(COORDINATION_MESSAGING_LIST_MANIFEST, coordination_messaging_list_handler)
