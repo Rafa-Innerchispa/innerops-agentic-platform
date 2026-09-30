@@ -1,0 +1,30 @@
+name: Recovery CI
+on:
+  push:
+    branches:
+      - chatgpt/mcp-cloudflare-recovery-20260930
+permissions:
+  contents: read
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install runtime dependencies
+        run: python -m pip install -r platform/requirements.txt
+      - name: Compile changed runtime modules
+        run: |
+          python -m py_compile platform/inneros_core_runtime/coordination_live.py
+          python -m py_compile platform/inneros_core_runtime/agents/ag44_cloud_deployer.py
+          python -m py_compile platform/inneros_core_runtime/mcp_server.py
+      - name: Run targeted recovery tests
+        working-directory: platform
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m unittest tests.test_coordination_recovery_p0 -v
+          python -m unittest inneros_core_runtime.tests.test_cloudflare_dns_upsert -v
