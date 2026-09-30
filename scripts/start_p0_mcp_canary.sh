@@ -45,7 +45,7 @@ PY
 
 PRODUCTION_PYTHON="/home/rlopez/inneros/inneros_core/platform/venv/bin/python"
 PYTHON_BIN="${INNEROS_CANARY_PYTHON:-$PRODUCTION_PYTHON}"
-if [[ ! -x "$PYTHON_BIN" ]];nthen
+if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "REFUSED: Python runtime not executable: $PYTHON_BIN" >&2
   exit 6
 fi
