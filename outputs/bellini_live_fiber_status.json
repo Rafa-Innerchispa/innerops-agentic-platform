@@ -1,11 +1,11 @@
 {
-  "snapshot_id": "snap_bellini_1790748785",
-  "timestamp": "2026-09-30T06:13:05.451006+00:00",
+  "snapshot_id": "snap_bellini_1790774787",
+  "timestamp": "2026-09-30T13:26:27.633181+00:00",
   "fiber_links": [
     {
       "link_name": "Consola <-> Administración Fiber Link",
       "origin_endpoint": {
-        "device": "Switch Consola / SFP Slot 1",
+        "device": "Switch Consola / Slot SFP1",
         "port": "SFP1",
         "rack": "Consola Principal"
       },
@@ -22,20 +22,15 @@
       "tx_power_dbm": "UNVERIFIED / NO_DDM_DATA",
       "loss_of_signal_los": true,
       "provenance": {
-        "source": "Live link-carrier check",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Carrier signal absent (LOS asserted), link state DOWN",
-        "optical_telemetry_status": "No DDM telemetry available without live transceiver link"
-      },
-      "fault_isolation": {
-        "root_cause_candidate": "Módulo SFP1 desconectado/ausente en Consola o corte físico en tirada de fibra Consola-Administración",
-        "recommended_action": "Inspección física del patch cord de fibra, limpieza de conectores LC y verificación del transceiver en ambos extremos."
+        "source": "Carrier detection",
+        "timestamp": "2026-09-30T13:26:27.633181+00:00",
+        "raw_reference": "LOS asserted, carrier absent"
       }
     },
     {
       "link_name": "Consola <-> Torre 1 Piso 0 Trunk Link",
       "origin_endpoint": {
-        "device": "Switch Consola / SFP Slot 2",
+        "device": "Switch Consola / Slot SFP2",
         "port": "SFP2 / Trunk Port",
         "rack": "Consola Principal"
       },
@@ -46,21 +41,20 @@
       },
       "link_state": "UP",
       "transceiver_detected": true,
-      "transceiver_model": "1000BASE-LX SFP (Presumed / Unverified part number)",
-      "wavelength": "1310nm (Standard 1000BASE-LX specification)",
+      "transceiver_model": "1000BASE-LX SFP (Presumed)",
+      "wavelength": "1310nm (Standard specification)",
       "rx_power_dbm": "UNVERIFIED / DDM_NOT_EXPOSED_VIA_API",
       "tx_power_dbm": "UNVERIFIED / DDM_NOT_EXPOSED_VIA_API",
       "loss_of_signal_los": false,
       "speed": "1000 Mbps",
-      "provenance": {
-        "source": "Live carrier & L2 traffic telemetry",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Carrier signal established, packets transmitting/receiving normally",
-        "optical_telemetry_status": "Valores numéricos de dBm marcados como UNVERIFIED para cumplir con la política estricta de procedencia de datos"
-      },
       "contingency_status": {
         "contingency_path": "Cable Ethernet directo de respaldo tendido hacia Torre 1 Piso 0",
         "currently_active": true
+      },
+      "provenance": {
+        "source": "Carrier detection",
+        "timestamp": "2026-09-30T13:26:27.633181+00:00",
+        "raw_reference": "Portadora activa, enlace 1Gbps"
       }
     }
   ]

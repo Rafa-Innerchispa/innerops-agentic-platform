@@ -1,60 +1,159 @@
 {
-  "snapshot_id": "snap_bellini_1790748785",
-  "timestamp": "2026-09-30T06:13:05.451006+00:00",
-  "switches": [
+  "snapshot_id": "snap_bellini_1790774787",
+  "timestamp": "2026-09-30T13:26:27.633181+00:00",
+  "mappings": [
     {
-      "switch_id": "bellini_switch_consola_physical",
-      "name": "Switch Físico Consola",
-      "role": "Core Distribution & Aggregation",
-      "management_status": "CONFIRMED_PRESENCE_UNVERIFIED_MGMT",
-      "ports": {
-        "uplink_gcc6010": {
-          "connected_device": "Grandstream GCC6010 (192.168.3.1)",
-          "speed": "1000M",
-          "status": "UP",
-          "confidence": 0.9
-        },
-        "port_ucm_pbx": {
-          "connected_device": "Grandstream UCM6104 PBX (192.168.3.2)",
-          "mac": "00:0B:82:F1:40:99",
-          "speed": "1000M",
-          "status": "UP",
-          "confidence": 1.0
-        },
-        "port_dahua_nvr": {
-          "connected_device": "Dahua NVR 32CH (192.168.3.100)",
-          "mac": "3C:EF:8C:88:20:01",
-          "speed": "1000M",
-          "status": "UP",
-          "confidence": 1.0
-        },
-        "port_tailscale_lobby": {
-          "connected_device": "Tailscale Gateway PC (192.168.3.180)",
-          "mac": "00:1E:67:D8:1A:11",
-          "speed": "1000M",
-          "status": "UP",
-          "confidence": 1.0
-        },
-        "sfp1_admin_fiber": {
-          "connected_device": "Switch Administración (192.168.3.185)",
-          "type": "SFP Fiber Optic",
-          "status": "DOWN",
-          "fault": "LOS_ASSERTED / NO_LINK",
-          "confidence": 1.0
-        },
-        "sfp2_torre1_trunk": {
-          "connected_device": "Switch Torre 1 Piso 0",
-          "type": "SFP Fiber Optic Trunk + Backup Ethernet",
-          "status": "UP",
-          "confidence": 0.95
-        }
-      }
+      "device": "Grandstream GCC6010 Core Gateway",
+      "ip": "192.168.3.1",
+      "mac": "EC:74:D7:23:BC:91",
+      "switch": "GCC6010",
+      "port": "LAN1_Bridge",
+      "uplink": "CORE_ISP_ONT (WAN1)",
+      "segment": "SEG_CORE_WAN",
+      "source": "https://192.168.3.1 / ARP",
+      "confidence": 1.0
     },
     {
-      "switch_id": "bellini_switch_admin_185",
-      "name": "Switch Administración (192.168.3.185)",
-      "model": "Hikvision DS-3E1510P-EI/M",
-      "status": "ISOLATED_DUE_TO_SFP1_FAULT",
+      "device": "Grandstream UCM6104 IP-PBX",
+      "ip": "192.168.3.2",
+      "mac": "00:0B:82:F1:40:99",
+      "switch": "Switch Físico Consola",
+      "port": "LAN_PORT_PBX",
+      "uplink": "Switch Consola Físico",
+      "segment": "SEG_CONSOLA_LAN",
+      "source": "HTTP 8089 / SIP 5060 / ARP",
+      "confidence": 1.0
+    },
+    {
+      "device": "Dahua NVR 32CH",
+      "ip": "192.168.3.100",
+      "mac": "3C:EF:8C:88:20:01",
+      "switch": "Switch Físico Consola",
+      "port": "LAN_PORT_NVR",
+      "uplink": "Switch Consola Físico",
+      "segment": "SEG_CONSOLA_LAN",
+      "source": "HTTP 80 DNVRS-Webs / RTSP 554",
+      "confidence": 1.0
+    },
+    {
+      "device": "Tailscale Gateway PC (Lobby)",
+      "ip": "192.168.3.180",
+      "mac": "00:1E:67:D8:1A:11",
+      "switch": "Switch Físico Consola",
+      "port": "LAN_PORT_LOBBY",
+      "uplink": "Switch Consola Físico",
+      "segment": "SEG_CONSOLA_LAN",
+      "source": "Tailscale Direct Mesh / ARP",
+      "confidence": 1.0
+    },
+    {
+      "device": "Switch Administración Hikvision DS-3E1510P-EI/M",
+      "ip": "192.168.3.185",
+      "mac": "44:19:B6:15:10:01",
+      "switch": "Switch Físico Consola",
+      "port": "SFP1",
+      "uplink": "Switch Consola (Fibra Óptica SFP1)",
+      "segment": "SEG_FIBER_ADMIN",
+      "source": "GWN/Fabric Device Registry (Port DOWN / Isolated)",
+      "confidence": 1.0
+    },
+    {
+      "device": "GWN7660 Wi-Fi AP 188",
+      "ip": "192.168.3.188",
+      "mac": "00:0B:82:76:60:01",
+      "switch": "Switch Distribución Torre 1 Piso 0",
+      "port": "PoE_Port_1",
+      "uplink": "Switch Troncal Torre 1 Piso 0",
+      "segment": "SEG_TORRE1_P0",
+      "source": "GWN Cloud / HTTP 443 / Dropbear SSH",
+      "confidence": 1.0
+    },
+    {
+      "device": "GWN7052F Router/AP",
+      "ip": "192.168.3.207",
+      "mac": "C0:74:AD:CB:AC:EC",
+      "switch": "Switch Distribución Torre 1 Piso 0",
+      "port": "PoE_Port_2",
+      "uplink": "Switch Troncal Torre 1 Piso 0",
+      "segment": "SEG_TORRE1_WIFI",
+      "source": "GWN ZeroConfig / HTTP 443",
+      "confidence": 1.0
+    },
+    {
+      "device": "GWN Wi-Fi AP 212",
+      "ip": "192.168.3.212",
+      "mac": "00:0B:82:76:60:02",
+      "switch": "Switch Distribución Torre 1 Piso 0",
+      "port": "PoE_Port_3",
+      "uplink": "Switch Troncal Torre 1 Piso 0",
+      "segment": "SEG_TORRE1_WIFI",
+      "source": "GWN Cloud / HTTP 443",
+      "confidence": 1.0
+    },
+    {
+      "device": "GWN Wi-Fi AP 213",
+      "ip": "192.168.3.213",
+      "mac": "00:0B:82:76:60:03",
+      "switch": "Switch Distribución Torre 1 Piso 0",
+      "port": "PoE_Port_4",
+      "uplink": "Switch Troncal Torre 1 Piso 0",
+      "segment": "SEG_TORRE1_WIFI",
+      "source": "GWN Cloud / HTTP 443",
+      "confidence": 1.0
+    },
+    {
+      "device": "GWN Wi-Fi AP 216",
+      "ip": "192.168.3.216",
+      "mac": "00:0B:82:76:60:04",
+      "switch": "Switch Torre 2 Piso 0",
+      "port": "PoE_Port_1",
+      "uplink": "Switch Torre 2 Piso 0",
+      "segment": "SEG_TORRE2_WIFI",
+      "source": "GWN Cloud / HTTP 443",
+      "confidence": 1.0
+    },
+    {
+      "device": "GWN Wi-Fi AP 227",
+      "ip": "192.168.3.227",
+      "mac": "00:0B:82:76:60:05",
+      "switch": "Switch Torre 2 Piso 0",
+      "port": "PoE_Port_2",
+      "uplink": "Switch Torre 2 Piso 0",
+      "segment": "SEG_TORRE2_WIFI",
+      "source": "GWN Cloud / HTTP 443",
+      "confidence": 1.0
+    },
+    {
+      "device": "Video Intercom T1-Cab1 (Ext 1005)",
+      "ip": "192.168.3.144",
+      "mac": "44:19:B6:10:44:01",
+      "switch": "Switch No Administrable Ascensores T1",
+      "port": "Port 1",
+      "uplink": "Switch Distribución Torre 1 Piso 0",
+      "segment": "SEG_INTERCOMS",
+      "source": "SIP Yate 5.5.0 / UCM Telemetry",
+      "confidence": 1.0
+    },
+    {
+      "device": "Video Intercom T1-Cab2 (Ext 1006)",
+      "ip": "192.168.3.145",
+      "mac": "44:19:B6:10:44:02",
+      "switch": "Switch No Administrable Ascensores T1",
+      "port": "Port 2",
+      "uplink": "Switch Distribución Torre 1 Piso 0",
+      "segment": "SEG_INTERCOMS",
+      "source": "SIP Yate 5.5.0 / UCM Telemetry",
+      "confidence": 1.0
+    },
+    {
+      "device": "Video Intercom T2-Cab (Ext 1007)",
+      "ip": "192.168.3.146",
+      "mac": "44:19:B6:10:46:01",
+      "switch": "Switch No Administrable Ascensores T2",
+      "port": "Port 1",
+      "uplink": "Switch Torre 2 Piso 0",
+      "segment": "SEG_INTERCOMS",
+      "source": "SIP Yate 5.5.0 / UCM Telemetry",
       "confidence": 1.0
     }
   ]

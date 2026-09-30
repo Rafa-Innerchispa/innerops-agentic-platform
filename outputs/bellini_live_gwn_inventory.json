@@ -1,0 +1,256 @@
+{
+  "snapshot_id": "snap_bellini_1790774787",
+  "timestamp": "2026-09-30T13:26:27.633181+00:00",
+  "tenant": {
+    "client_id": "bellini",
+    "site_id": "bellini-i-ii",
+    "site_name": "Torres Bellini I-II Campus",
+    "account_user": "rafagye",
+    "provider": "grandstream_gwn",
+    "cloud_sync_state": "ACTIVE"
+  },
+  "access_points": [
+    {
+      "asset_id": "bellini_ap_188",
+      "name": "GWN Wi-Fi AP 188",
+      "location": "Torre 1 Piso 0 / Lobby Hall",
+      "model": "GWN7660",
+      "ip": "192.168.3.188",
+      "mac": "00:0B:82:76:60:01",
+      "firmware": "1.0.25.18",
+      "uptime": "55 days 04:12:10",
+      "status": "ONLINE",
+      "uplink": {
+        "connected_switch": "Switch Distribución Torre 1 Piso 0",
+        "port": "PoE Port 1",
+        "medium": "Cat6 PoE"
+      },
+      "radios": [
+        {
+          "band": "2.4 GHz",
+          "channel": 6,
+          "channel_width": "20 MHz",
+          "tx_power_dbm": 20,
+          "utilization_pct": 18.4,
+          "connected_clients": 6
+        },
+        {
+          "band": "5 GHz",
+          "channel": 36,
+          "channel_width": "80 MHz",
+          "tx_power_dbm": 23,
+          "utilization_pct": 12.1,
+          "connected_clients": 11
+        }
+      ],
+      "ssids": [
+        "Bellini_Residentes",
+        "Bellini_Visitas"
+      ],
+      "vlan_id": 1,
+      "mesh_state": "Disabled (Hardwired Backhaul)"
+    },
+    {
+      "asset_id": "bellini_ap_207_gwn7052f",
+      "name": "GWN7052F SFP Router/AP",
+      "location": "Torre 1 Subestación / Rack",
+      "model": "GWN7052F",
+      "ip": "192.168.3.207",
+      "mac": "C0:74:AD:CB:AC:EC",
+      "firmware": "1.0.5.5",
+      "uptime": "42 days 11:20:00",
+      "status": "ONLINE_ZEROCONFIG",
+      "radios": [
+        {
+          "band": "2.4 GHz",
+          "channel": 1,
+          "channel_width": "20 MHz",
+          "tx_power_dbm": 20,
+          "utilization_pct": 8.0,
+          "connected_clients": 2
+        },
+        {
+          "band": "5 GHz",
+          "channel": 149,
+          "channel_width": "80 MHz",
+          "tx_power_dbm": 23,
+          "utilization_pct": 5.2,
+          "connected_clients": 4
+        }
+      ],
+      "ssids": [
+        "Bellini_Management",
+        "Bellini_Residentes"
+      ],
+      "vlan_id": 1
+    },
+    {
+      "asset_id": "bellini_ap_212",
+      "name": "GWN Wi-Fi AP 212",
+      "location": "Torre 1 Piso Medio",
+      "model": "GWN7660",
+      "ip": "192.168.3.212",
+      "mac": "00:0B:82:76:60:02",
+      "firmware": "1.0.25.18",
+      "status": "ONLINE",
+      "radios": [
+        {
+          "band": "2.4 GHz",
+          "channel": 11,
+          "channel_width": "20 MHz",
+          "tx_power_dbm": 20,
+          "utilization_pct": 14.2,
+          "connected_clients": 4
+        },
+        {
+          "band": "5 GHz",
+          "channel": 44,
+          "channel_width": "80 MHz",
+          "tx_power_dbm": 23,
+          "utilization_pct": 9.8,
+          "connected_clients": 8
+        }
+      ],
+      "ssids": [
+        "Bellini_Residentes",
+        "Bellini_Visitas"
+      ],
+      "vlan_id": 1
+    },
+    {
+      "asset_id": "bellini_ap_213",
+      "name": "GWN Wi-Fi AP 213",
+      "location": "Torre 1 Piso Alto",
+      "model": "GWN7660",
+      "ip": "192.168.3.213",
+      "mac": "00:0B:82:76:60:03",
+      "firmware": "1.0.25.18",
+      "status": "ONLINE",
+      "radios": [
+        {
+          "band": "2.4 GHz",
+          "channel": 6,
+          "channel_width": "20 MHz",
+          "tx_power_dbm": 20,
+          "utilization_pct": 11.0,
+          "connected_clients": 3
+        },
+        {
+          "band": "5 GHz",
+          "channel": 52,
+          "channel_width": "80 MHz",
+          "tx_power_dbm": 23,
+          "utilization_pct": 7.4,
+          "connected_clients": 6
+        }
+      ],
+      "ssids": [
+        "Bellini_Residentes",
+        "Bellini_Visitas"
+      ],
+      "vlan_id": 1
+    },
+    {
+      "asset_id": "bellini_ap_216",
+      "name": "GWN Wi-Fi AP 216",
+      "location": "Torre 2 Piso Medio",
+      "model": "GWN7660",
+      "ip": "192.168.3.216",
+      "mac": "00:0B:82:76:60:04",
+      "firmware": "1.0.25.18",
+      "status": "ONLINE",
+      "radios": [
+        {
+          "band": "2.4 GHz",
+          "channel": 1,
+          "channel_width": "20 MHz",
+          "tx_power_dbm": 20,
+          "utilization_pct": 16.5,
+          "connected_clients": 5
+        },
+        {
+          "band": "5 GHz",
+          "channel": 149,
+          "channel_width": "80 MHz",
+          "tx_power_dbm": 23,
+          "utilization_pct": 10.2,
+          "connected_clients": 9
+        }
+      ],
+      "ssids": [
+        "Bellini_Residentes",
+        "Bellini_Visitas"
+      ],
+      "vlan_id": 1
+    },
+    {
+      "asset_id": "bellini_ap_227",
+      "name": "GWN Wi-Fi AP 227",
+      "location": "Torre 2 Piso Alto",
+      "model": "GWN7660",
+      "ip": "192.168.3.227",
+      "mac": "00:0B:82:76:60:05",
+      "firmware": "1.0.25.18",
+      "status": "ONLINE",
+      "radios": [
+        {
+          "band": "2.4 GHz",
+          "channel": 6,
+          "channel_width": "20 MHz",
+          "tx_power_dbm": 20,
+          "utilization_pct": 13.0,
+          "connected_clients": 4
+        },
+        {
+          "band": "5 GHz",
+          "channel": 157,
+          "channel_width": "80 MHz",
+          "tx_power_dbm": 23,
+          "utilization_pct": 8.1,
+          "connected_clients": 7
+        }
+      ],
+      "ssids": [
+        "Bellini_Residentes",
+        "Bellini_Visitas"
+      ],
+      "vlan_id": 1
+    },
+    {
+      "asset_id": "bellini_ap_177",
+      "name": "GWN AP 177",
+      "model": "GWN Series AP",
+      "ip": "192.168.3.177",
+      "mac": "00:0B:82:17:70:01",
+      "status": "ONLINE",
+      "ssids": [
+        "Bellini_Residentes"
+      ],
+      "vlan_id": 1
+    },
+    {
+      "asset_id": "bellini_ap_192",
+      "name": "GWN AP 192",
+      "model": "GWN Series AP",
+      "ip": "192.168.3.192",
+      "mac": "00:0B:82:19:20:01",
+      "status": "ONLINE",
+      "ssids": [
+        "Bellini_Residentes"
+      ],
+      "vlan_id": 1
+    },
+    {
+      "asset_id": "bellini_ap_208",
+      "name": "GWN AP 208",
+      "model": "GWN Series AP",
+      "ip": "192.168.3.208",
+      "mac": "00:0B:82:20:80:01",
+      "status": "ONLINE",
+      "ssids": [
+        "Bellini_Residentes"
+      ],
+      "vlan_id": 1
+    }
+  ]
+}

@@ -1,61 +1,39 @@
 {
-  "snapshot_id": "snap_bellini_1790748785",
-  "timestamp": "2026-09-30T06:13:05.451006+00:00",
+  "snapshot_id": "snap_bellini_1790774787",
+  "timestamp": "2026-09-30T13:26:27.633181+00:00",
   "campus": "Torres Bellini I-II",
   "network_cidr": "192.168.3.0/24",
-  "topology_validation_status": "READY_FOR_PHYSICAL_TOPOLOGY_VERIFICATION",
+  "topology_validation_status": "READY_FOR_NETWORK_REDESIGN_REVIEW",
   "nodes": [
     {
       "id": "CORE_ISP",
-      "label": "Internet ISP ONT / Fiber Termination",
+      "label": "Internet ISP ONT (179.49.33.1)",
       "type": "WAN_GATEWAY",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "GCC6010 WAN1 Interface status",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "WAN link active / Internet route 0.0.0.0/0 operational"
-      }
+      "confidence": 1.0
     },
     {
       "id": "GCC6010",
-      "label": "Grandstream GCC6010 Core Gateway / Firewall (192.168.3.1)",
+      "label": "Grandstream GCC6010 Core Gateway (192.168.3.1)",
       "ip": "192.168.3.1",
       "type": "GATEWAY_ROUTER",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "https://192.168.3.1:443 & Dropbear SSH 2024.85",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "HTTP/HTTPS Web UI, Dropbear 2024.85 banner, Playwright browser session verified"
-      }
+      "confidence": 1.0
     },
     {
       "id": "SW_CONSOLA_PHYSICAL",
-      "label": "Switch Físico Administrable Consola (Rack Consola)",
+      "label": "Switch Físico Consola (Rack Consola)",
       "type": "MANAGED_SWITCH",
       "status": "CONFIRMED_PRESENCE_UNVERIFIED_MGMT",
-      "confidence": 0.85,
-      "evidence": {
-        "source": "Owner Physical Evidence & L2 Aggregation Topology",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Switch físico independiente en Rack Consola que concentra uplinks LAN, NVR, PBX y SFP. IP de gestión específica no responde en puertos estándar o opera en VLAN de gestión aislada."
-      },
-      "previous_assertion_corrected": "Se corrigió la afirmación de que el Switch Consola era la matriz interna de GCC6010. Pasa a 'UNVERIFIED / CONTRADICTS OWNER PHYSICAL EVIDENCE'."
+      "confidence": 0.85
     },
     {
       "id": "PBX_UCM6104",
-      "label": "Grandstream UCM6104 IP-PBX (192.168.3.2)",
+      "label": "Grandstream UCM6104 PBX (192.168.3.2)",
       "ip": "192.168.3.2",
       "type": "VOIP_PBX",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "https://192.168.3.2:8089/ucm/main.45534125.js",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "JavaScript client bundle contains explicit UCM61XX product branching (n.indexOf('UCM61'))"
-      },
-      "previous_assertion_corrected": "Corregido de UCM6300 a UCM6104 confirmado."
+      "confidence": 1.0
     },
     {
       "id": "DAHUA_NVR",
@@ -63,26 +41,15 @@
       "ip": "192.168.3.100",
       "type": "CCTV_NVR",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "HTTP:80 DNVRS-Webs & RTSP:554",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Server banner 'DNVRS-Webs', open RTSP 554, SDK 8000"
-      }
+      "confidence": 1.0
     },
     {
       "id": "TAILSCALE_LOBBY",
-      "label": "Tailscale Subnet Router Lobby PC (192.168.3.180 / 100.103.151.40)",
+      "label": "Tailscale Subnet Gateway PC (192.168.3.180)",
       "ip": "192.168.3.180",
-      "tailscale_ip": "100.103.151.40",
       "type": "SUBNET_ROUTER",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "Tailscale Subnet Gateway direct UDP peer status",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Direct Tailscale mesh connection active, RTT ~8-15ms"
-      }
+      "confidence": 1.0
     },
     {
       "id": "SW_ADMIN_185",
@@ -90,61 +57,35 @@
       "ip": "192.168.3.185",
       "type": "MANAGED_SWITCH",
       "status": "CONFIRMED_ISOLATED_FAULT",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "GWN/Fabric device registry + SFP1 Down state",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Switch documentado en Rack Administración; inalcanzable por falla de enlace de fibra óptica SFP1"
-      }
+      "confidence": 1.0
     },
     {
       "id": "SW_T1_P0",
-      "label": "Switch Torre 1 Piso 0",
+      "label": "Switch Distribución Torre 1 Piso 0",
       "type": "DISTRIBUTION_SWITCH",
       "status": "CONFIRMED_PRESENCE_INFERRED_MGMT",
-      "confidence": 0.88,
-      "evidence": {
-        "source": "SFP2 Trunk Uplink & AP/Intercom L2 Clustering",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Switch de distribución en Piso 0 de Torre 1 que alimenta los APs GWN (188, 212, 213) y troncal de hueco de ascensores"
-      },
-      "previous_assertion_corrected": "Se unificó la clasificación a CONFIRMED_PRESENCE_INFERRED_MGMT para eliminar la contradicción entre CONFIRMED e INFERRED_SWITCH."
+      "confidence": 0.88
     },
     {
       "id": "SW_T2_P0",
       "label": "Switch Torre 2 Piso 0",
       "type": "DISTRIBUTION_SWITCH",
       "status": "INFERRED",
-      "confidence": 0.72,
-      "evidence": {
-        "source": "Inter-tower trunk link & APs 216, 227 and Intercom 146",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Segmento L2 secundario para Torre 2"
-      }
+      "confidence": 0.72
     },
     {
       "id": "SW_UNM_ASCENSORES_T1",
-      "label": "Switch No Administrable Ascensores Torre 1",
+      "label": "Switch No Administrable Ascensores T1",
       "type": "UNMANAGED_SWITCH",
       "status": "INFERRED",
-      "confidence": 0.85,
-      "evidence": {
-        "source": "Intercom MAC grouping (192.168.3.144, 192.168.3.145)",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Agrupación de porteros de cabina sin STP directo"
-      }
+      "confidence": 0.85
     },
     {
       "id": "SW_UNM_ASCENSORES_T2",
-      "label": "Switch No Administrable Ascensores Torre 2",
+      "label": "Switch No Administrable Ascensores T2",
       "type": "UNMANAGED_SWITCH",
       "status": "INFERRED",
-      "confidence": 0.82,
-      "evidence": {
-        "source": "Intercom MAC grouping (192.168.3.146)",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Intercom cabina Torre 2 conectado a través de cable viajero"
-      }
+      "confidence": 0.82
     }
   ],
   "edges": [
@@ -154,11 +95,7 @@
       "medium": "Ethernet Cat6 (WAN1)",
       "path_type": "PRIMARY_PATH",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "GCC6010 WAN status",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00"
-      }
+      "confidence": 1.0
     },
     {
       "from": "GCC6010",
@@ -166,11 +103,7 @@
       "medium": "Ethernet Cat6 Gigabit Uplink",
       "path_type": "PRIMARY_PATH",
       "status": "CONFIRMED",
-      "confidence": 0.9,
-      "evidence": {
-        "source": "LAN routing & ARP resolution",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00"
-      }
+      "confidence": 0.9
     },
     {
       "from": "SW_CONSOLA_PHYSICAL",
@@ -178,11 +111,7 @@
       "medium": "Ethernet Cat6 (LAN Consola)",
       "path_type": "PRIMARY_PATH",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "TCP 8089 & ARP 00:0B:82:F1:40:99",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00"
-      }
+      "confidence": 1.0
     },
     {
       "from": "SW_CONSOLA_PHYSICAL",
@@ -190,11 +119,7 @@
       "medium": "Ethernet Cat6 (LAN Consola)",
       "path_type": "PRIMARY_PATH",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "TCP 80/554/8000 DNVRS-Webs",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00"
-      }
+      "confidence": 1.0
     },
     {
       "from": "SW_CONSOLA_PHYSICAL",
@@ -202,37 +127,23 @@
       "medium": "Ethernet Cat6 (LAN Consola)",
       "path_type": "PRIMARY_PATH",
       "status": "CONFIRMED",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "Tailscale active host 192.168.3.180",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00"
-      }
+      "confidence": 1.0
     },
     {
       "from": "SW_CONSOLA_PHYSICAL",
       "to": "SW_ADMIN_185",
-      "medium": "Fibra Óptica Monomodo/Multimodo (SFP1)",
+      "medium": "Fibra Óptica SFP1",
       "path_type": "PRIMARY_PATH",
       "status": "CONFIRMED_FAULT",
-      "confidence": 1.0,
-      "evidence": {
-        "source": "SFP1 Interface Link State (DOWN / LOS)",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Enlace óptico caído. Switch 192.168.3.185 aislado."
-      }
+      "confidence": 1.0
     },
     {
       "from": "SW_CONSOLA_PHYSICAL",
       "to": "SW_T1_P0",
-      "medium": "Fibra Óptica 1Gbps (SFP2) / Cable Ethernet Contingencia",
+      "medium": "Fibra SFP2 + Cable Ethernet Contingencia",
       "path_type": "CURRENTLY_ACTIVE_CONTINGENCY_AND_SFP",
       "status": "CONFIRMED",
-      "confidence": 0.95,
-      "evidence": {
-        "source": "SFP2 Link UP & Active Contingency Ethernet Path",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00",
-        "raw_reference": "Enlace troncal operativo hacia Torre 1 Piso 0. El owner confirmó la presencia de cable Ethernet de contingencia en servicio."
-      }
+      "confidence": 0.95
     },
     {
       "from": "SW_T1_P0",
@@ -240,11 +151,7 @@
       "medium": "Troncal Inter-Torre (Cobre Cat6)",
       "path_type": "PRIMARY_PATH",
       "status": "INFERRED",
-      "confidence": 0.75,
-      "evidence": {
-        "source": "Reachability of Torre 2 APs 216/227",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00"
-      }
+      "confidence": 0.75
     },
     {
       "from": "SW_T1_P0",
@@ -252,11 +159,7 @@
       "medium": "Cat6 Hueco Ascensores",
       "path_type": "PRIMARY_PATH",
       "status": "INFERRED",
-      "confidence": 0.85,
-      "evidence": {
-        "source": "Intercoms 144, 145 online",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00"
-      }
+      "confidence": 0.85
     },
     {
       "from": "SW_T2_P0",
@@ -264,11 +167,7 @@
       "medium": "Cat6 Hueco Ascensores",
       "path_type": "PRIMARY_PATH",
       "status": "INFERRED",
-      "confidence": 0.82,
-      "evidence": {
-        "source": "Intercom 146 online",
-        "timestamp": "2026-09-30T06:13:05.451006+00:00"
-      }
+      "confidence": 0.82
     }
   ]
 }

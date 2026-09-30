@@ -1,0 +1,72 @@
+{
+  "snapshot_id": "snap_bellini_1790774787",
+  "timestamp": "2026-09-30T13:26:27.633181+00:00",
+  "network_architecture": "FLAT_L2_TOPOLOGY (Pre-Redesign Baseline)",
+  "note": "Actualmente todos los dispositivos, SSIDs, cámaras y servicios comparten una única VLAN plana sin segmentación por etiquetas 802.1Q.",
+  "vlans": [
+    {
+      "vlan_id": 1,
+      "name": "Default_VLAN",
+      "subnet": "192.168.3.0/24",
+      "gateway": "192.168.3.1",
+      "dhcp_active": true,
+      "dhcp_range": "192.168.3.10 - 192.168.3.250",
+      "tagged_ports": [],
+      "untagged_ports": [
+        "All Switch Ports (Default PVID 1)",
+        "WAN1",
+        "LAN2",
+        "LAN3",
+        "LAN4",
+        "SFP1",
+        "SFP2"
+      ],
+      "ssids": [
+        "Bellini_Residentes",
+        "Bellini_Visitas",
+        "Bellini_Management"
+      ],
+      "segments_included": [
+        "Core Gateway & Routing (192.168.3.1)",
+        "Telephony / IP-PBX UCM6104 (192.168.3.2)",
+        "Surveillance NVR & CCTV Cameras (192.168.3.100, 192.168.3.3, 192.168.3.101-115)",
+        "Video Intercoms & Elevator Shafts (192.168.3.140-146)",
+        "Wi-Fi Access Points GWN (192.168.3.188, 207, 212, 213, 216, 227)",
+        "Management & Tailscale Gateway (192.168.3.180, 192.168.3.251)"
+      ],
+      "total_active_devices": 54
+    }
+  ],
+  "target_redesign_recommendations": [
+    {
+      "vlan_id": 10,
+      "name": "VLAN_MGMT",
+      "subnet": "192.168.10.0/24",
+      "description": "Gestión aislada de Gateway, Switches, APs y Tailscale Router"
+    },
+    {
+      "vlan_id": 20,
+      "name": "VLAN_CCTV",
+      "subnet": "192.168.20.0/24",
+      "description": "NVR Dahua y Cámaras IP Hikvision/Dahua"
+    },
+    {
+      "vlan_id": 30,
+      "name": "VLAN_VOIP",
+      "subnet": "192.168.30.0/24",
+      "description": "PBX Grandstream UCM6104 e Intercoms Video Portero"
+    },
+    {
+      "vlan_id": 40,
+      "name": "VLAN_WIFI_RESIDENTS",
+      "subnet": "192.168.40.0/24",
+      "description": "Tráfico Wi-Fi Residentes Bellini"
+    },
+    {
+      "vlan_id": 50,
+      "name": "VLAN_WIFI_GUEST",
+      "subnet": "192.168.50.0/24",
+      "description": "Wi-Fi Visitas con Client Isolation"
+    }
+  ]
+}
