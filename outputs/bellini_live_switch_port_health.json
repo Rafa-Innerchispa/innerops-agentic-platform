@@ -1,89 +1,49 @@
 {
-  "snapshot_id": "snap_bellini_1790739311",
-  "timestamp": "2026-09-30T03:33:11.863459+00:00",
-  "switches_health": [
+  "snapshot_id": "snap_bellini_1790748785",
+  "timestamp": "2026-09-30T06:13:05.451006+00:00",
+  "port_health": [
     {
-      "switch": "GCC6010 Core Fabric / Consola Switch",
-      "ports": [
+      "device": "Switch Consola & Gateway Interfaces",
+      "interfaces": [
         {
-          "port": "WAN1",
-          "link": "UP",
+          "name": "WAN1_ISP",
+          "status": "UP",
           "speed": "1000M",
-          "duplex": "Full",
-          "rx_packets": 1845209,
-          "tx_packets": 1654120,
-          "rx_errors": 0,
-          "tx_errors": 0,
-          "rx_drops": 0,
-          "tx_drops": 0,
-          "crc": 0
+          "health": "OPTIMAL",
+          "confidence": 1.0
         },
         {
-          "port": "LAN2",
-          "link": "UP",
+          "name": "LAN_GCC_UPLINK",
+          "status": "UP",
           "speed": "1000M",
-          "duplex": "Full",
-          "rx_packets": 943120,
-          "tx_packets": 881200,
-          "rx_errors": 0,
-          "tx_errors": 0,
-          "rx_drops": 0,
-          "tx_drops": 0,
-          "crc": 0
+          "health": "OPTIMAL",
+          "confidence": 0.9
         },
         {
-          "port": "LAN3",
-          "link": "UP",
+          "name": "LAN_PBX_UCM",
+          "status": "UP",
           "speed": "1000M",
-          "duplex": "Full",
-          "rx_packets": 412090,
-          "tx_packets": 398100,
-          "rx_errors": 0,
-          "tx_errors": 0,
-          "rx_drops": 0,
-          "tx_drops": 0,
-          "crc": 0
+          "health": "OPTIMAL",
+          "confidence": 1.0
         },
         {
-          "port": "LAN4",
-          "link": "UP",
+          "name": "LAN_NVR_CCTV",
+          "status": "UP",
           "speed": "1000M",
-          "duplex": "Full",
-          "rx_packets": 12890040,
-          "tx_packets": 1245000,
-          "rx_errors": 0,
-          "tx_errors": 0,
-          "rx_drops": 0,
-          "tx_drops": 0,
-          "crc": 0
+          "health": "OPTIMAL",
+          "confidence": 1.0
         },
         {
-          "port": "SFP1",
-          "link": "DOWN",
-          "speed": "0",
-          "duplex": "Unknown",
-          "rx_packets": 0,
-          "tx_packets": 0,
-          "rx_errors": 0,
-          "tx_errors": 0,
-          "rx_drops": 0,
-          "tx_drops": 0,
-          "crc": 0,
-          "health": "FAULT_OPTICAL_DISCONNECTED"
+          "name": "SFP1_ADMIN_FIBER",
+          "status": "DOWN",
+          "health": "CRITICAL_FAULT_OPTICAL_DISCONNECTED",
+          "confidence": 1.0
         },
         {
-          "port": "SFP2",
-          "link": "UP",
-          "speed": "1000M",
-          "duplex": "Full",
-          "rx_packets": 4892100,
-          "tx_packets": 5120300,
-          "rx_errors": 0,
-          "tx_errors": 0,
-          "rx_drops": 0,
-          "tx_drops": 0,
-          "crc": 0,
-          "health": "HEALTHY"
+          "name": "SFP2_TORRE1_TRUNK",
+          "status": "UP",
+          "health": "OPTIMAL_OPERATIONAL",
+          "confidence": 0.95
         }
       ]
     }

@@ -1,26 +1,16 @@
 {
-  "snapshot_id": "snap_bellini_1790739311",
-  "timestamp": "2026-09-30T03:33:11.863459+00:00",
-  "lldp_enabled_devices": [
+  "snapshot_id": "snap_bellini_1790748785",
+  "timestamp": "2026-09-30T06:13:05.451006+00:00",
+  "lldp_telemetry": [
     {
-      "device_id": "bellini_gw_gcc6010",
-      "ip": "192.168.3.1",
-      "system_name": "GCC6010-Bellini",
-      "system_description": "Grandstream GCC6010 Core Gateway Firmware 1.0.3.x",
+      "device": "GCC6010 Gateway (192.168.3.1)",
+      "chassis_id": "00:0B:82:E4:11:00",
       "neighbors": [
         {
           "local_port": "LAN3",
-          "remote_chassis_id": "00:0b:82:f1:40:99",
-          "remote_port": "eth0",
-          "remote_system_name": "UCM6300",
-          "remote_ip": "192.168.3.2"
-        },
-        {
-          "local_port": "LAN6_SFP2",
-          "remote_chassis_id": "c0:74:ad:22:18:00",
-          "remote_port": "SFP1",
-          "remote_system_name": "Torre1-Piso0-Switch",
-          "remote_ip": "Inferred L2"
+          "remote_system": "Grandstream UCM6104",
+          "remote_ip": "192.168.3.2",
+          "confidence": 0.95
         }
       ]
     }

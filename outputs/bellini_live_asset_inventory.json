@@ -1,6 +1,6 @@
 {
-  "snapshot_id": "snap_bellini_1790739311",
-  "timestamp": "2026-09-30T03:33:11.863459+00:00",
+  "snapshot_id": "snap_bellini_1790748796",
+  "timestamp": "2026-09-30T06:13:16.832645+00:00",
   "subnet": "192.168.3.0/24",
   "total_scanned": 254,
   "total_online_hosts": 54,
@@ -58,8 +58,8 @@
       "mac": "UNKNOWN",
       "vendor_oui": "Unknown",
       "vendor": "Grandstream Networks",
-      "model": "UCM6300 Series IP-PBX",
-      "hostname": "ucm-pbx.bellini.local",
+      "model": "Grandstream UCM6104 (UCM6100 Series IP-PBX)",
+      "hostname": "ucm6104-pbx.bellini.local",
       "device_type": "ip_pbx",
       "is_manageable": true,
       "latency_ms": {
@@ -89,7 +89,13 @@
       },
       "first_seen": "2026-09-30T03:33:11.863459+00:00",
       "last_seen": "2026-09-30T03:33:11.863459+00:00",
-      "status": "ONLINE"
+      "status": "ONLINE",
+      "confidence": 1.0,
+      "evidence": {
+        "source": "https://192.168.3.2:8089/ucm/main.45534125.js",
+        "timestamp": "2026-09-30T06:13:16.832645+00:00",
+        "raw_reference": "Model logic checks n.indexOf('UCM61') and UCM61XX storage requirements"
+      }
     },
     {
       "ip": "192.168.3.3",
