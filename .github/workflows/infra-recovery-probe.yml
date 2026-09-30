@@ -1,0 +1,54 @@
+name: Infra Recovery Capability Probe
+on:
+  push:
+    branches:
+      - chatgpt/infra-recovery-runner-20260930
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+      TAILSCALE_OAUTH_SECRET: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      INNEROS_SSH_KEY: ${{ secrets.INNEROS_SSH_KEY }}
+      AMD_SSH_KEY: ${{ secrets.AMD_SSH_KEY }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+    steps:
+      - name: TS_AUTHKEY present
+        if: ${{ env.TS_AUTHKEY != '' }}
+        run: echo present
+      - name: TAILSCALE_AUTHKEY present
+        if: ${{ env.TAILSCALE_AUTHKEY != '' }}
+        run: echo present
+      - name: TS_OAUTH_CLIENT_ID present
+        if: ${{ env.TS_OAUTH_CLIENT_ID != '' }}
+        run: echo present
+      - name: TS_OAUTH_SECRET present
+        if: ${{ env.TS_OAUTH_SECRET != '' }}
+        run: echo present
+      - name: TAILSCALE_OAUTH_CLIENT_ID present
+        if: ${{ env.TAILSCALE_OAUTH_CLIENT_ID != '' }}
+        run: echo present
+      - name: TAILSCALE_OAUTH_SECRET present
+        if: ${{ env.TAILSCALE_OAUTH_SECRET != '' }}
+        run: echo present
+      - name: SSH_PRIVATE_KEY present
+        if: ${{ env.SSH_PRIVATE_KEY != '' }}
+        run: echo present
+      - name: INNEROS_SSH_KEY present
+        if: ${{ env.INNEROS_SSH_KEY != '' }}
+        run: echo present
+      - name: AMD_SSH_KEY present
+        if: ${{ env.AMD_SSH_KEY != '' }}
+        run: echo present
+      - name: SSH_KEY present
+        if: ${{ env.SSH_KEY != '' }}
+        run: echo present
+      - name: Probe completed
+        run: echo capability-probe-complete
