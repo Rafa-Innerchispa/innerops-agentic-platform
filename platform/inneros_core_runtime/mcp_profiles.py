@@ -783,7 +783,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "local_self_repair": {
         "label": "Autoreparación local controlada",
         "model_minimum": "medium",
-        "max_tools": 50,
+        "max_tools": 55,
         "tools": [
             "get_coordination_live",
             "bootstrap_context",
