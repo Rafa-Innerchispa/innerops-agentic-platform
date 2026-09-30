@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "source": "tailscale status --json & systemd:bellini-network-guardian.service",
+    "captured_at": "2026-09-30T13:34:37Z"
+  },
+  "subnet_router_peer": {
+    "node_id": 1061836529984894,
+    "host_name": "DESKTOP-T2JLE71",
+    "dns_name": "bellini-lobby.tailea0e01.ts.net.",
+    "os": "windows",
+    "tailscale_ips": [
+      "100.103.151.40",
+      "fd7a:115c:a1e0::f2d:9729"
+    ],
+    "allowed_ips": [
+      "100.103.151.40/32",
+      "fd7a:115c:a1e0::f2d:9729/128",
+      "192.168.3.0/24"
+    ],
+    "primary_routes": [
+      "192.168.3.0/24"
+    ],
+    "cur_addr": "179.49.33.201:5649",
+    "relay": "mia",
+    "peer_api_url": "http://100.103.151.40:45200",
+    "online": true,
+    "active": true,
+    "source_path": "/Peer/nuLr4ReuH911CNTRL"
+  },
+  "guardian_service_state": {
+    "service_name": "bellini-network-guardian.service",
+    "host": "ralphi-ia-ver-10 (inneros-4-lan / 192.168.1.4)",
+    "monitored_subnet": "192.168.3.0/24",
+    "poll_interval_sec": 10,
+    "persistence_collection": "pcdoctor_swarm.bellini_guardian_state"
+  }
+}

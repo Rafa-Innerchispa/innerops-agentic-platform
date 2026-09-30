@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "source": "GWN Cloud & Tenant Fabric (MongoDB: gwn_cloud_tenants)",
+    "captured_at": "2026-09-30T13:34:37Z",
+    "client_id": "bellini",
+    "site_id": "bellini-i-ii",
+    "account_user": "rafagye",
+    "provider_account_ref": "gwn_acc_rafagye"
+  },
+  "site_info": {
+    "client_name": "Torres Bellini I-II",
+    "site_name": "Torres Bellini I-II Campus",
+    "network_cidr": "192.168.3.0/24",
+    "gateway_ip": "192.168.3.1",
+    "status": "ACTIVE",
+    "mutation_policy": "read_only"
+  },
+  "ap_inventory": [
+    {
+      "asset_id": "bellini_ap_188",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:01",
+      "ip": "192.168.3.188",
+      "firmware": "1.0.33.19",
+      "uptime": "14d 02h",
+      "management_status": "ONLINE",
+      "radios": {
+        "2.4GHz": {
+          "channel": 1,
+          "width": "20MHz",
+          "tx_power": "Auto"
+        },
+        "5GHz": {
+          "channel": 36,
+          "width": "80MHz",
+          "tx_power": "Auto"
+        }
+      },
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN",
+      "ssids": [
+        "Bellini_Corp",
+        "Bellini_Residentes",
+        "Bellini_Invitados"
+      ],
+      "source_path": "/ap_inventory/0"
+    },
+    {
+      "asset_id": "bellini_ap_207_gwn7052f",
+      "model": "GWN7052F",
+      "mac": "C0:74:AD:CB:AC:EC",
+      "ip": "192.168.3.207",
+      "firmware": "1.0.9.15",
+      "uptime": "N/A (L2 Unreachable)",
+      "management_status": "REGISTERED_ZEROCONFIG",
+      "data_plane_status": "OFFLINE (Isolated via SFP1 cut)",
+      "radios": {
+        "2.4GHz": {
+          "channel": 6,
+          "width": "20MHz"
+        },
+        "5GHz": {
+          "channel": 149,
+          "width": "80MHz"
+        }
+      },
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN",
+      "source_path": "/ap_inventory/1"
+    },
+    {
+      "asset_id": "bellini_ap_212",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:02",
+      "ip": "192.168.3.212",
+      "firmware": "1.0.33.19",
+      "uptime": "14d 02h",
+      "management_status": "ONLINE",
+      "radios": {
+        "2.4GHz": {
+          "channel": 11,
+          "width": "20MHz"
+        },
+        "5GHz": {
+          "channel": 48,
+          "width": "80MHz"
+        }
+      },
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN",
+      "source_path": "/ap_inventory/2"
+    },
+    {
+      "asset_id": "bellini_ap_213",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:03",
+      "ip": "192.168.3.213",
+      "firmware": "1.0.33.19",
+      "management_status": "OFFLINE_FLAP",
+      "radios": {
+        "2.4GHz": {
+          "channel": 6,
+          "width": "20MHz"
+        },
+        "5GHz": {
+          "channel": 157,
+          "width": "80MHz"
+        }
+      },
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN",
+      "source_path": "/ap_inventory/3"
+    },
+    {
+      "asset_id": "bellini_ap_216",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:04",
+      "ip": "192.168.3.216",
+      "firmware": "1.0.33.19",
+      "management_status": "ONLINE",
+      "radios": {
+        "2.4GHz": {
+          "channel": 1,
+          "width": "20MHz"
+        },
+        "5GHz": {
+          "channel": 40,
+          "width": "80MHz"
+        }
+      },
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN",
+      "source_path": "/ap_inventory/4"
+    },
+    {
+      "asset_id": "bellini_ap_227",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:05",
+      "ip": "192.168.3.227",
+      "firmware": "1.0.33.19",
+      "management_status": "ONLINE",
+      "radios": {
+        "2.4GHz": {
+          "channel": 11,
+          "width": "20MHz"
+        },
+        "5GHz": {
+          "channel": 161,
+          "width": "80MHz"
+        }
+      },
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN",
+      "source_path": "/ap_inventory/5"
+    }
+  ]
+}
