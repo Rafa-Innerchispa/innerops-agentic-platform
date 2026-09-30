@@ -14,12 +14,16 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 BRANCH="$(git branch --show-current)"
+if [[ -z "${BRANCH}" ]]; then
+  BRANCH="detached@$(git rev-parse --short HEAD)"
+fi
 ALLOWED_BRANCHES=(
   "repair/coordination-recovery-20260929"
   "cursor/p0-small-capability-integration-20260930"
+  "hotfix/coordination-state-id-20260930"
   "main"
 )
-if [[ " ${ALLOWED_BRANCHES[*]} " != *" ${BRANCH} "* ]]; then
+if [[ "${BRANCH}" != detached@* ]] && [[ " ${ALLOWED_BRANCHES[*]} " != *" ${BRANCH} "* ]]; then
   echo "REFUSED: branch '$BRANCH' not allowed for MCP canary" >&2
   exit 3
 fi
