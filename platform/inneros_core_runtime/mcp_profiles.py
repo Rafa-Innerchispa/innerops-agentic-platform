@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.5"
+PROFILES_VERSION = "1.4.7"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -21,6 +21,10 @@ PROFILES: dict[str, dict[str, Any]] = {
             "diagnose_mcp_session",
             "list_mcp_tool_profiles",
             "route_mcp_tools",
+            "capability_search",
+            "capability_describe",
+            "capability_invoke",
+            "capability_execution",
             "bootstrap_context",
             "get_coordination_live",
             "poll_agent_inbox",
@@ -32,13 +36,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "dev_swarm_scope_status",
             "dev_swarm_launch_task",
             "dev_swarm_scheduler_status",
-            "device_fabric_discover",
             "device_fabric_health",
             "device_fabric_get",
-            "device_fabric_inventory",
             "device_fabric_providers",
-            "bellini_governed_action",
-            "bellini_guardian_dashboard",
             "bellini_guardian_status",
         ],
     },
@@ -1535,12 +1535,25 @@ def list_profiles(*, for_model: str | None = None) -> dict[str, Any]:
         "profiles": profiles_out,
         "validation": validation,
         "note": (
-            "Perfiles = proyección recomendada. El endpoint MCP legacy sigue listando todas las tools. "
-            "Si diagnose_mcp_session marca stale: refrescar connector + reautorizar OAuth."
+            "Perfiles = proyección recomendada; chatgpt_compact NO incluye todas las tools invocables. "
+            "Para herramientas de otro perfil (p. ej. list_agent_messages en coordination): "
+            "route_mcp_tools(requested_profile=...) o capability_search + capability_invoke. "
+            "diagnose_mcp_session(profile=chatgpt_compact) valida profile_pin, no tool_count_global."
         ),
+        "projection_guidance": {
+            "chatgpt_compact": {
+                "direct_invocation": "tools listadas en el perfil",
+                "extended_read_only": (
+                    "capability_invoke coordination.messaging.list.v1 | "
+                    "route_mcp_tools(requested_profile='coordination')"
+                ),
+                "orchestrator_observability": "get_coordination_live + list_ops_tasks (ralfia:read)",
+            }
+        },
         "stale_client_guidance": {
-            "if_tool_count_lt_server": "needs_refresh_connector",
-            "if_catalog_version_mismatch": "needs_refresh_connector + pin catalog_pin",
+            "if_tool_count_eq_global_on_small_profile": "use profile=chatgpt_compact + profile_pin (no es stale)",
+            "if_profile_pin_mismatch": "needs_refresh_connector",
+            "if_catalog_version_mismatch_on_global": "needs_refresh_connector + pin catalog_pin",
             "if_oauth_errors": "needs_reauthorize_oauth",
         },
     }

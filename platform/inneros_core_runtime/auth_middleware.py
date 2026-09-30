@@ -285,6 +285,10 @@ TOOL_SCOPES = {
     "editorial_image_providers": "ralfia:read",
     "get_chatgpt_workspace": "ralfia:read",
     "bootstrap_context": "ralfia:read",
+    "capability_search": "ralfia:read",
+    "capability_describe": "ralfia:read",
+    "capability_invoke": "ralfia:write",
+    "capability_execution": "ralfia:read",
     "get_operational_runbooks": "ralfia:read",
     "get_coordination_live": "ralfia:read",
     "inneros_agent_fabric_status": "ralfia:read",
@@ -700,6 +704,50 @@ def _tool_name(context: MiddlewareContext) -> str | None:
     return None
 
 
+def _tool_arguments(context: MiddlewareContext) -> dict[str, Any]:
+    message = getattr(context, "message", None)
+    if isinstance(message, dict):
+        args = _from_dict(message, "params", "arguments")
+        return args if isinstance(args, dict) else {}
+    params = getattr(message, "params", None)
+    if isinstance(params, dict):
+        args = params.get("arguments")
+        return args if isinstance(args, dict) else {}
+    args = getattr(params, "arguments", None)
+    return args if isinstance(args, dict) else {}
+
+
+def _token_mailbox_candidates(token_doc: dict[str, Any]) -> set[str]:
+    candidates: set[str] = set()
+    for key in ("agent", "mailbox", "preferred_username", "sub", "client_id"):
+        value = str(token_doc.get(key) or "").strip().lower()
+        if value:
+            candidates.add(value.replace("-", "_"))
+    metadata = token_doc.get("metadata") if isinstance(token_doc.get("metadata"), dict) else {}
+    for key in ("agent", "mailbox", "target_agent"):
+        value = str(metadata.get(key) or "").strip().lower()
+        if value:
+            candidates.add(value.replace("-", "_"))
+    return candidates
+
+
+def _required_scopes_for_call(
+    tool_name: str,
+    token_doc: dict[str, Any] | None,
+    arguments: dict[str, Any],
+) -> list[str]:
+    raw_required = TOOL_SCOPES.get(tool_name, "ralfia:read")
+    required = [raw_required] if isinstance(raw_required, str) else list(raw_required)
+    if tool_name != "poll_agent_inbox":
+        return required
+    agent = str(arguments.get("agent") or "").strip().lower().replace("-", "_")
+    if not agent or not token_doc:
+        return required
+    if agent in _token_mailbox_candidates(token_doc):
+        return ["ralfia:read"]
+    return required
+
+
 def _request_headers() -> dict[str, str]:
     headers = get_http_headers(include={"authorization", "x-api-key", "mcp-session-id", "user-agent"}) or {}
     if headers:
@@ -795,6 +843,29 @@ def _token_profile_guard(token_doc: dict[str, Any], tool_name: str) -> dict[str,
     return {"ok": True, "profile": profile}
 
 
+class ToolCallIsolationMiddleware(Middleware):
+    """Map unexpected tool failures to ToolError so one bad call does not tear down the MCP stream."""
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        tool_name = _tool_name(context) or "unknown_tool"
+        try:
+            return await call_next(context)
+        except ToolError:
+            raise
+        except Exception as exc:
+            mongo_store.log_mcp_error(
+                error_type="tool_execution_failed",
+                tool=tool_name,
+                session_id=None,
+                client=None,
+                message=f"{tool_name} failed: {type(exc).__name__}",
+                catalog_version=None,
+                scopes=[],
+                metadata={"detail": str(exc)[:500]},
+            )
+            raise ToolError(f"tool_failed:{tool_name}:{type(exc).__name__}") from exc
+
+
 class ApiKeyMiddleware(Middleware):
     def __init__(self, valid_key: str) -> None:
         self.valid_key = (valid_key or "").strip()
@@ -812,8 +883,8 @@ class ApiKeyMiddleware(Middleware):
         tool_name = _tool_name(context) or "unknown_tool"
         session_id = _session_id(headers, context)
         user_agent = headers.get("user-agent") or headers.get("User-Agent")
-        raw_required = TOOL_SCOPES.get(tool_name, "ralfia:read")
-        required_scopes = [raw_required] if isinstance(raw_required, str) else list(raw_required)
+        arguments = _tool_arguments(context)
+        token_doc: dict[str, Any] | None = None
         api_key = headers.get("x-api-key") or headers.get("X-API-Key")
         if self.valid_key and api_key and api_key == self.valid_key:
             return await call_next(context)
@@ -823,6 +894,7 @@ class ApiKeyMiddleware(Middleware):
             token = auth[7:].strip()
             token_doc = validate_access_token(token)
             if token_doc:
+                required_scopes = _required_scopes_for_call(tool_name, token_doc, arguments)
                 token_scopes = set((token_doc.get("scope") or "").split())
                 token_resource = str(token_doc.get("resource") or "").rstrip("/")
                 accepted_resources = {str(resource).rstrip("/") for resource in OAUTH_ACCEPTED_MCP_RESOURCES}

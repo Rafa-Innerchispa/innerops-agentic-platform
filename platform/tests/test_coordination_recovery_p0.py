@@ -5,11 +5,13 @@ They validate the contracts that must be true before a runtime canary deploy.
 """
 from __future__ import annotations
 
+import ast
 import inspect
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from inneros_core_runtime import coordination_ingest
 from inneros_core_runtime import coordination_live
 from inneros_core_runtime import durable_coordination_spine as spine
 from inneros_core_runtime import mcp_diagnostics
@@ -67,6 +69,31 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
         self.assertEqual(first["task_id"], second["task_id"])
         self.assertEqual(captured[0]["workflow_id"], f"ops_task:{first['task_id']}")
 
+    def test_mcp_create_ops_task_exposes_and_forwards_message_linkage_fields(self):
+        source = (ROOT / "inneros_core_runtime" / "mcp_server.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        fn = next(
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "create_ops_task"
+        )
+        params = [arg.arg for arg in fn.args.args]
+        for param in ("source_message_id", "conversation_ref", "related_project"):
+            self.assertIn(param, params)
+
+        calls = [
+            node
+            for node in ast.walk(fn)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "create_ops_task"
+        ]
+        self.assertEqual(len(calls), 1)
+        forwarded = {kw.arg for kw in calls[0].keywords if kw.arg}
+        for param in ("source_message_id", "conversation_ref", "related_project"):
+            self.assertIn(param, forwarded)
+
     def test_task_admission_preserves_source_message_id(self):
         captured: list[dict] = []
 
@@ -93,6 +120,64 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["task"]["source_message_id"], "msg_test_source")
         self.assertEqual(captured[0]["source_message_id"], "msg_test_source")
+
+    def test_task_message_full_flow_reaches_temporal_with_source_linkage(self):
+        captured: list[dict] = []
+        message_id = "msg_full_flow"
+        collection = MagicMock()
+
+        def fake_start(task: dict) -> dict:
+            captured.append(task)
+            return {
+                "ok": True,
+                "workflow_id": task["workflow_id"],
+                "run_id": "run-full-flow",
+            }
+
+        with (
+            patch(
+                "raphiia_openai.memory.agent_messages.create_agent_message",
+                return_value={
+                    "ok": True,
+                    "created": True,
+                    "message_id": message_id,
+                    "correlation_id": "corr-full-flow",
+                },
+            ),
+            patch.object(
+                coordination_ingest.mongo_store,
+                "get_db",
+                return_value={coordination_ingest.COL_AGENT_MESSAGES: collection},
+            ),
+            patch.object(spine, "start_task_workflow", side_effect=fake_start),
+            patch.object(coordination_ingest.coordination_live, "_publish_task_event", return_value={"ok": True}),
+            patch.object(coordination_ingest.coordination_live, "bump_revision", return_value={"ok": True}),
+        ):
+            result = coordination_ingest.ingest_agent_message(
+                from_agent="CHATGPT",
+                target_agent="qwen-coding",
+                title="[P0] Full message task flow",
+                body=(
+                    "repo: Rafa-Innerchispa/innerops-agentic-platform\n"
+                    "related_project: coordination-recovery\n"
+                    "conversation_ref: session-regression\n"
+                    "- Preserve source linkage\n"
+                    "- Admit only through Temporal"
+                ),
+                message_type="task",
+                idempotency_key="message:msg_full_flow",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["normalization"]["ok"])
+        self.assertEqual(len(captured), 1)
+        admitted = captured[0]
+        self.assertEqual(admitted["source_message_id"], message_id)
+        self.assertEqual(admitted["conversation_ref"], "session-regression")
+        self.assertEqual(admitted["related_project"], "coordination-recovery")
+        self.assertEqual(admitted["repo"], "Rafa-Innerchispa/innerops-agentic-platform")
+        self.assertEqual(result["normalization"]["authority"], "temporal")
+        collection.update_one.assert_called_once()
 
     def test_revision_bump_uses_current_coordination_state_api(self):
         with (
@@ -164,8 +249,55 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
     def test_mcp_diagnostics_accepts_profile_projection(self):
         signature = inspect.signature(mcp_diagnostics.diagnose_mcp_session)
         self.assertIn("profile", signature.parameters)
+        self.assertIn("client_profile_pin", signature.parameters)
         source = inspect.getsource(mcp_diagnostics.diagnose_mcp_session)
-        self.assertIn("expected_tool_count = len(expected_tools)", source)
+        self.assertIn("diagnosis_mode", source)
+        self.assertIn("session_valid", source)
+
+    def test_task_message_flow_includes_temporal_run_metadata(self):
+        captured: list[dict] = []
+        message_id = "msg_temporal_meta"
+
+        def fake_start(task: dict) -> dict:
+            captured.append(task)
+            return {
+                "ok": True,
+                "workflow_id": task["workflow_id"],
+                "run_id": "run-heartbeat-canary",
+            }
+
+        with (
+            patch(
+                "raphiia_openai.memory.agent_messages.create_agent_message",
+                return_value={
+                    "ok": True,
+                    "created": True,
+                    "message_id": message_id,
+                    "correlation_id": "corr-temporal-meta",
+                },
+            ),
+            patch.object(
+                coordination_ingest.mongo_store,
+                "get_db",
+                return_value={coordination_ingest.COL_AGENT_MESSAGES: MagicMock()},
+            ),
+            patch.object(spine, "start_task_workflow", side_effect=fake_start),
+            patch.object(coordination_ingest.coordination_live, "_publish_task_event", return_value={"ok": True}),
+            patch.object(coordination_ingest.coordination_live, "bump_revision", return_value={"ok": True}),
+        ):
+            result = coordination_ingest.ingest_agent_message(
+                from_agent="CHATGPT",
+                target_agent="qwen-coding",
+                title="[P0] Temporal metadata",
+                body="repo: Rafa-Innerchispa/innerops-agentic-platform\n- admit via Temporal",
+                message_type="task",
+                idempotency_key="message:msg_temporal_meta",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["normalization"]["run_id"], "run-heartbeat-canary")
+        self.assertEqual(result["normalization"]["authority"], "temporal")
+        self.assertEqual(captured[0]["source_message_id"], message_id)
 
     def test_local_agent_mailboxes_do_not_fall_back_to_chatgpt(self):
         self.assertEqual(agent_identity.canonical_mailbox("qwen-coding"), "qwen_coding")

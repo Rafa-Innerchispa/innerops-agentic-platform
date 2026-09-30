@@ -20,7 +20,7 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from raphiia_openai.auth_middleware import ApiKeyMiddleware
+from raphiia_openai.auth_middleware import ApiKeyMiddleware, ToolCallIsolationMiddleware
 from raphiia_openai import quoteops_mcp_bridge
 from raphiia_openai import coordination_docs, dev_swarm_scheduler, dev_swarm_watchdog, discord_interaction_gateway, document_vault, editorial_media_upload, editorial_publish, editorial_store, external_repair_agent, funding_registry as funding_registry_module, image_gen, linkedin_client, local_discord_plane, local_execution_plane, local_filesystem_plane, local_github_plane, local_gitlab_plane, local_model_manager, local_model_router, mcp_diagnostics, mongo_store, project_runtime_registry
 from raphiia_openai.operational import accounting_store, inventory_store, pcdoctor_store, party_store, procurement_store
@@ -72,6 +72,7 @@ mcp = FastMCP(
     ),
 )
 
+mcp.add_middleware(ToolCallIsolationMiddleware())
 if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
 
@@ -2119,6 +2120,12 @@ def agent_browser_run_task(
     loopback_ports: list[int] | None = None,
 ) -> dict[str, Any]:
     """AG-55: tarea browser local (navigate|screenshot|fill_form|click|extract). dry_run=True por defecto."""
+    if local_preview or loopback_ports:
+        return {
+            "ok": False,
+            "error": "unsupported_browser_run_task_options",
+            "detail": "local_preview and loopback_ports are not supported on MCP Small/public wrapper",
+        }
     from raphiia_openai.agents import ag55_browser_ops_agent as ag55
 
     return ag55.agent_browser_run_task(
@@ -2130,8 +2137,6 @@ def agent_browser_run_task(
         extract_selector=extract_selector,
         dry_run=dry_run,
         timeout_ms=timeout_ms,
-        local_preview=local_preview,
-        loopback_ports=loopback_ports,
     )
 
 
@@ -3076,6 +3081,66 @@ def route_mcp_tools(
         tenant_id=tenant_id,
         for_model=for_model,
         max_tools=max_tools,
+    )
+
+
+@mcp.tool
+def capability_search(
+    query: str = "",
+    domain: str | None = None,
+    tenant_id: str | None = None,
+    max_results: int = 10,
+) -> dict[str, Any]:
+    """Search allowlisted internal capabilities without expanding tools/list."""
+    from inneros_core_runtime import capability_gateway
+
+    return capability_gateway.capability_search(
+        query=query,
+        domain=domain,
+        tenant_id=tenant_id,
+        max_results=max_results,
+    )
+
+
+@mcp.tool
+def capability_describe(capability_id: str, version: str | None = None) -> dict[str, Any]:
+    """Describe one registered capability manifest, scopes, and policies."""
+    from inneros_core_runtime import capability_gateway
+
+    return capability_gateway.capability_describe(capability_id=capability_id, version=version)
+
+
+@mcp.tool
+def capability_invoke(
+    capability_id: str,
+    parameters: dict[str, Any],
+    idempotency_key: str | None = None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Invoke one allowlisted capability handler with server-side policy enforcement."""
+    from inneros_core_runtime import capability_gateway
+
+    return capability_gateway.capability_invoke(
+        capability_id=capability_id,
+        parameters=parameters,
+        idempotency_key=idempotency_key,
+        context=context,
+    )
+
+
+@mcp.tool
+def capability_execution(
+    execution_id: str,
+    action: str = "status",
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Query or control a capability execution (status, cancel, approve)."""
+    from inneros_core_runtime import capability_gateway
+
+    return capability_gateway.capability_execution(
+        execution_id=execution_id,
+        action=action,
+        payload=payload,
     )
 
 
@@ -4443,6 +4508,7 @@ def diagnose_mcp_session(
     client_tool_count: int | None = None,
     client_catalog_version: str | None = None,
     client_seen_tools: list[str] | None = None,
+    client_profile_pin: str | None = None,
     profile: str | None = None,
     session_id: str | None = None,
     user_agent: str | None = None,
@@ -4452,6 +4518,7 @@ def diagnose_mcp_session(
         client_tool_count=client_tool_count,
         client_catalog_version=client_catalog_version,
         client_seen_tools=client_seen_tools,
+        client_profile_pin=client_profile_pin,
         profile=profile,
         session_id=session_id,
         user_agent=user_agent,
@@ -5142,6 +5209,9 @@ def create_ops_task(
     preferred_provider: str | None = None,
     preferred_model: str | None = None,
     idempotency_key: str | None = None,
+    source_message_id: str | None = None,
+    conversation_ref: str | None = None,
+    related_project: str | None = None,
 ) -> OpsTaskToolResult:
     """Admite una orden formal mediante el workflow canónico de Temporal."""
     from raphiia_openai import coordination_live
@@ -5166,6 +5236,9 @@ def create_ops_task(
         preferred_provider=preferred_provider,
         preferred_model=preferred_model,
         idempotency_key=idempotency_key,
+        source_message_id=source_message_id,
+        conversation_ref=conversation_ref,
+        related_project=related_project,
     )
 
 
