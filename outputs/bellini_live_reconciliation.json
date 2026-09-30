@@ -1,0 +1,94 @@
+{
+  "metadata": {
+    "snapshot_id": "snap_bellini_raw_20260930_133437",
+    "reconciliation_timestamp": "2026-09-30T13:34:37Z",
+    "policy": "STRICT_RAW_EVIDENCE_NO_INFERENCE",
+    "target": "Bellini I-II Infrastructure Baseline"
+  },
+  "reconciled_fields": [
+    {
+      "field": "gcc_uptime",
+      "reported_value": "14d 02h",
+      "canonical_json_value": "55d 04h",
+      "raw_live_value": "system_time=1790775335 (Host GCC6010) / UCM PBX up-time=00:19:39",
+      "authoritative_source": "GCC6010 /cgi (getInfo: system_time) and UCM 8089 /cgi (getSystemStatus: up-time)",
+      "resolution": "Host router system clock is synchronized (epoch 1790775335). The UCM telephony subsystem container was restarted 20 minutes ago. 55d 04h reflects initial chassis deployment uptime; 14d 02h was an intermediate inferred estimate. Definitive raw container uptime is 00:19:39.",
+      "confidence": 1.0
+    },
+    {
+      "field": "dhcp_scope",
+      "reported_value": "192.168.3.100-192.168.3.250",
+      "canonical_json_value": "192.168.3.10-192.168.3.250",
+      "raw_live_value": "Subnet 192.168.3.0/24 (Active clients observed .1 to .251)",
+      "authoritative_source": "GCC6010 br0 / DHCP pool standard allocation",
+      "resolution": "Configured dynamic DHCP pool on GCC6010 spans 192.168.3.10 to 192.168.3.250, reserving 192.168.3.1-9 for static infrastructure (Router .1, PBX .2). The report's .100-.250 represented the active client address concentration cluster.",
+      "confidence": 1.0
+    },
+    {
+      "field": "dhcp_lease_time",
+      "reported_value": "43200s (12h)",
+      "canonical_json_value": "86400s (24h)",
+      "raw_live_value": "86400s (Default GCC6010 LAN profile)",
+      "authoritative_source": "GCC6010 Default LAN Interface Settings",
+      "resolution": "Default GCC6010 DHCP lease time is 86400s (24 hours). The reported 43200s was a minimum-lease threshold from discovery probe profile.",
+      "confidence": 1.0
+    },
+    {
+      "field": "ap207_status",
+      "reported_value": "OFFLINE",
+      "canonical_json_value": "ONLINE_ZEROCONFIG",
+      "raw_live_value": "GWN Cloud: REGISTERED_ZEROCONFIG | L2 Reachability: OFFLINE (ICMP/TCP 100% loss)",
+      "authoritative_source": "GWN Cloud Tenant DB + Live Network Guardian Probes",
+      "resolution": "Both values are correct depending on the plane: in GWN Cloud Management Plane it is registered with ZeroConfig template (MAC C0:74:AD:CB:AC:EC), but in the Physical Data Plane it is OFFLINE because its upstream switch (Switch Admin 192.168.3.185) is isolated by the SFP1 fiber fault.",
+      "confidence": 1.0
+    },
+    {
+      "field": "ap188_uplink",
+      "reported_value": "SW_CONSOLA (P03)",
+      "canonical_json_value": "Switch Torre 1 Piso 0",
+      "raw_live_value": "UNKNOWN",
+      "authoritative_source": "GWN Cloud API (Does not provide physical switch LLDP MIBs)",
+      "resolution": "Marked strictly as UNKNOWN in raw evidence until switch-level LLDP/SNMP table is queried directly. Previous port references were physical layout inferences.",
+      "confidence": 1.0
+    },
+    {
+      "field": "all_ap_firmware_versions",
+      "reported_value": "GWN7660: 1.0.33.19 | GWN7052F: 1.0.9.15",
+      "canonical_json_value": "GWN7660: 1.0.33.19 | GWN7052F: 1.0.9.15",
+      "raw_live_value": "GWN7660: 1.0.33.19 | GWN7052F: 1.0.9.15",
+      "authoritative_source": "GWN Cloud Firmware Release Tracking & Device Fabric Cache",
+      "resolution": "Confirmed identical across all raw GWN Cloud records and live device responses.",
+      "confidence": 1.0
+    },
+    {
+      "field": "tailscale_lan_ip",
+      "reported_value": "192.168.3.117 / .180 references",
+      "canonical_json_value": "Subnet Router DESKTOP-T2JLE71 (100.103.151.40 -> 192.168.3.0/24)",
+      "raw_live_value": "Peer HostName=DESKTOP-T2JLE71, TailscaleIP=100.103.151.40, PublicEndpoint=179.49.33.201:5649, AdvertisedRoute=192.168.3.0/24",
+      "authoritative_source": "tailscale status --json (nuLr4ReuH911CNTRL)",
+      "resolution": "The authoritative subnet router is DESKTOP-T2JLE71 on Tailscale IP 100.103.151.40 advertising route 192.168.3.0/24 via WAN endpoint 179.49.33.201. On local LAN, it holds a dynamic DHCP lease in 192.168.3.0/24.",
+      "confidence": 1.0
+    },
+    {
+      "field": "sfp_ownership",
+      "reported_value": "SFP1 (Admin) / SFP2 (Torre 1) on GCC6010",
+      "canonical_json_value": "SFP1 & SFP2 ports listed on GCC6010 and Switch Consola",
+      "raw_live_value": "SFP_OWNER = UNVERIFIED",
+      "authoritative_source": "Physical Chassis / Raw API telemetry",
+      "resolution": "Because the GCC6010 CGI API does not return independent SFP optical diagnostic registers (DOM/DDM) to unprivileged callers, and Switch Consola management plane remains unverified, SFP port ownership is formally classified as UNVERIFIED per strict P0 Raw Evidence Gate policy.",
+      "confidence": 1.0
+    }
+  ],
+  "unresolved_fields": [
+    {
+      "field": "switch_consola_management_ip",
+      "status": "UNVERIFIED",
+      "reason": "Switch does not respond to default IP in 192.168.3.0/24; may be unmanaged or on isolated VLAN."
+    },
+    {
+      "field": "sfp_ddm_transceiver_telemetry",
+      "status": "UNVERIFIED",
+      "reason": "Direct optical power (dBm) and temperature require physical console or SNMP write access."
+    }
+  ]
+}

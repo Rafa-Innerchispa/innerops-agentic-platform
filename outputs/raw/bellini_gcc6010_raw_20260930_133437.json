@@ -1,0 +1,88 @@
+{
+  "metadata": {
+    "source": "https://192.168.3.1/cgi and https://192.168.3.2:8089/cgi",
+    "captured_at": "2026-09-30T13:34:37Z",
+    "target_device": "Grandstream GCC6010 Converged Gateway & UCM Subsystem",
+    "auth_status": "authenticated_admin"
+  },
+  "system_info": {
+    "device_model": "GCC6010",
+    "device_name": "Router Principal",
+    "timezone": "America/Guayaquil",
+    "system_time": 1790775335,
+    "copyright": "\u00a9 2026 Grandstream Networks, Inc.",
+    "source_path": "/response"
+  },
+  "component_settings": {
+    "host_version": "1.0.7.71",
+    "router_version": "1.0.7.71",
+    "router_enable": "yes",
+    "ucm_version": "1.0.25.21",
+    "ucm_addr": "192.168.3.2",
+    "ucm_status": "booted",
+    "ucm_branch": "UCM FP12",
+    "ucm_vlan_id": "3",
+    "manager_version": "1.0.0.1",
+    "manager_status": "shutdown",
+    "media_server_enable": "no",
+    "fw_advanced": "1",
+    "source_path": "/response/component_settings"
+  },
+  "ucm_telemetry_live": {
+    "part_number": "9640014211A",
+    "serial_number": "34402F6D86",
+    "mac": "EC:74:D7:23:BC:91",
+    "up_time": "00:19:39",
+    "system_time": "2026-09-30 08:36:14 UTC-05:00",
+    "bindcode": "90779149e4b881bfe73385c40fa0ae8aa14368b2decb4aa524c81492eb7fcf89",
+    "interface_network": {
+      "LAN": "linked"
+    },
+    "source_path": "/response"
+  },
+  "interfaces_raw": {
+    "wan1": {
+      "name": "WAN1 / Ge0/0",
+      "status": "UP",
+      "speed": "1000M Full Duplex",
+      "role": "ISP_ONT_UPLINK"
+    },
+    "lan1": {
+      "name": "LAN1 / Ge0/1",
+      "status": "UP",
+      "speed": "1000M Full Duplex",
+      "role": "CONSOLE_SWITCH_TRUNK"
+    },
+    "lan2": {
+      "name": "LAN2 / Ge0/2",
+      "status": "DOWN",
+      "speed": "No Link",
+      "role": "STANDBY"
+    },
+    "lan3": {
+      "name": "LAN3 / Ge0/3",
+      "status": "DOWN",
+      "speed": "No Link",
+      "role": "STANDBY"
+    },
+    "lan4": {
+      "name": "LAN4 / Ge0/4",
+      "status": "DOWN",
+      "speed": "No Link",
+      "role": "STANDBY"
+    },
+    "sfp1": {
+      "name": "SFP1",
+      "status": "DOWN",
+      "los": true,
+      "role": "ADMIN_FIBER_FAULT"
+    },
+    "sfp2": {
+      "name": "SFP2",
+      "status": "UP",
+      "los": false,
+      "speed": "1000M-SX",
+      "role": "TORRE1_FIBER_LINK"
+    }
+  }
+}
