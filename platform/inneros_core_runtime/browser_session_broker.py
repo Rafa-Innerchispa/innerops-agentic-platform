@@ -148,10 +148,17 @@ def _launch_session(session: BrowserSession) -> None:
         profile_dir = SESSION_ROOT / session.profile
         profile_dir.mkdir(parents=True, exist_ok=True)
         pw = sync_playwright().start()
+        guard = ag55._url_allowed_result(
+            session.start_url,
+            local_preview=session.local_preview,
+            loopback_ports=session.loopback_ports,
+        )
+        ignore_https = guard.get("scope") == "bellini_read_only"
         context = pw.chromium.launch_persistent_context(
             str(profile_dir),
             headless=True,
             viewport={"width": 1366, "height": 768},
+            ignore_https_errors=ignore_https,
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(session.start_url, wait_until="domcontentloaded", timeout=30000)

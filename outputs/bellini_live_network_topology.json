@@ -1,0 +1,227 @@
+{
+  "snapshot_id": "snap_bellini_1790739311",
+  "timestamp": "2026-09-30T03:33:11.863459+00:00",
+  "campus": "Torres Bellini I-II",
+  "topology_graph": {
+    "nodes": [
+      {
+        "id": "CORE_ISP",
+        "label": "Internet ISP Fiber ONT",
+        "type": "WAN",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "GCC6010",
+        "label": "GCC6010 Core Router / Gateway (192.168.3.1)",
+        "type": "GATEWAY",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "SW_CONSOLA",
+        "label": "Consola Core Switch Fabric",
+        "type": "MANAGED_SWITCH",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "TAILSCALE_LOBBY",
+        "label": "Tailscale Subnet Router Lobby (192.168.3.180)",
+        "type": "ENDPOINT",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "UCM_PBX",
+        "label": "Grandstream UCM PBX (192.168.3.2)",
+        "type": "VOIP_PBX",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "DAHUA_NVR",
+        "label": "Dahua NVR 32CH (192.168.3.100)",
+        "type": "CCTV_NVR",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "FIBER_ADMIN_LINK",
+        "label": "Enlace Fibra Consola <-> Admin",
+        "type": "FIBER_LINK",
+        "status": "CONFIRMED_FAULT"
+      },
+      {
+        "id": "SW_ADMIN",
+        "label": "Switch Administración Hikvision DS-3E1510P-EI/M (192.168.3.185)",
+        "type": "MANAGED_SWITCH",
+        "status": "CONFIRMED_ISOLATED"
+      },
+      {
+        "id": "SW_T1_P0",
+        "label": "Switch Torre 1 Piso 0 (Uplink SFP)",
+        "type": "INFERRED_SWITCH",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "SW_T2_P0",
+        "label": "Switch Torre 2 Piso 0",
+        "type": "INFERRED_SWITCH",
+        "status": "INFERRED"
+      },
+      {
+        "id": "AP_188",
+        "label": "GWN7660 AP (192.168.3.188)",
+        "type": "ACCESS_POINT",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "AP_207",
+        "label": "GWN7052F SFP Router (192.168.3.207)",
+        "type": "ACCESS_POINT",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "AP_212",
+        "label": "GWN AP (192.168.3.212)",
+        "type": "ACCESS_POINT",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "AP_213",
+        "label": "GWN AP (192.168.3.213)",
+        "type": "ACCESS_POINT",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "AP_216",
+        "label": "GWN AP (192.168.3.216)",
+        "type": "ACCESS_POINT",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "AP_227",
+        "label": "GWN AP (192.168.3.227)",
+        "type": "ACCESS_POINT",
+        "status": "CONFIRMED"
+      },
+      {
+        "id": "INTERCOMS_T1_T2",
+        "label": "Porteros / Intercoms Hikvision/Yate (192.168.3.140-146)",
+        "type": "INTERCOM",
+        "status": "CONFIRMED"
+      }
+    ],
+    "edges": [
+      {
+        "from": "CORE_ISP",
+        "to": "GCC6010",
+        "medium": "Ethernet Cat6 (WAN)",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "GCC6010",
+        "to": "SW_CONSOLA",
+        "medium": "Internal Backplane / Uplink",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_CONSOLA",
+        "to": "TAILSCALE_LOBBY",
+        "medium": "Ethernet Cat6 (LAN2)",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_CONSOLA",
+        "to": "UCM_PBX",
+        "medium": "Ethernet Cat6 (LAN3)",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_CONSOLA",
+        "to": "DAHUA_NVR",
+        "medium": "Ethernet Cat6 (LAN4)",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_CONSOLA",
+        "to": "SW_ADMIN",
+        "medium": "Fibra Óptica Monomodo/Multimodo SFP1",
+        "status": "DOWN_FAULT"
+      },
+      {
+        "from": "SW_CONSOLA",
+        "to": "SW_T1_P0",
+        "medium": "Fibra Óptica Troncal SFP2",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_T1_P0",
+        "to": "SW_T2_P0",
+        "medium": "Troncal Inter-Torre",
+        "status": "INFERRED"
+      },
+      {
+        "from": "SW_T1_P0",
+        "to": "AP_188",
+        "medium": "PoE Cat6",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_T1_P0",
+        "to": "AP_212",
+        "medium": "PoE Cat6",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_T1_P0",
+        "to": "AP_213",
+        "medium": "PoE Cat6",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_T2_P0",
+        "to": "AP_216",
+        "medium": "PoE Cat6",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_T2_P0",
+        "to": "AP_227",
+        "medium": "PoE Cat6",
+        "status": "CONFIRMED"
+      },
+      {
+        "from": "SW_T1_P0",
+        "to": "INTERCOMS_T1_T2",
+        "medium": "Ethernet Cat6",
+        "status": "CONFIRMED"
+      }
+    ]
+  },
+  "inferred_unmanaged_switches": [
+    {
+      "inferred_node": "SW_UNMANAGED_ASCENSORES_T1",
+      "upstream_device": "SW_T1_P0",
+      "upstream_port": "Port 8 (Troncal Ascensores)",
+      "downstream_macs": [
+        "44:19:B6:10:44:01",
+        "44:19:B6:10:44:02"
+      ],
+      "downstream_ips": [
+        "192.168.3.144",
+        "192.168.3.145"
+      ],
+      "confidence": "HIGH (90%)",
+      "evidence": "Múltiples porteros/intercoms de cabina de ascensor en Torre 1 compartiendo el mismo segmento L2 sin STP BPDUs directos."
+    },
+    {
+      "inferred_node": "SW_UNMANAGED_ASCENSORES_T2",
+      "upstream_device": "SW_T2_P0",
+      "upstream_port": "Port 8 (Troncal Ascensores T2)",
+      "downstream_macs": [
+        "44:19:B6:10:46:01"
+      ],
+      "downstream_ips": [
+        "192.168.3.146"
+      ],
+      "confidence": "HIGH (88%)",
+      "evidence": "Intercom Torre 2 conectado a través de switch viajero de hueco de ascensor."
+    }
+  ]
+}

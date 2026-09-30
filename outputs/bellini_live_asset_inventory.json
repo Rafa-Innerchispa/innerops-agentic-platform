@@ -1,0 +1,2307 @@
+{
+  "snapshot_id": "snap_bellini_1790739311",
+  "timestamp": "2026-09-30T03:33:11.863459+00:00",
+  "subnet": "192.168.3.0/24",
+  "total_scanned": 254,
+  "total_online_hosts": 54,
+  "assets": [
+    {
+      "ip": "192.168.3.1",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "GCC6010 Unified Security Gateway / Router",
+      "hostname": "gcc6010-gateway.bellini.local",
+      "device_type": "gateway_router",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22,
+        53,
+        8080,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issue"
+        },
+        "https": {
+          "status": 200,
+          "title": "",
+          "server": "nginx",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html>\n<html lang='en'>\n<head>\n  <meta charset='UTF-8' />\n  <link href='/favicon.ico' rel='icon' type='image/svg+xml' />\n  <meta content='width=device-width, initial-scale=1.0' name='viewport' />\n  <title></title>\n  <style>\n    /*\n     * 'Open Sans'\n     */\n    @font-face {\n      font-family: 'Open Sans';\n      font-style: normal;\n      font-weight: 300;\n      font-stretch: 100%;\n      fo"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2024.85\r\n\u0000\u0000\u0001\u0005\u0014S\u000f,\nmܖHf\u0019&\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au,kex-strict-s-v00@openssh.com\u0000\u0000\u0000\u0014rsa-sha2-256,ssh-rsa\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000N\u0018",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.2",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "UCM6300 Series IP-PBX",
+      "hostname": "ucm-pbx.bellini.local",
+      "device_type": "ip_pbx",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        5060,
+        8888
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issue"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.3",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-3.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n    <!-- 去除edge下将数字处理成电话的错误 -->\r\n    <meta name=\"fo"
+        },
+        "https": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n    <!-- 去除edge下将数字处理成电话的错误 -->\r\n    <meta name=\"fo"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, GET_PARAMETER, PAUSE, PLAY, SETUP, SET_PARAMETER, TEARDOWN\r\nDate:  Tue, Sep 29 2026 22:33:24 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.12",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-12.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 404 Not Found\r\nCSeq: 1\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.13",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-13.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "Webs",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 404 Not Found\r\nCSeq: 1\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.14",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Dahua Technology",
+      "model": "Dahua IP Device",
+      "hostname": "host-14.bellini.local",
+      "device_type": "cctv_or_nvr",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554,
+        37777
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate i"
+        },
+        "https": {
+          "status": 200,
+          "title": "WEB",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,shrink-to-fit=no\"><meta name=\"theme-color\" content=\"#000000\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"/><meta name=\"format-detection\" content=\"telephone=no\"><title>WEB</title></head><body><script>function _clearTheme_(){for(key in localStorage)/color.(.*)less/gi.t"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"Login to 2987847010a737edd0d7f82fac0cccd7\", nonce=\"2e66834b3677f244d1f3275d0c9cbb68\"\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.15",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Dahua Technology",
+      "model": "Dahua IP Device",
+      "hostname": "host-15.bellini.local",
+      "device_type": "cctv_or_nvr",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        37777
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "WEB SERVICE",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE HTML> <html> <head> <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"> <meta charset=\"UTF-8\"> <title>WEB SERVICE</title> <script src=\"ext/ext-all.js\"></script> <script type=\"text/javascript\" src=\"./projectPath.js\"></script> <script type=\"text/javascript\" src=\"/desktop/libs/require.js\"></script> <script type=\"text/javascript\" src=\"/desktop/js/require-config.js\"></script> <script type=\""
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"Login to 7L06608PAZEDE3F\", nonce=\"df2d9b33c0145881cbfb524916dd1442\"\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.100",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Dahua Technology",
+      "model": "Dahua NVR (Network Video Recorder)",
+      "hostname": "dahua-nvr.bellini.local",
+      "device_type": "nvr_cctv",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "DNVRS-Webs",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 404 Not Found\r\nCSeq: 1\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.101",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-101.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, PLAY, PAUSE, SETUP, TEARDOWN, SET_PARAMETER, GET_PARAMETER\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.102",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-102.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><title></title><META http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\"><META http-equiv=\"Pragma\" content=\"no-cache\"><META http-equiv=\"Cache-Control\" content=\"no-cache\"><META http-equiv=\"Expires\" content=\"0\"><style type=\"text/css\">html, body{height: 100%;margin: 0px;overflow: hidden;}</style><script type=\"text/javascript\">function release(){document.frames['bann"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS,DESCRIBE,SETUP,PLAY,PAUSE,TEARDOWN,ANNOUNCE,SET_PARAMETER,GET_PARAMETER\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.103",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-103.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, PLAY, PAUSE, SETUP, TEARDOWN, SET_PARAMETER, GET_PARAMETER\r\nDate:  Tue, Sep 29 2026 22:34:03 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.104",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-104.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, PLAY, PAUSE, SETUP, TEARDOWN, SET_PARAMETER, GET_PARAMETER\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.105",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-105.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, PLAY, PAUSE, SETUP, TEARDOWN, SET_PARAMETER, GET_PARAMETER\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.106",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-106.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, PLAY, PAUSE, SETUP, TEARDOWN, SET_PARAMETER, GET_PARAMETER\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.107",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-107.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n    <!-- 去除edge下将数字处理成电话的错误 -->\r\n    <meta name=\"fo"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, GET_PARAMETER, PAUSE, PLAY, SETUP, SET_PARAMETER, TEARDOWN\r\nDate:  Tue, Sep 29 2026 22:34:02 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.111",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-111.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, GET_PARAMETER, PAUSE, PLAY, SETUP, SET_PARAMETER, TEARDOWN\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.112",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-112.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, GET_PARAMETER, PAUSE, PLAY, SETUP, SET_PARAMETER, TEARDOWN\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.113",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-113.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, GET_PARAMETER, PAUSE, PLAY, SETUP, SET_PARAMETER, TEARDOWN\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.114",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-114.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, GET_PARAMETER, PAUSE, PLAY, SETUP, SET_PARAMETER, TEARDOWN\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.115",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-115.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": "webserver",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "﻿<!doctype html>\r\n<html>\r\n<head>\r\n\t<title></title>\r\n\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n\t<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" >\r\n\t<meta http-equiv=\"Pragma\" content=\"no-cache\" />\r\n\t<meta http-equiv=\"Cache-Control\" content=\"no-cache, must-revalidate\" />\r\n\t<meta http-equiv=\"Expires\" content=\"0\" />\r\n</head>\r\n<body>\r\n</body>\r\n<script>\r\n\twindow.locatio"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, PLAY, PAUSE, SETUP, TEARDOWN, SET_PARAMETER, GET_PARAMETER\r\nDate:  Tue, Sep 29 2026 22:29:15 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.116",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-116.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><title></title><META http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\"><META http-equiv=\"Pragma\" content=\"no-cache\"><META http-equiv=\"Cache-Control\" content=\"no-cache\"><META http-equiv=\"Expires\" content=\"0\"><style type=\"text/css\">html, body{height: 100%;margin: 0px;overflow: hidden;}</style><script type=\"text/javascript\">function release(){document.frames['bann"
+        },
+        "https": {
+          "status": 200,
+          "title": "",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><title></title><META http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\"><META http-equiv=\"Pragma\" content=\"no-cache\"><META http-equiv=\"Cache-Control\" content=\"no-cache\"><META http-equiv=\"Expires\" content=\"0\"><style type=\"text/css\">html, body{height: 100%;margin: 0px;overflow: hidden;}</style><script type=\"text/javascript\">function release(){document.frames['bann"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS,DESCRIBE,SETUP,PLAY,PAUSE,TEARDOWN,ANNOUNCE,SET_PARAMETER,GET_PARAMETER\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.140",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision / Yate",
+      "model": "Video Portero / IP Intercom Station",
+      "hostname": "intercom-t140.bellini.local",
+      "device_type": "video_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": ""
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.141",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision / Yate",
+      "model": "Video Portero / IP Intercom Station",
+      "hostname": "intercom-t141.bellini.local",
+      "device_type": "video_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22,
+        554,
+        8000
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": "webs",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": "webs",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2022.83\r\n\u0000\u0000\u0001\u0004\u0014\u0003m)r\"0+[tھ\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au\u0000\u0000\u0000(ecdsa-sha2-nistp521,rsa-sha2-256,ssh-rsa\u0000\u0000\u0000\u0015aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0015aes128-ctr,aes256-ctr\u0000\u0000\u0000\rhmac-sha2-256\u0000\u0000\u0000\rhmac-sha2-256\u0000\u0000\u0000\u0015zlib@openssh.com,none\u0000\u0000\u0000\u0015zlib@openssh.com,none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000;",
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nPublic: OPTIONS, DESCRIBE, PLAY, PAUSE, SETUP, TEARDOWN\r\nDate:  Tue, Sep 29 2026 22:34:18 GMT\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.142",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-142.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554,
+        8000,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate ("
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"Hikvision\", nonce=\"44080c91c4ad567ad4b4a2a6bc39b3d2\", random=\"rdzRscpv5S/I4EAwVGJxatpAH208mD36/Psbuz8h9OuUQqwYn9DCJ6/UwLVEJBvw\", sta"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.143",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-143.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554,
+        8000,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate ("
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"Hikvision\", nonce=\"ffd046985c64388cfb4ba5819570ec88\", random=\"N15PM0FUmB4D2OdM7xTRH0+h9OzhAASkJzmrYtGouKcButivfhzvwhZ1wRSEB/2y\", sta"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.144",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision / Yate",
+      "model": "Video Portero / IP Intercom Station",
+      "hostname": "intercom-t144.bellini.local",
+      "device_type": "video_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate ("
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"DS-d726fa86\", nonce=\"e9bcb33473029cba4660291136fde56c\", random=\"NS6spKYr6E6q7BTCFbNxmW9BI9KPsZLCXSZTEIZUsZtP1tyITuFqLF33JZboo105\", s"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.145",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision / Yate",
+      "model": "Video Portero / IP Intercom Station",
+      "hostname": "intercom-t145.bellini.local",
+      "device_type": "video_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate ("
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"DS-afe30397\", nonce=\"4034b98d7c75592a8a9c3439fb06eba3\", random=\"OhMjvYo7LUtdqql+l4IVLi6RBqKCph8PWQ9FB9GGUOwdW4K+aqYxj6TLHqkwZOKp\", s"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.146",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision / Yate",
+      "model": "Video Portero / IP Intercom Station",
+      "hostname": "intercom-t146.bellini.local",
+      "device_type": "video_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate ("
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"DS-a6fd6133\", nonce=\"f4b9c623272f31d863873f736aaf5f66\", random=\"HcxM2je6yjzcSLkvZawJD2MWvT843uLU/jBbkHNehIXwFFJpvdipHI6CHEF4wnw4\", s"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.147",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-147.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate ("
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"DS-3ba1869c\", nonce=\"a06d73a6b7ca7fdbb9cfa439bc04dc22\", random=\"AURGfYSQiWkhBUsOd8HlfMh6VFCtCAmi6XBJrvvrQ9fvO/cnXLP+xqavCBVeTKtj\", s"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.148",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-148.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554,
+        8000,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate ("
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body></body><script>document.location.href = \"/doc/index.html\";</script></html>"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"Hikvision\", nonce=\"6145cab2fe1e19664843e52f33fc43df\", random=\"Z21MtK/GlvM9OTIfImyXregHTTZz3kw1FXMGeRh/PVlm2X7dxzzzY0TlhfrF6njP\", sta"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.149",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Hikvision Digital Technology",
+      "model": "Hikvision Network Device",
+      "hostname": "host-149.bellini.local",
+      "device_type": "cctv_or_intercom",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554,
+        8000,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate ("
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body><svg style=\"width:0;height:0;position:absolute;\"><defs><linearGradient x1=\"50%\" y1=\"0%\" x2=\"50%\" y2=\"96.613%\" id=\"bigscreen_nor@control-host"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": null,
+          "response": "RTSP/1.0 401 Unauthorized\r\nCSeq: 1\r\nWWW-Authenticate: Digest realm=\"DS-66b4e6c7\", nonce=\"80574e09c150d44e6fa1088c48e3ac49\", random=\"LNXLZR4LRCjz9dEPboqYHmcy/98X58rJ8vCWGZaXyScFa/E8byAMd5xirlLWv2Dn\", s"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.172",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-172.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "Ruijie Easy-Smart Switch",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><link rel=\"shortcut icon\" href=\"favicon.png\"><style name=\"sw-login.css\">body { background: rgba(37, 92, 220, 1); } body a, body a:hover { color: #2B6AFD; } .lg-middle { position: relative; width: 324px; min-height: 415px; margin: 100px auto 0; padding: 48px; padding-bottom: 50px; border-radius: 12px; background: #FFF; } .header-logo { width: 100%; p"
+        },
+        "https": {
+          "status": 200,
+          "title": "Ruijie Easy-Smart Switch",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><link rel=\"shortcut icon\" href=\"favicon.png\"><style name=\"sw-login.css\">body { background: rgba(37, 92, 220, 1); } body a, body a:hover { color: #2B6AFD; } .lg-middle { position: relative; width: 324px; min-height: 415px; margin: 100px auto 0; padding: 48px; padding-bottom: 50px; border-radius: 12px; background: #FFF; } .header-logo { width: 100%; p"
+        },
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.173",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-173.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": false,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        8443
+      ],
+      "services": {
+        "http": null,
+        "https": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] sslv3 alert handshake failure (_ssl.c:1000)>"
+        },
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.175",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-175.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        53
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<html>\n<!--[if lte IE 8]><script>\n    window.location.href = '/error.html?fromindex' + Math.random()\n</script><![endif]-->\n\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"renderer\" content=\"webkit\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <meta http-equiv=\"pragma\" content=\"no-cache\">\n    <meta http-equiv=\"cache-control\" content=\"no-cache\">\n    <meta http-equiv=\"ex"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.177",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "GWN Access Point / Switch",
+      "hostname": "host-177.bellini.local",
+      "device_type": "access_point",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate i"
+        },
+        "https": {
+          "status": 200,
+          "title": "GWN Project",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content=\"IE=edge,chrome=1\"><meta name=viewport content=\"width=750\"><link rel=icon href=/favicon.ico><title>GWN Project</title><link href=/static/css/chunk-libs.6b3f54c4.1683902947.css rel=stylesheet><link href=/static/css/app.fc3e44ba.1683902947.css rel=stylesheet></head><body><noscript><strong>We're sorry but GWN Proj"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2020.80\r\n\u0000\u0000\u0001\n\u0014B5NOXt/?R7\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au\u0000\u0000\u0000\u001crsa-sha2-256,ssh-rsa,ssh-dss\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000x͂>n*",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.183",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-183.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": false,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        8443
+      ],
+      "services": {
+        "http": null,
+        "https": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "HTTP Error 404: Not Found"
+        },
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.188",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "GWN7660 Wi-Fi 6 Access Point",
+      "hostname": "ap-188-gwn7660.bellini.local",
+      "device_type": "access_point",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22,
+        8080,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate i"
+        },
+        "https": {
+          "status": 200,
+          "title": "GWN Project",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content=\"IE=edge,chrome=1\"><meta name=viewport content=\"width=750\"><link rel=icon href=/favicon.ico><title>GWN Project</title><link href=/static/css/chunk-libs.6b3f54c4.1683902947.css rel=stylesheet><link href=/static/css/app.fc3e44ba.1683902947.css rel=stylesheet></head><body><noscript><strong>We're sorry but GWN Proj"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2020.80\r\n\u0000\u0000\u0001\n\u00142jTHc=o\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au\u0000\u0000\u0000\u001crsa-sha2-256,ssh-rsa,ssh-dss\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u000e\u000b\u0013\b\u0019ǃ",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.192",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "GWN Access Point / Switch",
+      "hostname": "host-192.bellini.local",
+      "device_type": "access_point",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22,
+        8080,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate i"
+        },
+        "https": {
+          "status": 200,
+          "title": "GWN Project",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content=\"IE=edge,chrome=1\"><meta name=viewport content=\"width=750\"><link rel=icon href=/favicon.ico><title>GWN Project</title><link href=/static/css/chunk-libs.6b3f54c4.1683902947.css rel=stylesheet><link href=/static/css/app.fc3e44ba.1683902947.css rel=stylesheet></head><body><noscript><strong>We're sorry but GWN Proj"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2020.80\r\n\u0000\u0000\u0001\n\u0014\u0002q\u0012N]2ˉ\u000f\fv\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au\u0000\u0000\u0000\u001crsa-sha2-256,ssh-rsa,ssh-dss\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0003!D^+",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.202",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-202.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        554
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": "Web Client",
+          "server": "-",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width\"/><meta http-equiv=\"Cache-Control\" content=\"no-cache\"><meta http-equiv=\"Expires\" content=\"0\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no\"/><style>html,\r\n    body {\r\n      width: 100%;\r\n      height: 100%;\r\n      margin: 0;\r\n      overf"
+        },
+        "https": {
+          "status": 200,
+          "title": "Web Client",
+          "server": "-",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width\"/><meta http-equiv=\"Cache-Control\" content=\"no-cache\"><meta http-equiv=\"Expires\" content=\"0\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no\"/><style>html,\r\n    body {\r\n      width: 100%;\r\n      height: 100%;\r\n      margin: 0;\r\n      overf"
+        },
+        "ssh_banner": null,
+        "rtsp": {
+          "open": true,
+          "server": "MgcServer",
+          "response": "RTSP/1.0 200 OK\r\nCSeq: 1\r\nServer: MgcServer\r\nPublic: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE, HEARTBEAT, GET_PARAMETER, SET_PARAMETER\r\nSupportAuth: Authenty\r\n\r\n"
+        }
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.206",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-206.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        53
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<html>\n<!--[if lte IE 8]><script>\n    window.location.href = '/error.html?fromindex' + Math.random()\n</script><![endif]-->\n\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"renderer\" content=\"webkit\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <meta http-equiv=\"pragma\" content=\"no-cache\">\n    <meta http-equiv=\"cache-control\" content=\"no-cache\">\n    <meta http-equiv=\"ex"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.208",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "GWN Access Point / Switch",
+      "hostname": "host-208.bellini.local",
+      "device_type": "access_point",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22,
+        8080,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate i"
+        },
+        "https": {
+          "status": 200,
+          "title": "GWN Project",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content=\"IE=edge,chrome=1\"><meta name=viewport content=\"width=750\"><link rel=icon href=/favicon.ico><title>GWN Project</title><link href=/static/css/chunk-libs.6b3f54c4.1691407178.css rel=stylesheet><link href=/static/css/app.e2b799de.1691407178.css rel=stylesheet></head><body><noscript><strong>We're sorry but GWN Proj"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2020.80\r\n\u0000\u0000\u0001\n\u0014|\rd]rD\u0000\\M\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au\u0000\u0000\u0000\u001crsa-sha2-256,ssh-rsa,ssh-dss\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000$M\u0018K:t",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.209",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-209.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        53
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<html>\n<!--[if lte IE 8]><script>\n    window.location.href = '/error.html?fromindex' + Math.random()\n</script><![endif]-->\n\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"renderer\" content=\"webkit\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <meta http-equiv=\"pragma\" content=\"no-cache\">\n    <meta http-equiv=\"cache-control\" content=\"no-cache\">\n    <meta http-equiv=\"ex"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.210",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-210.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<html>\n\n<head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta http-equiv=\"pragma\" content=\"no-cache\">\n    <meta http-equiv=\"expires\" content=\"wed, 26 Feb 1997 08:21:57 GMT\">\n    <link id=\"web_ico\" rel=\"shortcut icon\" type=\"image/x-icon\">\n    <script>var language ='english';var zone ='english';\n</script>\n    <script>var user_ds ={userNameStr:'admin'};var contact_d"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.211",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-211.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        53
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<html>\n<!--[if lte IE 8]><script>\n    window.location.href = '/error.html?fromindex' + Math.random()\n</script><![endif]-->\n\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"renderer\" content=\"webkit\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <meta http-equiv=\"pragma\" content=\"no-cache\">\n    <meta http-equiv=\"cache-control\" content=\"no-cache\">\n    <meta http-equiv=\"ex"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.212",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "GWN7660 / GWN Series AP",
+      "hostname": "ap-212-gwn.bellini.local",
+      "device_type": "access_point",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate i"
+        },
+        "https": {
+          "status": 200,
+          "title": "GWN Project",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content=\"IE=edge,chrome=1\"><meta name=viewport content=\"width=750\"><link rel=icon href=/favicon.ico><title>GWN Project</title><link href=/static/css/chunk-libs.6b3f54c4.1691407178.css rel=stylesheet><link href=/static/css/app.e2b799de.1691407178.css rel=stylesheet></head><body><noscript><strong>We're sorry but GWN Proj"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2020.80\r\n\u0000\u0000\u0001\n\u0014\u001c\u000eF8#G{\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au\u0000\u0000\u0000\u001crsa-sha2-256,ssh-rsa,ssh-dss\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000k.\u0014/\u0001\u001f\u0010O",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.216",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "GWN7660 / GWN Series AP",
+      "hostname": "ap-216-gwn.bellini.local",
+      "device_type": "access_point",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22,
+        8080,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate i"
+        },
+        "https": {
+          "status": 200,
+          "title": "GWN Project",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content=\"IE=edge,chrome=1\"><meta name=viewport content=\"width=750\"><link rel=icon href=/favicon.ico><title>GWN Project</title><link href=/static/css/chunk-libs.6b3f54c4.1683902947.css rel=stylesheet><link href=/static/css/app.fc3e44ba.1683902947.css rel=stylesheet></head><body><noscript><strong>We're sorry but GWN Proj"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2020.80\r\n\u0000\u0000\u0001\n\u00145?4y qAh8F\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au\u0000\u0000\u0000\u001crsa-sha2-256,ssh-rsa,ssh-dss\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000fC\u001eb\nY",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.217",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-217.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "timed out"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.227",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Grandstream Networks",
+      "model": "GWN7660 / GWN Series AP",
+      "hostname": "ap-227-gwn.bellini.local",
+      "device_type": "access_point",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443,
+        22,
+        8080,
+        8443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issue"
+        },
+        "https": {
+          "status": 200,
+          "title": "GWN Project",
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!DOCTYPE html><html><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content=\"IE=edge,chrome=1\"><meta name=viewport content=\"width=750\"><link rel=icon href=/favicon.ico><title>GWN Project</title><link href=/static/css/chunk-libs.6b3f54c4.1719551409.css rel=stylesheet><link href=/static/css/app.b20e80a7.1719551409.css rel=stylesheet></head><body><noscript><strong>We're sorry but GWN Proj"
+        },
+        "ssh_banner": "SSH-2.0-dropbear_2020.80\r\n\u0000\u0000\u0001\n\u0014\u000b4i+y\rU\u0001\"\u0000\u0000\u0000curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,kexguess2@matt.ucc.asn.au\u0000\u0000\u0000\u001crsa-sha2-256,ssh-rsa,ssh-dss\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u00003chacha20-poly1305@openssh.com,aes128-ctr,aes256-ctr\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0017hmac-sha1,hmac-sha2-256\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0004none\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000lZכ:-",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.233",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-233.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        53
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<html>\n<!--[if lte IE 8]><script>\n    window.location.href = '/error.html?fromindex' + Math.random()\n</script><![endif]-->\n\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"renderer\" content=\"webkit\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <meta http-equiv=\"pragma\" content=\"no-cache\">\n    <meta http-equiv=\"cache-control\" content=\"no-cache\">\n    <meta http-equiv=\"ex"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.239",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-239.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": "uhttpd/1.0.0",
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<HTML><HEAD>\n<script>\nlocation.href=\"login.html\";\n</script>\n</HEAD>\n<BODY bgcolor=#ffffff>\n</body>\n</html>\n\r\n"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.241",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-241.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": 2419.075,
+        "avg": 2419.075,
+        "max": 2419.075
+      },
+      "packet_loss_pct": 66.6667,
+      "tcp_open_ports": [
+        80,
+        53
+      ],
+      "services": {
+        "http": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<html>\n<!--[if lte IE 8]><script>\n    window.location.href = '/error.html?fromindex' + Math.random()\n</script><![endif]-->\n\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"renderer\" content=\"webkit\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n    <meta http-equiv=\"pragma\" content=\"no-cache\">\n    <meta http-equiv=\"cache-control\" content=\"no-cache\">\n    <meta http-equiv=\"ex"
+        },
+        "https": null,
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.245",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-245.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        22
+      ],
+      "services": {
+        "http": null,
+        "https": null,
+        "ssh_banner": "SSH-2.0-OpenSSH_7.9p1 Raspbian-10+deb10u2",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.249",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-249.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        80,
+        443
+      ],
+      "services": {
+        "http": {
+          "status": null,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": null,
+          "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issue"
+        },
+        "https": {
+          "status": 200,
+          "title": null,
+          "server": null,
+          "cert_subject": null,
+          "cert_issuer": null,
+          "body_snippet": "<!doctype html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><meta http-equiv=\"pragma\" content=\"no-cache\"><meta http-equiv=\"cache-control\" content=\"no-cache, must-revalidate\"><meta http-equiv=\"expires\" content=\"0\"></head><body><svg style=\"width:0;height:0;position:absolute;\"><defs><linearGradient x1=\"50%\" y1=\"0%\" x2=\"50%\" y2=\"96.613%\" id=\"bigscreen_nor@control-host"
+        },
+        "ssh_banner": null,
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    },
+    {
+      "ip": "192.168.3.251",
+      "mac": "UNKNOWN",
+      "vendor_oui": "Unknown",
+      "vendor": "Unknown",
+      "model": "Unknown Model",
+      "hostname": "host-251.bellini.local",
+      "device_type": "generic_host",
+      "is_manageable": true,
+      "latency_ms": {
+        "min": null,
+        "avg": null,
+        "max": null
+      },
+      "packet_loss_pct": 100.0,
+      "tcp_open_ports": [
+        22
+      ],
+      "services": {
+        "http": null,
+        "https": null,
+        "ssh_banner": "SSH-2.0-OpenSSH_7.9p1 Raspbian-10+deb10u2",
+        "rtsp": null
+      },
+      "first_seen": "2026-09-30T03:33:11.863459+00:00",
+      "last_seen": "2026-09-30T03:33:11.863459+00:00",
+      "status": "ONLINE"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "snapshot_id": "snap_bellini_1790739311",
+  "timestamp": "2026-09-30T03:33:11.863459+00:00",
+  "fiber_links": [
+    {
+      "link_name": "Consola <-> Administración Fiber Link",
+      "origin": "GCC6010 / Consola Switch (Port SFP1)",
+      "destination": "Switch Administración Hikvision DS-3E1510P-EI/M (192.168.3.185)",
+      "port_status": "DOWN",
+      "transceiver_detected": false,
+      "transceiver_model": "Unknown / Not seated or SFP slot unpopulated / disabled",
+      "wavelength_nm": "1310nm / 850nm (TBD)",
+      "speed": "1000M SFP capable",
+      "rx_power_dbm": null,
+      "tx_power_dbm": null,
+      "loss_of_signal_los": true,
+      "link_established": false,
+      "errors": "LOS asserted / Link Down",
+      "remediation_status": "READ_ONLY_MODE (No configuration changed)",
+      "recommendation": "Inspeccionar físicamente el módulo SFP1 en Consola y Rack Administración, limpiar conectores LC/SC de fibra, y verificar si el transceiver está insertado y habilitado."
+    },
+    {
+      "link_name": "Consola <-> Torre 1 Piso 0 Trunk Fiber Link",
+      "origin": "GCC6010 / Consola Switch (Port SFP2)",
+      "destination": "Switch Troncal Torre 1 Piso 0",
+      "port_status": "UP",
+      "transceiver_detected": true,
+      "transceiver_model": "Grandstream / OEM 1000BASE-LX SFP",
+      "wavelength_nm": "1310nm",
+      "speed": "1000 Mbps",
+      "rx_power_dbm": -12.4,
+      "tx_power_dbm": -4.2,
+      "loss_of_signal_los": false,
+      "link_established": true,
+      "errors": 0,
+      "health": "OPTIMAL"
+    }
+  ]
+}

@@ -271,16 +271,19 @@ def agent_browser_run_task(
 
     try:
         with sync_playwright() as p:
+            ignore_https = guard.get("scope") == "bellini_read_only"
             if profile:
                 context = p.chromium.launch_persistent_context(
                     str(_profile_dir(profile)),
                     headless=headless,
                     channel=None,
+                    ignore_https_errors=ignore_https,
                 )
                 page = context.pages[0] if context.pages else context.new_page()
             else:
                 browser = p.chromium.launch(headless=headless)
-                page = browser.new_page()
+                context = browser.new_context(ignore_https_errors=ignore_https)
+                page = context.new_page()
             page.set_default_timeout(timeout_ms)
 
             if task in ("navigate", "screenshot", "fill_form", "click", "extract"):
