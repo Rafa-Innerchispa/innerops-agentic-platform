@@ -124,7 +124,7 @@ def bump_revision(*, reason: str, source: str = "system", current_priority: dict
     }
     if current_priority is not None:
         new_state["current_priority"] = current_priority
-    mongo_store.save_coordination_state(STATE_KEY, new_state)
+    mongo_store.upsert_coordination_state(key=STATE_KEY, data=new_state)
     return {"ok": True, "revision": rev, "updated_at": now, "reason": reason}
 
 
@@ -299,7 +299,7 @@ def ack_coordination_revision(agent: str, revision: int) -> dict[str, Any]:
     acks = st.get("agent_acks") or {}
     acks[agent_n] = {"revision": revision, "acked_at": _now(), "acked_at_display": _now_display()}
     new_state = {**st, "agent_acks": acks}
-    mongo_store.save_coordination_state(STATE_KEY, new_state)
+    mongo_store.upsert_coordination_state(key=STATE_KEY, data=new_state)
     return {"ok": True, "agent": agent_n, "revision": revision, "acked_at": acks[agent_n]["acked_at"]}
 
 

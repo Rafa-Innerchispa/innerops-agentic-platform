@@ -1253,6 +1253,47 @@ def cloudflare_tunnel_ingress_status(hostname: str = "", config_path: str = "") 
     return {"ok": True, "hostname": host or None, "count": len(matches), "matches": matches}
 
 
+def cloudflare_tunnel_ingress_upsert(
+    hostname: str,
+    service: str,
+    *,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Create or update one locally-managed cloudflared ingress entry.
+
+    The underlying helper performs the host-side edit through the configured
+    SSH transport, preserves a backup, and restarts only the configured tunnel
+    service. This operation is deliberately explicit and dry-run by default.
+    """
+    zone_name = _infer_zone_for_hostname(hostname)
+    host = _validate_hostname(hostname, zone_name)
+    origin = (service or "").strip()
+    parsed = urllib.parse.urlparse(origin)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("tunnel_service_invalid")
+    if parsed.username or parsed.password or parsed.fragment:
+        raise ValueError("tunnel_service_credentials_or_fragment_forbidden")
+
+    from inneros_core_runtime import cloudflare_ops
+
+    result = cloudflare_ops.ensure_tunnel_ingress(host, origin, dry_run=dry_run)
+    _audit(
+        "tunnel_ingress_upsert",
+        host,
+        {
+            "service": origin,
+            "dry_run": dry_run,
+            "ok": bool(result.get("ok")),
+        },
+    )
+    return {
+        **result,
+        "hostname": host,
+        "service": origin,
+        "dry_run": dry_run,
+    }
+
+
 def cloudflare_hostname_health_check(hostname: str, *, path: str = "/", timeout: float = 12.0) -> dict[str, Any]:
     host = _validate_hostname(hostname, _infer_zone_for_hostname(hostname))
     url = f"https://{host}{path if path.startswith('/') else '/' + path}"

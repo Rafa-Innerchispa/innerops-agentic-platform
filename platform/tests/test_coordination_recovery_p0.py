@@ -67,6 +67,30 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
         self.assertEqual(first["task_id"], second["task_id"])
         self.assertEqual(captured[0]["workflow_id"], f"ops_task:{first['task_id']}")
 
+    def test_revision_bump_uses_current_coordination_state_api(self):
+        with (
+            patch.object(
+                coordination_live.mongo_store,
+                "get_coordination_state",
+                return_value={"ok": False, "key": coordination_live.STATE_KEY},
+            ),
+            patch.object(
+                coordination_live.mongo_store,
+                "upsert_coordination_state",
+                return_value={"ok": True},
+            ) as upsert,
+        ):
+            result = coordination_live.bump_revision(
+                reason="offline compatibility canary",
+                source="test",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["revision"], 1)
+        upsert.assert_called_once()
+        self.assertEqual(upsert.call_args.kwargs["key"], coordination_live.STATE_KEY)
+        self.assertEqual(upsert.call_args.kwargs["data"]["revision"], 1)
+
     def test_direct_completion_is_fail_closed(self):
         result = coordination_live.complete_ops_task(
             "ops_test",
