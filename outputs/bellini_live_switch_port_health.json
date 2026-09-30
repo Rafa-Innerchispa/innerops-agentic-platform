@@ -1,51 +1,46 @@
 {
-  "snapshot_id": "snap_bellini_1790748785",
-  "timestamp": "2026-09-30T06:13:05.451006+00:00",
+  "snapshot_id": "snap_bellini_1790774787",
+  "timestamp": "2026-09-30T13:26:27.633181+00:00",
   "port_health": [
     {
-      "device": "Switch Consola & Gateway Interfaces",
-      "interfaces": [
-        {
-          "name": "WAN1_ISP",
-          "status": "UP",
-          "speed": "1000M",
-          "health": "OPTIMAL",
-          "confidence": 1.0
-        },
-        {
-          "name": "LAN_GCC_UPLINK",
-          "status": "UP",
-          "speed": "1000M",
-          "health": "OPTIMAL",
-          "confidence": 0.9
-        },
-        {
-          "name": "LAN_PBX_UCM",
-          "status": "UP",
-          "speed": "1000M",
-          "health": "OPTIMAL",
-          "confidence": 1.0
-        },
-        {
-          "name": "LAN_NVR_CCTV",
-          "status": "UP",
-          "speed": "1000M",
-          "health": "OPTIMAL",
-          "confidence": 1.0
-        },
-        {
-          "name": "SFP1_ADMIN_FIBER",
-          "status": "DOWN",
-          "health": "CRITICAL_FAULT_OPTICAL_DISCONNECTED",
-          "confidence": 1.0
-        },
-        {
-          "name": "SFP2_TORRE1_TRUNK",
-          "status": "UP",
-          "health": "OPTIMAL_OPERATIONAL",
-          "confidence": 0.95
-        }
-      ]
+      "name": "WAN1_ISP",
+      "status": "UP",
+      "speed": "1000M",
+      "health": "OPTIMAL",
+      "confidence": 1.0
+    },
+    {
+      "name": "LAN_GCC_UPLINK",
+      "status": "UP",
+      "speed": "1000M",
+      "health": "OPTIMAL",
+      "confidence": 0.9
+    },
+    {
+      "name": "LAN_PBX_UCM",
+      "status": "UP",
+      "speed": "1000M",
+      "health": "OPTIMAL",
+      "confidence": 1.0
+    },
+    {
+      "name": "LAN_NVR_CCTV",
+      "status": "UP",
+      "speed": "1000M",
+      "health": "OPTIMAL",
+      "confidence": 1.0
+    },
+    {
+      "name": "SFP1_ADMIN_FIBER",
+      "status": "DOWN",
+      "health": "CRITICAL_FAULT_OPTICAL_DISCONNECTED",
+      "confidence": 1.0
+    },
+    {
+      "name": "SFP2_TORRE1_TRUNK",
+      "status": "UP",
+      "health": "OPTIMAL_OPERATIONAL",
+      "confidence": 0.95
     }
   ]
 }

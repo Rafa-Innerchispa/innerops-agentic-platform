@@ -1,14 +1,15 @@
 {
-  "snapshot_id": "snap_bellini_1790748785",
-  "timestamp": "2026-09-30T06:13:05.451006+00:00",
+  "snapshot_id": "snap_bellini_1790774787",
+  "timestamp": "2026-09-30T13:26:27.633181+00:00",
   "lldp_telemetry": [
     {
       "device": "GCC6010 Gateway (192.168.3.1)",
-      "chassis_id": "00:0B:82:E4:11:00",
+      "chassis_id": "EC:74:D7:23:BC:91",
       "neighbors": [
         {
           "local_port": "LAN3",
-          "remote_system": "Grandstream UCM6104",
+          "remote_system": "Grandstream UCM6104 PBX",
+          "remote_chassis_id": "00:0B:82:F1:40:99",
           "remote_ip": "192.168.3.2",
           "confidence": 0.95
         }

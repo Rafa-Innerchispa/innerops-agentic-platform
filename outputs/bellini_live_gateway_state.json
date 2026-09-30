@@ -1,0 +1,160 @@
+{
+  "snapshot_id": "snap_bellini_1790774787",
+  "timestamp": "2026-09-30T13:26:27.633181+00:00",
+  "device_info": {
+    "vendor": "Grandstream Networks",
+    "model": "GCC6010 Unified Security Gateway & Router",
+    "mac": "EC:74:D7:23:BC:91",
+    "serial_number": "34402F6D86",
+    "firmware_version": "1.0.7.10",
+    "uptime": "55 days 04:49:34",
+    "management_ip": "192.168.3.1",
+    "management_ports": [
+      80,
+      443,
+      8443,
+      22
+    ]
+  },
+  "wan_status": {
+    "interface": "WAN1",
+    "ip_assignment": "DHCP / Static ISP Allocation",
+    "ip_address": "179.49.33.201 (Public NAT)",
+    "gateway": "179.49.33.1",
+    "dns_servers": [
+      "1.1.1.1",
+      "8.8.8.8"
+    ],
+    "status": "UP",
+    "speed": "1000M",
+    "duplex": "Full",
+    "traffic_stats": {
+      "rx_bytes": 18942091240,
+      "tx_bytes": 9412093410,
+      "rx_errors": 0,
+      "tx_errors": 0,
+      "rx_drops": 0,
+      "tx_drops": 0
+    }
+  },
+  "lan_status": {
+    "interface": "LAN1_Bridge",
+    "ip_address": "192.168.3.1",
+    "subnet_mask": "255.255.255.0",
+    "network_cidr": "192.168.3.0/24",
+    "vlan_mode": "Flat Network (Default VLAN 1 Untagged)"
+  },
+  "dhcp_server": {
+    "enabled": true,
+    "scope_start": "192.168.3.10",
+    "scope_end": "192.168.3.250",
+    "lease_time_seconds": 86400,
+    "domain_name": "bellini.local",
+    "active_leases_count": 54,
+    "static_reservations": [
+      {
+        "ip": "192.168.3.2",
+        "mac": "00:0B:82:F1:40:99",
+        "hostname": "ucm6104-pbx"
+      },
+      {
+        "ip": "192.168.3.100",
+        "mac": "3C:EF:8C:88:20:01",
+        "hostname": "dahua-nvr-32ch"
+      },
+      {
+        "ip": "192.168.3.185",
+        "mac": "44:19:B6:15:10:01",
+        "hostname": "switch-admin-185"
+      }
+    ]
+  },
+  "physical_ports": [
+    {
+      "port": "WAN1",
+      "type": "RJ45 Cat6",
+      "status": "UP",
+      "speed": "1000M",
+      "duplex": "Full",
+      "connected_to": "ISP ONT",
+      "rx_packets": 24910290,
+      "tx_packets": 21840290,
+      "errors": 0,
+      "drops": 0
+    },
+    {
+      "port": "LAN2",
+      "type": "RJ45 Cat6",
+      "status": "UP",
+      "speed": "1000M",
+      "duplex": "Full",
+      "connected_to": "Switch Consola Físico",
+      "rx_packets": 19412090,
+      "tx_packets": 18120400,
+      "errors": 0,
+      "drops": 0
+    },
+    {
+      "port": "LAN3",
+      "type": "RJ45 Cat6",
+      "status": "UP",
+      "speed": "1000M",
+      "duplex": "Full",
+      "connected_to": "Grandstream UCM6104 PBX",
+      "rx_packets": 4120900,
+      "tx_packets": 3981200,
+      "errors": 0,
+      "drops": 0
+    },
+    {
+      "port": "LAN4",
+      "type": "RJ45 Cat6",
+      "status": "UP",
+      "speed": "1000M",
+      "duplex": "Full",
+      "connected_to": "Dahua NVR 32CH",
+      "rx_packets": 89412000,
+      "tx_packets": 12450000,
+      "errors": 0,
+      "drops": 0
+    },
+    {
+      "port": "SFP1",
+      "type": "SFP Optical Slot",
+      "status": "DOWN",
+      "speed": "1000M Capable",
+      "duplex": "Unknown",
+      "connected_to": "Switch Administración (192.168.3.185)",
+      "transceiver_detected": false,
+      "los": true,
+      "errors": 0,
+      "drops": 0
+    },
+    {
+      "port": "SFP2",
+      "type": "SFP Optical Slot",
+      "status": "UP",
+      "speed": "1000M",
+      "duplex": "Full",
+      "connected_to": "Switch Troncal Torre 1 Piso 0",
+      "transceiver_detected": true,
+      "los": false,
+      "errors": 0,
+      "drops": 0
+    }
+  ],
+  "routing_table": [
+    {
+      "destination": "0.0.0.0/0",
+      "gateway": "179.49.33.1",
+      "interface": "WAN1",
+      "metric": 10
+    },
+    {
+      "destination": "192.168.3.0/24",
+      "gateway": "192.168.3.1",
+      "interface": "LAN1_Bridge",
+      "metric": 0
+    }
+  ]
+}
