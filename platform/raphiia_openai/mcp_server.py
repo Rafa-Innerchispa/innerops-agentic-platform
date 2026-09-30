@@ -4608,6 +4608,38 @@ async def notion_webhook_setup_http(_request: Request) -> JSONResponse:
     return JSONResponse(notion_webhook.get_notion_webhook_setup())
 
 
+# --- AG-60 Bellini Network Guardian & Dashboard tools ---
+
+@mcp.tool
+def bellini_guardian_status() -> dict[str, Any]:
+    """AG-60: Retorna el estado operativo en vivo, baseline y telemetria de Bellini Network Guardian."""
+    from inneros_core_runtime import bellini_network_guardian as bng
+    return bng.bellini_guardian_status()
+
+
+@mcp.tool
+def bellini_guardian_dashboard() -> dict[str, Any]:
+    """AG-60: Retorna el panel operativo de Bellini I-II con metricas, incidentes y telemetria."""
+    from inneros_core_runtime import bellini_network_guardian as bng
+    return bng.bellini_guardian_dashboard()
+
+
+@mcp.tool
+def bellini_governed_action(
+    action: str,
+    device_ref: str,
+    params_json: str = "{}",
+    dry_run: bool = True,
+    approval_token: str = "",
+) -> dict[str, Any]:
+    """AG-60: Ejecuta o valida en modo simulado (dry-run) una accion gobernada sobre Bellini I-II."""
+    from inneros_core_runtime import bellini_network_guardian as bng
+    try:
+        params = json.loads(params_json or "{}")
+    except Exception:
+        params = {}
+    return bng.execute_governed_action(action, device_ref, params, dry_run=dry_run, approval_token=approval_token or None)
+
 def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
     """Restrict tools advertised and callable by this MCP process to one profile."""
     from fastmcp.server.transforms import Visibility

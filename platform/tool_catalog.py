@@ -7,6 +7,9 @@ from typing import Any
 MCP_VERSION = "2.63.0"
 
 ALL_MCP_TOOL_NAMES = [
+    "bellini_governed_action",
+    "bellini_guardian_dashboard",
+    "bellini_guardian_status",
     "device_fabric_get",
     "device_fabric_health",
     "device_fabric_capabilities",
@@ -3300,3 +3303,39 @@ DEVICE_FABRIC_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
 }
 
 TOOL_DEFINITIONS.update(DEVICE_FABRIC_TOOL_DEFINITIONS)
+
+
+BELLINI_GUARDIAN_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "bellini_guardian_status": {
+        "description": "Estado operativo en vivo, baseline y telemetria de Bellini Network Guardian.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["bellini_guardian_state"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "site_id": "string", "gateway_online": "bool"},
+        "example_payload": {},
+    },
+    "bellini_guardian_dashboard": {
+        "description": "Panel operativo de Bellini I-II con metricas, incidentes y telemetria.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["bellini_guardian_state", "bellini_incidents"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "site_id": "string", "device_matrix": "array"},
+        "example_payload": {},
+    },
+    "bellini_governed_action": {
+        "description": "Ejecuta o valida en modo simulado (dry-run) una accion gobernada sobre Bellini I-II.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": [],
+        "reads_from": [],
+        "input_schema": {"action": "string", "device_ref": "string", "params_json": "string|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "status": "string"},
+        "example_payload": {"action": "reboot_ap", "device_ref": "bellini_ap_188", "dry_run": True},
+    },
+}
+
+TOOL_DEFINITIONS.update(BELLINI_GUARDIAN_TOOL_DEFINITIONS)
