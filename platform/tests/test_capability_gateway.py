@@ -69,6 +69,21 @@ def test_capability_invoke_mutation_guard():
     assert res["ok"] is False
     assert res["error"] == "MUTATION_FORBIDDEN_IN_READ_ONLY_MODE"
 
+def test_coordination_messaging_list_capability(monkeypatch):
+    monkeypatch.setattr(
+        "raphiia_openai.memory.agent_messages.list_agent_messages",
+        lambda **kwargs: {"ok": True, "count": 0, "messages": [], "role": kwargs.get("role")},
+    )
+    found = capability_search(query="coordination messaging")
+    assert any(item["capability_id"] == "coordination.messaging.list.v1" for item in found["capabilities"])
+    res = capability_invoke(
+        capability_id="coordination.messaging.list.v1",
+        parameters={"agent": "chatgpt", "limit": 5},
+    )
+    assert res["ok"] is True
+    assert res["status"] == "COMPLETED"
+
+
 def test_capability_execution():
     res = capability_invoke(
         capability_id="network.device.query.v1",

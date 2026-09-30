@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import concurrent.futures
+from unittest.mock import MagicMock, patch
 
-from inneros_core_runtime import capability_router, mcp_diagnostics, mcp_profiles
+from inneros_core_runtime import capability_router, coordination_ingest, mcp_diagnostics, mcp_profiles
+from inneros_core_runtime import durable_coordination_spine as spine
 
 
 def test_route_mcp_tools_accepts_extra_mcp_layer_kwargs():
@@ -52,3 +54,45 @@ def test_batch_read_only_small_tools_do_not_raise():
 
     assert len(results) == 12
     assert all(item.get("session_valid") for item in results)
+
+
+def test_create_agent_message_task_surface_reaches_temporal():
+    from inneros_core_runtime.mcp_server import create_agent_message
+
+    captured: list[dict] = []
+
+    def fake_start(task: dict) -> dict:
+        captured.append(task)
+        return {"ok": True, "workflow_id": task["workflow_id"], "run_id": "run-mcp-surface"}
+
+    with (
+        patch(
+            "raphiia_openai.memory.agent_messages.create_agent_message",
+            return_value={
+                "ok": True,
+                "created": True,
+                "message_id": "msg_mcp_surface",
+                "correlation_id": "corr-mcp-surface",
+            },
+        ),
+        patch.object(
+            coordination_ingest.mongo_store,
+            "get_db",
+            return_value={coordination_ingest.COL_AGENT_MESSAGES: MagicMock()},
+        ),
+        patch.object(spine, "start_task_workflow", side_effect=fake_start),
+        patch.object(coordination_ingest.coordination_live, "_publish_task_event", return_value={"ok": True}),
+        patch.object(coordination_ingest.coordination_live, "bump_revision", return_value={"ok": True}),
+    ):
+        result = create_agent_message(
+            from_agent="CURSOR",
+            target_agent="qwen-coding",
+            title="[P0] MCP surface task",
+            body="repo: Rafa-Innerchispa/innerops-agentic-platform\n- temporal admission",
+            message_type="task",
+            idempotency_key="message:msg_mcp_surface",
+        )
+
+    assert result["ok"] is True
+    assert result["normalization"]["run_id"] == "run-mcp-surface"
+    assert captured[0]["source_message_id"] == "msg_mcp_surface"

@@ -2120,6 +2120,12 @@ def agent_browser_run_task(
     loopback_ports: list[int] | None = None,
 ) -> dict[str, Any]:
     """AG-55: tarea browser local (navigate|screenshot|fill_form|click|extract). dry_run=True por defecto."""
+    if local_preview or loopback_ports:
+        return {
+            "ok": False,
+            "error": "unsupported_browser_run_task_options",
+            "detail": "local_preview and loopback_ports are not supported on MCP Small/public wrapper",
+        }
     from raphiia_openai.agents import ag55_browser_ops_agent as ag55
 
     return ag55.agent_browser_run_task(
@@ -2131,8 +2137,6 @@ def agent_browser_run_task(
         extract_selector=extract_selector,
         dry_run=dry_run,
         timeout_ms=timeout_ms,
-        local_preview=local_preview,
-        loopback_ports=loopback_ports,
     )
 
 

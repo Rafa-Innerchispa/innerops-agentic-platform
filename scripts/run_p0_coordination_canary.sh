@@ -14,8 +14,13 @@ cd "$ROOT"
 
 BRANCH="$(git branch --show-current)"
 HEAD_SHA="$(git rev-parse HEAD)"
-if [[ "$BRANCH" != "repair/coordination-recovery-20260929" ]]; then
-  echo "REFUSED: expected repair branch, got '$BRANCH'" >&2
+ALLOWED_BRANCHES=(
+  "repair/coordination-recovery-20260929"
+  "cursor/p0-small-capability-integration-20260930"
+  "cursor/p0-pr111-runtime-repair-20260930"
+)
+if [[ " ${ALLOWED_BRANCHES[*]} " != *" ${BRANCH} "* ]]; then
+  echo "REFUSED: branch '$BRANCH' not in allowed P0 integration set" >&2
   exit 3
 fi
 
@@ -48,7 +53,14 @@ fi
 
 export PYTHONPATH="$ROOT/platform"
 
-"$VENV/bin/python" platform/tests/test_coordination_recovery_p0.py -v
+"$VENV/bin/python" -m pytest \
+  platform/tests/test_coordination_recovery_p0.py \
+  platform/tests/test_mcp_diagnostics_small_profile.py \
+  platform/tests/test_mcp_small_surface_e2e.py \
+  platform/tests/test_mcp_poll_scope.py \
+  platform/tests/test_capability_gateway.py \
+  platform/tests/test_mcp_public_contract_drift.py \
+  -q
 "$VENV/bin/python" platform/tests/test_dual_node_parity_p0.py -v
 "$VENV/bin/python" -m py_compile \
   platform/inneros_core_runtime/mcp_diagnostics.py \
