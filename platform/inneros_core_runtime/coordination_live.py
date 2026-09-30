@@ -368,6 +368,7 @@ def create_ops_task(
     preferred_provider: str | None = None,
     preferred_model: str | None = None,
     idempotency_key: str | None = None,
+    source_message_id: str | None = None,
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
     tid = (
@@ -402,6 +403,7 @@ def create_ops_task(
         "preferred_provider": preferred_provider or assignee.lower(),
         "preferred_model": preferred_model,
         "idempotency_key": idempotency_key or f"idem_{tid}",
+        "source_message_id": source_message_id,
         "checklist": [checklist] if isinstance(checklist, str) else (checklist or []),
         "evidence_required": [evidence_required] if isinstance(evidence_required, str) else (evidence_required or []),
         "evidence": {},

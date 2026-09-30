@@ -67,6 +67,33 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
         self.assertEqual(first["task_id"], second["task_id"])
         self.assertEqual(captured[0]["workflow_id"], f"ops_task:{first['task_id']}")
 
+    def test_task_admission_preserves_source_message_id(self):
+        captured: list[dict] = []
+
+        def fake_start(task: dict) -> dict:
+            captured.append(task)
+            return {
+                "ok": True,
+                "workflow_id": task["workflow_id"],
+                "run_id": "run-source-message",
+            }
+
+        with (
+            patch.object(spine, "start_task_workflow", side_effect=fake_start),
+            patch.object(coordination_live, "_publish_task_event", return_value={"ok": True}),
+            patch.object(coordination_live, "bump_revision", return_value={"ok": True}),
+        ):
+            result = coordination_live.create_ops_task(
+                "qwen-coding",
+                "Normalized task message",
+                idempotency_key="message:msg_test_source",
+                source_message_id="msg_test_source",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["task"]["source_message_id"], "msg_test_source")
+        self.assertEqual(captured[0]["source_message_id"], "msg_test_source")
+
     def test_revision_bump_uses_current_coordination_state_api(self):
         with (
             patch.object(
