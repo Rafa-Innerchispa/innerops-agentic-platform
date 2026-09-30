@@ -3080,6 +3080,66 @@ def route_mcp_tools(
 
 
 @mcp.tool
+def capability_search(
+    query: str = "",
+    domain: str | None = None,
+    tenant_id: str | None = None,
+    max_results: int = 10,
+) -> dict[str, Any]:
+    """Search allowlisted internal capabilities without expanding tools/list."""
+    from inneros_core_runtime import capability_gateway
+
+    return capability_gateway.capability_search(
+        query=query,
+        domain=domain,
+        tenant_id=tenant_id,
+        max_results=max_results,
+    )
+
+
+@mcp.tool
+def capability_describe(capability_id: str, version: str | None = None) -> dict[str, Any]:
+    """Describe one registered capability manifest, scopes, and policies."""
+    from inneros_core_runtime import capability_gateway
+
+    return capability_gateway.capability_describe(capability_id=capability_id, version=version)
+
+
+@mcp.tool
+def capability_invoke(
+    capability_id: str,
+    parameters: dict[str, Any],
+    idempotency_key: str | None = None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Invoke one allowlisted capability handler with server-side policy enforcement."""
+    from inneros_core_runtime import capability_gateway
+
+    return capability_gateway.capability_invoke(
+        capability_id=capability_id,
+        parameters=parameters,
+        idempotency_key=idempotency_key,
+        context=context,
+    )
+
+
+@mcp.tool
+def capability_execution(
+    execution_id: str,
+    action: str = "status",
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Query or control a capability execution (status, cancel, approve)."""
+    from inneros_core_runtime import capability_gateway
+
+    return capability_gateway.capability_execution(
+        execution_id=execution_id,
+        action=action,
+        payload=payload,
+    )
+
+
+@mcp.tool
 def record_collection(payload: dict[str, Any]) -> dict[str, Any]:
     """Registra cobro parcial o total de un receivable."""
     return accounting_store.record_collection(payload)

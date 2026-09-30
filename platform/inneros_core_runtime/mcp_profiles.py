@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.5"
+PROFILES_VERSION = "1.4.6"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -21,6 +21,10 @@ PROFILES: dict[str, dict[str, Any]] = {
             "diagnose_mcp_session",
             "list_mcp_tool_profiles",
             "route_mcp_tools",
+            "capability_search",
+            "capability_describe",
+            "capability_invoke",
+            "capability_execution",
             "bootstrap_context",
             "get_coordination_live",
             "poll_agent_inbox",
@@ -32,13 +36,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "dev_swarm_scope_status",
             "dev_swarm_launch_task",
             "dev_swarm_scheduler_status",
-            "device_fabric_discover",
             "device_fabric_health",
             "device_fabric_get",
-            "device_fabric_inventory",
             "device_fabric_providers",
-            "bellini_governed_action",
-            "bellini_guardian_dashboard",
             "bellini_guardian_status",
         ],
     },
