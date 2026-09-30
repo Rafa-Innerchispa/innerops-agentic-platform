@@ -1,39 +1,67 @@
 {
-  "snapshot_id": "snap_bellini_1790739311",
-  "timestamp": "2026-09-30T03:33:11.863459+00:00",
+  "snapshot_id": "snap_bellini_1790748785",
+  "timestamp": "2026-09-30T06:13:05.451006+00:00",
   "fiber_links": [
     {
       "link_name": "Consola <-> Administración Fiber Link",
-      "origin": "GCC6010 / Consola Switch (Port SFP1)",
-      "destination": "Switch Administración Hikvision DS-3E1510P-EI/M (192.168.3.185)",
-      "port_status": "DOWN",
+      "origin_endpoint": {
+        "device": "Switch Consola / SFP Slot 1",
+        "port": "SFP1",
+        "rack": "Consola Principal"
+      },
+      "destination_endpoint": {
+        "device": "Switch Administración Hikvision DS-3E1510P-EI/M (192.168.3.185)",
+        "port": "SFP Uplink",
+        "rack": "Rack Administración"
+      },
+      "link_state": "DOWN",
       "transceiver_detected": false,
-      "transceiver_model": "Unknown / Not seated or SFP slot unpopulated / disabled",
-      "wavelength_nm": "1310nm / 850nm (TBD)",
-      "speed": "1000M SFP capable",
-      "rx_power_dbm": null,
-      "tx_power_dbm": null,
+      "transceiver_model": "UNVERIFIED / Slot unpopulated or module unseated",
+      "wavelength": "UNVERIFIED (Requires physical inspection)",
+      "rx_power_dbm": "UNVERIFIED / NO_DDM_DATA",
+      "tx_power_dbm": "UNVERIFIED / NO_DDM_DATA",
       "loss_of_signal_los": true,
-      "link_established": false,
-      "errors": "LOS asserted / Link Down",
-      "remediation_status": "READ_ONLY_MODE (No configuration changed)",
-      "recommendation": "Inspeccionar físicamente el módulo SFP1 en Consola y Rack Administración, limpiar conectores LC/SC de fibra, y verificar si el transceiver está insertado y habilitado."
+      "provenance": {
+        "source": "Live link-carrier check",
+        "timestamp": "2026-09-30T06:13:05.451006+00:00",
+        "raw_reference": "Carrier signal absent (LOS asserted), link state DOWN",
+        "optical_telemetry_status": "No DDM telemetry available without live transceiver link"
+      },
+      "fault_isolation": {
+        "root_cause_candidate": "Módulo SFP1 desconectado/ausente en Consola o corte físico en tirada de fibra Consola-Administración",
+        "recommended_action": "Inspección física del patch cord de fibra, limpieza de conectores LC y verificación del transceiver en ambos extremos."
+      }
     },
     {
-      "link_name": "Consola <-> Torre 1 Piso 0 Trunk Fiber Link",
-      "origin": "GCC6010 / Consola Switch (Port SFP2)",
-      "destination": "Switch Troncal Torre 1 Piso 0",
-      "port_status": "UP",
+      "link_name": "Consola <-> Torre 1 Piso 0 Trunk Link",
+      "origin_endpoint": {
+        "device": "Switch Consola / SFP Slot 2",
+        "port": "SFP2 / Trunk Port",
+        "rack": "Consola Principal"
+      },
+      "destination_endpoint": {
+        "device": "Switch Distribución Torre 1 Piso 0",
+        "port": "SFP / Uplink Port",
+        "rack": "Torre 1 Piso 0"
+      },
+      "link_state": "UP",
       "transceiver_detected": true,
-      "transceiver_model": "Grandstream / OEM 1000BASE-LX SFP",
-      "wavelength_nm": "1310nm",
-      "speed": "1000 Mbps",
-      "rx_power_dbm": -12.4,
-      "tx_power_dbm": -4.2,
+      "transceiver_model": "1000BASE-LX SFP (Presumed / Unverified part number)",
+      "wavelength": "1310nm (Standard 1000BASE-LX specification)",
+      "rx_power_dbm": "UNVERIFIED / DDM_NOT_EXPOSED_VIA_API",
+      "tx_power_dbm": "UNVERIFIED / DDM_NOT_EXPOSED_VIA_API",
       "loss_of_signal_los": false,
-      "link_established": true,
-      "errors": 0,
-      "health": "OPTIMAL"
+      "speed": "1000 Mbps",
+      "provenance": {
+        "source": "Live carrier & L2 traffic telemetry",
+        "timestamp": "2026-09-30T06:13:05.451006+00:00",
+        "raw_reference": "Carrier signal established, packets transmitting/receiving normally",
+        "optical_telemetry_status": "Valores numéricos de dBm marcados como UNVERIFIED para cumplir con la política estricta de procedencia de datos"
+      },
+      "contingency_status": {
+        "contingency_path": "Cable Ethernet directo de respaldo tendido hacia Torre 1 Piso 0",
+        "currently_active": true
+      }
     }
   ]
 }

@@ -1,97 +1,61 @@
 {
-  "snapshot_id": "snap_bellini_1790739311",
-  "timestamp": "2026-09-30T03:33:11.863459+00:00",
+  "snapshot_id": "snap_bellini_1790748785",
+  "timestamp": "2026-09-30T06:13:05.451006+00:00",
   "switches": [
     {
-      "switch_id": "bellini_switch_consola",
-      "name": "Switch Consola Principal (Core Aggregation)",
-      "ip": "192.168.3.1",
-      "device_role": "Gateway & Aggregation Core (GCC6010 / Internal Switching Fabric)",
-      "management_protocol": "HTTPS / GWN Cloud Controller API",
-      "status": "ONLINE",
+      "switch_id": "bellini_switch_consola_physical",
+      "name": "Switch Físico Consola",
+      "role": "Core Distribution & Aggregation",
+      "management_status": "CONFIRMED_PRESENCE_UNVERIFIED_MGMT",
       "ports": {
-        "port_1_wan": {
-          "status": "UP",
+        "uplink_gcc6010": {
+          "connected_device": "Grandstream GCC6010 (192.168.3.1)",
           "speed": "1000M",
-          "duplex": "Full",
-          "connected_device": "ISP ONT (Fibra Óptica Externa)"
-        },
-        "port_2_lan_consola": {
           "status": "UP",
-          "speed": "1000M",
-          "duplex": "Full",
-          "connected_macs": [
-            "00:1E:67:D8:1A:11"
-          ],
-          "connected_ips": [
-            "192.168.3.180"
-          ],
-          "description": "Consola PC / Tailscale Gateway Lobby"
+          "confidence": 0.9
         },
-        "port_3_lan_ucm": {
+        "port_ucm_pbx": {
+          "connected_device": "Grandstream UCM6104 PBX (192.168.3.2)",
+          "mac": "00:0B:82:F1:40:99",
+          "speed": "1000M",
           "status": "UP",
-          "speed": "1000M",
-          "duplex": "Full",
-          "connected_macs": [
-            "00:0B:82:F1:40:99"
-          ],
-          "connected_ips": [
-            "192.168.3.2"
-          ],
-          "description": "Grandstream UCM PBX"
+          "confidence": 1.0
         },
-        "port_4_lan_nvr": {
+        "port_dahua_nvr": {
+          "connected_device": "Dahua NVR 32CH (192.168.3.100)",
+          "mac": "3C:EF:8C:88:20:01",
+          "speed": "1000M",
           "status": "UP",
-          "speed": "1000M",
-          "duplex": "Full",
-          "connected_macs": [
-            "3C:EF:8C:88:20:01"
-          ],
-          "connected_ips": [
-            "192.168.3.100"
-          ],
-          "description": "Dahua NVR 32CH"
+          "confidence": 1.0
         },
-        "port_5_sfp1_admin_fiber": {
+        "port_tailscale_lobby": {
+          "connected_device": "Tailscale Gateway PC (192.168.3.180)",
+          "mac": "00:1E:67:D8:1A:11",
+          "speed": "1000M",
+          "status": "UP",
+          "confidence": 1.0
+        },
+        "sfp1_admin_fiber": {
+          "connected_device": "Switch Administración (192.168.3.185)",
+          "type": "SFP Fiber Optic",
           "status": "DOWN",
-          "type": "SFP Fiber Optical Enlace Consola <-> Administración",
-          "speed": "1000M SFP",
-          "transceiver_detected": false,
-          "rx_power_dbm": null,
-          "tx_power_dbm": null,
-          "los": true,
-          "crc_errors": 0,
-          "operational_state": "LINK_DOWN_FIBER_FAULT"
+          "fault": "LOS_ASSERTED / NO_LINK",
+          "confidence": 1.0
         },
-        "port_6_sfp2_torre1_fiber": {
+        "sfp2_torre1_trunk": {
+          "connected_device": "Switch Torre 1 Piso 0",
+          "type": "SFP Fiber Optic Trunk + Backup Ethernet",
           "status": "UP",
-          "type": "SFP Fiber / Uplink Troncal Torre 1 Piso 0",
-          "speed": "1000M SFP",
-          "transceiver_detected": true,
-          "rx_power_dbm": -12.4,
-          "tx_power_dbm": -4.2,
-          "los": false,
-          "crc_errors": 0,
-          "connected_downstream": "Switch Troncal Torre 1 Piso 0"
+          "confidence": 0.95
         }
       }
     },
     {
-      "switch_id": "bellini_switch_185",
-      "name": "Switch Administración (Rack Administración)",
-      "ip": "192.168.3.185",
-      "model": "Hikvision DS-3E1510P-EI/M Managed PoE Switch",
-      "management_protocol": "HTTP/HTTPS / Hikvision SADP / Web UI",
-      "status": "ISOLATED_FIBER_DOWN",
-      "evidence": "Falla de enlace de fibra óptica en SFP1 Consola <-> Administración. Sin ruta IP directa mientras SFP esté caído.",
-      "ports": {
-        "sfp_uplink": {
-          "status": "DOWN",
-          "type": "SFP Optical Module to Consola",
-          "transceiver_detected": "Presumed Present",
-          "optical_fault": true
-        }
-      }
+      "switch_id": "bellini_switch_admin_185",
+      "name": "Switch Administración (192.168.3.185)",
+      "model": "Hikvision DS-3E1510P-EI/M",
+      "status": "ISOLATED_DUE_TO_SFP1_FAULT",
+      "confidence": 1.0
     }
   ]
 }
