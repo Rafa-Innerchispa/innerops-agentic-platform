@@ -252,12 +252,22 @@ def diagnose_mcp_session(
     client_tool_count: int | None = None,
     client_catalog_version: str | None = None,
     client_seen_tools: list[str] | None = None,
+    profile: str | None = None,
     session_id: str | None = None,
     user_agent: str | None = None,
 ) -> dict[str, Any]:
     manifest = _manifest_payload()
     current_guard = _catalog_guard()
     expected_tools = sorted(tool_catalog.ALL_MCP_TOOL_NAMES)
+    profile_error: str | None = None
+    if profile:
+        from inneros_core_runtime import mcp_profiles
+
+        selected = mcp_profiles.get_profile(profile)
+        if selected.get("ok"):
+            expected_tools = sorted(selected.get("tools") or [])
+        else:
+            profile_error = "unknown_profile"
     seen_tools = sorted(set(client_seen_tools or []))
     stale_catalog = False
     reasons: list[str] = []
@@ -265,9 +275,12 @@ def diagnose_mcp_session(
     if client_catalog_version and client_catalog_version != CATALOG_VERSION:
         stale_catalog = True
         reasons.append("client_catalog_version_mismatch")
-    if client_tool_count is not None and client_tool_count < manifest["tool_count"]:
+    expected_tool_count = len(expected_tools)
+    if client_tool_count is not None and client_tool_count != expected_tool_count:
         stale_catalog = True
-        reasons.append("client_tool_count_older_than_server")
+        reasons.append("client_tool_count_mismatch")
+    if profile_error:
+        reasons.append(profile_error)
     if seen_tools and any(tool not in expected_tools for tool in seen_tools):
         reasons.append("client_reports_unknown_tools")
     if client_tool_count is None and client_catalog_version is None and not seen_tools:
@@ -293,10 +306,11 @@ def diagnose_mcp_session(
         "timestamp": _now_iso(),
         "session_id": session_id,
         "user_agent": user_agent,
+        "profile": profile,
         "this_client_sees_tools": client_tool_count,
         "this_client_catalog_version": client_catalog_version,
         "client_seen_tools": seen_tools,
-        "expected_tool_count": manifest["tool_count"],
+        "expected_tool_count": expected_tool_count,
         "expected_catalog_version": CATALOG_VERSION,
         "expected_tools": expected_tools,
         "expected_tool_names_hash": _tool_names_hash(expected_tools),

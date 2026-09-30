@@ -1819,7 +1819,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "reads_from": ["ralfia_agent_messages"],
         "input_schema": {"agent": "string", "limit": "integer|null", "auto_ack": "boolean|null"},
         "output_schema": {"ok": "bool", "messages": "array", "acknowledged": "array", "ack_count": "integer"},
-        "example_payload": {"agent": "codex", "limit": 20, "auto_ack": True},
+        "example_payload": {"agent": "codex", "limit": 20, "auto_ack": False},
     },
     "list_agent_messages": {
         "description": "Lista mensajes canal único. role=inbox|sent|all.",

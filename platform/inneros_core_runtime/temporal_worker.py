@@ -22,6 +22,8 @@ from inneros_core_runtime.temporal_activities import (
     activity_hydrate_worktree,
     activity_execute_agent_graph,
     activity_sync_mongo_mirror,
+    activity_publish_nats_event,
+    activity_validate_completion_gate,
 )
 
 logger = logging.getLogger("temporal_worker")
@@ -64,6 +66,8 @@ async def main():
                 activity_hydrate_worktree,
                 activity_execute_agent_graph,
                 activity_sync_mongo_mirror,
+                activity_publish_nats_event,
+                activity_validate_completion_gate,
             ],
         )
         workers.append(worker)

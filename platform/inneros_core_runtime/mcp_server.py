@@ -302,8 +302,8 @@ def ack_agent_message(message_id: str, agent: str) -> dict[str, Any]:
 
 
 @mcp.tool
-def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = True) -> dict[str, Any]:
-    """RACB: consulta el INBOX y genera ACK de lectura automático para lo entregado."""
+def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = False) -> dict[str, Any]:
+    """RACB: consulta el INBOX; el ACK requiere solicitud explícita."""
     from raphiia_openai.memory import agent_messages as _am
 
     return _am.poll_agent_inbox(agent=agent, limit=limit, auto_ack=auto_ack)
@@ -5127,7 +5127,7 @@ def create_ops_task(
     preferred_model: str | None = None,
     idempotency_key: str | None = None,
 ) -> OpsTaskToolResult:
-    """Orden formal con checklist + evidencia → Mongo ops_tasks + INBOX assignee."""
+    """Admite una orden formal mediante el workflow canónico de Temporal."""
     from raphiia_openai import coordination_live
 
     return coordination_live.create_ops_task(
@@ -5155,7 +5155,7 @@ def create_ops_task(
 
 @mcp.tool
 def complete_ops_task(task_id: str, status: str = "completed", evidence: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Cierra orden ops con evidencia verificable."""
+    """Compatibilidad: rechaza cierres directos; Temporal verifica y completa."""
     from raphiia_openai import coordination_live
 
     return coordination_live.complete_ops_task(task_id, status=status, evidence=evidence)
@@ -5258,7 +5258,7 @@ def update_ops_task_state(
     expected_revision: int | None = None,
     force_handoff: bool = False,
 ) -> dict[str, Any]:
-    """RACB: transition task state with ownership and revision checks."""
+    """Envía comandos permitidos al workflow canónico; no muta Mongo."""
     from raphiia_openai import coordination_live
 
     return coordination_live.update_ops_task_state(

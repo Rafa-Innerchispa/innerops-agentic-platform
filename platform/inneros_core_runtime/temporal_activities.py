@@ -32,6 +32,13 @@ except ImportError:
 
 logger = logging.getLogger("temporal_activities")
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://127.0.0.1:27017")
+MONGODB_DB = os.environ.get("INNEROS_MONGO_DB", "pcdoctor_swarm")
+WORKTREE_BASE = Path(
+    os.environ.get(
+        "INNEROS_WORKTREE_BASE",
+        "/home/rlopez/inneros/inneros_core/worktrees",
+    )
+)
 
 
 def _safe_heartbeat(details: str):
@@ -59,8 +66,7 @@ async def activity_validate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str,
 async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("hydrating_worktree")
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
-    worktree_base = Path("/home/rlopez/inneros/inneros_core/worktrees")
-    worktree_path = worktree_base / f"temporal-{envelope.task_id}"
+    worktree_path = WORKTREE_BASE / f"temporal-{envelope.task_id}"
     worktree_path.mkdir(parents=True, exist_ok=True)
     return {"ok": True, "worktree": str(worktree_path)}
 
@@ -81,10 +87,22 @@ async def activity_publish_nats_event(event_type: str, envelope_dict: Dict[str, 
             payload=payload,
             envelope=envelope_dict,
         )
-        return {"ok": True, "event_id": res.get("event_id")}
+        if not res.get("ok"):
+            raise ApplicationError(
+                f"Durable event publication failed: {res.get('reason') or res}",
+                type="DURABLE_EVENT_PUBLICATION_FAILED",
+                non_retryable=False,
+            )
+        return {"ok": True, "event_id": res.get("event_id"), "backend": res.get("backend")}
     except Exception as exc:
-        logger.warning(f"Publish NATS event error (non-fatal): {exc}")
-        return {"ok": False, "error": str(exc)}
+        if isinstance(exc, ApplicationError):
+            raise
+        logger.exception("Durable event publication failed")
+        raise ApplicationError(
+            f"Durable event publication failed: {exc}",
+            type="DURABLE_EVENT_PUBLICATION_FAILED",
+            non_retryable=False,
+        ) from exc
 
 
 @activity.defn
@@ -154,18 +172,52 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "test_results": {"exit_code": 0, "ok": True},
             "error_count": 0
         }
+    if envelope_dict.get("canary_test_type") == "successful_diff":
+        if (
+            envelope.execution_lane != "canary"
+            or MONGODB_DB != "pcdoctor_swarm_canary"
+            or "/.canary/worktrees" not in worktree
+        ):
+            raise ApplicationError(
+                "successful_diff fixture is restricted to the isolated P0 canary",
+                type="CANARY_ISOLATION_VIOLATION",
+                non_retryable=True,
+            )
+        artifact = Path(worktree) / "p0-success-evidence.txt"
+        artifact.write_text(
+            f"task_id={envelope.task_id}\nverified_by=isolated_temporal_canary\n",
+            encoding="utf-8",
+        )
+        return {
+            "ok": True,
+            "files_count": 1,
+            "code_diff": "+ p0-success-evidence.txt",
+            "test_results": {"exit_code": 0, "ok": True},
+            "error_count": 0,
+            "evidence": {"artifact": str(artifact), "persisted": artifact.is_file()},
+        }
 
-    # Real local model execution
+    # Local models may produce a candidate response, but they do not constitute
+    # proof that code changed or tests passed.  Evidence must come from the
+    # bounded execution plane / worktree verifier.  Never manufacture a diff,
+    # file count or successful test result here.
     res = local_model_router.run_local_model(
         task_type=envelope.task_class or "coding",
         prompt=f"Task {envelope.task_id}: {envelope.objective or envelope.title}"
     )
     return {
         "ok": bool(res.get("ok")),
-        "files_count": 1,
-        "code_diff": "+ implemented logic",
-        "test_results": {"exit_code": 0, "ok": True},
+        "files_count": 0,
+        "code_diff": "",
+        "test_results": {
+            "exit_code": None,
+            "ok": False,
+            "reason": "execution_evidence_not_provided",
+        },
         "response": res.get("response") or res.get("text") or "",
+        "worktree": worktree,
+        "candidate_only": True,
+        "requires_bounded_executor": True,
     }
 
 
@@ -175,7 +227,7 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
     try:
         from pymongo import MongoClient
         client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=2000)
-        db = client["pcdoctor_swarm"]
+        db = client[MONGODB_DB]
         col = db["ralfia_ops_tasks"]
         task_id = envelope_dict.get("task_id")
         now = datetime.now(timezone.utc).isoformat()
@@ -196,5 +248,9 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
         )
         return {"ok": True, "mirrored": True}
     except Exception as e:
-        logger.warning(f"Mongo mirror update non-fatal error: {e}")
-        return {"ok": False, "error": str(e)}
+        logger.exception("Mongo projection update failed")
+        raise ApplicationError(
+            f"Mongo projection update failed: {e}",
+            type="MONGO_PROJECTION_FAILED",
+            non_retryable=False,
+        ) from e

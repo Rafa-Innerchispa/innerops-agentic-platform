@@ -17,6 +17,11 @@ CANONICAL_MAILBOXES = frozenset(
         "dev_swarm",
         "gemini",
         "notion",
+        "qwen_coding",
+        "codex_repair",
+        "integration_guardian",
+        "inneros_orchestrator",
+        "browser_qa",
         "rafael",
         "ralfia",
     }
@@ -36,6 +41,16 @@ ALIASES = {
     "codex-cli": "codex",
     "devswarm": "dev_swarm",
     "dev-swarm": "dev_swarm",
+    "qwen-coding": "qwen_coding",
+    "qwen_coding": "qwen_coding",
+    "codex-repair": "codex_repair",
+    "codex_repair": "codex_repair",
+    "integration-guardian": "integration_guardian",
+    "integration_guardian": "integration_guardian",
+    "inneros-orchestrator": "inneros_orchestrator",
+    "inneros_orchestrator": "inneros_orchestrator",
+    "browser-qa": "browser_qa",
+    "browser_qa": "browser_qa",
 }
 
 

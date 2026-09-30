@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import hashlib
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
@@ -131,7 +132,7 @@ def _unread_messages() -> dict[str, int]:
     try:
         db = mongo_store.get_db()
         pipeline = [
-            {"$match": {"status": {"$in": ["unread", "pending", "delivered"]}}},
+            {"$match": {"status": {"$in": ["open", "unread", "pending", "delivered"]}}},
             {"$group": {"_id": {"$ifNull": ["$recipient", "$to"]}, "count": {"$sum": 1}}},
         ]
         results = list(db[COL_AGENT_MESSAGES].aggregate(pipeline))
@@ -172,7 +173,7 @@ def get_coordination_live() -> dict[str, Any]:
     # Map unread messages by task_id
     unread_by_task = {}
     for m in all_msgs:
-        if m.get("status") in ["unread", "pending", "delivered"]:
+        if m.get("status") in ["open", "unread", "pending", "delivered"]:
             tid = m.get("task_id")
             if tid:
                 unread_by_task.setdefault(tid, []).append(m)
@@ -254,7 +255,7 @@ def get_coordination_live() -> dict[str, Any]:
             "status": m.get("status"),
             "created_at": m.get("created_at")
         }
-        for m in all_msgs if m.get("status") in ["unread", "pending", "delivered"]
+        for m in all_msgs if m.get("status") in ["open", "unread", "pending", "delivered"]
     ]
 
     return {
@@ -368,8 +369,12 @@ def create_ops_task(
     preferred_model: str | None = None,
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
-    """Creación de tarea con envelope canónico único y workflow_id ops_task:<task_id>."""
-    tid = _task_id()
+    """Admit a task through Temporal, the only lifecycle authority."""
+    tid = (
+        f"ops_{hashlib.sha256(idempotency_key.encode()).hexdigest()[:12]}"
+        if idempotency_key
+        else _task_id()
+    )
     now = _now()
     workflow_id = f"ops_task:{tid}"
     doc = {
@@ -403,11 +408,34 @@ def create_ops_task(
         "revision": 1,
     }
 
-    db = mongo_store.get_db()
-    db[OPS_TASKS_COL].insert_one(doc)
-    _publish_task_event("task.created", doc, actor=from_agent, status="queued")
+    from inneros_core_runtime import durable_coordination_spine
+
+    started = durable_coordination_spine.start_task_workflow(doc)
+    if not started.get("ok"):
+        return {
+            "ok": False,
+            "error": "temporal_task_admission_failed",
+            "task_id": tid,
+            "workflow_id": workflow_id,
+            "details": started,
+        }
+    doc["run_id"] = started.get("run_id")
+    _publish_task_event(
+        "task.created",
+        doc,
+        actor=from_agent,
+        status="queued",
+        payload={"workflow_id": workflow_id, "run_id": started.get("run_id")},
+    )
     bump_revision(reason=f"create_ops_task: {tid}", source=from_agent)
-    return {"ok": True, "task_id": tid, "workflow_id": workflow_id, "task": doc}
+    return {
+        "ok": True,
+        "task_id": tid,
+        "workflow_id": workflow_id,
+        "run_id": started.get("run_id"),
+        "authority": "temporal",
+        "task": doc,
+    }
 
 
 def heartbeat_ops_task(
@@ -418,10 +446,12 @@ def heartbeat_ops_task(
     current_step: str = "",
     last_progress: str = "",
     attempt: int = 1,
+    next_action: str | None = None,
+    blocker: str | None = None,
+    files_touched: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Publica heartbeat durable del worker."""
+    """Send a worker heartbeat to the canonical Temporal workflow."""
     now = _now()
-    db = mongo_store.get_db()
     hb_data = {
         "actor": actor,
         "at": now,
@@ -429,16 +459,18 @@ def heartbeat_ops_task(
         "current_step": current_step,
         "last_progress": last_progress,
         "attempt": attempt,
+        "next_action": next_action,
+        "blocker": blocker,
+        "files_touched": files_touched or [],
     }
-    db[OPS_TASKS_COL].update_one(
-        {"task_id": task_id},
-        {
-            "$set": {"last_heartbeat_at": now, "current_phase": phase, "updated_at": now},
-            "$push": {"heartbeat_history": hb_data}
-        }
-    )
-    _publish_task_event("task.heartbeat", {"task_id": task_id}, actor=actor, payload=hb_data)
-    return {"ok": True, "task_id": task_id, "heartbeat": hb_data}
+    from inneros_core_runtime import durable_coordination_spine
+
+    signalled = durable_coordination_spine.signal_task_workflow(task_id, "heartbeat", hb_data)
+    return {
+        **signalled,
+        "heartbeat": hb_data,
+        "authority": "temporal",
+    }
 
 
 def update_ops_task_state(
@@ -447,26 +479,45 @@ def update_ops_task_state(
     *,
     actor: str = "system",
     evidence: dict[str, Any] | None = None,
+    expected_revision: int | None = None,
     force_handoff: bool = False,
 ) -> dict[str, Any]:
-    """Actualiza proyección tras transición durable."""
-    now = _now()
-    db = mongo_store.get_db()
-    patch: dict[str, Any] = {
-        "status": status,
-        "updated_at": now,
-        "updated_by": actor,
+    """Route lifecycle commands to Temporal; never write task state directly."""
+    normalized = (status or "").strip().lower()
+    from inneros_core_runtime import durable_coordination_spine
+
+    if normalized in {"cancelled", "canceled"}:
+        reason = str((evidence or {}).get("reason") or f"cancelled by {actor}")
+        return durable_coordination_spine.signal_task_workflow(task_id, "cancel", reason)
+    if normalized in {"approved", "approve"}:
+        return durable_coordination_spine.signal_task_workflow(
+            task_id,
+            "approve",
+            {
+                "actor": actor,
+                "evidence": evidence or {},
+                "expected_revision": expected_revision,
+            },
+        )
+    if normalized in {"verification", "candidate_result"}:
+        return durable_coordination_spine.signal_task_workflow(
+            task_id,
+            "record_candidate_result",
+            {
+                "result": normalized,
+                "actor": actor,
+                "evidence": evidence or {},
+                "expected_revision": expected_revision,
+            },
+        )
+    return {
+        "ok": False,
+        "error": "temporal_owns_task_lifecycle",
+        "task_id": task_id,
+        "requested_status": normalized,
+        "allowed_commands": ["cancelled", "approved", "verification"],
+        "authority": "temporal",
     }
-    if evidence:
-        patch["evidence"] = evidence
-    
-    db[OPS_TASKS_COL].update_one(
-        {"task_id": task_id},
-        {"$set": patch, "$inc": {"revision": 1}}
-    )
-    _publish_task_event(_status_event_type(status), {"task_id": task_id}, actor=actor, status=status, payload=patch)
-    bump_revision(reason=f"update_ops_task_state: {task_id} -> {status}", source=actor)
-    return {"ok": True, "task_id": task_id, "status": status, "updated_at": now}
 
 
 def complete_ops_task(
@@ -476,5 +527,12 @@ def complete_ops_task(
     actor: str = "system",
     evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Cierre de tarea con verificación de evidencia."""
-    return update_ops_task_state(task_id, status=status, actor=actor, evidence=evidence)
+    """Reject direct completion; only the Temporal verification gate may close."""
+    return {
+        "ok": False,
+        "error": "direct_completion_forbidden",
+        "task_id": task_id,
+        "requested_status": status,
+        "authority": "temporal",
+        "next_action": "submit candidate evidence to the running workflow",
+    }

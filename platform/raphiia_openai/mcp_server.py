@@ -149,8 +149,8 @@ def ack_agent_message(message_id: str, agent: str) -> dict[str, Any]:
 
 
 @mcp.tool
-def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = True) -> dict[str, Any]:
-    """RACB: consulta el INBOX y genera ACK de lectura automático para lo entregado."""
+def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = False) -> dict[str, Any]:
+    """RACB: consulta el INBOX; el ACK requiere solicitud explícita."""
     from raphiia_openai.memory import agent_messages as _am
 
     return _am.poll_agent_inbox(agent=agent, limit=limit, auto_ack=auto_ack)

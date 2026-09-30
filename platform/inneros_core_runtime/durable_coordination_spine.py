@@ -74,6 +74,10 @@ def _env_enabled(var_name: str, default: bool = False) -> bool:
     return val in {"1", "true", "yes", "on"}
 
 
+def _mongo_db_name() -> str:
+    return os.getenv("INNEROS_MONGO_DB", "pcdoctor_swarm")
+
+
 def _clean_subject(subject: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9._-]", "_", subject)
     return cleaned.strip(".")
@@ -164,13 +168,13 @@ class MemoryEventSink(EventSink):
 @dataclass
 class MongoEventSink(EventSink):
     mongo_uri: str = ""
-    db_name: str = "pcdoctor_swarm"
+    db_name: str = ""
     collection_name: str = EVENTS_COL
 
     def _get_coll(self) -> Any:
         uri = self.mongo_uri or os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
         client: MongoClient = MongoClient(uri, serverSelectionTimeoutMS=2000)
-        return client[self.db_name][self.collection_name]
+        return client[self.db_name or _mongo_db_name()][self.collection_name]
 
     def publish(self, event: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -352,11 +356,95 @@ def workflow_intent_for_task(task: dict[str, Any]) -> dict[str, Any]:
         "ready": True,
         "reason": "temporal_runtime_adapter_active",
         "workflow_id": workflow_id,
-        "task_queue": "inneros-general-ops",
+        "task_queue": os.getenv(
+            "INNEROS_TEMPORAL_TASK_QUEUE",
+            "inneros-general-ops",
+        ),
         "workflow_type": "OpsTaskWorkflow",
         "search_attributes": {"task_id": task_id, "correlation_id": correlation_id, "repo": repo},
         "retry_policy": {"maximum_attempts": 3, "non_retryable_errors": ["CIRCUIT_BREAKER_PENDING_HUMAN_REVIEW", "TASK_TERMINAL", "TASK_NOT_ASSIGNED"]},
     }
+
+
+async def _start_task_workflow_async(task: dict[str, Any]) -> dict[str, Any]:
+    """Start the single canonical Temporal workflow for an ops task."""
+    from temporalio.client import Client
+    from inneros_core_runtime.temporal_workflows import OpsTaskWorkflow
+
+    intent = workflow_intent_for_task(task)
+    if not intent["ok"] or not task.get("task_id"):
+        return {"ok": False, "error": "task_id_required"}
+    client = await Client.connect(
+        _temporal_address(),
+        namespace=os.getenv("INNEROS_TEMPORAL_NAMESPACE", "default"),
+    )
+    handle = await client.start_workflow(
+        OpsTaskWorkflow.run,
+        task,
+        id=intent["workflow_id"],
+        task_queue=intent["task_queue"],
+    )
+    return {
+        "ok": True,
+        "backend": "temporal",
+        "task_id": task["task_id"],
+        "workflow_id": handle.id,
+        "run_id": handle.first_execution_run_id,
+    }
+
+
+def start_task_workflow(task: dict[str, Any]) -> dict[str, Any]:
+    """Synchronous MCP adapter for canonical Temporal task admission."""
+    try:
+        return _run_async(_start_task_workflow_async(task))
+    except Exception as exc:
+        return {
+            "ok": False,
+            "backend": "temporal",
+            "task_id": str(task.get("task_id") or ""),
+            "workflow_id": workflow_intent_for_task(task).get("workflow_id"),
+            "error": str(exc)[:500],
+        }
+
+
+async def _signal_task_workflow_async(
+    task_id: str,
+    signal_name: str,
+    payload: Any,
+) -> dict[str, Any]:
+    from temporalio.client import Client
+
+    if not task_id:
+        return {"ok": False, "error": "task_id_required"}
+    client = await Client.connect(
+        _temporal_address(),
+        namespace=os.getenv("INNEROS_TEMPORAL_NAMESPACE", "default"),
+    )
+    workflow_id = f"ops_task:{task_id}"
+    handle = client.get_workflow_handle(workflow_id)
+    await handle.signal(signal_name, payload)
+    return {
+        "ok": True,
+        "backend": "temporal",
+        "task_id": task_id,
+        "workflow_id": workflow_id,
+        "signal": signal_name,
+    }
+
+
+def signal_task_workflow(task_id: str, signal_name: str, payload: Any) -> dict[str, Any]:
+    """Send a lifecycle command to Temporal instead of mutating Mongo."""
+    try:
+        return _run_async(_signal_task_workflow_async(task_id, signal_name, payload))
+    except Exception as exc:
+        return {
+            "ok": False,
+            "backend": "temporal",
+            "task_id": task_id,
+            "workflow_id": f"ops_task:{task_id}" if task_id else "",
+            "signal": signal_name,
+            "error": str(exc)[:500],
+        }
 
 
 # Message lifecycle helpers
@@ -371,10 +459,11 @@ def create_durable_message(
     subject: str,
     content: str,
     metadata: dict[str, Any] | None = None,
+    idempotency_key: str = "",
     mongo_uri: str = "mongodb://127.0.0.1:27017"
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
-    raw_id = f"{task_id}:{sender}:{recipient}:{now}"
+    raw_id = idempotency_key or f"{task_id}:{sender}:{recipient}:{now}"
     msg_id = f"msg_{hashlib.sha256(raw_id.encode()).hexdigest()[:16]}"
     doc = {
         "_id": msg_id,
@@ -397,14 +486,25 @@ def create_durable_message(
         "acknowledged_at": None,
         "acknowledged_by": None,
         "consumed_at": None,
+        "idempotency_key": idempotency_key or None,
         "metadata": metadata or {}
     }
     try:
-        client: MongoClient = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
-        client["pcdoctor_swarm"]["ralfia_agent_messages"].insert_one(doc)
-    except Exception:
-        pass
-    publish_event(
+        with MongoClient(mongo_uri, serverSelectionTimeoutMS=2000) as client:
+            coll = client[_mongo_db_name()]["ralfia_agent_messages"]
+            if idempotency_key:
+                existing = coll.find_one({"idempotency_key": idempotency_key}, {"_id": 0})
+                if existing:
+                    return {**existing, "ok": True, "duplicate": True}
+            coll.insert_one(doc)
+    except Exception as exc:
+        return {
+            **doc,
+            "ok": False,
+            "persisted": False,
+            "error": f"message_persistence_failed: {exc}",
+        }
+    event_result = publish_event(
         "message.published",
         actor=sender,
         task_id=task_id,
@@ -412,7 +512,14 @@ def create_durable_message(
         status="unread",
         payload={"message_id": msg_id, "recipient": recipient, "subject": subject}
     )
-    return doc
+    return {
+        **doc,
+        "ok": bool(event_result.get("ok")),
+        "persisted": True,
+        "event_published": bool(event_result.get("ok")),
+        "event_id": event_result.get("event_id"),
+        "event_error": None if event_result.get("ok") else event_result.get("reason"),
+    }
 
 
 def ack_durable_message(
@@ -423,24 +530,39 @@ def ack_durable_message(
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     try:
-        client: MongoClient = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
-        db = client["pcdoctor_swarm"]
-        res = db["ralfia_agent_messages"].update_one(
-            {"$or": [{"_id": message_id}, {"message_id": message_id}]},
-            {"$set": {
-                "status": "consumed",
-                "acknowledged_at": now,
-                "acknowledged_by": actor,
-                "consumed_at": now
-            }}
-        )
-        publish_event(
+        with MongoClient(mongo_uri, serverSelectionTimeoutMS=2000) as client:
+            db = client[_mongo_db_name()]
+            message = db["ralfia_agent_messages"].find_one(
+                {"$or": [{"_id": message_id}, {"message_id": message_id}]}
+            )
+            if not message:
+                return {"ok": False, "error": "message_not_found", "message_id": message_id}
+            res = db["ralfia_agent_messages"].update_one(
+                {"$or": [{"_id": message_id}, {"message_id": message_id}]},
+                {"$set": {
+                    "status": "consumed",
+                    "acknowledged_at": now,
+                    "acknowledged_by": actor,
+                    "consumed_at": now
+                }}
+            )
+        if res.matched_count != 1:
+            return {"ok": False, "error": "message_ack_not_persisted", "message_id": message_id}
+        event_result = publish_event(
             "message.consumed",
             actor=actor,
+            task_id=str(message.get("task_id") or ""),
+            correlation_id=str(message.get("correlation_id") or ""),
             status="consumed",
             payload={"message_id": message_id, "acknowledged_by": actor}
         )
-        return {"ok": True, "message_id": message_id, "status": "consumed", "acknowledged_at": now}
+        return {
+            "ok": bool(event_result.get("ok")),
+            "message_id": message_id,
+            "status": "consumed",
+            "acknowledged_at": now,
+            "event_published": bool(event_result.get("ok")),
+        }
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
@@ -455,24 +577,29 @@ def query_durable_messages(
     status: str = "",
     mongo_uri: str = "mongodb://127.0.0.1:27017"
 ) -> list[dict[str, Any]]:
-    query: dict[str, Any] = {}
+    clauses: list[dict[str, Any]] = []
     if task_id:
-        query["task_id"] = task_id
+        clauses.append({"task_id": task_id})
     if message_id:
-        query["$or"] = [{"_id": message_id}, {"message_id": message_id}]
+        clauses.append({"$or": [{"_id": message_id}, {"message_id": message_id}]})
     if correlation_id:
-        query["correlation_id"] = correlation_id
+        clauses.append({"correlation_id": correlation_id})
     if workflow_id:
-        query["workflow_id"] = workflow_id
+        clauses.append({"workflow_id": workflow_id})
     if recipient:
-        query["$or"] = [{"recipient": recipient}, {"to": recipient}]
+        clauses.append({"$or": [{"recipient": recipient}, {"to": recipient}]})
     if status:
-        query["status"] = status
+        clauses.append({"status": status})
+    query: dict[str, Any] = {"$and": clauses} if clauses else {}
     try:
-        client: MongoClient = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
-        return list(client["pcdoctor_swarm"]["ralfia_agent_messages"].find(query, {"_id": 0}))
-    except Exception:
-        return []
+        with MongoClient(mongo_uri, serverSelectionTimeoutMS=2000) as client:
+            return list(
+                client[_mongo_db_name()]["ralfia_agent_messages"]
+                .find(query, {"_id": 0})
+                .sort("created_at", -1)
+            )
+    except Exception as exc:
+        raise RuntimeError(f"message_query_failed: {exc}") from exc
 
 
 def status() -> dict[str, Any]:
