@@ -1,0 +1,143 @@
+{
+  "metadata": {
+    "source": "GWN Cloud Provider API",
+    "client_id": "bellini",
+    "site_id": "bellini-i-ii",
+    "account_user": "rafagye",
+    "captured_at": "2026-09-30T13:57:26Z"
+  },
+  "devices": [
+    {
+      "device_id": "bellini_ap_188",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:01",
+      "ip": "192.168.3.188",
+      "firmware": "1.0.33.19",
+      "status": "ONLINE",
+      "uptime": "14d 02h",
+      "radios": {
+        "2.4G": {
+          "channel": 1,
+          "width": "20MHz"
+        },
+        "5G": {
+          "channel": 36,
+          "width": "80MHz"
+        }
+      },
+      "clients_count": 8,
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN"
+    },
+    {
+      "device_id": "bellini_ap_207_gwn7052f",
+      "model": "GWN7052F",
+      "mac": "C0:74:AD:CB:AC:EC",
+      "ip": "192.168.3.207",
+      "firmware": "1.0.9.15",
+      "status": "REGISTERED_ZEROCONFIG",
+      "uptime": "UNKNOWN",
+      "radios": {
+        "2.4G": {
+          "channel": 6,
+          "width": "20MHz"
+        },
+        "5G": {
+          "channel": 149,
+          "width": "80MHz"
+        }
+      },
+      "clients_count": 0,
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN"
+    },
+    {
+      "device_id": "bellini_ap_212",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:02",
+      "ip": "192.168.3.212",
+      "firmware": "1.0.33.19",
+      "status": "ONLINE",
+      "uptime": "14d 02h",
+      "radios": {
+        "2.4G": {
+          "channel": 11,
+          "width": "20MHz"
+        },
+        "5G": {
+          "channel": 48,
+          "width": "80MHz"
+        }
+      },
+      "clients_count": 6,
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN"
+    },
+    {
+      "device_id": "bellini_ap_213",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:03",
+      "ip": "192.168.3.213",
+      "firmware": "1.0.33.19",
+      "status": "OFFLINE_FLAP",
+      "uptime": "UNKNOWN",
+      "radios": {
+        "2.4G": {
+          "channel": 6,
+          "width": "20MHz"
+        },
+        "5G": {
+          "channel": 157,
+          "width": "80MHz"
+        }
+      },
+      "clients_count": 0,
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN"
+    },
+    {
+      "device_id": "bellini_ap_216",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:04",
+      "ip": "192.168.3.216",
+      "firmware": "1.0.33.19",
+      "status": "ONLINE",
+      "uptime": "14d 02h",
+      "radios": {
+        "2.4G": {
+          "channel": 1,
+          "width": "20MHz"
+        },
+        "5G": {
+          "channel": 40,
+          "width": "80MHz"
+        }
+      },
+      "clients_count": 11,
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN"
+    },
+    {
+      "device_id": "bellini_ap_227",
+      "model": "GWN7660",
+      "mac": "C0:74:AD:11:22:05",
+      "ip": "192.168.3.227",
+      "firmware": "1.0.33.19",
+      "status": "ONLINE",
+      "uptime": "14d 02h",
+      "radios": {
+        "2.4G": {
+          "channel": 11,
+          "width": "20MHz"
+        },
+        "5G": {
+          "channel": 161,
+          "width": "80MHz"
+        }
+      },
+      "clients_count": 9,
+      "uplink_switch": "UNKNOWN",
+      "uplink_port": "UNKNOWN"
+    }
+  ]
+}

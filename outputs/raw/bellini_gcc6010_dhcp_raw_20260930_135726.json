@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "endpoint": "https://192.168.3.2:8089/cgi and https://192.168.3.1/cgi",
+    "method": "POST",
+    "actions": [
+      "getNetworkSettings",
+      "getComponentSetting",
+      "getInfo"
+    ],
+    "captured_at": "2026-09-30T13:57:26Z",
+    "target": "Grandstream GCC6010 & UCM Subsystem"
+  },
+  "raw_response": {
+    "getNetworkSettings": {
+      "status": 0,
+      "response": {
+        "network_settings": {
+          "method": "1",
+          "port": "8089",
+          "lan1_ip_method": "0",
+          "lan1_ipaddr": "192.168.0.160",
+          "lan1_submask": "255.255.0.0",
+          "lan1_gateway": "0.0.0.0",
+          "lan1_vid": "0",
+          "dhcp_enable": "0",
+          "default_interface": "LAN1",
+          "voip_vlan_enable": "0"
+        },
+        "dhcp_settings": {
+          "dhcp_ipaddr": "192.168.2.1",
+          "dhcp_submask": "255.255.255.0",
+          "dhcp_dns1": "8.8.8.8",
+          "dhcp_dns2": "208.67.222.222",
+          "ipfrom": "192.168.2.100",
+          "dhcp_gateway": "192.168.2.1",
+          "ipto": "192.168.2.254",
+          "ipleasetime": 43200
+        }
+      }
+    },
+    "getComponentSetting": {
+      "status": 0,
+      "response": {
+        "component_settings": {
+          "router_enable": "yes",
+          "router_version": "1.0.7.71",
+          "ucm_enable": "yes",
+          "ucm_version": "1.0.25.21",
+          "ucm_addr": "192.168.3.2",
+          "ucm_status": "booted",
+          "manager_enable": "no",
+          "manager_status": "shutdown",
+          "host_version": "1.0.7.71",
+          "ucm_branch": "UCM FP12",
+          "ucm_vlan_id": "3",
+          "fw_advanced": "1"
+        }
+      }
+    },
+    "getInfo": {
+      "status": 0,
+      "response": {
+        "device_model": "GCC6010",
+        "device_name": "Router Principal",
+        "timezone": "America/Guayaquil",
+        "system_time": 1790776669
+      }
+    }
+  }
+}

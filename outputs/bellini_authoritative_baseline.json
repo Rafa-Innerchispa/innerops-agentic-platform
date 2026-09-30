@@ -1,0 +1,102 @@
+{
+  "metadata": {
+    "document_name": "Bellini I-II Authoritative Baseline",
+    "schema_version": "1.0.0",
+    "generated_at": "2026-09-30T13:57:26Z",
+    "policy": "STRICT_RAW_EVIDENCE_GATE"
+  },
+  "baseline": {
+    "router_model": {
+      "value": "GCC6010",
+      "source": "GCC6010 /cgi getInfo",
+      "source_file": "outputs/raw/bellini_gcc6010_dhcp_raw_20260930_135726.json",
+      "json_pointer": "/raw_response/getInfo/response/device_model",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "router_host_firmware": {
+      "value": "1.0.7.71",
+      "source": "GCC6010 /cgi getComponentSetting",
+      "source_file": "outputs/raw/bellini_gcc6010_dhcp_raw_20260930_135726.json",
+      "json_pointer": "/raw_response/getComponentSetting/response/component_settings/host_version",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "router_engine_firmware": {
+      "value": "1.0.7.71",
+      "source": "GCC6010 /cgi getComponentSetting",
+      "source_file": "outputs/raw/bellini_gcc6010_dhcp_raw_20260930_135726.json",
+      "json_pointer": "/raw_response/getComponentSetting/response/component_settings/router_version",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "ucm_subsystem_firmware": {
+      "value": "1.0.25.21",
+      "source": "GCC6010 /cgi getComponentSetting",
+      "source_file": "outputs/raw/bellini_gcc6010_dhcp_raw_20260930_135726.json",
+      "json_pointer": "/raw_response/getComponentSetting/response/component_settings/ucm_version",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "ucm_ip_address": {
+      "value": "192.168.3.2",
+      "source": "GCC6010 /cgi getComponentSetting",
+      "source_file": "outputs/raw/bellini_gcc6010_dhcp_raw_20260930_135726.json",
+      "json_pointer": "/raw_response/getComponentSetting/response/component_settings/ucm_addr",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "ucm_internal_vlan_id": {
+      "value": "3",
+      "meaning": "Internal virtual interface interconnect bridge between GCC host Linux OS and UCM PBX LXC container (NOT an external 802.1Q campus VLAN)",
+      "source": "GCC6010 /cgi getComponentSetting",
+      "source_file": "outputs/raw/bellini_gcc6010_dhcp_raw_20260930_135726.json",
+      "json_pointer": "/raw_response/getComponentSetting/response/component_settings/ucm_vlan_id",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "router_dhcp_service": {
+      "value": {
+        "enabled": true,
+        "subnet": "192.168.3.0/24",
+        "router_gateway": "192.168.3.1",
+        "active_clients_range": "192.168.3.10 - 192.168.3.250",
+        "ucm_dhcp_server": "disabled (dhcp_enable=0 on UCM container, handled by router host)"
+      },
+      "source": "GCC6010 Kernel Bridge & UCM /cgi getNetworkSettings",
+      "source_file": "outputs/raw/bellini_gcc6010_dhcp_raw_20260930_135726.json",
+      "json_pointer": "/raw_response/getNetworkSettings/response/network_settings/dhcp_enable",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "sfp_ownership": {
+      "value": "UNVERIFIED",
+      "source": "GCC6010 /cgi getPortStatus & getSFPStatus",
+      "source_file": "outputs/raw/bellini_gcc6010_raw_20260930_133437.json",
+      "json_pointer": "/sfp_telemetry_status/ownership",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "gwn_cloud_tenant": {
+      "value": {
+        "client_id": "bellini",
+        "site_id": "bellini-i-ii",
+        "status": "ACTIVE",
+        "ap_count": 6
+      },
+      "source": "GWN Cloud Provider API",
+      "source_file": "outputs/raw/bellini_gwn_provider_raw_20260930_135726.json",
+      "json_pointer": "/metadata",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    },
+    "switch_consola_management_ip": {
+      "value": "UNKNOWN",
+      "source": "Live ICMP/TCP Probes",
+      "source_file": "outputs/bellini_live_reconciliation.json",
+      "json_pointer": "/unresolved_fields/0",
+      "captured_at": "2026-09-30T13:57:26Z",
+      "confidence": 1.0
+    }
+  }
+}
