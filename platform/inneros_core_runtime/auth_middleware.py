@@ -751,14 +751,36 @@ def _token_mcp_profile(token_doc: dict[str, Any]) -> str | None:
         return str(profile)
     client_id = token_doc.get("client_id")
     if not client_id:
-        return None
+        return _infer_mcp_profile_from_resource(token_doc)
     try:
         client = get_client(str(client_id))
     except Exception:
         client = None
     metadata = (client or {}).get("metadata") or {}
     value = metadata.get("mcp_profile") or metadata.get("tool_profile")
-    return str(value) if value else None
+    if value:
+        return str(value)
+    return _infer_mcp_profile_from_resource(token_doc)
+
+
+def _infer_mcp_profile_from_resource(token_doc: dict[str, Any]) -> str | None:
+    resource = str(token_doc.get("resource") or "").lower().rstrip("/")
+    if not resource:
+        return None
+    if resource.endswith("/router/mcp") or "/router" in resource:
+        return "chatgpt_compact"
+    if resource.endswith("/mcp") and "/router" not in resource:
+        return "full"
+    return None
+
+
+def _tool_requires_agents_scope(tool_name: str) -> bool:
+    if not tool_name:
+        return False
+    raw_required = TOOL_SCOPES.get(tool_name, "ralfia:read")
+    if isinstance(raw_required, str):
+        return raw_required == "ralfia:agents"
+    return "ralfia:agents" in raw_required
 
 
 def _is_small_mcp_plane(token_doc: dict[str, Any]) -> bool:
@@ -789,7 +811,7 @@ def _effective_token_scopes(
         capability_agents = cap_id.startswith(("coordination.agents.", "dev_swarm."))
     if "ralfia:agents" in token_scopes:
         return token_scopes
-    needs_agents_plane = orchestration_tool or capability_agents
+    needs_agents_plane = orchestration_tool or capability_agents or _tool_requires_agents_scope(tool_name)
     if not needs_agents_plane:
         return token_scopes
     # Uplift to ralfia:agents is limited to the Small / chatgpt_compact plane only.
@@ -811,13 +833,15 @@ def resolve_bearer_auth_context(headers: dict[str, str]) -> dict[str, Any]:
     token_doc = validate_access_token(auth[7:].strip())
     if not token_doc:
         return {"ok": False, "auth_mode": "invalid_token"}
-    scopes = sorted(_effective_token_scopes(token_doc, tool_name="", arguments={}))
+    profile = _token_mcp_profile(token_doc)
+    scope_probe = "project_runtime_bootstrap" if _is_small_mcp_plane(token_doc) else ""
+    scopes = sorted(_effective_token_scopes(token_doc, tool_name=scope_probe, arguments={}))
     return {
         "ok": True,
         "auth_mode": "oauth_bearer",
         "granted_scopes": scopes,
         "token_scopes_raw": sorted({s for s in (token_doc.get("scope") or "").split() if s}),
-        "mcp_profile": _token_mcp_profile(token_doc),
+        "mcp_profile": profile,
         "resource": token_doc.get("resource"),
     }
 
