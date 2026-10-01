@@ -62,6 +62,31 @@ create_agent_message(
 )
 ```
 
+## 5. Upstream `gitlab-org/gitlab` (read/fetch) + fork de escritura
+
+Política enforced en `local_execution_plane` + `gitlab_contributor_policy`:
+
+| Remoto | URL | Push |
+|--------|-----|------|
+| `upstream` | `https://gitlab.com/gitlab-org/gitlab.git` | **Prohibido** |
+| `origin` | fork autenticado (hoy: `gitlab-community/gitlab-org/gitlab`) | Permitido en ramas `chatgpt/*`, `codex/*`, … |
+
+Preflight (identidad API, glab, fork, issue sin duplicado):
+
+```bash
+python3 platform/scripts/gitlab_contributorops_preflight.py --issue 631702
+```
+
+Carril Dev Swarm (MCP Small):
+
+```text
+dev_swarm_scope_status(repo="gitlab-org/gitlab")
+dev_swarm_launch_task(repo="gitlab-org/gitlab", objective="…", dry_run=true)
+local_exec_acquire_lock → local_exec_prepare_repo → local_exec_create_worktree
+→ patch/tests → local_exec_commit_branch → local_exec_push_branch(remote="origin")
+→ create_draft_merge_request(source=community fork, target=gitlab-org/gitlab)
+```
+
 ## Errores comunes
 
 | Error | Causa | Acción |
@@ -69,3 +94,6 @@ create_agent_message(
 | `project_not_registered` | Falta entrada en Project Runtime Registry | Merge PR registry o `project_runtime_migrate_existing` en ops |
 | `tool_not_allowed_for_profile` | Tool fuera de `chatgpt_compact` | Usar `project_runtime_bootstrap` (ya en compact) |
 | `remote_url_not_allowlisted` | URL remota no permitida | Usar `repo` GitHub allowlisted; no inventar remotes |
+| `repo_not_allowlisted` / `repo_owner_not_allowlisted` | Repo lógico no mapeado | Usar `gitlab-org/gitlab` o `gitlab-community/gitlab-org/gitlab` |
+| `upstream_push_forbidden` | Intento de push a upstream | Push solo a `origin` (fork) |
+| `duplicate_work_on_issue` | MR abierto del autor en el issue | Reusar rama/MR existente |

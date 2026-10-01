@@ -25,9 +25,17 @@ NODE_HELPER = "/home/rlopez/bin/ralfia-peer-node-helper"
 PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NESTED_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-SAFE_REMOTE_RE = re.compile(r"^(https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?|git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git|https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner(?:\\.git)?)$")
+SAFE_REMOTE_RE = re.compile(
+    r"^(https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?|git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git|"
+    r"https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner(?:\\.git)?|"
+    r"https://gitlab.com/gitlab-org/gitlab(?:\\.git)?|"
+    r"https://gitlab.com/gitlab-community/gitlab-org/gitlab(?:\\.git)?)$"
+)
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
-OWNER_APPROVED_NESTED_REPOS = {"gitlab-community/gitlab-org/gitlab-runner"}
+OWNER_APPROVED_NESTED_REPOS = {
+    "gitlab-community/gitlab-org/gitlab-runner",
+    "gitlab-community/gitlab-org/gitlab",
+}
 
 
 def _now() -> str:
@@ -92,11 +100,17 @@ def _project_id(value: str) -> str:
 
 
 def _repo(value: str | None, project_id: str) -> str:
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
     item = (value or "").strip() or f"Rafa-Innerchispa/{project_id}"
-    if not (REPO_RE.match(item) or item in OWNER_APPROVED_NESTED_REPOS):
+    if not (REPO_RE.match(item) or item in OWNER_APPROVED_NESTED_REPOS or gcp.is_contributor_policy_repo(item)):
         raise ValueError("invalid_repo")
     owner = item.split("/", 1)[0]
-    if owner not in OWNER_APPROVED_GITHUB_OWNERS and item not in OWNER_APPROVED_NESTED_REPOS:
+    if (
+        owner not in OWNER_APPROVED_GITHUB_OWNERS
+        and item not in OWNER_APPROVED_NESTED_REPOS
+        and not gcp.is_contributor_policy_repo(item)
+    ):
         raise PermissionError("repo_owner_not_allowlisted")
     return item
 

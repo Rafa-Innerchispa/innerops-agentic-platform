@@ -35,7 +35,10 @@ NESTED_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.
 BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$")
 PROTECTED_BRANCHES = {"main", "master", "production", "prod", "develop"}
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
-OWNER_APPROVED_NESTED_REPOS = {"gitlab-community/gitlab-org/gitlab-runner"}
+OWNER_APPROVED_NESTED_REPOS = {
+    "gitlab-community/gitlab-org/gitlab-runner",
+    "gitlab-community/gitlab-org/gitlab",
+}
 OWNER_APPROVED_ALLOWED_PATHS = [
     "app",
     "components",
@@ -72,7 +75,15 @@ OWNER_APPROVED_REMOTE_POLICIES: dict[str, dict[str, str]] = {
     "gitlab-community/gitlab-org/gitlab-runner": {
         "origin": "https://gitlab.com/rafagye/gitlab-runner.git",
         "community": "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git",
-    }
+    },
+    "gitlab-community/gitlab-org/gitlab": {
+        "origin": "https://gitlab.com/gitlab-community/gitlab-org/gitlab.git",
+        "upstream": "https://gitlab.com/gitlab-org/gitlab.git",
+    },
+    "gitlab-org/gitlab": {
+        "origin": "https://gitlab.com/gitlab-community/gitlab-org/gitlab.git",
+        "upstream": "https://gitlab.com/gitlab-org/gitlab.git",
+    },
 }
 VERIFIED_GIT_AUTHORS_ENV = "RALFIA_VERIFIED_GIT_AUTHORS_JSON"
 DENIED_PATH_PARTS = {
@@ -504,7 +515,16 @@ def _parse_git_remotes(output: str) -> dict[str, dict[str, str]]:
 
 
 def _remote_policy(repo: str) -> dict[str, str]:
-    return dict(OWNER_APPROVED_REMOTE_POLICIES.get(repo) or {})
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+    canonical = gcp.canonical_contributor_repo(repo)
+    policy = dict(OWNER_APPROVED_REMOTE_POLICIES.get(repo) or OWNER_APPROVED_REMOTE_POLICIES.get(canonical) or {})
+    if gcp.is_contributor_policy_repo(repo) or repo in gcp.LOGICAL_REPO_ALIASES:
+        fork = gcp.resolve_authenticated_write_fork()
+        if fork.get("ok"):
+            policy.setdefault("upstream", gcp.UPSTREAM_GIT_URL)
+            policy["origin"] = str(fork.get("write_fork_git_url") or policy.get("origin") or "")
+    return policy
 
 
 def _validate_remote_for_push(repo: str, worktree: Path, remote_name: str) -> dict[str, Any]:
@@ -522,6 +542,18 @@ def _validate_remote_for_push(repo: str, worktree: Path, remote_name: str) -> di
             return {"ok": False, "error": "remote_url_mismatch", "remote": remote_name, "expected_url": expected, "actual": urls, "remotes": remotes}
     elif repo in OWNER_APPROVED_REMOTE_POLICIES:
         return {"ok": False, "error": "remote_not_in_repo_policy", "remote": remote_name, "allowed_remotes": sorted(policy), "remotes": remotes}
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+    if gcp.is_contributor_policy_repo(repo) and remote_name == "upstream":
+        push_url = urls.get("push") or urls.get("fetch") or ""
+        if push_url and push_url.rstrip("/") == gcp.UPSTREAM_GIT_URL.rstrip("/"):
+            return {
+                "ok": False,
+                "error": "upstream_push_forbidden",
+                "remote": remote_name,
+                "policy": "upstream_read_fetch_only",
+                "remotes": remotes,
+            }
     return {"ok": True, "remote": remote_name, "url": expected or (urls.get("push") or urls.get("fetch")), "remotes": remotes, "remote_output": remotes_res}
 
 
@@ -530,7 +562,14 @@ def _slug(repo: str) -> str:
 
 
 def _repo_name_allowed(repo: str) -> bool:
-    return bool(REPO_PATTERN.match(repo or "") or repo in OWNER_APPROVED_NESTED_REPOS)
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+    item = (repo or "").strip()
+    return bool(
+        REPO_PATTERN.match(item)
+        or item in OWNER_APPROVED_NESTED_REPOS
+        or gcp.is_contributor_policy_repo(item)
+    )
 
 
 def _root() -> Path:
@@ -635,7 +674,50 @@ def _repo_config(repo: str) -> dict[str, Any]:
     return conf
 
 
+def _gitlab_contributor_repo_config(repo: str) -> dict[str, Any] | None:
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+    item = (repo or "").strip()
+    if not gcp.is_contributor_policy_repo(item) and item not in gcp.LOGICAL_REPO_ALIASES:
+        return None
+    core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
+    write_repo = gcp.canonical_contributor_repo(item)
+    source = (core / "var" / "local_execution" / "repos" / write_repo.replace("/", "__")).resolve()
+    return {
+        "profile": "ruby-tests-local-only",
+        "source_path": str(source),
+        "allowed_paths": [
+            "app",
+            "bin",
+            "config",
+            "db",
+            "doc",
+            "ee",
+            "lib",
+            "public",
+            "spec",
+            "rubocop",
+            "scripts",
+            "vendor",
+            "AGENTS.md",
+            "Gemfile",
+            "Gemfile.lock",
+            "Rakefile",
+            "README.md",
+        ],
+        "package_roots": ["."],
+        "worktrees_path": str(_root() / "worktrees" / _slug(item)),
+        "owner_approved_auto": True,
+        "contributor_ops": True,
+        "contributor_upstream": gcp.UPSTREAM_PROJECT,
+        "contributor_write_repo": write_repo,
+    }
+
+
 def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
+    contrib = _gitlab_contributor_repo_config(repo)
+    if contrib:
+        return contrib
     if repo in OWNER_APPROVED_NESTED_REPOS:
         core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
         source = (core / "workspaces" / "gitlab-runner").resolve()
@@ -1006,7 +1088,13 @@ def repo_authorize(
         if not approval_id:
             raise ValueError("approval_id_required")
         owner, name = repo.split("/", 1)
-        if owner not in OWNER_APPROVED_GITHUB_OWNERS and repo not in OWNER_APPROVED_NESTED_REPOS:
+        from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+        if (
+            owner not in OWNER_APPROVED_GITHUB_OWNERS
+            and repo not in OWNER_APPROVED_NESTED_REPOS
+            and not gcp.is_contributor_policy_repo(repo)
+        ):
             raise PermissionError("repo_owner_not_allowlisted")
         project_id = repo.rsplit("/", 1)[1] if repo in OWNER_APPROVED_NESTED_REPOS else name
         source = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve() / "workspaces" / project_id
@@ -1542,6 +1630,10 @@ def push_branch(
         remote_name = (remote or "origin").strip()
         if not re.match(r"^[A-Za-z0-9_.-]{1,40}$", remote_name):
             return {"ok": False, "error": "remote_not_allowlisted"}
+        from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+        if gcp.is_contributor_policy_repo(repo) and remote_name == "upstream":
+            return {"ok": False, "error": "upstream_push_forbidden", "policy": "upstream_read_fetch_only"}
         conf = _repo_config(repo)
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
