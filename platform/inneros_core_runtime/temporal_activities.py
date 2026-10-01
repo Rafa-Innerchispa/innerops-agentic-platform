@@ -115,8 +115,30 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     test_exit_code = test_results.get("exit_code", 0)
     test_ok = test_results.get("ok", True)
 
+    if agent_result.get("candidate_only") and agent_result.get("requires_bounded_executor"):
+        return {
+            "passed": False,
+            "error": (
+                "Completion prohibited: Temporal stopped at candidate_only; "
+                "bounded executor did not produce test/diff evidence"
+            ),
+            "agent_flags": {
+                "candidate_only": True,
+                "requires_bounded_executor": True,
+            },
+        }
+
     # 1. Coding Tasks Validation Gate
     if task_class == "coding":
+        if test_exit_code is None:
+            return {
+                "passed": False,
+                "error": (
+                    "Completion prohibited: Unit tests failed with exit_code=None "
+                    "(bounded executor did not run or did not report results)"
+                ),
+                "test_results": test_results,
+            }
         if test_exit_code != 0 or not test_ok:
             return {
                 "passed": False,
@@ -197,28 +219,24 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "evidence": {"artifact": str(artifact), "persisted": artifact.is_file()},
         }
 
-    # Local models may produce a candidate response, but they do not constitute
-    # proof that code changed or tests passed.  Evidence must come from the
-    # bounded execution plane / worktree verifier.  Never manufacture a diff,
-    # file count or successful test result here.
+    # Local models produce a candidate only; bounded execution supplies evidence.
     res = local_model_router.run_local_model(
         task_type=envelope.task_class or "coding",
-        prompt=f"Task {envelope.task_id}: {envelope.objective or envelope.title}"
+        prompt=f"Task {envelope.task_id}: {envelope.objective or envelope.title}",
     )
-    return {
+    candidate = {
         "ok": bool(res.get("ok")),
-        "files_count": 0,
-        "code_diff": "",
-        "test_results": {
-            "exit_code": None,
-            "ok": False,
-            "reason": "execution_evidence_not_provided",
-        },
         "response": res.get("response") or res.get("text") or "",
-        "worktree": worktree,
         "candidate_only": True,
         "requires_bounded_executor": True,
     }
+    from inneros_core_runtime import temporal_bounded_executor
+
+    return temporal_bounded_executor.run_bounded_executor(
+        envelope_dict,
+        worktree,
+        candidate,
+    )
 
 
 @activity.defn

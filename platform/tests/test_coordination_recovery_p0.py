@@ -31,11 +31,13 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
         self.assertIn("activity_publish_nats_event", activities_block)
         self.assertIn("activity_validate_completion_gate", activities_block)
 
-    def test_local_candidate_does_not_fabricate_execution_evidence(self):
-        source = (ROOT / "inneros_core_runtime" / "temporal_activities.py").read_text()
-        self.assertNotIn('code_diff": "+ implemented logic"', source)
-        self.assertIn('"candidate_only": True', source)
-        self.assertIn('"requires_bounded_executor": True', source)
+    def test_local_candidate_routes_through_bounded_executor(self):
+        activities = (ROOT / "inneros_core_runtime" / "temporal_activities.py").read_text()
+        bounded = (ROOT / "inneros_core_runtime" / "temporal_bounded_executor.py").read_text()
+        self.assertNotIn('code_diff": "+ implemented logic"', activities)
+        self.assertIn("temporal_bounded_executor.run_bounded_executor", activities)
+        self.assertIn("run_command_allowlisted", bounded)
+        self.assertIn("candidate_only", bounded)
 
     def test_task_admission_uses_temporal_and_is_idempotent(self):
         captured: list[dict] = []
