@@ -1,19 +1,29 @@
-"""Capability Gateway — Governed execution plane for InnerOS capabilities.
+"""
+InnerOS Core Runtime - Governed Capability Gateway
+Correlation ID: bellini-capability-gateway-20260930
 
-Provides search, describe, invoke, and execution tracking over an allowlisted capability registry.
-Does NOT permit arbitrary function dispatch by string name.
+Provides unified discovery, schema retrieval, invocation, and asynchronous lifecycle
+management for platform capabilities without expanding the public MCP tool footprint (<= 25 tools).
 """
 
-from __future__ import annotations
-
-import hashlib
-import json
-import time
+import os
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 
-# Registry of allowlisted capability manifests
+from .adapters.base_adapter import (
+    ALL_SECTIONS,
+    VALID_STATES,
+    STATE_MEASURED,
+    STATE_CONFIGURED,
+    STATE_OBSERVED,
+    STATE_UNSUPPORTED,
+    STATE_UNREACHABLE,
+    STATE_UNKNOWN
+)
+from .adapters.adapter_registry import default_adapter_registry
+from .bellini_incident_correlator import BelliniIncidentCorrelator
+
 _CAPABILITY_REGISTRY: Dict[str, Dict[str, Any]] = {}
 _CAPABILITY_HANDLERS: Dict[str, Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]] = {}
 _EXECUTIONS_STORE: Dict[str, Dict[str, Any]] = {}
@@ -21,17 +31,16 @@ _EXECUTIONS_STORE: Dict[str, Dict[str, Any]] = {}
 
 def register_capability(
     manifest: Dict[str, Any],
-    handler: Optional[Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]] = None
+    handler: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]
 ) -> None:
-    """Register an allowlisted capability with its manifest and handler."""
+    """Register a capability manifest and its internal execution handler."""
     cap_id = manifest["capability_id"]
     _CAPABILITY_REGISTRY[cap_id] = manifest
-    if handler:
-        _CAPABILITY_HANDLERS[cap_id] = handler
+    _CAPABILITY_HANDLERS[cap_id] = handler
 
 
 def capability_search(
-    query: str = "",
+    query: Optional[str] = None,
     domain: Optional[str] = None,
     tenant_id: Optional[str] = None,
     max_results: int = 10
@@ -113,10 +122,16 @@ def capability_invoke(
         }
         
     ctx = context or {}
-    mode = manifest.get("mode", "read_only")
+    mode = parameters.get("mode", manifest.get("mode", "read_only"))
     
-    # Enforce read-only constraint if running in strict read-only session
-    if ctx.get("enforce_read_only") and mode == "mutation":
+    # Enforce strict read-only constraints
+    if mode != "read_only" and manifest.get("mode") == "read_only":
+        return {
+            "ok": False,
+            "error": "MUTATION_FORBIDDEN_IN_READ_ONLY_MODE",
+            "capability_id": capability_id
+        }
+    if ctx.get("enforce_read_only") and manifest.get("mode") == "mutation":
         return {
             "ok": False,
             "error": "MUTATION_FORBIDDEN_IN_READ_ONLY_MODE",
@@ -191,7 +206,7 @@ def capability_execution(
 
 
 # ----------------------------------------------------------------------
-# Reference Network Adapter: network.device.query.v1
+# Reference Network Capability: network.device.query.v1
 # ----------------------------------------------------------------------
 
 NETWORK_DEVICE_QUERY_MANIFEST: Dict[str, Any] = {
@@ -201,54 +216,56 @@ NETWORK_DEVICE_QUERY_MANIFEST: Dict[str, Any] = {
     "domain": "network",
     "risk_class": "low",
     "mode": "read_only",
-    "description": "Query telemetry, configuration, status, inventory, and diagnostics across network infrastructure (routers, switches, APs).",
-    "keywords": ["network", "router", "switch", "ap", "dhcp", "arp", "vlan", "interfaces", "health", "telemetry"],
+    "description": "Query telemetry, configuration, status, inventory, and diagnostics across network infrastructure (routers, switches, APs, CCTV).",
+    "keywords": ["network", "router", "switch", "ap", "dhcp", "arp", "vlan", "interfaces", "health", "telemetry", "poe", "cctv"],
     "parameters_schema": {
         "type": "object",
         "properties": {
-            "tenant_id": {"type": "string", "description": "Target tenant (e.g. 'bellini')"},
-            "site_id": {"type": "string", "description": "Target site (e.g. 'bellini-i-ii')"},
+            "tenant": {"type": "string", "description": "Target tenant (default: 'bellini')", "default": "bellini"},
+            "site": {"type": "string", "description": "Target site (default: 'bellini-i-ii')", "default": "bellini-i-ii"},
+            "mode": {"type": "string", "enum": ["read_only"], "default": "read_only"},
             "device_ref": {"type": "string", "description": "Device IP or identifier (e.g. '192.168.3.1')"},
+            "provider_hint": {"type": "string", "description": "Optional provider hint (e.g. 'grandstream_gcc', 'grandstream_gwn', 'hikvision', 'dahua')"},
             "sections": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Telemetry sections to query: ['inventory', 'health', 'interfaces', 'arp', 'dhcp', 'vlans', 'mac_table', 'lldp', 'routes', 'clients', 'logs', 'events', 'poe', 'channels', 'storage', 'firmware']"
-            }
+                "description": f"Telemetry sections to query: {ALL_SECTIONS}"
+            },
+            "filters": {"type": "object", "description": "Optional query filters"},
+            "include_raw_evidence": {"type": "boolean", "default": True},
+            "timeout_seconds": {"type": "integer", "default": 30}
         },
-        "required": ["tenant_id", "sections"]
+        "required": ["device_ref"]
     },
     "required_scopes": ["ralfia:read"]
 }
 
 
 def network_device_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute network queries across allowed sections using Device Fabric / local providers."""
-    tenant_id = parameters.get("tenant_id")
-    device_ref = parameters.get("device_ref", "gateway")
-    sections = parameters.get("sections", ["health", "inventory"])
-    
-    # Return structured telemetry for requested sections
-    response_data: Dict[str, Any] = {
-        "tenant_id": tenant_id,
-        "device_ref": device_ref,
-        "sections_queried": sections,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "data": {}
-    }
-    
-    for sec in sections:
-        if sec == "health":
-            response_data["data"]["health"] = {"status": "HEALTHY", "reachability": "ONLINE", "loss_pct": 0.0}
-        elif sec == "inventory":
-            response_data["data"]["inventory"] = {"model": "GCC6010", "vendor": "Grandstream", "firmware": "1.0.7.71"}
-        elif sec == "vlans":
-            response_data["data"]["vlans"] = [{"vlan_id": 1, "name": "Default_Campus_LAN", "mode": "FLAT_L2"}]
-        elif sec == "dhcp":
-            response_data["data"]["dhcp"] = {"enabled": True, "subnet": "192.168.3.0/24", "scope": "192.168.3.10-250"}
-        else:
-            response_data["data"][sec] = {"status": "OBSERVED", "available": True}
-            
-    return response_data
+    """Execute network queries across allowed sections using AdapterRegistry."""
+    tenant = parameters.get("tenant") or parameters.get("tenant_id", "bellini")
+    site = parameters.get("site") or parameters.get("site_id", "bellini-i-ii")
+    mode = parameters.get("mode", "read_only")
+    device_ref = parameters.get("device_ref", "192.168.3.1")
+    provider_hint = parameters.get("provider_hint")
+    sections = parameters.get("sections") or ["inventory", "health"]
+    filters = parameters.get("filters", {})
+    include_raw_evidence = parameters.get("include_raw_evidence", True)
+    timeout_seconds = parameters.get("timeout_seconds", 30)
 
-# Register default reference capability
+    # Resolve adapter via registry
+    adapter = default_adapter_registry.resolve_adapter(device_ref, provider_hint)
+    
+    return adapter.query(
+        tenant=tenant,
+        site=site,
+        device_ref=device_ref,
+        sections=sections,
+        filters=filters,
+        include_raw_evidence=include_raw_evidence,
+        timeout_seconds=timeout_seconds,
+        context=context
+    )
+
+# Register network.device.query.v1
 register_capability(NETWORK_DEVICE_QUERY_MANIFEST, network_device_query_handler)
