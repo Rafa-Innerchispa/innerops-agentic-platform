@@ -58,12 +58,17 @@ class EffectiveScopeContractTests(unittest.TestCase):
     def test_diagnose_session_separates_server_catalog_from_client_projection(self) -> None:
         profile = mcp_profiles.get_profile("chatgpt_compact")
         profile_tools = profile["tools"]
-        result = mcp_diagnostics.diagnose_mcp_session(
-            client_tool_count=len(profile_tools),
-            client_seen_tools=profile_tools,
-            profile="chatgpt_compact",
-            session_id="lane-a-contract",
-        )
+        with patch.object(
+            mcp_diagnostics.mongo_store,
+            "get_coordination_state",
+            return_value={"ok": False, "state": {}},
+        ):
+            result = mcp_diagnostics.diagnose_mcp_session(
+                client_tool_count=len(profile_tools),
+                client_seen_tools=profile_tools,
+                profile="chatgpt_compact",
+                session_id="lane-a-contract",
+            )
         self.assertEqual(result["profile"], "chatgpt_compact")
         self.assertEqual(result["this_client_sees_tools"], len(profile_tools))
         self.assertEqual(result["expected_tool_count"], len(profile_tools))
