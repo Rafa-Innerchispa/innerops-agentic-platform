@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import socket
 import asyncio
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,10 +18,18 @@ from dotenv import load_dotenv
 
 _ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(_ROOT / ".env", override=True)
+_CANONICAL_RUNTIME_ENV = Path("/home/rlopez/inneros/inneros_core/platform/.env")
+if _CANONICAL_RUNTIME_ENV != (_ROOT / ".env") and _CANONICAL_RUNTIME_ENV.is_file():
+    load_dotenv(_CANONICAL_RUNTIME_ENV, override=False)
 
 HA_URL = os.getenv("HOME_ASSISTANT_URL", os.getenv("HA_URL", "http://192.168.1.4:8123")).rstrip("/")
 HA_TOKEN = os.getenv("HOME_ASSISTANT_TOKEN", os.getenv("HA_TOKEN", "")).strip()
 HA_STATE_FILE = Path(os.getenv("HA_STATE_FILE", "/home/rlopez/data/ralfia/ha_state.json"))
+INTELBRAS_GUARDIAN_URL = os.getenv("INTELBRAS_GUARDIAN_URL", "http://192.168.1.4:8015").rstrip("/")
+INTELBRAS_GUARDIAN_DEVICE_ID = os.getenv("INTELBRAS_GUARDIAN_DEVICE_ID", "").strip()
+INTELBRAS_GUARDIAN_SESSION_ID = os.getenv("INTELBRAS_GUARDIAN_SESSION_ID", "").strip()
+INTELBRAS_GUARDIAN_SESSION_FILE = os.getenv("INTELBRAS_GUARDIAN_SESSION_FILE", "").strip()
+INTELBRAS_PREFERRED_ALARM_PANEL = os.getenv("INTELBRAS_PREFERRED_ALARM_PANEL", "panel_home_ralphi").strip().lower()
 
 # Alias habitación → fragmentos entity_id / friendly_name (español + nombres HA reales)
 ROOM_ALIASES: dict[str, list[str]] = {
@@ -337,53 +348,9 @@ def call_service(domain: str, service: str, *, entity_id: str | None = None, dat
     return {"ok": True, "domain": dom, "service": svc, "entity_id": entity_id, "data": payload}
 
 
-def _try_dmx_dispatch(name: str, on: bool = True) -> dict[str, Any] | None:
-    low = name.lower()
-    dmx_keywords = ["tacho", "pulpo", "beam", "bola", "plantas", "escalera", "peces", "central", "disco", "dmx", "escena"]
-    if any(k in low for k in dmx_keywords):
-        try:
-            import sys
-            dmx_path = "/home/rlopez/projects/inneros-dmx-engine"
-            if dmx_path not in sys.path:
-                sys.path.insert(0, dmx_path)
-            from src.effects_engine import DynamicEffectsRunner
-            runner = DynamicEffectsRunner(target_ip="192.168.1.10", universe=0)
-            if not on:
-                runner.blackout()
-                return {"ok": True, "domain": "dmx", "service": "blackout", "entity_id": name, "data": {"action": "blackout"}}
-            
-            # Mapeo de target
-            target = "todas"
-            if "planta" in low:
-                target = "tacho_plantas"
-            elif "escalera" in low:
-                target = "tacho_escalera"
-            elif "peces" in low or "pez" in low:
-                target = "tacho_peces"
-            elif "central" in low or "centro" in low:
-                target = "tacho_central"
-            elif "tacho" in low or "par" in low:
-                target = "tachos"
-            elif "beam" in low:
-                target = "beams"
-            elif "pulpo" in low or "spider" in low:
-                target = "pulpos"
-            elif "bola" in low:
-                target = "bola_disco"
-
-            runner.apply_static_scene(color_name="blanco_calido", brightness=255, target=target)
-            return {"ok": True, "domain": "dmx", "service": "turn_on", "entity_id": target, "data": {"target": target}}
-        except Exception:
-            pass
-    return None
-
-
 def turn_on_light(entity_or_name: str) -> dict[str, Any]:
     eid = _resolve_light_entity(entity_or_name)
     if not eid:
-        dmx_res = _try_dmx_dispatch(entity_or_name, on=True)
-        if dmx_res:
-            return dmx_res
         return {"ok": False, "error": "entity_not_found", "query": entity_or_name}
     domain = eid.split(".", 1)[0]
     return call_service(domain, "turn_on", entity_id=eid)
@@ -392,9 +359,6 @@ def turn_on_light(entity_or_name: str) -> dict[str, Any]:
 def turn_off_light(entity_or_name: str) -> dict[str, Any]:
     eid = _resolve_light_entity(entity_or_name)
     if not eid:
-        dmx_res = _try_dmx_dispatch(entity_or_name, on=False)
-        if dmx_res:
-            return dmx_res
         return {"ok": False, "error": "entity_not_found", "query": entity_or_name}
     domain = eid.split(".", 1)[0]
     return call_service(domain, "turn_off", entity_id=eid)
@@ -505,3 +469,804 @@ def read_cached_snapshot() -> dict[str, Any]:
         return {"ok": True, **json.loads(HA_STATE_FILE.read_text(encoding="utf-8"))}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# AG-32 Intelbras alarm operations
+# ---------------------------------------------------------------------------
+
+_ALARM_INTENT_KEYWORDS = (
+    "alarma", "alarm", "intelbras", "interbras", "anm", "amt24", "amt 24",
+    "anm24", "anm 24", "sirena", "panic", "pánico", "panico", "armar",
+    "desarmar", "perimetral", "seguridad casa",
+)
+_ALARM_WRITE_KEYWORDS = (
+    "arma", "armar", "activa", "activar", "desarma", "desarmar", "desactiva",
+    "desactivar", "sirena", "pánico", "panico", "panic", "dispara",
+)
+_ALARM_APPROVAL_KEYWORDS = (
+    "autorizo", "autorizado", "confirmo", "apruebo", "sí autorizo", "si autorizo",
+)
+_ALARM_DEVICE_TERMS = ("alarma", "alarm", "intelbras", "interbras", "anm", "amt")
+_INTELBRAS_DEFAULT_HOST = os.getenv("INTELBRAS_ALARM_HOST", "192.168.1.202").strip()
+_INTELBRAS_DEFAULT_PORT = int(os.getenv("INTELBRAS_ALARM_PORT", "9009") or "9009")
+
+
+def _is_alarm_request(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return any(keyword in text for keyword in _ALARM_INTENT_KEYWORDS)
+
+
+def _requested_alarm_write(message: str) -> bool:
+    return _requested_alarm_action(message) is not None
+
+
+def _explicit_alarm_approval(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return _is_alarm_request(text) and any(keyword in text for keyword in _ALARM_APPROVAL_KEYWORDS)
+
+
+def _requested_alarm_action(message: str) -> str | None:
+    text = (message or "").strip().lower()
+    if re.search(r"\b(desarma|desarmar|desactiva|desactivar)\b", text):
+        return "alarm_disarm"
+    if re.search(r"\b(perimetral|noche|en casa|home|stay)\b", text) and re.search(r"\b(arma|armar|activa|activar)\b", text):
+        return "alarm_arm_home"
+    if re.search(r"\b(arma|armar|activa|activar)\b", text):
+        return "alarm_arm_away"
+    if re.search(r"\b(sirena|p[aá]nico|panico|panic|dispara)\b", text):
+        return "blocked_alarm_panic_or_siren"
+    return None
+
+
+def _alarm_matches(value: Any) -> bool:
+    haystack = json.dumps(value, ensure_ascii=False).lower()
+    return any(term in haystack for term in _ALARM_DEVICE_TERMS)
+
+
+def _alarm_panel_rank(panel: dict[str, Any]) -> tuple[int, str]:
+    haystack = json.dumps(panel, ensure_ascii=False).lower()
+    entity_id = str(panel.get("entity_id") or "")
+    score = 0
+    if INTELBRAS_PREFERRED_ALARM_PANEL and INTELBRAS_PREFERRED_ALARM_PANEL in haystack:
+        score += 100
+    if "panel_home_ralphi" in entity_id:
+        score += 80
+    if "panel home ralphi" in haystack:
+        score += 80
+    if "intelbras" in haystack or "guardian" in haystack:
+        score += 10
+    return (-score, entity_id)
+
+
+def _alarm_control_panels(states: list[dict[str, Any]], alarm_entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    panels = [row for row in states if str(row.get("entity_id") or "").startswith("alarm_control_panel.")]
+    if not panels:
+        return []
+    registry_ids = {
+        str(row.get("entity_id") or "")
+        for row in alarm_entities
+        if str(row.get("entity_id") or "").startswith("alarm_control_panel.")
+    }
+    matched = [row for row in panels if str(row.get("entity_id") or "") in registry_ids or _alarm_matches(row)]
+    return sorted(matched or panels, key=_alarm_panel_rank)
+
+
+def _alarm_panel_summary(panel: dict[str, Any]) -> dict[str, Any]:
+    attrs = panel.get("attributes") or {}
+    return {
+        "entity_id": panel.get("entity_id"),
+        "state": panel.get("state"),
+        "friendly_name": attrs.get("friendly_name"),
+        "supported_features": attrs.get("supported_features"),
+        "changed_at": panel.get("last_changed"),
+        "updated_at": panel.get("last_updated"),
+    }
+
+
+def _guardian_session_id() -> str:
+    if INTELBRAS_GUARDIAN_SESSION_ID:
+        return INTELBRAS_GUARDIAN_SESSION_ID
+    if INTELBRAS_GUARDIAN_SESSION_FILE:
+        try:
+            return Path(INTELBRAS_GUARDIAN_SESSION_FILE).expanduser().read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+    return ""
+
+
+def _guardian_api_request(method: str, path: str, *, json_body: dict[str, Any] | None = None, timeout: float = 25.0) -> dict[str, Any]:
+    session_id = _guardian_session_id()
+    if not session_id:
+        return {"ok": False, "error": "intelbras_guardian_session_missing"}
+    try:
+        response = httpx.request(
+            method,
+            f"{INTELBRAS_GUARDIAN_URL}{path}",
+            headers={"X-Session-ID": session_id, "Content-Type": "application/json"},
+            json=json_body,
+            timeout=timeout,
+        )
+        if not response.is_success:
+            return {"ok": False, "error": "intelbras_guardian_http_error", "http_status": response.status_code, "body": response.text[:300]}
+        return {"ok": True, "data": response.json() if response.content else {}}
+    except Exception as exc:
+        return {"ok": False, "error": "intelbras_guardian_unreachable", "detail": str(exc)[:200]}
+
+
+def _guardian_direct_status(device_id: str | None = None) -> dict[str, Any]:
+    did = str(device_id or INTELBRAS_GUARDIAN_DEVICE_ID or "").strip()
+    if not did:
+        return {"ok": False, "error": "intelbras_guardian_device_id_missing"}
+    raw = _guardian_api_request("GET", f"/api/v1/alarm/{did}/status/auto", timeout=35.0)
+    if not raw.get("ok"):
+        return raw
+    status = raw.get("data") or {}
+    zones = status.get("zones") if isinstance(status.get("zones"), list) else []
+    open_zones = [
+        {"index": z.get("index"), "name": z.get("name"), "is_in_alarm": z.get("is_in_alarm")}
+        for z in zones
+        if isinstance(z, dict) and z.get("is_open")
+    ]
+    alarm_zones = [
+        {"index": z.get("index"), "name": z.get("name")}
+        for z in zones
+        if isinstance(z, dict) and z.get("is_in_alarm")
+    ]
+    trouble_zones = [
+        {"index": z.get("index"), "name": z.get("name"), "battery_low": z.get("battery_low"), "tamper": z.get("tamper")}
+        for z in zones
+        if isinstance(z, dict) and (z.get("battery_low") or z.get("tamper"))
+    ]
+    return {
+        "ok": True,
+        "source": "intelbras_guardian_middleware",
+        "device_id": status.get("device_id"),
+        "model": status.get("model"),
+        "mac": status.get("mac"),
+        "is_armed": status.get("is_armed"),
+        "arm_mode": status.get("arm_mode"),
+        "is_triggered": status.get("is_triggered"),
+        "partitions_enabled": status.get("partitions_enabled"),
+        "zone_count": len(zones),
+        "open_zones": open_zones,
+        "alarm_zones": alarm_zones,
+        "trouble_zones": trouble_zones,
+    }
+
+
+def _guardian_direct_alarm_action(requested_action: str, *, device_id: str | None = None) -> dict[str, Any]:
+    did = str(device_id or INTELBRAS_GUARDIAN_DEVICE_ID or "").strip()
+    if not did:
+        return {"ok": False, "error": "intelbras_guardian_device_id_missing"}
+    if requested_action == "alarm_disarm":
+        return _guardian_api_request("POST", f"/api/v1/alarm/{did}/disarm", json_body={}, timeout=45.0)
+    if requested_action in {"alarm_arm_away", "alarm_arm_home"}:
+        mode = "home" if requested_action == "alarm_arm_home" else "away"
+        return _guardian_api_request("POST", f"/api/v1/alarm/{did}/arm", json_body={"mode": mode}, timeout=45.0)
+    return {"ok": False, "error": "unsupported_guardian_alarm_action", "action": requested_action}
+
+
+def _expected_alarm_states(requested_action: str) -> set[str]:
+    if requested_action == "alarm_disarm":
+        return {"disarmed"}
+    if requested_action == "alarm_arm_home":
+        return {"armed_home", "armed_stay"}
+    if requested_action == "alarm_arm_away":
+        return {"armed_away"}
+    return set()
+
+
+def _read_alarm_panel_state(panel_entity_id: str | None) -> dict[str, Any]:
+    if not panel_entity_id:
+        return {"ok": False, "error": "alarm_control_panel_missing"}
+    raw = _request("GET", f"/api/states/{panel_entity_id}", timeout=10.0)
+    if not raw.get("ok"):
+        return raw
+    data = raw.get("data") or {}
+    attrs = data.get("attributes") or {}
+    return {
+        "ok": True,
+        "entity_id": data.get("entity_id"),
+        "state": data.get("state"),
+        "friendly_name": attrs.get("friendly_name"),
+        "updated_at": data.get("last_updated"),
+    }
+
+
+def _verify_alarm_post_state(requested_action: str, panel_entity_id: str | None, *, attempts: int = 5, delay_s: float = 1.0) -> dict[str, Any]:
+    expected = _expected_alarm_states(requested_action)
+    if not expected:
+        return {"ok": False, "error": "unsupported_alarm_verification_action", "action": requested_action}
+    last_panel: dict[str, Any] = {}
+    last_guardian: dict[str, Any] = {}
+    for attempt in range(max(1, attempts)):
+        last_panel = _read_alarm_panel_state(panel_entity_id)
+        last_guardian = _guardian_direct_status()
+        panel_state = str(last_panel.get("state") or "")
+        guardian_state = str(last_guardian.get("arm_mode") or "")
+        if panel_state in expected or guardian_state in expected:
+            return {
+                "ok": True,
+                "expected_states": sorted(expected),
+                "attempt": attempt + 1,
+                "panel": last_panel,
+                "guardian": {
+                    "ok": last_guardian.get("ok"),
+                    "arm_mode": last_guardian.get("arm_mode"),
+                    "is_armed": last_guardian.get("is_armed"),
+                    "is_triggered": last_guardian.get("is_triggered"),
+                    "open_zones": last_guardian.get("open_zones"),
+                },
+            }
+        if attempt < max(1, attempts) - 1:
+            time.sleep(delay_s)
+    return {
+        "ok": False,
+        "error": "alarm_state_verification_failed",
+        "expected_states": sorted(expected),
+        "panel": last_panel,
+        "guardian": {
+            "ok": last_guardian.get("ok"),
+            "arm_mode": last_guardian.get("arm_mode"),
+            "is_armed": last_guardian.get("is_armed"),
+            "is_triggered": last_guardian.get("is_triggered"),
+            "open_zones": last_guardian.get("open_zones"),
+        },
+    }
+
+
+def _maybe_apply_alarm_action(message: str, panel_entity_id: str | None, *, allow_guardian_direct: bool = True) -> dict[str, Any]:
+    requested_action = _requested_alarm_action(message)
+    requested_write = bool(requested_action)
+    approved = _explicit_alarm_approval(message)
+    if not requested_write:
+        return {"requested_write": False, "approved": False, "executed": False}
+    if requested_action == "blocked_alarm_panic_or_siren":
+        return {
+            "requested_write": True,
+            "approved": approved,
+            "executed": False,
+            "blocked": True,
+            "reason": "panic_or_siren_requires_manual_runbook",
+        }
+    if not panel_entity_id and not allow_guardian_direct:
+        return {
+            "requested_write": True,
+            "approved": approved,
+            "executed": False,
+            "blocked": True,
+            "reason": "alarm_control_panel_missing",
+        }
+    if not approved:
+        return {
+            "requested_write": True,
+            "approved": False,
+            "executed": False,
+            "blocked": True,
+            "reason": "explicit_alarm_approval_required",
+            "required_phrase": "Sí, autorizo armar/desarmar la alarma.",
+            "proposed_service": f"alarm_control_panel.{requested_action}",
+            "entity_id": panel_entity_id,
+            "fallback_transport": "intelbras_guardian_middleware" if allow_guardian_direct and INTELBRAS_GUARDIAN_DEVICE_ID else None,
+        }
+    if panel_entity_id:
+        result = call_service("alarm_control_panel", requested_action, entity_id=panel_entity_id)
+        transport = "home_assistant"
+        service = requested_action
+        target = panel_entity_id
+    else:
+        result = _guardian_direct_alarm_action(requested_action)
+        transport = "intelbras_guardian_middleware"
+        service = requested_action
+        target = INTELBRAS_GUARDIAN_DEVICE_ID
+    verification = _verify_alarm_post_state(requested_action, panel_entity_id)
+    verified = bool(verification.get("ok"))
+    return {
+        "requested_write": True,
+        "approved": True,
+        "executed": bool(result.get("ok")) and verified,
+        "verified": verified,
+        "transport": transport,
+        "service": service,
+        "entity_id": target,
+        "result": result,
+        "verification": verification,
+    }
+
+
+def _tcp_connectivity_probe(host: str, port: int, timeout: float = 1.5) -> dict[str, Any]:
+    if not host:
+        return {"ok": False, "error": "host_missing"}
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        sock.connect((host, int(port)))
+        return {"ok": True, "host": host, "port": int(port), "state": "open"}
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "host": host, "port": int(port), "state": "closed_or_unreachable", "error": type(exc).__name__}
+    finally:
+        sock.close()
+
+
+def alarm_intelbras_ops(message: str = "") -> dict[str, Any]:
+    """Read-only Intelbras alarm discovery for AG-32 and FieldOps.
+
+    The first phase is intentionally non-invasive: Home Assistant/UniFi
+    inventory plus a TCP connect probe to the known local alarm service. It
+    does not send protocol frames, arm/disarm, trigger panic, siren or PGM.
+    """
+    raw_states = _request("GET", "/api/states")
+    registry = list_entity_registry(limit=2000)
+    devices = list_devices(limit=2000)
+    if not raw_states.get("ok") or not registry.get("ok") or not devices.get("ok"):
+        return {
+            "ok": False,
+            "mode": "alarm_intelbras_ops",
+            "error": "alarm_observation_failed",
+            "states_ok": bool(raw_states.get("ok")),
+            "registry_ok": bool(registry.get("ok")),
+            "devices_ok": bool(devices.get("ok")),
+        }
+
+    states = raw_states.get("data") or []
+    alarm_states = [row for row in states if _alarm_matches(row)]
+    alarm_entities = [row for row in registry.get("entities") or [] if _alarm_matches(row)]
+    alarm_devices = [row for row in devices.get("devices") or [] if _alarm_matches(row)]
+
+    tracker = next(
+        (row for row in alarm_states if str(row.get("entity_id") or "").startswith("device_tracker.")),
+        alarm_states[0] if alarm_states else {},
+    )
+    attrs = tracker.get("attributes") or {}
+    device = alarm_devices[0] if alarm_devices else {}
+    connections = device.get("connections") or []
+    mac = next((item[1] for item in connections if isinstance(item, list) and item and item[0] == "mac"), None)
+    host = str(attrs.get("ip") or attrs.get("ip_address") or _INTELBRAS_DEFAULT_HOST or "").strip()
+    port_probe = _tcp_connectivity_probe(host, _INTELBRAS_DEFAULT_PORT) if host else {"ok": False, "error": "host_missing"}
+    alarm_control_panels = _alarm_control_panels(states, alarm_entities)
+    alarm_panel_entities = [str(row.get("entity_id") or "") for row in alarm_control_panels if row.get("entity_id")]
+    primary_panel = alarm_control_panels[0] if alarm_control_panels else {}
+    primary_panel_entity = str(primary_panel.get("entity_id") or "")
+    guardian_status = _guardian_direct_status()
+    requested_write = _requested_alarm_write(message)
+    action_result = _maybe_apply_alarm_action(message, primary_panel_entity or None)
+
+    inferred = []
+    if str(device.get("manufacturer") or "").lower() == "intelbras" or str(mac or "").lower().startswith("d8:36:5f"):
+        inferred.append("intelbras_device")
+    if port_probe.get("ok") and int(port_probe.get("port") or 0) == 9009:
+        inferred.append("local_tcp_9009_open")
+    if not alarm_control_panels:
+        inferred.append("home_assistant_alarm_control_panel_missing")
+    else:
+        inferred.append("home_assistant_alarm_control_panel_present")
+    if guardian_status.get("ok"):
+        inferred.append("intelbras_guardian_direct_status_ok")
+
+    safe_actions = []
+    if port_probe.get("ok"):
+        safe_actions.append("verified_tcp_connectivity_9009_without_protocol_frames")
+    if tracker:
+        safe_actions.append("verified_home_assistant_unifi_presence_tracker")
+    if alarm_control_panels:
+        safe_actions.append("read_home_assistant_alarm_control_panel_state")
+    if guardian_status.get("ok"):
+        safe_actions.append("read_intelbras_guardian_direct_status")
+    if action_result.get("executed"):
+        safe_actions.append(f"executed_alarm_service:{action_result.get('transport')}:{action_result.get('service')}")
+
+    actions_requiring_approval = [
+        "Validate a mature local Intelbras integration against this exact model before reading zones through protocol frames.",
+        "Configure Home Assistant alarm_control_panel only after credentials/protocol are confirmed.",
+        "Arm/disarm require explicit owner approval and the Home Assistant alarm_control_panel entity.",
+        "Panic, siren and PGM remain blocked until a physical runbook is validated.",
+    ]
+    if requested_write and not action_result.get("executed"):
+        actions_requiring_approval.insert(0, f"Requested alarm state change was not executed: {action_result.get('reason') or 'approval_or_entity_missing'}.")
+    elif action_result.get("executed"):
+        actions_requiring_approval.insert(0, "Alarm state change was sent through Home Assistant after explicit owner approval.")
+
+    summary_tail = (
+        f"alarm_panel={primary_panel.get('state')} ({primary_panel_entity})."
+        if primary_panel_entity
+        else (
+            f"guardian={guardian_status.get('arm_mode')}, triggered={guardian_status.get('is_triggered')}, open_zones={len(guardian_status.get('open_zones') or [])}."
+            if guardian_status.get("ok")
+            else "No Home Assistant alarm_control_panel entity is present yet."
+        )
+    )
+
+    return {
+        "ok": True,
+        "mode": "alarm_intelbras_ops",
+        "read_only": not bool(action_result.get("executed")),
+        "requested_write": requested_write,
+        "action_result": action_result,
+        "summary": (
+            "Intelbras alarm observed on LAN via Home Assistant/UniFi; "
+            f"presence={tracker.get('state') or 'unknown'}, tcp_9009={port_probe.get('state')}. "
+            f"{summary_tail}"
+        ),
+        "device": {
+            "declared_model": os.getenv("INTELBRAS_ALARM_MODEL", "AMT24 Net / ANM 24 NET candidate"),
+            "ha_name": device.get("name_by_user") or device.get("name") or attrs.get("friendly_name"),
+            "manufacturer": device.get("manufacturer"),
+            "model": device.get("model"),
+            "entity_id": tracker.get("entity_id"),
+            "presence_state": tracker.get("state"),
+            "host": host,
+            "mac": mac or attrs.get("mac") or attrs.get("mac_address"),
+            "connections": connections,
+        },
+        "connectivity": {
+            "home_assistant_entities": [row.get("entity_id") for row in alarm_states],
+            "registry_entities": [row.get("entity_id") for row in alarm_entities],
+            "alarm_control_panel_entities": alarm_panel_entities,
+            "alarm_control_panels": [_alarm_panel_summary(row) for row in alarm_control_panels],
+            "intelbras_guardian_direct_status": guardian_status,
+            "tcp_probe": port_probe,
+            "inferred": inferred,
+        },
+        "safe_actions_applied": safe_actions,
+        "actions_requiring_approval": actions_requiring_approval,
+        "fieldops_security": {
+            "capability": "read_only_alarm_presence_and_connectivity",
+            "event_source": "home_assistant_alarm_control_panel_or_unifi_device_tracker_plus_tcp_probe",
+            "can_verify_intrusion_state": bool(alarm_control_panels) or bool(guardian_status.get("ok")),
+            "can_execute_alarm_actions": bool(alarm_control_panels) or bool(guardian_status.get("ok")),
+            "alarm_actions_guard": "explicit_owner_approval_required",
+        },
+        "limitations": (
+            [
+                "Home Assistant currently exposes the panel as a UniFi device_tracker, not as alarm_control_panel.",
+                "TCP 9009 confirms a local service is reachable but does not prove authenticated protocol compatibility.",
+                "Zone, tamper, battery, power and armed/disarmed state need a validated Intelbras local integration or documented protocol adapter.",
+            ]
+            if not alarm_control_panels
+            else [
+                "Panic, siren and PGM remain blocked until physically validated.",
+                "Arm/disarm are routed only through Home Assistant and require explicit owner approval.",
+            ]
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# AG-32 UniFi / Wi-Fi operations
+# ---------------------------------------------------------------------------
+
+_UNIFI_INTENT_KEYWORDS = (
+    "unifi", "wifi", "wi-fi", "wlan", "access point", "punto de acceso",
+    "señal", "senal", "2.4", "5 ghz", "5ghz", "cámara lenta", "camara lenta",
+)
+_UNIFI_REPAIR_KEYWORDS = (
+    "arregla", "arreglar", "corrige", "corregir", "optimiza", "optimizar",
+    "repara", "reparar",
+)
+
+
+def _is_unifi_request(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return any(keyword in text for keyword in _UNIFI_INTENT_KEYWORDS)
+
+
+def _requested_unifi_repair(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return any(keyword in text for keyword in _UNIFI_REPAIR_KEYWORDS)
+
+
+def _safe_int(value: Any) -> int | None:
+    try:
+        return int(float(str(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _unifi_group_entity(
+    rows: list[dict[str, Any]],
+    state_by_id: dict[str, dict[str, Any]],
+    *,
+    original_name: str | None = None,
+    suffix: str | None = None,
+) -> dict[str, Any] | None:
+    for row in rows:
+        if original_name and str(row.get("original_name") or "").lower() != original_name.lower():
+            continue
+        entity_id = str(row.get("entity_id") or "")
+        if suffix and not entity_id.endswith(suffix):
+            continue
+        state_row = state_by_id.get(entity_id) or {}
+        return {
+            "entity_id": entity_id,
+            "state": state_row.get("state"),
+            "attributes": state_row.get("attributes") or {},
+        }
+    return None
+
+
+def unifi_network_ops(message: str = "") -> dict[str, Any]:
+    """Observe, diagnose, act safely, and verify the local UniFi network.
+
+    The current Home Assistant integration provides device/WLAN state and client
+    counts, but not complete RF telemetry. Radio/channel/power changes therefore
+    fail closed until an audited controller adapter with rollback is available.
+    """
+    registry = list_entity_registry(limit=2000, integration="unifi")
+    devices = list_devices(limit=2000)
+    raw_states = _request("GET", "/api/states")
+    if not registry.get("ok") or not devices.get("ok") or not raw_states.get("ok"):
+        return {
+            "ok": False,
+            "mode": "unifi_network_ops",
+            "error": "unifi_observation_failed",
+            "registry_ok": bool(registry.get("ok")),
+            "devices_ok": bool(devices.get("ok")),
+            "states_ok": bool(raw_states.get("ok")),
+        }
+
+    state_rows = raw_states.get("data") or []
+    state_by_id = {
+        str(row.get("entity_id") or ""): row
+        for row in state_rows
+        if row.get("entity_id")
+    }
+    entity_rows = registry.get("entities") or []
+    relevant_device_ids = {
+        str(row.get("device_id")) for row in entity_rows if row.get("device_id")
+    }
+    device_rows = devices.get("devices") or []
+    unifi_devices = {
+        str(row.get("id")): row
+        for row in device_rows
+        if row.get("id")
+        and (
+            str(row.get("id")) in relevant_device_ids
+            or "ubiquiti" in str(row.get("manufacturer") or "").lower()
+            or "unifi" in str(row.get("model") or "").lower()
+        )
+    }
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in entity_rows:
+        device_id = str(row.get("device_id") or "")
+        if device_id:
+            grouped.setdefault(device_id, []).append(row)
+
+    aps: list[dict[str, Any]] = []
+    wlans: list[dict[str, Any]] = []
+    gateways: list[dict[str, Any]] = []
+
+    for device_id, device in unifi_devices.items():
+        name = str(device.get("name_by_user") or device.get("name") or device_id)
+        model = str(device.get("model") or "")
+        rows = grouped.get(device_id, [])
+
+        if model == "UniFi WLAN":
+            clients = (
+                _unifi_group_entity(rows, state_by_id, original_name="Clients")
+                or _unifi_group_entity(rows, state_by_id, suffix="_clients")
+            )
+            enabled = (
+                _unifi_group_entity(rows, state_by_id, original_name="Enabled")
+                or _unifi_group_entity(rows, state_by_id, suffix="_enabled")
+            )
+            wlans.append({
+                "name": name,
+                "device_id": device_id,
+                "clients": _safe_int((clients or {}).get("state")),
+                "enabled": (enabled or {}).get("state"),
+                "clients_entity": (clients or {}).get("entity_id"),
+                "enabled_entity": (enabled or {}).get("entity_id"),
+            })
+            continue
+
+        if model in {"UniFi Network", "UniFi Network Application"}:
+            continue
+
+        state_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="State")
+            or _unifi_group_entity(rows, state_by_id, suffix="_state")
+        )
+        uptime_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="Uptime")
+            or _unifi_group_entity(rows, state_by_id, suffix="_uptime")
+        )
+        cpu_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="CPU utilization")
+            or _unifi_group_entity(rows, state_by_id, suffix="_cpu_utilization")
+        )
+        mem_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="Memory utilization")
+            or _unifi_group_entity(rows, state_by_id, suffix="_memory_utilization")
+        )
+        uplink_ent = (
+            _unifi_group_entity(rows, state_by_id, original_name="Uplink MAC")
+            or _unifi_group_entity(rows, state_by_id, suffix="_uplink_mac")
+        )
+        item = {
+            "name": name,
+            "device_id": device_id,
+            "model": model,
+            "software": device.get("sw_version"),
+            "state": (state_ent or {}).get("state"),
+            "uptime": (uptime_ent or {}).get("state"),
+            "cpu_percent": _safe_int((cpu_ent or {}).get("state")),
+            "memory_percent": _safe_int((mem_ent or {}).get("state")),
+            "uplink_mac": (uplink_ent or {}).get("state"),
+        }
+        if "gateway" in name.lower() or model.upper() in {"UDRULT", "UDM", "UDMPRO", "UDR"}:
+            gateways.append(item)
+        elif state_ent or any(str(r.get("original_name") or "").lower() == "restart" for r in rows):
+            aps.append(item)
+
+    disconnected_states = {
+        "unavailable", "disconnected", "heartbeat_missed", "isolated",
+        "adoption_failed", "inform_error",
+    }
+    offline_aps = [
+        ap for ap in aps if str(ap.get("state") or "").lower() in disconnected_states
+    ]
+    active_aps = [
+        ap for ap in aps if str(ap.get("state") or "").lower() == "connected"
+    ]
+    high_memory_aps = [
+        ap for ap in active_aps if (ap.get("memory_percent") or 0) >= 80
+    ]
+
+    clients_24 = 0
+    clients_5 = 0
+    wlans_24: list[dict[str, Any]] = []
+    wlans_5: list[dict[str, Any]] = []
+    for wlan in wlans:
+        low = wlan["name"].lower()
+        if "2.4" in low or "2_4" in low or "2-4" in low:
+            wlans_24.append(wlan)
+            clients_24 += wlan.get("clients") or 0
+        elif "5g" in low or "5 ghz" in low or "5ghz" in low:
+            wlans_5.append(wlan)
+            clients_5 += wlan.get("clients") or 0
+
+    findings: list[dict[str, Any]] = []
+    likely_causes: list[str] = []
+
+    if offline_aps:
+        findings.append({
+            "severity": "high",
+            "code": "ap_unavailable",
+            "detail": [ap["name"] for ap in offline_aps],
+        })
+        likely_causes.append(
+            "One or more configured UniFi AP records are unavailable, reducing expected coverage or representing stale/replaced AP records."
+        )
+    if len(wlans_24) > 1:
+        findings.append({
+            "severity": "medium",
+            "code": "multiple_24ghz_wlans",
+            "detail": [w["name"] for w in wlans_24],
+        })
+        likely_causes.append(
+            "Multiple 2.4 GHz WLANs may duplicate airtime and make client placement harder to reason about."
+        )
+    if clients_24 >= 25:
+        findings.append({
+            "severity": "high",
+            "code": "24ghz_client_pressure",
+            "detail": {"clients": clients_24, "wlans": len(wlans_24)},
+        })
+        likely_causes.append(
+            "2.4 GHz carries a high client count; cameras and IoT compete for limited airtime, especially with weak RSSI or overlapping channels."
+        )
+    if high_memory_aps:
+        findings.append({
+            "severity": "medium",
+            "code": "ap_memory_high",
+            "detail": [
+                {"name": ap["name"], "memory_percent": ap["memory_percent"]}
+                for ap in high_memory_aps
+            ],
+        })
+    if clients_24 > clients_5 * 2 and clients_24 >= 15:
+        findings.append({
+            "severity": "medium",
+            "code": "band_imbalance",
+            "detail": {"clients_24": clients_24, "clients_5": clients_5},
+        })
+        likely_causes.append(
+            "Client distribution is heavily skewed toward 2.4 GHz instead of 5 GHz for capable devices."
+        )
+
+    requested_repair = _requested_unifi_repair(message)
+    before = {
+        "active_aps": [ap["name"] for ap in active_aps],
+        "offline_or_stale_aps": [ap["name"] for ap in offline_aps],
+        "clients_24ghz": clients_24,
+        "clients_5ghz": clients_5,
+        "wlans_24ghz": [w["name"] for w in wlans_24],
+        "wlans_5ghz": [w["name"] for w in wlans_5],
+    }
+
+    limitations = [
+        "Home Assistant exposes UniFi device/WLAN state, client counts, uptime and some resource telemetry, but not RF channel width, channel utilization, RSSI/retry rate, transmit power or interference on this integration surface.",
+        "Channel, power, firmware, password and AP restart changes remain fail-closed until an audited controller adapter can verify the before/after state and rollback."
+    ]
+    actions_requiring_approval = [
+        "Read per-radio channel, channel utilization, retry rate and client RSSI from the UniFi controller before RF changes.",
+        "If contention is confirmed, coordinate non-overlapping 2.4 GHz channels, 20 MHz width, and 5 GHz steering/power tuning with rollback evidence.",
+    ]
+    if offline_aps:
+        actions_requiring_approval.append(
+            "Confirm whether unavailable AP records are intentionally disabled/replaced or physically offline before restart/removal/adoption."
+        )
+
+    return {
+        "ok": True,
+        "mode": "unifi_network_ops",
+        "requested_repair": requested_repair,
+        "summary": (
+            f"UniFi observed: {len(active_aps)} AP(s) connected, {len(offline_aps)} unavailable/stale; "
+            f"{clients_24} clients on identified 2.4 GHz WLANs and {clients_5} on identified 5 GHz WLANs."
+        ),
+        "findings": findings,
+        "evidence": {"access_points": aps, "gateways": gateways, "wlans": wlans},
+        "likely_causes": likely_causes,
+        "safe_actions_applied": [],
+        "actions_requiring_approval": actions_requiring_approval,
+        "verification": {
+            "performed": True,
+            "source": "home_assistant_unifi_integration",
+            "read_only": True,
+            "consistent": True,
+        },
+        "before_after": {"before": before, "after": before, "changed": False},
+        "limitations": limitations,
+    }
+
+
+def run_home_ops_cycle(trigger: str = "mcp") -> dict[str, Any]:
+    """Canonical AG-32 entrypoint with intent-aware routing."""
+    if _is_alarm_request(trigger):
+        out = alarm_intelbras_ops(trigger)
+        out.setdefault("trigger", trigger or "mcp")
+        out["entrypoint"] = "homeassistant_client.alarm_intelbras_ops"
+        return out
+    try:
+        from inneros_core_runtime import grandstream_gwn_network_ops as gwn_ops
+
+        if gwn_ops.is_grandstream_gwn_request(trigger):
+            out = gwn_ops.grandstream_gwn_network_ops(trigger)
+            out.setdefault("trigger", trigger or "mcp")
+            out["entrypoint"] = "grandstream_gwn_network_ops.grandstream_gwn_network_ops"
+            return out
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime import ruijie_reyee_network_ops as rj_ops
+
+        if rj_ops.is_ruijie_reyee_request(trigger):
+            out = rj_ops.ruijie_reyee_network_ops(trigger)
+            out.setdefault("trigger", trigger or "mcp")
+            out["entrypoint"] = "ruijie_reyee_network_ops.ruijie_reyee_network_ops"
+            return out
+    except Exception:
+        pass
+    if _is_unifi_request(trigger):
+        out = unifi_network_ops(trigger)
+        out.setdefault("trigger", trigger or "mcp")
+        out["entrypoint"] = "homeassistant_client.unifi_network_ops"
+        return out
+
+    from raphiia_openai import home_ops_daemon
+
+    out = home_ops_daemon.run_cycle()
+    if isinstance(out, dict):
+        out.setdefault("ok", True)
+        out["trigger"] = trigger or "mcp"
+        out["entrypoint"] = "homeassistant_client.run_home_ops_cycle"
+        return out
+    return {
+        "ok": False,
+        "error": "home_ops_cycle_invalid_result",
+        "trigger": trigger or "mcp",
+        "entrypoint": "homeassistant_client.run_home_ops_cycle",
+    }

@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-10-01T17:30:00Z",
+  "grandstream_gwn": {
+    "status": "live",
+    "bellini_network_id": 180122,
+    "credentials": "env+owner_vault",
+    "mcp_tools": [
+      "grandstream_gwn_network_ops",
+      "grandstream_gwn_full_snapshot",
+      "grandstream_gwn_device_reboot",
+      "grandstream_gwn_ssid_update",
+      "grandstream_gwn_api_capabilities"
+    ],
+    "tests": "test_ag32_grandstream_gwn_network_ops.py PASS"
+  },
+  "ruijie_reyee": {
+    "status": "partial",
+    "cloud_account_vaulted": true,
+    "appid_secret": "pending_service_rj@ruijienetworks.com",
+    "local_probe_ip": "192.168.3.172",
+    "mcp_tools": [
+      "ruijie_reyee_network_ops",
+      "ruijie_reyee_full_snapshot",
+      "ruijie_reyee_api_capabilities"
+    ],
+    "tests": "test_ruijie_reyee_network_ops.py PASS"
+  },
+  "ops_hygiene": {
+    "failed_tasks_archived": ["ops_c0e8eb0cd9d9"],
+    "failed_remaining": 0
+  },
+  "pytest_batch": "23 passed (gwn+ruijie+unifi+fabric+capability_gateway)"
+}

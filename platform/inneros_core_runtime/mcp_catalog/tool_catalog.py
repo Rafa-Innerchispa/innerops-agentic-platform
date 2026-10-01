@@ -4,14 +4,36 @@ from __future__ import annotations
 
 from typing import Any
 
-MCP_VERSION = "2.68.0"
+MCP_VERSION = "2.70.0"
 
 ALL_MCP_TOOL_NAMES = [
+    "bellini_governed_action",
+    "bellini_guardian_dashboard",
+    "bellini_guardian_status",
+    "device_fabric_get",
+    "device_fabric_health",
+    "device_fabric_capabilities",
+    "device_fabric_inventory",
+    "device_fabric_bind",
+    "device_fabric_probe",
+    "device_fabric_discover",
+    "device_fabric_providers",
+    "grandstream_gwn_api_capabilities",
+    "grandstream_gwn_network_ops",
+    "grandstream_gwn_ssid_update",
+    "grandstream_gwn_full_snapshot",
+    "grandstream_gwn_device_reboot",
+    "ruijie_reyee_network_ops",
+    "ruijie_reyee_api_capabilities",
+    "ruijie_reyee_full_snapshot",
     "ack_coordination_revision",
     "a2a_status",
     "a2a_agent_cards",
     "a2a_dispatch",
     "a2a_task_status",
+    "durable_coordination_spine_status",
+    "durable_coordination_temporal_status",
+    "durable_coordination_publish_event",
     "accounting_summary",
     "ack_agent_message",
     "poll_agent_inbox",
@@ -28,9 +50,14 @@ ALL_MCP_TOOL_NAMES = [
     "broadcast_whatsapp_groups",
     "broadcast_whatsapp_message",
     "change_web_content_status",
+    "capability_describe",
+    "capability_execution",
+    "capability_invoke",
+    "capability_search",
     "classify_knowledge_seed",
     "classify_task_runtime",
     "cognitive_kernel_check",
+    "coordination_backlog_hygiene",
     "agent_daily_save_note",
     "agent_funding_register_from_email",
     "agent_funding_scan_emails",
@@ -45,12 +72,6 @@ ALL_MCP_TOOL_NAMES = [
     "agent_iskcon_contacts_summary",
     "agent_iskcon_dispatch",
     "agent_iskcon_domain",
-    "agent_iskcon_sources",
-    "agent_iskcon_yoga_campaign",
-    "agent_iskcon_class_update",
-    "agent_iskcon_module_manifest",
-    "agent_iskcon_action",
-    "agent_iskcon_artifact_download",
     "agent_iskcon_ffl_log",
     "agent_iskcon_ffl_timeline",
     "agent_iskcon_status",
@@ -59,6 +80,9 @@ ALL_MCP_TOOL_NAMES = [
     "capture_backlog_item",
     "clone_tenant_deployment",
     "dispatch_local_agent",
+    "dmx_status",
+    "dmx_set_scene",
+    "dmx_blackout",
     "finalize_session_handoff",
     "generate_agent_activity_report",
     "get_agent_catalog",
@@ -67,28 +91,8 @@ ALL_MCP_TOOL_NAMES = [
     "get_mcp_fleet_status",
     "get_unified_stack_status",
     "invoke_agent",
-    "judge_resource_telemetry",
-    "judge_safe_trigger",
-    "judge_console_content_get",
-    "judge_model_routing_policy",
-    "judge_mi325x_deploy",
-    "inneros_ingest_drop_status",
-    "inneros_ingest_drop_run",
-    "judge_trace_current",
-    "judge_trace_detail",
-    "judge_trace_history",
-    "judge_trace_kpis",
-    "judge_trace_record",
-    "judge_workflow_continue",
-    "judge_workflow_execute",
-    "judge_workflow_get",
-    "judge_workflow_list",
-    "judge_workflow_start",
     "list_dev_backlog",
     "list_local_agents",
-    "module_action",
-    "module_artifact_download",
-    "module_manifest",
     "list_peer_ops_services",
     "list_ralphia_agents",
     "list_recent_agent_activity",
@@ -195,11 +199,8 @@ ALL_MCP_TOOL_NAMES = [
     "resource_fabric_bootstrap",
     "resource_fabric_status",
     "resource_fabric_route",
+    "resource_fabric_route_development_provider",
     "resource_fabric_link_project_capability",
-    "inneros_dual_deployment_status",
-    "inneros_dual_queue_operation",
-    "inneros_dual_reconcile_operations",
-    "inneros_dual_deployment_drill",
     "tenant_reconciliation_report",
     "digitalocean_status",
     "digitalocean_preflight",
@@ -217,7 +218,6 @@ ALL_MCP_TOOL_NAMES = [
     "digitalocean_destroy_droplet",
     "digitalocean_cost_session_status",
     "digitalocean_cleanup_failed_sessions",
-    "digitalocean_mi325x_deploy_plan",
     "brightdata_status",
     "brightdata_balance",
     "brightdata_store_api_token_server_side",
@@ -343,14 +343,6 @@ ALL_MCP_TOOL_NAMES = [
     "get_capability_registry_summary",
     "get_mcp_profile",
     "get_coordination_live",
-    "inneros_agent_fabric_status",
-    "ide_task_bridge_status",
-    "ide_dispatch_task",
-    "ide_task_status",
-    "identify_agent_session",
-    "ide_claim_task",
-    "ide_mark_task_running",
-    "ide_complete_task",
     "get_coordination_summary",
     "get_commercial_mission",
     "get_project_map",
@@ -377,14 +369,17 @@ ALL_MCP_TOOL_NAMES = [
     "ha_search_entity_references",
     "ha_turn_off_light",
     "ha_turn_on_light",
+    "hubitat_discover",
+    "hubitat_find_device",
+    "hubitat_get_device",
+    "hubitat_list_devices",
+    "hubitat_ping",
+    "hubitat_send_command",
+    "hubitat_status",
     "list_productivity_events",
-    "list_self_heal_baselines",
-    "list_self_heal_incidents",
     "run_home_ops_cycle",
     "save_productivity_event",
-    "save_self_heal_baseline",
     "summarize_productivity_events",
-    "summarize_self_heal_incidents",
     "get_whatsapp_commands_help",
     "get_whatsapp_status",
     "health_check",
@@ -454,6 +449,8 @@ ALL_MCP_TOOL_NAMES = [
     "local_exec_repo_policy_status",
     "local_exec_repo_authorize",
     "local_exec_repo_revoke",
+    "local_exec_host_approval_issue",
+    "local_exec_host_approval_validate",
     "dev_swarm_scope_status",
     "dev_swarm_launch_task",
     "external_repair_agent_status",
@@ -676,16 +673,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "output_schema": {"ok": "bool", "revision": "integer", "mandatory_reads": "array"},
         "example_payload": {},
     },
-    "inneros_agent_fabric_status": {
-        "description": "Estado unificado MCP inbox + IDE Task Bridge + ACP matriz + KPI hooks.",
-        "required_scopes": ["ralfia:read"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": ["inneros_agent_fabric"],
-        "input_schema": {"ops_task_id": "string"},
-        "output_schema": {"ok": "bool", "fabric_version": "string", "status": "string"},
-        "example_payload": {},
-    },
     "ack_coordination_revision": {
         "description": "Marca que el agente leyó la revisión actual.",
         "required_scopes": ["ralfia:write"],
@@ -702,7 +689,30 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "risk_level": "medium",
         "writes_to": ["ralfia_ops_tasks", "ralfia_agent_messages"],
         "reads_from": [],
-        "input_schema": {"assignee": "string", "title": "string", "checklist": "array"},
+        "input_schema": {
+            "assignee": "string",
+            "title": "string",
+            "checklist": "array|string|null",
+            "evidence_required": "array|string|null",
+            "priority": "string|null",
+            "from_agent": "string|null",
+            "correlation_id": "string|null",
+            "project_id": "string|null",
+            "repo": "owner/name|null",
+            "base_ref": "git ref|null",
+            "work_branch": "git branch|null",
+            "task_class": "string|null",
+            "execution_lane": "string|null",
+            "provider_transport": "string|null",
+            "runtime_profile": "string|null",
+            "execution_policy": "string|null",
+            "preferred_provider": "string|null",
+            "preferred_model": "string|null",
+            "idempotency_key": "string|null",
+            "source_message_id": "string|null",
+            "conversation_ref": "string|null",
+            "related_project": "string|null",
+        },
         "output_schema": {"ok": "bool", "task_id": "string"},
         "example_payload": {"assignee": "cursor", "title": "Verificar webhook", "priority": "high"},
     },
@@ -1034,7 +1044,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "output_schema": {"ok": "bool", "text": "string", "services_text": "string"},
         "example_payload": {},
     },
-
+    
     "ha_ping": {
         "description": "Comprueba Home Assistant local (:8123).",
         "required_scopes": ["ralfia:read"],
@@ -1135,6 +1145,76 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "output_schema": {"ok": "bool"},
         "example_payload": {"name_or_entity": "living"},
     },
+    "hubitat_discover": {
+        "description": "Detecta hub Hubitat Timmy/Juvita en LAN (sin token).",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["Hubitat LAN"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "url": "string", "maker_api_port_open": "bool"},
+        "example_payload": {},
+    },
+    "hubitat_ping": {
+        "description": "Comprueba Maker API Hubitat y cuenta dispositivos.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["Hubitat Maker API"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "configured": "bool"},
+        "example_payload": {},
+    },
+    "hubitat_list_devices": {
+        "description": "Lista sensores/dispositivos expuestos en Maker API.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["Hubitat Maker API"],
+        "input_schema": {"limit": "integer"},
+        "output_schema": {"ok": "bool", "devices": "array"},
+        "example_payload": {"limit": 50},
+    },
+    "hubitat_get_device": {
+        "description": "Estado detallado de dispositivo Hubitat por ID.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["Hubitat Maker API"],
+        "input_schema": {"device_id": "string"},
+        "output_schema": {"ok": "bool", "device": "object"},
+        "example_payload": {"device_id": "42"},
+    },
+    "hubitat_find_device": {
+        "description": "Busca dispositivo Hubitat por nombre/tipo/habitación.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["Hubitat Maker API"],
+        "input_schema": {"query": "string", "limit": "integer"},
+        "output_schema": {"ok": "bool", "matches": "array"},
+        "example_payload": {"query": "timmy", "limit": 10},
+    },
+    "hubitat_send_command": {
+        "description": "Comando Hubitat (on/off/refresh) sobre capability.",
+        "required_scopes": ["ralfia:write"],
+        "risk_level": "medium",
+        "writes_to": ["Hubitat device"],
+        "reads_from": [],
+        "input_schema": {"device_id": "string", "command": "string", "capability": "string"},
+        "output_schema": {"ok": "bool"},
+        "example_payload": {"device_id": "42", "command": "on", "capability": "Switch"},
+    },
+    "hubitat_status": {
+        "description": "Resumen AG-32 del hub Hubitat Timmy en Juvita.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": ["hubitat_state.json"],
+        "reads_from": ["Hubitat Maker API"],
+        "input_schema": {"limit": "integer"},
+        "output_schema": {"ok": "bool", "summary": "string", "devices": "array"},
+        "example_payload": {"limit": 40},
+    },
     "run_home_ops_cycle": {
         "description": "Ciclo local email+HA+digest Ollama.",
         "required_scopes": ["ralfia:write"],
@@ -1174,47 +1254,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "input_schema": {"limit": "integer"},
         "output_schema": {"ok": "bool", "saved_minutes": "number", "speedup": "number"},
         "example_payload": {"limit": 500},
-    },
-
-    "summarize_self_heal_incidents": {
-        "description": "Resume incidentes de auto-reparación y ROI auditado sin escribir datos.",
-        "required_scopes": ["ralfia:read"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": ["self_heal_incidents"],
-        "input_schema": {"limit": "integer"},
-        "output_schema": {"ok": "bool", "incident_count": "integer", "human_hours_returned": "number"},
-        "example_payload": {"limit": 500},
-    },
-    "list_self_heal_incidents": {
-        "description": "Lista incidentes de auto-reparación, opcionalmente filtrados por service_id.",
-        "required_scopes": ["ralfia:read"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": ["self_heal_incidents"],
-        "input_schema": {"limit": "integer", "service_id": "string|null"},
-        "output_schema": {"ok": "bool", "incidents": "array"},
-        "example_payload": {"limit": 50, "service_id": "ralfia-mcp"},
-    },
-    "list_self_heal_baselines": {
-        "description": "Lista baselines manuales usados para KPI/ROI de self-healing.",
-        "required_scopes": ["ralfia:read"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": ["self_heal_baselines"],
-        "input_schema": {"limit": "integer", "service_id": "string|null"},
-        "output_schema": {"ok": "bool", "baselines": "array"},
-        "example_payload": {"limit": 50},
-    },
-    "save_self_heal_baseline": {
-        "description": "Guarda baseline manual auditado para self-healing; measured+verified exige evidence_refs.",
-        "required_scopes": ["ralfia:write"],
-        "risk_level": "medium",
-        "writes_to": ["self_heal_baselines"],
-        "reads_from": ["self_heal_baselines"],
-        "input_schema": {"payload": "object"},
-        "output_schema": {"ok": "bool", "baseline": "object"},
-        "example_payload": {"payload": {"service_id": "ralfia-mcp", "manual_baseline_minutes": 15, "measurement_class": "measured", "verified": True, "evidence_refs": ["runbook:manual-recovery"]}},
     },
 
     "get_infrastructure_status": {
@@ -1883,29 +1922,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "reads_from": ["ralfia_agent_messages"],
         "input_schema": {"agent": "string", "limit": "integer|null", "auto_ack": "boolean|null"},
         "output_schema": {"ok": "bool", "messages": "array", "acknowledged": "array", "ack_count": "integer"},
-        "example_payload": {"agent": "codex", "limit": 20, "auto_ack": True},
-    },
-    "identify_agent_session": {
-        "description": "Normaliza una cuenta/instancia de agente a mailbox, actor_id, host y lane para coordinación multi-IDE/multi-cuenta.",
-        "required_scopes": ["ralfia:read", "ralfia:agents"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": [],
-        "input_schema": {
-            "agent": "string",
-            "account": "string|null",
-            "host": "string|null",
-            "lane": "string|null",
-            "role": "string|null",
-        },
-        "output_schema": {"ok": "bool", "identity": "object", "allowed_mailboxes": "array"},
-        "example_payload": {
-            "agent": "CHATGPT_A",
-            "account": "pcdoctorgye@gmail.com",
-            "host": "chatgpt-enterprise",
-            "lane": "workforce",
-            "role": "developer",
-        },
+        "example_payload": {"agent": "codex", "limit": 20, "auto_ack": False},
     },
     "list_agent_messages": {
         "description": "Lista mensajes canal único. role=inbox|sent|all.",
@@ -2930,13 +2947,79 @@ FUNDING_TOOL_DEFINITIONS = {
             "granted_scopes": "array<string>|null",
             "max_risk": "string|null",
             "tenant_id": "string|null",
+            "for_model": "string|null",
+            "max_tools": "integer|null",
         },
-        "output_schema": {"ok": "bool", "profile": "string", "tools": "array", "excluded": "array"},
+        "output_schema": {
+            "ok": "bool",
+            "profile": "string",
+            "tools": "array",
+            "excluded": "array",
+            "recommended_next_call": "object",
+        },
         "example_payload": {
             "title": "Crear cotización FEMAR",
             "granted_scopes": ["ralfia:read", "ralfia:write"],
             "max_risk": "medium",
+            "for_model": "small",
         },
+    },
+    "capability_search": {
+        "description": "Busca capacidades internas allowlisted sin expandir tools/list.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["capability_registry"],
+        "input_schema": {
+            "query": "string",
+            "domain": "string|null",
+            "tenant_id": "string|null",
+            "max_results": "integer",
+        },
+        "output_schema": {"ok": "bool", "capabilities": "array", "total_matches": "integer"},
+        "example_payload": {"query": "network device", "max_results": 5},
+    },
+    "capability_describe": {
+        "description": "Describe manifiesto, scopes y políticas de una capacidad registrada.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["capability_registry"],
+        "input_schema": {"capability_id": "string", "version": "string|null"},
+        "output_schema": {"ok": "bool", "capability": "object"},
+        "example_payload": {"capability_id": "network.device.query.v1"},
+    },
+    "capability_invoke": {
+        "description": "Invoca un handler allowlisted con enforcement de políticas en servidor.",
+        "required_scopes": ["ralfia:write"],
+        "risk_level": "medium",
+        "writes_to": ["capability_executions"],
+        "reads_from": ["capability_registry"],
+        "input_schema": {
+            "capability_id": "string",
+            "parameters": "object",
+            "idempotency_key": "string|null",
+            "context": "object|null",
+        },
+        "output_schema": {"ok": "bool", "execution_id": "string", "status": "string", "result": "object"},
+        "example_payload": {
+            "capability_id": "network.device.query.v1",
+            "parameters": {"tenant_id": "bellini", "sections": ["health"]},
+        },
+    },
+    "capability_execution": {
+        "description": "Consulta o controla una ejecución de capacidad (status, cancel, approve).",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": ["capability_executions"],
+        "reads_from": ["capability_executions"],
+        "input_schema": {
+            "execution_id": "string",
+            "action": "string",
+            "payload": "object|null",
+        },
+        "output_schema": {"ok": "bool", "execution": "object"},
+        "example_payload": {"execution_id": "exec_example", "action": "status"},
     },
     "update_ops_task_state": {
         "description": "RACB: cambia estado de una tarea con ownership, revisión optimista y evidencia.",
@@ -3269,6 +3352,46 @@ for _name in (
         "example_payload": {"repo": "Rafa-Innerchispa/ralphiia-ecosystem-core", "actor": "chatgpt", "task_id": "ops_...", "correlation_id": "corr_..."},
     }
 
+TOOL_DEFINITIONS.update(
+    {
+        "local_exec_host_approval_issue": {
+            "description": "Local Execution Plane: emite un approval_id temporal y acotado para host/peer ops por repo/project_id, nodo, accion y TTL; dry_run por defecto.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_host_approvals", "ralfia_coordination_log"],
+            "input_schema": {
+                "tool": "str",
+                "action": "str",
+                "node": "primary|amd",
+                "repo": "str",
+                "project_id": "str",
+                "ttl_seconds": "int<=600",
+                "reason": "str",
+                "actor": "str",
+                "dry_run": "bool",
+            },
+            "output_schema": {"ok": "bool", "approval_id": "str", "scope": "dict", "expires_at": "iso8601"},
+            "example_payload": {"tool": "peer_python_runtime", "action": "venv", "node": "amd", "repo": "Rafa-Innerchispa/hyperloom-r9700-anthropic-bridge", "ttl_seconds": 300, "dry_run": False},
+        },
+        "local_exec_host_approval_validate": {
+            "description": "Local Execution Plane: valida un approval_id scoped antes de una mutacion host/peer sin consumirlo ni ampliar permisos.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "low",
+            "writes_to": [],
+            "input_schema": {
+                "approval_id": "str",
+                "tool": "str",
+                "action": "str",
+                "node": "primary|amd",
+                "repo": "str",
+                "project_id": "str",
+            },
+            "output_schema": {"ok": "bool", "scope": "dict", "expires_at": "iso8601"},
+            "example_payload": {"approval_id": "hostappr_...", "tool": "peer_python_runtime", "action": "venv", "node": "amd", "repo": "Rafa-Innerchispa/hyperloom-r9700-anthropic-bridge"},
+        },
+    }
+)
+
 TOOL_DEFINITIONS["dev_swarm_scope_status"].update(
     {
         "description": "Dev Swarm: contrato seguro para que ChatGPT/Ralphi lance desarrollo local en repos owner-approved sin ralfia:admin.",
@@ -3316,6 +3439,46 @@ TOOL_DEFINITIONS["dev_swarm_launch_task"].update(
 
 TOOL_DEFINITIONS.update(
     {
+        "coordination_backlog_hygiene": {
+            "description": "Coordination hygiene: clasifica y reconcilia tareas viejas/duplicadas sin borrar evidencia; dry-run por defecto.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_coordination_log"],
+            "reads_from": ["ralfia_ops_tasks", "ralfia_agent_messages"],
+            "input_schema": {"limit": "int<=500", "dry_run": "bool"},
+            "output_schema": {"ok": "bool", "dry_run": "bool", "actions": "list", "summary": "object"},
+            "example_payload": {"limit": 200, "dry_run": True},
+        },
+        "dmx_status": {
+            "description": "AG-59 DMX: estado saneado del motor local sin exponer topología LAN, universos ni canales raw.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["local_dmx_engine"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "status": "str", "safe_colors": "list", "safe_targets": "list"},
+            "example_payload": {},
+        },
+        "dmx_set_scene": {
+            "description": "AG-59 DMX: aplica escena/color/target allowlisted con brillo acotado; no acepta canales/universos raw.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["local_dmx_engine"],
+            "reads_from": ["local_dmx_engine"],
+            "input_schema": {"scene": "str", "color": "safe_color", "target": "safe_target", "brightness": "int<=255", "speed": "float"},
+            "output_schema": {"ok": "bool", "action": "set_scene", "scene": "str", "target": "str", "verified_backend_ack": "bool"},
+            "example_payload": {"color": "morado_uv", "target": "tachos", "brightness": 180},
+        },
+        "dmx_blackout": {
+            "description": "AG-59 DMX: blackout total acotado mediante el motor DMX local.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["local_dmx_engine"],
+            "reads_from": ["local_dmx_engine"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "action": "blackout", "verified_backend_ack": "bool"},
+            "example_payload": {},
+        },
         "dev_swarm_scheduler_status": {
             "description": "Dev Swarm Scheduler: estado del autopilot 1→N, workers activos y proposed ops_tasks.",
             "required_scopes": ["ralfia:read"],
@@ -3830,9 +3993,9 @@ for _name in (
         "risk_level": "medium" if _name in _PROJECT_RUNTIME_WRITES else "low",
         "writes_to": ["project_runtime_registry", "trusted_project_root"] if _name in _PROJECT_RUNTIME_WRITES else [],
         "reads_from": ["project_runtime_registry", "trusted_project_root"],
-        "input_schema": {"project_id": "string|null", "repo": "owner/name|null", "node": "primary|amd|null", "dry_run": "bool|null"},
+        "input_schema": {"project_id": "string|null", "repo": "owner/name|null", "node": "primary|amd|null", "remote_url": "string|null", "base_ref": "git ref|null", "expected_sha": "git sha|null", "dry_run": "bool|null"},
         "output_schema": {"ok": "bool", "capability": "project_runtime_registry"},
-        "example_payload": {"project_id": "cozmo-alive", "node": "amd", "dry_run": True},
+        "example_payload": {"project_id": "cozmo-alive", "node": "amd", "base_ref": "main", "expected_sha": "", "dry_run": True},
     }
 
 TOOL_DEFINITIONS["project_runtime_reconcile"].update(
@@ -4257,157 +4420,349 @@ TOOL_DEFINITIONS.update(
 )
 
 
-_IDE_BRIDGE_TOOL_DEFINITIONS = {
-    "ide_task_bridge_status": {
-        "description": "Report durable IDE/agent task bridge status without dispatching work.",
-        "category": "agent_fabric",
-        "risk": "read",
-    },
-    "ide_dispatch_task": {
-        "description": "Dispatch a bounded task to the IDE/agent bridge using canonical repo metadata.",
-        "category": "agent_fabric",
-        "risk": "write",
-    },
-    "ide_task_status": {
-        "description": "Read status for a durable IDE/agent bridge task.",
-        "category": "agent_fabric",
-        "risk": "read",
-    },
-    "ide_claim_task": {
-        "description": "Claim an IDE/agent bridge task for a named adapter with lock semantics.",
-        "category": "agent_fabric",
-        "risk": "write",
-    },
-    "ide_mark_task_running": {
-        "description": "Mark a claimed IDE/agent bridge task as running with bounded evidence.",
-        "category": "agent_fabric",
-        "risk": "write",
-    },
-    "ide_complete_task": {
-        "description": "Complete a claimed IDE/agent bridge task with evidence and terminal state.",
-        "category": "agent_fabric",
-        "risk": "write",
-    },
-}
-
-for _name, _meta in _IDE_BRIDGE_TOOL_DEFINITIONS.items():
-    _definition = _generic_tool_definition(_name)
-    _definition.update(
-        {
-            "description": _meta["description"],
-            "required_scopes": ["ralfia:agents"] if _meta.get("risk") == "write" else ["ralfia:read"],
-            "risk_level": "medium" if _meta.get("risk") == "write" else "low",
-            "writes_to": ["ralfia_ops_tasks", "inneros_ide_task_bridge"] if _meta.get("risk") == "write" else [],
-            "reads_from": ["ralfia_ops_tasks", "inneros_ide_task_bridge"],
-            "input_schema": {"task_id": "string|null", "correlation_id": "string|null"},
-            "output_schema": {"ok": "bool", "task_id": "string|null", "status": "string|null"},
-            "example_payload": {},
-        }
-    )
-    TOOL_DEFINITIONS[_name] = _definition
-
-
-TOOL_DEFINITIONS["module_manifest"] = {
-    "description": "Contrato canónico de módulo InnerOS: tenant, menús, acciones ARIA, estado LIVE/PARTIAL/NOT_READY y rutas públicas sin IP LAN.",
-    "required_scopes": ["ralfia:read"],
-    "risk_level": "low",
-    "writes_to": [],
-    "reads_from": ["module_contract"],
-    "input_schema": {"tenant_id": "string|null", "module_id": "string|null"},
-    "output_schema": {"ok": "bool", "manifest": "object|null", "manifests": "array|null"},
-    "example_payload": {"tenant_id": "ent_iskcon", "module_id": "iskcon_ops"},
-}
-
-TOOL_DEFINITIONS["module_action"] = {
-    "description": "Ejecuta acción ARIA de módulo con tenant isolation, approvals, artifact outputs, auditoría y bloqueo NOT_READY sin éxito falso.",
-    "required_scopes": ["ralfia:write"],
-    "risk_level": "medium",
-    "writes_to": ["inneros_module_actions", "inneros_module_artifacts"],
-    "reads_from": ["module_contract", "docvault read-only", "memory read-only", "notion refs read-only"],
-    "input_schema": {
-        "tenant_id": "string",
-        "module_id": "string",
-        "intent": "string|null",
-        "inputs": "object|null",
-        "actor": "string|null",
-        "dry_run": "bool|null",
-    },
-    "output_schema": {"ok": "bool", "contract": "module_action_v1", "artifact": "object|null", "approval": "object|null"},
-    "example_payload": {"tenant_id": "ent_iskcon", "module_id": "iskcon_ops", "intent": "emergency_plan", "inputs": {"scenario": "domingo con alta asistencia"}, "dry_run": True},
-}
-
-TOOL_DEFINITIONS["module_artifact_download"] = {
-    "description": "Resuelve descarga de artifact solo para el tenant propietario; devuelve 403 si otro tenant intenta leerlo.",
-    "required_scopes": ["ralfia:read"],
-    "risk_level": "low",
-    "writes_to": [],
-    "reads_from": ["inneros_module_artifacts"],
-    "input_schema": {"tenant_id": "string", "artifact_id": "string"},
-    "output_schema": {"ok": "bool", "path": "string|null", "status_code": "integer|null"},
-    "example_payload": {"tenant_id": "ent_iskcon", "artifact_id": "abc123"},
-}
-
-for _alias in ("agent_iskcon_module_manifest", "agent_iskcon_action", "agent_iskcon_artifact_download"):
-    if _alias not in TOOL_DEFINITIONS:
-        TOOL_DEFINITIONS[_alias] = {
-            "description": {
-                "agent_iskcon_module_manifest": "AG-52 devuelve el manifiesto canónico ISKCON para ARIA y modelos locales pequeños.",
-                "agent_iskcon_action": "AG-52 ejecuta una acción ISKCON a través del contrato común ModuleAction.",
-                "agent_iskcon_artifact_download": "AG-52 resuelve artifacts ISKCON con tenant isolation.",
-            }[_alias],
-            "required_scopes": ["ralfia:write" if _alias == "agent_iskcon_action" else "ralfia:read"],
-            "risk_level": "medium" if _alias == "agent_iskcon_action" else "low",
-            "writes_to": ["inneros_module_actions", "inneros_module_artifacts"] if _alias == "agent_iskcon_action" else [],
-            "reads_from": ["module_contract", "inneros_module_artifacts"],
-            "input_schema": {"intent": "string|null", "message": "string|null", "inputs": "object|null", "dry_run": "bool|null"},
-            "output_schema": {"ok": "bool", "artifact": "object|null", "status": "string|null"},
-            "example_payload": {},
-        }
-
-for _name in (
-    "judge_workflow_start",
-    "judge_mi325x_deploy",
+_COMPATIBILITY_RESTORED_TOOL_NAMES = (
+    "agent_iskcon_sources",
+    "agent_iskcon_yoga_campaign",
+    "agent_iskcon_class_update",
+    "agent_iskcon_module_manifest",
+    "agent_iskcon_action",
+    "agent_iskcon_artifact_download",
     "digitalocean_mi325x_deploy_plan",
+    "editorial_image_providers",
+    "disk_steward_inventory",
+    "disk_steward_plan_migration",
+    "disk_steward_execute_migration",
+    "disk_steward_verify_migration",
+    "disk_steward_update_backup_policy",
+    "disk_steward_cleanup_verified",
+    "get_disk_steward_status",
+    "identify_agent_session",
+    "inneros_agent_fabric_status",
+    "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "inneros_dual_deployment_drill",
+    "inneros_ingest_drop_status",
     "inneros_ingest_drop_run",
+    "judge_workflow_start",
     "judge_workflow_continue",
     "judge_workflow_execute",
-    "judge_trace_record",
-    "judge_safe_trigger",
-):
-    TOOL_DEFINITIONS[_name] = {
-        "description": "Judge Console backend write: workflow state, bounded safe trigger, or real trace event with validation.",
-        "required_scopes": ["ralfia:agents"],
-        "risk_level": "medium",
-        "writes_to": ["inneros_judge_workflows", "inneros_judge_trace_events", "inneros_judge_trace_runs"],
-        "reads_from": ["module_contract", "resource_fabric", "dual_deployment", "inneros_judge_workflows"],
-        "input_schema": {"correlation_id": "string|null", "message": "string|null", "fields": "object|null", "dry_run": "bool|null"},
-        "output_schema": {"ok": "bool", "workflow_id": "string|null", "event": "object|null", "artifact_id": "string|null"},
-        "example_payload": {},
-    }
-
-for _name in (
     "judge_workflow_get",
-    "judge_console_content_get",
-    "judge_model_routing_policy",
-    "inneros_ingest_drop_status",
     "judge_workflow_list",
+    "judge_trace_record",
     "judge_trace_current",
     "judge_trace_history",
     "judge_trace_detail",
     "judge_trace_kpis",
     "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+    "judge_mi325x_deploy",
+    "list_self_heal_baselines",
+    "list_self_heal_incidents",
+    "save_self_heal_baseline",
+    "summarize_self_heal_incidents",
+    "module_manifest",
+    "module_action",
+    "module_artifact_download",
+)
+for _compat_tool_name in _COMPATIBILITY_RESTORED_TOOL_NAMES:
+    if _compat_tool_name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_compat_tool_name)
+
+for _name in (
+    "agent_iskcon_sources",
+    "agent_iskcon_yoga_campaign",
+    "agent_iskcon_class_update",
+    "agent_iskcon_module_manifest",
+    "agent_iskcon_action",
+    "agent_iskcon_artifact_download",
 ):
     TOOL_DEFINITIONS[_name] = {
-        "description": "Judge Console read-only telemetry/workflow surface for Live Trace, KPI cards and Resource Fabric status.",
-        "required_scopes": ["ralfia:read"],
-        "risk_level": "low",
-        "writes_to": [],
-        "reads_from": ["inneros_judge_workflows", "inneros_judge_trace_events", "inneros_judge_trace_runs", "resource_fabric", "dual_deployment"],
-        "input_schema": {"correlation_id": "string|null", "run_id": "string|null", "limit": "integer|null"},
-        "output_schema": {"ok": "bool", "events": "array|null", "workflows": "array|null", "kpis": "object|null"},
-        "example_payload": {},
+        "description": f"Compatibility-restored AG-52 ISKCON tool: {_name}. Safe drafts/actions only; sends remain approval-gated.",
+        "required_scopes": ["ralfia:write"] if _name in {"agent_iskcon_yoga_campaign", "agent_iskcon_class_update", "agent_iskcon_action"} else ["ralfia:read"],
+        "risk_level": "medium" if _name in {"agent_iskcon_yoga_campaign", "agent_iskcon_class_update", "agent_iskcon_action"} else "low",
+        "writes_to": ["drafts_or_memory"] if _name == "agent_iskcon_action" else [],
+        "reads_from": ["iskcon_capabilities", "daily_memory", "contacts"],
+        "input_schema": {"message": "string|null", "days": "integer|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "agent_id": "string", "drafts": "array|null", "status": "string|null"},
+        "example_payload": {"message": "yoga y cultura vaishnava", "days": 7, "dry_run": True},
     }
 
+for _name in (
+    "get_disk_steward_status",
+    "disk_steward_inventory",
+    "disk_steward_plan_migration",
+    "disk_steward_execute_migration",
+    "disk_steward_verify_migration",
+    "disk_steward_update_backup_policy",
+    "disk_steward_cleanup_verified",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"Compatibility-restored Disk Steward tool: {_name}. Mutations are dry-run or approval-gated.",
+        "required_scopes": ["ralfia:agents"] if _name in {"disk_steward_execute_migration", "disk_steward_plan_migration"} else ["ralfia:read"],
+        "risk_level": "medium" if _name in {"disk_steward_execute_migration", "disk_steward_plan_migration"} else "low",
+        "writes_to": ["disk_steward_proposals"] if _name == "disk_steward_plan_migration" else [],
+        "reads_from": ["filesystem_inventory", "disk_steward_state"],
+        "input_schema": {"include_candidates": "bool|null", "dry_run": "bool|null", "proposal_id": "string|null"},
+        "output_schema": {"ok": "bool", "status": "object|null", "dry_run": "bool|null"},
+        "example_payload": {"include_candidates": True, "dry_run": True},
+    }
+
+for _name in (
+    "list_self_heal_baselines",
+    "list_self_heal_incidents",
+    "save_self_heal_baseline",
+    "summarize_self_heal_incidents",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"Compatibility-restored Self Heal KPI ledger tool: {_name}.",
+        "required_scopes": ["ralfia:write"] if _name == "save_self_heal_baseline" else ["ralfia:read"],
+        "risk_level": "medium" if _name == "save_self_heal_baseline" else "low",
+        "writes_to": ["self_heal_baselines"] if _name == "save_self_heal_baseline" else [],
+        "reads_from": ["self_heal_incidents", "self_heal_baselines"],
+        "input_schema": {"limit": "integer|null", "service_id": "string|null", "payload": "object|null"},
+        "output_schema": {"ok": "bool"},
+        "example_payload": {"limit": 50},
+    }
+
+TOOL_DEFINITIONS.update(
+    {
+        "identify_agent_session": {
+            "description": "Normaliza cuenta/instancia de agente a mailbox, actor_id, host y lane para coordinación multi-IDE/multi-cuenta.",
+            "required_scopes": ["ralfia:read", "ralfia:agents"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["agent_identity"],
+            "input_schema": {"agent": "string", "account": "string|null", "host": "string|null", "lane": "string|null", "role": "string|null"},
+            "output_schema": {"ok": "bool", "identity": "object"},
+            "example_payload": {"agent": "chatgpt", "account": "rlopez@innerchispa.us", "host": "chatgpt", "lane": "workforce"},
+        },
+        "digitalocean_mi325x_deploy_plan": {
+            "description": "Compatibility-restored MI325X plan surface; dry-run/preflight only unless routed through current DigitalOcean approval tools.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["digitalocean_provider_status"],
+            "input_schema": {"project_id": "string|null", "task_id": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "provider_status": "object", "execute_status": "string"},
+            "example_payload": {"project_id": "judge-console", "dry_run": True},
+        },
+        "inneros_agent_fabric_status": {
+            "description": "Compatibility alias for the modern A2A/Provider Fabric/Resource Fabric status split.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["a2a", "provider_execution_fabric", "resource_fabric"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "replacements": "array"},
+            "example_payload": {},
+        },
+        "editorial_image_providers": {
+            "description": "Editorial image provider inventory; read-only compatibility-restored surface.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["editorial_store", "image_gen_settings"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "providers": "array", "default_provider": "string|null"},
+            "example_payload": {},
+        },
+    }
+)
+
+for _name in (
+    "inneros_dual_deployment_status",
+    "inneros_dual_queue_operation",
+    "inneros_dual_reconcile_operations",
+    "inneros_dual_deployment_drill",
+    "inneros_ingest_drop_status",
+    "inneros_ingest_drop_run",
+    "module_manifest",
+    "module_action",
+    "module_artifact_download",
+    "judge_workflow_start",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_trace_record",
+    "judge_trace_current",
+    "judge_trace_history",
+    "judge_trace_detail",
+    "judge_trace_kpis",
+    "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+    "judge_mi325x_deploy",
+):
+    TOOL_DEFINITIONS[_name] = {
+        "description": f"Compatibility wrapper for removed backend surface {_name}; fail-closed with replacement guidance.",
+        "required_scopes": ["ralfia:agents"] if any(part in _name for part in ("start", "continue", "execute", "record", "trigger", "deploy", "action", "queue", "run", "drill")) else ["ralfia:read"],
+        "risk_level": "medium" if any(part in _name for part in ("start", "continue", "execute", "record", "trigger", "deploy", "action", "queue", "run", "drill")) else "low",
+        "writes_to": [],
+        "reads_from": ["capability_registry", "durable_coordination_spine"],
+        "input_schema": {"payload": "object|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "status": "NOT_READY_BACKEND_REMOVED", "replacement": "string|null"},
+        "example_payload": {"dry_run": True},
+    }
+
+for _name in (
+    "inneros_ingest_drop_status",
+    "inneros_ingest_drop_run",
+    "module_manifest",
+    "module_action",
+    "module_artifact_download",
+    "judge_workflow_start",
+    "judge_workflow_continue",
+    "judge_workflow_execute",
+    "judge_workflow_get",
+    "judge_workflow_list",
+    "judge_trace_record",
+    "judge_trace_current",
+    "judge_trace_history",
+    "judge_trace_detail",
+    "judge_trace_kpis",
+    "judge_resource_telemetry",
+    "judge_safe_trigger",
+    "judge_console_content_get",
+    "judge_model_routing_policy",
+):
+    TOOL_DEFINITIONS[_name].update(
+        {
+            "description": f"Compatibility-restored tool {_name}; calls the live backend when present and fails closed if unavailable.",
+            "output_schema": {"ok": "bool", "status": "string|null", "replacement": "string|null"},
+        }
+    )
+
+TOOL_DEFINITIONS.update(
+    {
+        "disk_steward_cleanup_verified": {
+            "description": "Disk Steward verified-cleanup compatibility surface; verifies executed move records and finalizes metadata without deleting files.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_disk_steward_proposals"],
+            "reads_from": ["ralfia_disk_steward_proposals", "filesystem_metadata"],
+            "input_schema": {"proposal_id": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "verified": "array"},
+            "example_payload": {"dry_run": True},
+        },
+        "disk_steward_update_backup_policy": {
+            "description": "Disk Steward backup policy compatibility surface; validates and optionally persists policy without moving files.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["disk_steward_state"],
+            "reads_from": ["disk_steward_state"],
+            "input_schema": {"policy": "object|null", "actor": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "policy_preview": "object|null"},
+            "example_payload": {"policy": {"archive_root": "/home/rlopez/data/archive/disk_steward"}, "dry_run": True},
+        },
+        "inneros_dual_deployment_status": {
+            "description": "Dual-node deployment status compatibility surface backed by MCP fleet status.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["mcp_fleet"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "fleet": "object"},
+            "example_payload": {},
+        },
+        "inneros_dual_queue_operation": {
+            "description": "Dual-node queue compatibility surface backed by durable coordination events; dry_run uses in-memory sink.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_coordination_events"],
+            "reads_from": ["durable_coordination_spine"],
+            "input_schema": {"operation": "string|null", "payload": "object|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "event": "object"},
+            "example_payload": {"operation": "probe", "dry_run": True},
+        },
+        "inneros_dual_reconcile_operations": {
+            "description": "Dual-node reconcile compatibility surface backed by AG-40 runtime reconciler.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["runtime_reconciler", "mcp_fleet"],
+            "input_schema": {"dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string"},
+            "example_payload": {"dry_run": True},
+        },
+        "inneros_dual_deployment_drill": {
+            "description": "Dual-node drill compatibility surface backed by AG-43 failover dry-run script.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["ag43_platform_sync_agent", "failover_dry_run"],
+            "input_schema": {"dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "output_tail": "string|null"},
+            "example_payload": {"dry_run": True},
+        },
+        "judge_mi325x_deploy": {
+            "description": "Judge MI325X deploy compatibility surface backed by DigitalOcean preflight/approval-gated dry-run create path; no cloud spend by default.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["digitalocean_amd_provider", "cloud_approval_gate"],
+            "input_schema": {"action": "string|null", "params": "object|null"},
+            "output_schema": {"ok": "bool", "capability_available": "bool", "compatibility_mode": "string", "cloud_spend": "bool"},
+            "example_payload": {"action": "preflight"},
+        },
+    }
+)
+
+CAPABILITY_STATE_OVERRIDES = {
+    "disk_steward_cleanup_verified": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "verified_metadata_cleanup_no_file_delete",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "disk_steward_update_backup_policy": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "safe_policy_validation_or_persist",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "inneros_dual_deployment_status": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "fleet_status_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "inneros_dual_queue_operation": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "durable_event_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "inneros_dual_reconcile_operations": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "runtime_reconciler_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "inneros_dual_deployment_drill": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "failover_dry_run_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+    "judge_mi325x_deploy": {
+        "availability": "available",
+        "capability_available": True,
+        "compatibility_mode": "digitalocean_preflight_plan_alias",
+        "replacement_verified": True,
+        "owner_approval_required": False,
+    },
+}
 
 
 def describe_tool(name: str) -> dict[str, Any]:
@@ -4428,14 +4783,48 @@ def describe_tool(name: str) -> dict[str, Any]:
         "ok": True,
         "name": key,
         "version": MCP_VERSION,
-        "description": meta["description"],
-        "input_schema": meta["input_schema"],
-        "output_schema": meta["output_schema"],
-        "required_scopes": meta["required_scopes"],
-        "example_payload": meta["example_payload"],
-        "risk_level": meta["risk_level"],
-        "writes_to": meta["writes_to"],
-        "reads_from": meta["reads_from"],
+        "description": meta.get("description") or f"Tool MCP `{key}` expuesta en el runtime RalfIA.",
+        "input_schema": meta.get("input_schema") or {},
+        "output_schema": meta.get("output_schema") or {"ok": "bool"},
+        "required_scopes": meta.get("required_scopes") or ["ralfia:read"],
+        "example_payload": meta.get("example_payload") or {},
+        "risk_level": meta.get("risk_level") or "low",
+        "writes_to": meta.get("writes_to") or [],
+        "reads_from": meta.get("reads_from") or [],
+    }
+
+
+def capability_state(name: str) -> dict[str, Any]:
+    details = describe_tool(name)
+    state = dict(CAPABILITY_STATE_OVERRIDES.get((name or "").strip()) or {})
+    output_schema = details.get("output_schema") if isinstance(details.get("output_schema"), dict) else {}
+    nominally_not_ready = output_schema.get("status") == "NOT_READY_BACKEND_REMOVED"
+    available = bool(details.get("ok")) and not nominally_not_ready
+    return {
+        "tool": (name or "").strip(),
+        "tool_name_present": bool(details.get("ok")),
+        "capability_available": state.get("capability_available", available),
+        "availability": state.get("availability", "available" if available else "backend_unavailable"),
+        "compatibility_mode": state.get("compatibility_mode", "native" if available else "not_ready_backend_removed"),
+        "replacement_verified": state.get("replacement_verified", available),
+        "owner_approval_required": state.get("owner_approval_required", not available),
+        "output_status": output_schema.get("status"),
+        "risk_level": details.get("risk_level"),
+        "required_scopes": details.get("required_scopes") or [],
+    }
+
+
+def capability_states(tool_names: list[str] | None = None) -> dict[str, Any]:
+    names = list(dict.fromkeys(tool_names or ALL_MCP_TOOL_NAMES))
+    states = [capability_state(name) for name in sorted(names)]
+    unavailable = [s["tool"] for s in states if not s.get("capability_available")]
+    needs_owner = [s["tool"] for s in states if s.get("owner_approval_required")]
+    return {
+        "ok": not unavailable,
+        "tool_count": len(states),
+        "states": states,
+        "backend_unavailable_tools": unavailable,
+        "owner_approval_required_tools": needs_owner,
     }
 
 
@@ -4467,3 +4856,659 @@ def list_capabilities(*, tool_names: list[str], auth_scopes: list[str] | None = 
             "Rafael aprueba acciones de riesgo",
         ],
     }
+
+
+# --- Generic Owner Vault bridge: strict owner/private-memory contract ---
+_OWNER_VAULT_TOOL_NAMES = [
+    "owner_vault_store_secret",
+    "owner_vault_secret_status",
+    "owner_vault_materialize_project_env",
+]
+for _owner_vault_tool_name in _OWNER_VAULT_TOOL_NAMES:
+    if _owner_vault_tool_name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_owner_vault_tool_name)
+
+TOOL_DEFINITIONS.update(
+    {
+        "owner_vault_store_secret": {
+            "description": "Store an owner secret server-side and return only an owner_vault reference plus metadata; plaintext is never returned.",
+            "required_scopes": ["ralfia:admin", "ralfia:private_memory"],
+            "risk_level": "high",
+            "writes_to": ["owner_vault"],
+            "reads_from": [],
+            "input_schema": {"category": "string", "key": "string", "secret": "string", "label": "string|null", "project_id": "string|null"},
+            "output_schema": {"ok": "bool", "secret_ref": "string|null", "vault_id": "string|null", "secret_returned": "false"},
+            "example_payload": {"category": "alpaca", "key": "api_secret", "secret": "<redacted>", "project_id": "inneros-alpha-alpaca"},
+        },
+        "owner_vault_secret_status": {
+            "description": "Check whether an owner secret exists and return metadata only; plaintext is never returned.",
+            "required_scopes": ["ralfia:read", "ralfia:private_memory"],
+            "risk_level": "medium",
+            "writes_to": [],
+            "reads_from": ["owner_vault"],
+            "input_schema": {"category": "string", "key": "string"},
+            "output_schema": {"ok": "bool", "present": "bool", "metadata": "object", "secret_returned": "false"},
+            "example_payload": {"category": "alpaca", "key": "api_secret"},
+        },
+        "owner_vault_materialize_project_env": {
+            "description": "Write a chmod-0600 runtime env file from owner_vault refs and optional static values without returning secret values.",
+            "required_scopes": ["ralfia:admin", "ralfia:private_memory"],
+            "risk_level": "high",
+            "writes_to": ["local_env_file"],
+            "reads_from": ["owner_vault"],
+            "input_schema": {"namespace": "string", "bindings": "object", "static_values": "object|null"},
+            "output_schema": {"ok": "bool", "path": "string|null", "materialized_env_keys": "array", "static_env_keys": "array", "secret_returned": "false", "mode": "0600"},
+            "example_payload": {"namespace": "inneros-alpha-alpaca", "bindings": {"ALPACA_API_SECRET": "owner_vault:alpaca/api_secret"}},
+        },
+    }
+)
+
+
+# --- IDE / provider execution bridge ---
+_IDE_BRIDGE_TOOL_NAMES = [
+    "ide_task_bridge_status",
+    "provider_execution_fabric_status",
+    "execute_provider_task",
+    "ide_dispatch_task",
+    "ide_task_status",
+    "ide_claim_task",
+    "ide_mark_task_running",
+    "ide_complete_task",
+    "a2a_status",
+    "a2a_agent_cards",
+    "a2a_dispatch",
+    "a2a_task_status",
+]
+for _ide_bridge_tool_name in _IDE_BRIDGE_TOOL_NAMES:
+    if _ide_bridge_tool_name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_ide_bridge_tool_name)
+
+TOOL_DEFINITIONS.update(
+    {
+        "ide_task_bridge_status": {
+            "description": "Reporta el contrato del puente IDE/A2A y separa entrega, claim, ejecución y cierre.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "bridge": "object"},
+            "example_payload": {},
+        },
+        "provider_execution_fabric_status": {
+            "description": "Reporta providers disponibles y contrato de ejecución con evidencia; delivery no equivale a completado.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["provider_runtime", "local_model_router"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "providers": "array", "contract": "object"},
+            "example_payload": {},
+        },
+        "execute_provider_task": {
+            "description": "Despacha una tarea a un provider gobernado; solo puede pasar a running/completed con prueba real y evidencia.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_ide_task_dispatches", "local_execution_worktree"],
+            "reads_from": ["provider_runtime", "local_model_router"],
+            "input_schema": {"provider": "string", "title": "string", "body": "string", "repo": "string|null", "branch": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "execution_state": "string", "evidence": "object|null"},
+            "example_payload": {"provider": "local_qwen", "title": "Bounded repair", "body": "Add regression test and fix.", "repo": "Rafa-Innerchispa/innerops-agentic-platform", "dry_run": True},
+        },
+        "ide_dispatch_task": {
+            "description": "Entrega una tarea a la bandeja IDE/A2A sin marcarla como ejecutada.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_ide_task_dispatches"],
+            "reads_from": ["provider_runtime"],
+            "input_schema": {"ide": "string", "title": "string", "body": "string", "repo": "string|null", "branch": "string|null"},
+            "output_schema": {"ok": "bool", "delivery_state": "string", "execution_state": "string"},
+            "example_payload": {"ide": "cursor", "title": "Review task", "body": "Claim before editing.", "repo": "Rafa-Innerchispa/innerops-agentic-platform"},
+        },
+        "ide_task_status": {
+            "description": "Consulta estado durable de una entrega IDE/A2A.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "input_schema": {"dispatch_id": "string"},
+            "output_schema": {"ok": "bool", "execution_state": "string"},
+            "example_payload": {"dispatch_id": "ide_abc123"},
+        },
+        "ide_claim_task": {
+            "description": "Marca una tarea IDE/A2A como aceptada por el provider correcto.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "reads_from": ["ralfia_ide_task_dispatches"],
+            "input_schema": {"dispatch_id": "string", "ide": "string"},
+            "output_schema": {"ok": "bool", "execution_state": "string"},
+            "example_payload": {"dispatch_id": "ide_abc123", "ide": "cursor"},
+        },
+        "ide_mark_task_running": {
+            "description": "Marca running solo con prueba de proceso, sesión remota o modelo local.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "reads_from": ["ralfia_ide_task_dispatches"],
+            "input_schema": {"dispatch_id": "string", "ide": "string", "execution_proof": "object"},
+            "output_schema": {"ok": "bool", "execution_state": "string"},
+            "example_payload": {"dispatch_id": "ide_abc123", "ide": "cursor", "execution_proof": {"proof_type": "remote_session", "session_id": "sess-1", "transport": "a2a"}},
+        },
+        "ide_complete_task": {
+            "description": "Cierra una tarea IDE/A2A sólo con evidencia explícita de resultado.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ide_task_dispatches", "ralfia_ops_tasks"],
+            "reads_from": ["ralfia_ide_task_dispatches"],
+            "input_schema": {"dispatch_id": "string", "ide": "string", "result": "string|null", "evidence": "object"},
+            "output_schema": {"ok": "bool", "execution_state": "string", "terminal": "bool"},
+            "example_payload": {"dispatch_id": "ide_abc123", "ide": "cursor", "result": "completed", "evidence": {"tests": "PASS", "commit": "abc123"}},
+        },
+        "a2a_status": {
+            "description": "Estado del transporte A2A de InnerOS y sus agentes publicados.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_a2a_tasks", "agent_cards"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "agents": "array"},
+            "example_payload": {},
+        },
+        "a2a_agent_cards": {
+            "description": "Lista las Agent Cards canónicas disponibles para comunicación A2A.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["agent_cards"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "agent_cards": "array"},
+            "example_payload": {},
+        },
+        "a2a_dispatch": {
+            "description": "Envía trabajo durable por A2A manteniendo RACB/ops_tasks como fuente de verdad.",
+            "required_scopes": ["ralfia:agents"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_ops_tasks", "ralfia_a2a_tasks"],
+            "reads_from": ["agent_cards"],
+            "input_schema": {"agent_id": "string", "title": "string", "body": "string", "correlation_id": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "task_id": "string|null", "a2a_task_id": "string|null"},
+            "example_payload": {"agent_id": "cursor", "title": "Bounded repair", "body": "Use RACB and report evidence.", "dry_run": True},
+        },
+        "a2a_task_status": {
+            "description": "Consulta el estado A2A proyectado desde una tarea RACB.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_ops_tasks", "ralfia_a2a_tasks"],
+            "input_schema": {"a2a_task_id": "string"},
+            "output_schema": {"ok": "bool", "state": "string", "evidence": "object|null"},
+            "example_payload": {"a2a_task_id": "ops_abc123"},
+        },
+        "durable_coordination_spine_status": {
+            "description": "Expone el estado del spine durable MCP/A2A y sus backends Mongo, NATS/JetStream, Temporal y OTel.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": ["ralfia_coordination_events"],
+            "input_schema": {},
+            "output_schema": {"ok": "bool", "contracts": "object", "dependencies": "object"},
+            "example_payload": {},
+        },
+        "durable_coordination_temporal_status": {
+            "description": "Prueba conectividad Temporal local para el spine durable sin iniciar workflows ni ejecutar codigo externo.",
+            "required_scopes": ["ralfia:read"],
+            "risk_level": "low",
+            "writes_to": [],
+            "reads_from": [],
+            "input_schema": {"address": "string|null", "namespace": "string|null", "timeout_sec": "number|null"},
+            "output_schema": {"ok": "bool", "ready": "bool", "address": "string", "namespace": "string", "reason": "string|null"},
+            "example_payload": {"address": "127.0.0.1:7233", "namespace": "default", "timeout_sec": 2.0},
+        },
+        "durable_coordination_publish_event": {
+            "description": "Publica un evento durable de coordinacion con envelope y traceparent; dry_run usa memoria y no Mongo.",
+            "required_scopes": ["ralfia:write"],
+            "risk_level": "medium",
+            "writes_to": ["ralfia_coordination_events"],
+            "reads_from": [],
+            "input_schema": {"event_type": "string", "actor": "string", "task_id": "string|null", "correlation_id": "string|null", "dry_run": "bool|null"},
+            "output_schema": {"ok": "bool", "event_id": "string", "event": "object"},
+            "example_payload": {"event_type": "task.heartbeat", "actor": "codex", "task_id": "ops_abc123", "dry_run": True},
+        },
+    }
+)
+
+
+# --- GitLab MR observability canonical extension (2026-09-21) ---
+for _gitlab_mr_tool in (
+    "local_gitlab_get_merge_request",
+    "local_gitlab_list_merge_request_discussions",
+    "local_gitlab_list_merge_request_pipelines",
+    "local_gitlab_list_pipeline_jobs",
+):
+    if _gitlab_mr_tool not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(_gitlab_mr_tool)
+
+TOOL_DEFINITIONS["local_gitlab_get_merge_request"] = {
+    "description": "Local GitLab Plane: lee estado completo de un merge request.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["gitlab_api", "owner_vault"],
+    "input_schema": {"project_id_or_path": "string", "mr_iid": "number"},
+    "output_schema": {"ok": "bool", "merge_request": "object|null"},
+    "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "mr_iid": 256812},
+}
+TOOL_DEFINITIONS["local_gitlab_list_merge_request_discussions"] = {
+    "description": "Local GitLab Plane: lista discusiones y notas de un merge request.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["gitlab_api", "owner_vault"],
+    "input_schema": {"project_id_or_path": "string", "mr_iid": "number", "limit": "number|null"},
+    "output_schema": {"ok": "bool", "count": "number", "discussions": "array"},
+    "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "mr_iid": 256812, "limit": 100},
+}
+TOOL_DEFINITIONS["local_gitlab_list_merge_request_pipelines"] = {
+    "description": "Local GitLab Plane: lista pipelines asociados a un merge request.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["gitlab_api", "owner_vault"],
+    "input_schema": {"project_id_or_path": "string", "mr_iid": "number", "limit": "number|null"},
+    "output_schema": {"ok": "bool", "count": "number", "pipelines": "array"},
+    "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "mr_iid": 256812, "limit": 20},
+}
+TOOL_DEFINITIONS["local_gitlab_list_pipeline_jobs"] = {
+    "description": "Local GitLab Plane: lista jobs de un pipeline para diagnosticar CI.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["gitlab_api", "owner_vault"],
+    "input_schema": {"project_id_or_path": "string", "pipeline_id": "number", "limit": "number|null"},
+    "output_schema": {"ok": "bool", "count": "number", "jobs": "array"},
+    "example_payload": {"project_id_or_path": "gitlab-org/gitlab", "pipeline_id": 1, "limit": 100},
+}
+
+
+# --- GitLab CI job trace observability (2026-09-21) ---
+if "local_gitlab_get_job_trace" not in ALL_MCP_TOOL_NAMES:
+    ALL_MCP_TOOL_NAMES.append("local_gitlab_get_job_trace")
+
+TOOL_DEFINITIONS["local_gitlab_get_job_trace"] = {
+    "description": "Local GitLab Plane: devuelve el tail acotado y redactado del trace de un job CI.",
+    "required_scopes": ["ralfia:read"],
+    "risk_level": "low",
+    "writes_to": [],
+    "reads_from": ["gitlab_api", "owner_vault"],
+    "input_schema": {"project_id_or_path": "string", "job_id": "number", "max_bytes": "number|null"},
+    "output_schema": {"ok": "bool", "job_id": "number", "trace": "string", "truncated": "bool"},
+    "example_payload": {"project_id_or_path": "gitlab-community/gitlab-org/gitlab", "job_id": 16638944079, "max_bytes": 12000},
+}
+
+
+# --- Universal Bootstrap & Session Guard Tools (2026-09-22) ---
+_NEW_TOOLS = {
+    "universal_agent_bootstrap": {
+        "description": "Universal Sovereign Bootstrap: descubre en vivo topología de nodos, modelos Ollama/vLLM, MCP tools, storage, integraciones y contexto del agente sin secretos.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["coordination_live", "mongo", "network", "tool_catalog"],
+        "input_schema": {"agent": "string|null", "project_id": "string|null", "full": "bool|null", "ack": "bool|null", "refresh": "bool|null"},
+        "output_schema": {"bootstrap_version": "string", "agent": "string", "timestamp": "string", "live_coordination_revision": "number", "network_topology": "object", "models_status": "object", "mcp_ecosystem": "object"},
+        "example_payload": {"agent": "antigravity", "full": True, "ack": False},
+    },
+    "session_guard_ensure_bootstrap": {
+        "description": "Session Bootstrap Guard: valida o ejecuta automáticamente el bootstrap canónico para la sesión del agente.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": ["ralfia_agent_sessions"],
+        "reads_from": ["coordination_live", "mongo", "session_cache"],
+        "input_schema": {"agent": "string|null", "project_id": "string|null", "force_refresh": "bool|null", "auto_ack": "bool|null"},
+        "output_schema": {"ok": "bool", "status": "string", "session": "object", "revision": "number"},
+        "example_payload": {"agent": "antigravity", "force_refresh": False},
+    },
+    "session_guard_check_mutation": {
+        "description": "Session Bootstrap Guard: evalúa si una operación mutante está permitida o bloqueada por falta de bootstrap.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["session_cache"],
+        "input_schema": {"agent": "string|null", "operation_name": "string", "project_id": "string|null"},
+        "output_schema": {"allowed": "bool", "auto_bootstrapped": "bool", "session": "object|null", "revision": "number|null"},
+        "example_payload": {"agent": "antigravity", "operation_name": "write_file"},
+    },
+    "session_guard_watchdog": {
+        "description": "Watchdog de sesiones activas: audita sesiones, drift de revisión y estado de bootstrap.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["mongo", "coordination_live"],
+        "input_schema": {},
+        "output_schema": {"timestamp": "string", "live_revision": "number", "total_tracked_sessions": "number", "sessions": "array"},
+        "example_payload": {},
+    },
+}
+
+for name, defn in _NEW_TOOLS.items():
+    if name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(name)
+    TOOL_DEFINITIONS[name] = defn
+
+
+# --- Coordination Liveness Supervisor tools (2026-09-24) ---
+_LIVENESS_TOOLS = {
+    "acquire_task_lease": {
+        "description": "Coordination Liveness: adquiere un lease autoritativo de tarea y lock de repositorio para agentes (AntiGravity, Cursor, Codex, Swarm).",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["ralfia_ops_tasks", "ralfia_coordination_locks"],
+        "reads_from": ["ralfia_ops_tasks", "ralfia_coordination_locks"],
+        "input_schema": {"task_id": "string", "worker_id": "string", "actor": "string", "lease_seconds": "number|null", "retry_budget": "number|null", "repo": "string|null"},
+        "output_schema": {"ok": "bool", "action": "string", "task_id": "string", "worker_id": "string", "lease_expires_at": "string", "attempt_count": "number"},
+        "example_payload": {"task_id": "ops_123", "worker_id": "ag_01", "actor": "antigravity"},
+    },
+    "renew_task_lease": {
+        "description": "Coordination Liveness: renueva el lease de una tarea reportando evidencia de progreso real o detectando estado congelado.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["ralfia_ops_tasks", "ralfia_coordination_locks"],
+        "reads_from": ["ralfia_ops_tasks"],
+        "input_schema": {"task_id": "string", "worker_id": "string", "actor": "string", "files_touched": "array<string>|null", "tests_passed": "array<string>|null", "git_commit": "string|null", "evidence_summary": "string|null", "next_action": "string|null", "blocker": "string|null", "lease_seconds": "number|null"},
+        "output_schema": {"ok": "bool", "task_id": "string", "has_progress": "bool", "is_frozen": "bool", "lease_expires_at": "string"},
+        "example_payload": {"task_id": "ops_123", "worker_id": "ag_01", "actor": "antigravity", "files_touched": ["app.py"]},
+    },
+    "release_task_lease": {
+        "description": "Coordination Liveness: libera el lease de una tarea y sus locks de repositorio asociados al completar o traspasar la tarea.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["ralfia_ops_tasks", "ralfia_coordination_locks"],
+        "reads_from": ["ralfia_ops_tasks"],
+        "input_schema": {"task_id": "string", "worker_id": "string", "actor": "string", "terminal_status": "string|null", "reason": "string|null", "evidence": "object|null"},
+        "output_schema": {"ok": "bool", "task_id": "string", "status": "string", "released_at": "string"},
+        "example_payload": {"task_id": "ops_123", "worker_id": "ag_01", "actor": "antigravity", "terminal_status": "completed"},
+    },
+    "reconcile_coordination_liveness": {
+        "description": "Coordination Liveness: ejecuta el ciclo de reconciliaci?n para limpiar leases expirados, romper bucles y liberar locks hu?rfanos.",
+        "required_scopes": ["ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["ralfia_ops_tasks", "ralfia_coordination_locks", "ralfia_dev_swarm_anomalies"],
+        "reads_from": ["ralfia_ops_tasks", "ralfia_coordination_locks", "ralfia_dev_swarm_anomalies"],
+        "input_schema": {"dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "reconciled_at": "string", "active_progressing": "number", "active_but_frozen": "number", "blocked": "number", "retry_exhausted": "number", "orphan_locks_released": "array", "stale_tasks_reconciled": "number"},
+        "example_payload": {"dry_run": False},
+    },
+    "get_coordination_liveness_summary": {
+        "description": "Coordination Liveness: telemetr?a en tiempo real de tareas activas, tareas congeladas y bloqueos.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["ralfia_ops_tasks", "ralfia_coordination_locks"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "checked_at": "string", "active_progressing": "number", "active_but_frozen": "number", "blocked_tasks_count": "number", "active_locks_count": "number", "total_active_tasks": "number"},
+        "example_payload": {},
+    },
+
+    "get_universal_bootstrap_plan": {
+        "name": "get_universal_bootstrap_plan",
+        "description": "Universal Bootstrap v3: Resuelve din?micamente el plano de conectividad y endpoints ?ptimos (LAN / Tailscale / Cloudflare HTTPS).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "client_env": {"type": "string", "default": "auto"},
+                "force_tier": {"type": "string", "enum": ["lan", "tailscale", "cloudflare_https"]}
+            }
+        }
+    },
+    "probe_route_access_plane": {
+        "name": "probe_route_access_plane",
+        "description": "Sonda de conectividad en tiempo real a trav?s de LAN, Tailscale y Cloudflare HTTPS edge.",
+        "inputSchema": {"type": "object", "properties": {}}
+    },
+    "enroll_device_bootstrap": {
+        "name": "enroll_device_bootstrap",
+        "description": "Enrola una m?quina cliente para auto-bootstrap permanente y persistente.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "device_name": {"type": "string"},
+                "preferred_tier": {"type": "string", "default": "auto"}
+            }
+        }
+    },
+}
+
+for name, defn in _LIVENESS_TOOLS.items():
+    if name not in ALL_MCP_TOOL_NAMES:
+        ALL_MCP_TOOL_NAMES.append(name)
+    TOOL_DEFINITIONS[name] = defn
+
+
+DEVICE_FABRIC_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "device_fabric_providers": {
+        "description": "Lista los proveedores físicos y de red soportados por el Device Fabric AG-60.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["device_fabric"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "providers": "array"},
+        "example_payload": {},
+    },
+    "device_fabric_inventory": {
+        "description": "Inventario segmentado multi-tenant y por sitio (Bellini, GWN Cloud, HA, etc.).",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["device_fabric", "mongo_assets", "gwn_cloud_tenants"],
+        "input_schema": {"client_id": "string|null", "site_id": "string|null", "live": "bool|null"},
+        "output_schema": {"ok": "bool", "count": "integer", "inventory": "array"},
+        "example_payload": {"client_id": "bellini", "site_id": "bellini-i-ii"},
+    },
+    "device_fabric_get": {
+        "description": "Consulta un activo específico por IP, MAC, serial o asset ID.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["device_fabric", "mongo_assets"],
+        "input_schema": {"device_ref": "string"},
+        "output_schema": {"ok": "bool", "kind": "string", "device": "object"},
+        "example_payload": {"device_ref": "192.168.3.1"},
+    },
+    "device_fabric_health": {
+        "description": "Diagnóstico de salud y conectividad de red de un sitio.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["device_fabric"],
+        "input_schema": {"site_id": "string|null"},
+        "output_schema": {"ok": "bool", "status": "string", "probes": "array"},
+        "example_payload": {"site_id": "bellini-i-ii"},
+    },
+    "device_fabric_discover": {
+        "description": "Descubrimiento seguro de dispositivos en un sitio o CIDR.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["device_fabric"],
+        "input_schema": {"site_id": "string|null", "cidr": "string|null", "limit_hosts": "integer|null", "live": "bool|null", "timeout_seconds": "number|null"},
+        "output_schema": {"ok": "bool", "count": "integer", "devices": "array"},
+        "example_payload": {"site_id": "home_pcdoctor_lab", "live": True},
+    },
+    "device_fabric_probe": {
+        "description": "Sonda pasiva o activa de puertos y protocolos de un dispositivo.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["device_fabric"],
+        "input_schema": {"target": "string", "provider_id": "string|null", "site_id": "string|null"},
+        "output_schema": {"ok": "bool", "probes": "object"},
+        "example_payload": {"target": "192.168.3.1"},
+    },
+    "device_fabric_bind": {
+        "description": "Enlace lógico de credencial o proveedor a un dispositivo (en modo read-only solo dry_run).",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": ["device_bindings"],
+        "reads_from": ["device_fabric"],
+        "input_schema": {"device_ref": "string", "provider_id": "string", "credential_ref": "string|null", "site_id": "string|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool"},
+        "example_payload": {"device_ref": "192.168.3.1", "provider_id": "grandstream_gcc", "dry_run": True},
+    },
+    "device_fabric_capabilities": {
+        "description": "Consulta las capacidades soportadas de un dispositivo.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["device_fabric"],
+        "input_schema": {"device_ref": "string", "provider_id": "string|null"},
+        "output_schema": {"ok": "bool", "capabilities": "array"},
+        "example_payload": {"device_ref": "192.168.3.1"},
+    },
+    "grandstream_gwn_network_ops": {
+        "description": "Observa y diagnostica red Grandstream/GWN (cloud + inventario local) al estilo UniFi ops.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["gwn_cloud_api", "device_fabric", "mongo_assets"],
+        "input_schema": {
+            "message": "string",
+            "client_id": "string|null",
+            "site_id": "string|null",
+            "network_id": "integer|null",
+            "apply_changes": "bool|null",
+            "owner_approval_ref": "string|null",
+        },
+        "output_schema": {"ok": "bool", "mode": "string", "findings": "array", "evidence": "object"},
+        "example_payload": {"message": "revisa wifi GWN Bellini", "client_id": "bellini", "site_id": "bellini-i-ii"},
+    },
+    "grandstream_gwn_api_capabilities": {
+        "description": "Matriz honesta de capacidades GWN Cloud vs UniFi/HA en InnerOS.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": [],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "provider": "string"},
+        "example_payload": {},
+    },
+    "grandstream_gwn_ssid_update": {
+        "description": "Actualiza SSID en GWN Cloud con firma oapi (requiere owner_approval_ref; dry_run por defecto).",
+        "required_scopes": ["ralfia:write", "ralfia:agents"],
+        "risk_level": "high",
+        "writes_to": ["gwn_cloud"],
+        "reads_from": ["gwn_cloud_api"],
+        "input_schema": {
+            "payload_json": "string",
+            "dry_run": "bool|null",
+            "owner_approval_ref": "string|null",
+        },
+        "output_schema": {"ok": "bool", "dry_run": "bool"},
+        "example_payload": {"payload_json": "{\"networkId\":1,\"id\":10,\"enable\":true}", "dry_run": True},
+    },
+    "grandstream_gwn_full_snapshot": {
+        "description": "Export GWN Cloud completo: routers, switches, APs, SSIDs, clientes, WAN, alertas, device/info.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["gwn_cloud_api"],
+        "input_schema": {
+            "network_id": "integer|null",
+            "client_id": "string|null",
+            "site_id": "string|null",
+            "include_device_details": "bool|null",
+        },
+        "output_schema": {"ok": "bool", "network_id": "integer"},
+        "example_payload": {"client_id": "bellini", "site_id": "bellini-i-ii", "include_device_details": True},
+    },
+    "grandstream_gwn_device_reboot": {
+        "description": "Reboot remoto gobernado (ap/reboot) para AP/router/switch GWN.",
+        "required_scopes": ["ralfia:write", "ralfia:agents"],
+        "risk_level": "high",
+        "writes_to": ["gwn_cloud"],
+        "reads_from": ["gwn_cloud_api"],
+        "input_schema": {
+            "mac": "string",
+            "network_id": "integer|null",
+            "client_id": "string|null",
+            "dry_run": "bool|null",
+            "owner_approval_ref": "string|null",
+        },
+        "output_schema": {"ok": "bool"},
+        "example_payload": {"mac": "EC:74:D7:13:EE:B8", "dry_run": True},
+    },
+    "ruijie_reyee_network_ops": {
+        "description": "Observa/diagnostica Ruijie/Reyee (Ruijie Cloud + probe LAN Bellini 192.168.3.172).",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["ruijie_cloud_api", "device_fabric"],
+        "input_schema": {"message": "string", "client_id": "string|null", "site_id": "string|null", "group_id": "integer|null"},
+        "output_schema": {"ok": "bool", "mode": "string", "findings": "array"},
+        "example_payload": {"message": "inventario reyee bellini", "client_id": "bellini"},
+    },
+    "ruijie_reyee_api_capabilities": {
+        "description": "Matriz de capacidades Ruijie Cloud / Reyee vs GWN/UniFi.",
+        "required_scopes": ["ralfia:read"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": [],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "provider": "string"},
+        "example_payload": {},
+    },
+    "ruijie_reyee_full_snapshot": {
+        "description": "Export Ruijie Cloud: APs, switches, gateways, clientes WiFi, puertos switch/gateway.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["ruijie_cloud_api"],
+        "input_schema": {
+            "group_id": "integer|null",
+            "client_id": "string|null",
+            "site_id": "string|null",
+            "include_switch_ports": "bool|null",
+        },
+        "output_schema": {"ok": "bool", "group_id": "integer"},
+        "example_payload": {"client_id": "bellini", "include_switch_ports": True},
+    },
+}
+
+TOOL_DEFINITIONS.update(DEVICE_FABRIC_TOOL_DEFINITIONS)
+
+
+BELLINI_GUARDIAN_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "bellini_guardian_status": {
+        "description": "Estado operativo en vivo, baseline y telemetria de Bellini Network Guardian.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["bellini_guardian_state"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "site_id": "string", "gateway_online": "bool"},
+        "example_payload": {},
+    },
+    "bellini_guardian_dashboard": {
+        "description": "Panel operativo de Bellini I-II con metricas, incidentes y telemetria.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "low",
+        "writes_to": [],
+        "reads_from": ["bellini_guardian_state", "bellini_incidents"],
+        "input_schema": {},
+        "output_schema": {"ok": "bool", "site_id": "string", "device_matrix": "array"},
+        "example_payload": {},
+    },
+    "bellini_governed_action": {
+        "description": "Ejecuta o valida en modo simulado (dry-run) una accion gobernada sobre Bellini I-II.",
+        "required_scopes": ["ralfia:read", "ralfia:agents"],
+        "risk_level": "medium",
+        "writes_to": [],
+        "reads_from": [],
+        "input_schema": {"action": "string", "device_ref": "string", "params_json": "string|null", "dry_run": "bool|null"},
+        "output_schema": {"ok": "bool", "status": "string"},
+        "example_payload": {"action": "reboot_ap", "device_ref": "bellini_ap_188", "dry_run": True},
+    },
+}
+
+TOOL_DEFINITIONS.update(BELLINI_GUARDIAN_TOOL_DEFINITIONS)
