@@ -11,6 +11,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _offline_coordination_state_in_ci(monkeypatch: pytest.MonkeyPatch):
     if os.getenv("GITHUB_ACTIONS") != "true":
+        yield
         return
     monkeypatch.setenv("MONGO_URI", "mongodb://127.0.0.1:27017/")
     state = {"ok": False, "state": {}}
