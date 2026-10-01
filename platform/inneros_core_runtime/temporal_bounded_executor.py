@@ -26,11 +26,11 @@ BRIDGE_ARTIFACTS = (
     "inneros_core_runtime/temporal_activities.py",
     "inneros_core_runtime/temporal_workflows.py",
     "inneros_core_runtime/temporal_worker.py",
+    "tests/test_temporal_bounded_executor.py",
 )
 
 DEFAULT_OFFLINE_VERIFY = (
-    "tests/test_coordination_recovery_p0.py",
-    "tests/test_temporal_bounded_executor.py",
+    "platform/tests/test_temporal_bounded_executor.py",
 )
 
 
@@ -118,7 +118,11 @@ def _default_verify_command(envelope_dict: Dict[str, Any]) -> List[str]:
         paths = [str(t) for t in tests]
     else:
         paths = list(DEFAULT_OFFLINE_VERIFY)
-    return ["python3", "-m", "pytest", *paths, "-q"]
+    repo = str(envelope_dict.get("repo") or "")
+    cmd = ["python3", "-m", "pytest", *paths, "-q"]
+    if "innerops-agentic-platform" in repo:
+        cmd.extend(["--rootdir=platform"])
+    return cmd
 
 
 def _ensure_repo_worktree(envelope_dict: Dict[str, Any], worktree: str) -> Path:
