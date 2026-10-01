@@ -23,19 +23,75 @@ from raphiia_openai import mongo_store
 DEFAULT_DEDUPE_WINDOW_SECONDS = 60 * 60
 OUTBOUND_LEDGER_COLLECTION = "email_outbound_ledger"
 
+# Identidades corporativas InnerOS — resueltas vía email_accounts (sin secretos en respuesta).
+DEFAULT_SEND_ALLOWLIST = frozenset(
+    {
+        "rlopez@pcdoctor.com.ec",
+        "info@pcdoctor.com.ec",
+        "ventas@pcdoctor.com.ec",
+        "contabilidad@pcdoctor.com.ec",
+        "rlopez@innerchispa.us",
+        "info@innerchispa.us",
+        "rlopez@innerspark.live",
+        "info@innerspark.live",
+        "rlopez@pcdoctor.ai",
+        "info@pcdoctor.ai",
+    }
+)
+
+
+def send_allowlist() -> set[str]:
+    raw = (os.getenv("EMAIL_SEND_ALLOWLIST") or "").strip()
+    if raw:
+        return {_normalise_recipient(item) for item in raw.split(",") if item.strip()}
+    return set(DEFAULT_SEND_ALLOWLIST)
+
+
+def list_send_identities() -> dict[str, Any]:
+    db = mongo_store.get_db()
+    allowed = send_allowlist()
+    identities: list[dict[str, Any]] = []
+    for acc in db.email_accounts.find({"enabled": True}):
+        address = _normalise_recipient(str(acc.get("address") or acc.get("imap_user") or ""))
+        if not address or address not in allowed:
+            continue
+        smtp = smtp_settings_for_account(acc)
+        identities.append(
+            {
+                "from_identity": address,
+                "label": acc.get("label"),
+                "smtp_host": acc.get("smtp_host") or smtp.get("smtp_host"),
+                "smtp_port": int(acc.get("smtp_port") or smtp.get("smtp_port") or 587),
+                "send_enabled": acc.get("send_enabled", True) is not False,
+                "provider": "smtp_email_accounts",
+            }
+        )
+    return {"ok": True, "identities": identities, "allowlist_count": len(allowed)}
+
 
 def smtp_settings_for_account(acc: dict[str, Any]) -> dict[str, Any]:
     """Misma lógica que Swarm tools/email_smtp.py — host derivado de imap_host."""
     address = (acc.get("address") or acc.get("imap_user") or "").strip()
     imap_host = (acc.get("imap_host") or "").strip()
+    if acc.get("smtp_host"):
+        port = int(acc.get("smtp_port") or 465)
+        use_ssl = port == 465 or str(acc.get("smtp_use_ssl", "")).lower() in {"1", "true", "yes"}
+        return {
+            "smtp_host": str(acc.get("smtp_host")).strip(),
+            "smtp_port": port,
+            "use_tls": not use_ssl and port != 465,
+            "use_ssl": use_ssl,
+        }
     if imap_host:
         if imap_host.startswith("imap."):
             smtp_host = imap_host.replace("imap.", "smtp.", 1)
         else:
             smtp_host = imap_host
-        return {"smtp_host": smtp_host, "smtp_port": 587, "use_tls": True}
+        if "pcdoctor.com.ec" in address.lower() or imap_host == "mail.pcdoctor.com.ec":
+            return {"smtp_host": "mail.pcdoctor.com.ec", "smtp_port": 465, "use_tls": False, "use_ssl": True}
+        return {"smtp_host": smtp_host, "smtp_port": 587, "use_tls": True, "use_ssl": False}
     domain = address.lower().split("@")[-1] if "@" in address else ""
-    return {"smtp_host": f"smtp.{domain}" if domain else "", "smtp_port": 587, "use_tls": True}
+    return {"smtp_host": f"smtp.{domain}" if domain else "", "smtp_port": 587, "use_tls": True, "use_ssl": False}
 
 
 def _pick_send_account(prefer_address: str | None = None) -> dict[str, Any] | None:
@@ -162,6 +218,7 @@ def send_email(
     from_account: str | None = None,
     idempotency_key: str | None = None,
     dedupe_window_seconds: int = DEFAULT_DEDUPE_WINDOW_SECONDS,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """Envía usando email_accounts con idempotencia durable en Mongo.
 
@@ -174,10 +231,37 @@ def send_email(
         return {"ok": False, "error": "Sin cuentas email_accounts habilitadas en Mongo"}
 
     address = (acc.get("address") or acc.get("imap_user") or "").strip()
+    if _normalise_recipient(address) not in send_allowlist():
+        return {
+            "ok": False,
+            "error": "from_identity_not_allowlisted",
+            "from_identity": address,
+        }
     user = (acc.get("imap_user") or address).strip()
     password = (acc.get("imap_password") or acc.get("smtp_password") or "").strip()
     if not user or not password:
         return {"ok": False, "error": f"Credenciales incompletas para {address}"}
+
+    smtp = smtp_settings_for_account(acc)
+    smtp_host = (os.getenv("SMTP_HOST") or smtp.get("smtp_host") or "").strip()
+    smtp_port = int(acc.get("smtp_port") or os.getenv("SMTP_PORT") or smtp.get("smtp_port") or 587)
+    use_ssl = bool(smtp.get("use_ssl")) or smtp_port == 465
+    use_tls = not use_ssl and os.getenv("SMTP_USE_TLS", "1") != "0" and bool(smtp.get("use_tls", True))
+    if not smtp_host:
+        return {"ok": False, "error": f"No se pudo derivar SMTP host para {address}"}
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "from_identity": address,
+            "to": to_addr,
+            "subject": subject,
+            "smtp_host": smtp_host,
+            "smtp_port": smtp_port,
+            "use_ssl": use_ssl,
+            "use_tls": use_tls,
+            "provider": "smtp_email_accounts",
+        }
 
     key = (idempotency_key or "").strip() or _fallback_idempotency_key(
         from_address=address,
@@ -203,16 +287,7 @@ def send_email(
             "from_account": address,
         }
 
-    smtp = smtp_settings_for_account(acc)
-    smtp_host = (os.getenv("SMTP_HOST") or smtp.get("smtp_host") or "").strip()
-    smtp_port = int(acc.get("smtp_port") or os.getenv("SMTP_PORT", "587") or 587)
-    use_tls = os.getenv("SMTP_USE_TLS", "1") != "0"
     from_name = (acc.get("from_name") or acc.get("label") or "PC Doctor").strip()
-
-    if not smtp_host:
-        error = f"No se pudo derivar SMTP host para {address}"
-        _mark_delivery(key, status="failed", error=error)
-        return {"ok": False, "error": error, "idempotency_key": key}
 
     msg = MIMEMultipart()
     msg["Subject"] = subject[:200]
@@ -228,7 +303,11 @@ def send_email(
             msg.attach(part)
 
     try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=45) as server:
+        if use_ssl:
+            server_ctx = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=45)
+        else:
+            server_ctx = smtplib.SMTP(smtp_host, smtp_port, timeout=45)
+        with server_ctx as server:
             if use_tls:
                 server.starttls()
             server.login(user, password)

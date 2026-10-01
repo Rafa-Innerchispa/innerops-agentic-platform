@@ -3865,8 +3865,9 @@ def send_general_email(
     from_account: str | None = None,
     idempotency_key: str | None = None,
     dedupe_window_seconds: int = 3600,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Envía un correo electrónico usando SMTP configurado en email_accounts (ej. rlopez@innerchispa.us)."""
+    """Envía un correo electrónico usando SMTP configurado en email_accounts (allowlist gobernada)."""
     from raphiia_openai.notifications.email_client import send_email
     return send_email(
         to_addr=to_addr,
@@ -3877,7 +3878,16 @@ def send_general_email(
         from_account=from_account,
         idempotency_key=idempotency_key,
         dedupe_window_seconds=dedupe_window_seconds,
+        dry_run=dry_run,
     )
+
+
+@mcp.tool
+def list_email_send_identities() -> dict[str, Any]:
+    """Identidades de envío allowlisted (sin secretos) — Email Ops multicuenta."""
+    from raphiia_openai.notifications.email_client import list_send_identities
+
+    return list_send_identities()
 
 
 @mcp.tool

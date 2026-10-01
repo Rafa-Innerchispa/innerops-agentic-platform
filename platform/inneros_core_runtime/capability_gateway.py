@@ -325,5 +325,68 @@ def coordination_messaging_list_handler(parameters: Dict[str, Any], context: Dic
     )
 
 
+EMAIL_SEND_MANIFEST: Dict[str, Any] = {
+    "capability_id": "email.send.v1",
+    "version": "1.0.0",
+    "title": "Governed outbound email (allowlisted identities)",
+    "domain": "communications",
+    "risk_class": "medium",
+    "mode": "mutation",
+    "description": "Send email via SMTP email_accounts with idempotency and from_identity allowlist.",
+    "keywords": ["email", "smtp", "send", "outbound", "pcdoctor", "identity"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {
+            "from_identity": {"type": "string"},
+            "to": {"type": "string"},
+            "subject": {"type": "string"},
+            "body_text": {"type": "string"},
+            "body_html": {"type": "string"},
+            "attachment_path": {"type": "string"},
+            "idempotency_key": {"type": "string"},
+            "dry_run": {"type": "boolean"},
+        },
+        "required": ["from_identity", "to", "subject"],
+    },
+    "required_scopes": ["ralfia:write"],
+}
+
+EMAIL_IDENTITIES_LIST_MANIFEST: Dict[str, Any] = {
+    "capability_id": "email.identities.list.v1",
+    "version": "1.0.0",
+    "title": "Allowlisted outbound email identities",
+    "domain": "communications",
+    "risk_class": "low",
+    "mode": "read_only",
+    "description": "List send-capable allowlisted identities (no secrets).",
+    "keywords": ["email", "identity", "allowlist", "smtp"],
+    "parameters_schema": {"type": "object", "properties": {}},
+    "required_scopes": ["ralfia:read"],
+}
+
+
+def email_send_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.notifications import email_client
+
+    body = str(parameters.get("body_text") or parameters.get("body") or parameters.get("body_html") or "")
+    return email_client.send_email(
+        to_addr=str(parameters.get("to") or "").strip(),
+        subject=str(parameters.get("subject") or "").strip(),
+        body=body,
+        attachment_path=str(parameters.get("attachment_path") or "") or None,
+        from_account=str(parameters.get("from_identity") or "").strip(),
+        idempotency_key=str(parameters.get("idempotency_key") or "") or None,
+        dry_run=bool(parameters.get("dry_run")),
+    )
+
+
+def email_identities_list_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.notifications import email_client
+
+    return email_client.list_send_identities()
+
+
 register_capability(NETWORK_DEVICE_QUERY_MANIFEST, network_device_query_handler)
 register_capability(COORDINATION_MESSAGING_LIST_MANIFEST, coordination_messaging_list_handler)
+register_capability(EMAIL_SEND_MANIFEST, email_send_handler)
+register_capability(EMAIL_IDENTITIES_LIST_MANIFEST, email_identities_list_handler)
