@@ -30,6 +30,16 @@ def register_capability(
         _CAPABILITY_HANDLERS[cap_id] = handler
 
 
+def _capability_query_matches(query: str, search_corpus: str) -> bool:
+    q_norm = (query or "").lower().strip()
+    if not q_norm:
+        return True
+    if q_norm in search_corpus:
+        return True
+    corpus_tokens = search_corpus.replace(".", " ").replace("_", " ").replace("-", " ")
+    return all(token in corpus_tokens for token in q_norm.split() if token)
+
+
 def capability_search(
     query: str = "",
     domain: Optional[str] = None,
@@ -48,7 +58,7 @@ def capability_search(
             
         # Match text in id, title, description, keywords
         search_corpus = f"{cap_id} {manifest.get('title', '')} {manifest.get('description', '')} {' '.join(manifest.get('keywords', []))}".lower()
-        if not q_norm or q_norm in search_corpus:
+        if _capability_query_matches(q_norm, search_corpus):
             summary = {
                 "capability_id": cap_id,
                 "version": manifest.get("version", "1.0.0"),

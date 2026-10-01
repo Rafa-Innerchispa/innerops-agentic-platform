@@ -118,6 +118,23 @@ def route_tools(
         for tool_name in overflow:
             excluded.append({"tool": tool_name, "reason": "max_tools_cap"})
 
+    recommended_capabilities: list[dict[str, str]] = []
+    if profile_name == "communications" or any(
+        token in f"{title} {body}".lower() for token in ("correo", "email", "smtp", "ruijie")
+    ):
+        recommended_capabilities = [
+            {
+                "capability_id": "email.send.v1",
+                "invoke_via": "capability_invoke",
+                "note": "Outbound email from allowlisted from_identity (e.g. rlopez@pcdoctor.com.ec).",
+            },
+            {
+                "capability_id": "email.identities.list.v1",
+                "invoke_via": "capability_invoke",
+                "note": "List send identities without secrets.",
+            },
+        ]
+
     return {
         "ok": True,
         "profile": profile_name,
