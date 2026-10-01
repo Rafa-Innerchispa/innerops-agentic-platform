@@ -8,6 +8,7 @@ from unittest.mock import patch
 from inneros_core_runtime import auth_middleware as am
 from inneros_core_runtime import mcp_diagnostics
 from inneros_core_runtime import mcp_profiles
+from inneros_core_runtime.oauth_metadata import build_oauth_www_authenticate, protected_resource_metadata
 
 
 class EffectiveScopeContractTests(unittest.TestCase):
@@ -43,6 +44,16 @@ class EffectiveScopeContractTests(unittest.TestCase):
         self.assertIn("ralfia:read", ctx["token_scopes_raw"])
         scopes_for_swarm = am._effective_token_scopes(token, "dev_swarm_launch_task", {})
         self.assertIn("ralfia:agents", scopes_for_swarm)
+
+    def test_router_oauth_challenge_matches_public_metadata_url(self) -> None:
+        meta_url = "https://mcp.pcdoctor.ai/router/mcp/.well-known/oauth-protected-resource"
+        challenge = build_oauth_www_authenticate(meta_url)
+        self.assertIn(meta_url, challenge)
+        meta = protected_resource_metadata(
+            "mcp.pcdoctor.ai",
+            resource_override="https://mcp.pcdoctor.ai/router/mcp",
+        )
+        self.assertEqual(meta["resource"], "https://mcp.pcdoctor.ai/router/mcp")
 
     def test_diagnose_session_separates_server_catalog_from_client_projection(self) -> None:
         profile = mcp_profiles.get_profile("chatgpt_compact")

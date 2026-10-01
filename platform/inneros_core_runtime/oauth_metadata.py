@@ -72,8 +72,35 @@ def authorization_server_metadata(host_header: str | None = None) -> dict[str, A
     }
 
 
-def protected_resource_metadata(host_header: str | None = None) -> dict[str, Any]:
-    issuer, resource = resolve_oauth_urls(host_header)
+def _accepted_resource(resource: str) -> None:
+    from inneros_core_runtime import settings
+
+    normalized = resource.rstrip("/")
+    accepted = {item.rstrip("/") for item in settings.OAUTH_ACCEPTED_MCP_RESOURCES}
+    if normalized not in accepted:
+        raise ValueError("oauth_resource_not_accepted")
+
+
+def build_oauth_www_authenticate(
+    resource_metadata_url: str,
+    *,
+    scope: str = "ralfia:read",
+) -> str:
+    """RFC 6750-style challenge pointing at OAuth protected-resource metadata."""
+    safe_url = resource_metadata_url.strip().replace('"', "")
+    return f'Bearer resource_metadata="{safe_url}", scope="{scope}"'
+
+
+def protected_resource_metadata(
+    host_header: str | None = None,
+    *,
+    request_path: str | None = None,
+    resource_override: str | None = None,
+) -> dict[str, Any]:
+    issuer, resource = resolve_oauth_urls(host_header, request_path=request_path)
+    if resource_override:
+        resource = resource_override.rstrip("/")
+        _accepted_resource(resource)
     return {
         "resource": resource,
         "authorization_servers": [issuer],

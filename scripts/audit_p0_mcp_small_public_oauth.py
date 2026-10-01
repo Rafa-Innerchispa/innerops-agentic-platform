@@ -11,9 +11,17 @@ from typing import Any
 
 MCP = "https://mcp.pcdoctor.ai/router/mcp"
 HEALTH = "https://mcp.pcdoctor.ai/router/health"
-RESOURCE_METADATA = "https://mcp.pcdoctor.ai/.well-known/oauth-protected-resource/router/mcp"
+RESOURCE_METADATA = "https://mcp.pcdoctor.ai/router/mcp/.well-known/oauth-protected-resource"
 ISSUER = "https://auth.pcdoctor.ai"
 AUTH_METADATA = f"{ISSUER}/.well-known/oauth-authorization-server"
+
+
+def _header_value(headers: dict[str, str], name: str) -> str:
+    target = name.lower()
+    for key, value in headers.items():
+        if key.lower() == target:
+            return value
+    return ""
 
 
 def request_json(url: str, *, method: str = "GET", body: dict[str, Any] | None = None) -> tuple[int, dict[str, str], Any]:
@@ -71,7 +79,7 @@ def main() -> int:
         },
     }
     status, headers, body = request_json(MCP, method="POST", body=initialize)
-    challenge = headers.get("WWW-Authenticate", headers.get("Www-Authenticate", ""))
+    challenge = _header_value(headers, "WWW-Authenticate")
     checks["unauthenticated_initialize"] = {"status": status, "www_authenticate": challenge, "body": body}
     if status != 401:
         failures.append("MCP unauthenticated initialize did not fail closed")
