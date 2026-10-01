@@ -137,6 +137,54 @@ def _lookup_learned(from_domain: str, category: str) -> dict[str, Any] | None:
     return row
 
 
+def _routing_from_intelligence(decision: dict[str, Any]) -> dict[str, Any]:
+    """Map email_intelligence.decide_email → routing dict for apply_routing."""
+    actions = list(decision.get("suggested_actions") or [])
+    next_step = actions[0] if actions else "Revisar correo"
+    auto_task = bool(decision.get("create_ops_task"))
+    doc_type = str(decision.get("document_type") or "")
+    if doc_type in ("spam_newsletter", "fyi", "personal"):
+        auto_task = False
+    if str(decision.get("priority") or "") == "low":
+        auto_task = False
+    agent_id = str(decision.get("route_agent") or "AG-05")
+    return {
+        "agent_id": agent_id,
+        "module": decision.get("route_module") or "correo",
+        "assignee": "ralfia",
+        "next_step": next_step,
+        "auto_task": auto_task,
+        "priority": decision.get("priority") or "normal",
+        "routing_source": decision.get("analysis_source") or "email_intelligence_v1",
+        "confidence": float(decision.get("confidence") or 0.85),
+        "document_type": doc_type,
+        "requires_human_approval": bool(decision.get("requires_human_approval")),
+    }
+
+
+def _merge_review_with_intelligence(review: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(review)
+    merged["category"] = decision.get("category") or review.get("category")
+    merged["priority"] = decision.get("priority") or review.get("priority")
+    merged["document_type"] = decision.get("document_type")
+    merged["document_intelligence"] = decision
+    merged["extracted_fields"] = decision.get("extracted_fields")
+    merged["suggested_actions"] = decision.get("suggested_actions") or review.get("suggested_actions")
+    merged["requires_human_approval"] = decision.get("requires_human_approval")
+    merged["analysis_source"] = decision.get("analysis_source") or review.get("analysis_source")
+    if decision.get("rationale"):
+        merged["summary"] = decision.get("rationale")
+    return merged
+
+
+def analyze_email_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    from raphiia_openai.notifications import email_intelligence, email_review
+
+    review = email_review.analyze_email(payload)
+    decision = email_intelligence.decide_email(payload, base_analysis=review)
+    return {"ok": True, "review": review, "decision": decision}
+
+
 def route_email(
     doc: dict[str, Any],
     analysis: dict[str, Any],
@@ -282,10 +330,13 @@ def apply_routing(
         return {"ok": True, "action_created": False, "reason": "email_blocked"}
 
     priority = routing.get("priority") or analysis.get("priority") or "normal"
+    intel = analysis.get("document_intelligence") or {}
     skip_task = (
         not routing.get("auto_task")
         or analysis.get("category") in ("marketing", "security_code")
         or priority == "low"
+        or analysis.get("document_type") in ("spam_newsletter", "fyi")
+        or intel.get("create_ops_task") is False
     )
 
     action = {
@@ -293,10 +344,14 @@ def apply_routing(
         "subject": str(doc.get("subject") or "")[:240],
         "from_addr": str(doc.get("from_addr") or "")[:200],
         "category": analysis.get("category"),
+        "document_type": analysis.get("document_type") or routing.get("document_type"),
         "priority": priority,
         "agent_id": routing.get("agent_id"),
         "module": routing.get("module"),
         "next_step": routing.get("next_step"),
+        "suggested_actions": analysis.get("suggested_actions") or intel.get("suggested_actions"),
+        "extracted_fields": analysis.get("extracted_fields") or intel.get("extracted_fields"),
+        "requires_human_approval": analysis.get("requires_human_approval") or routing.get("requires_human_approval"),
         "routing_source": routing.get("routing_source"),
         "confidence": routing.get("confidence"),
         "status": "pending",
@@ -324,11 +379,14 @@ def apply_routing(
             from raphiia_openai import coordination_live
 
             title = f"[Correo/{routing.get('agent_id')}] {(doc.get('subject') or mail_id)[:100]}"
-            checklist = [
+            steps = list(action.get("suggested_actions") or [])[:4]
+            checklist = steps or [
                 routing.get("next_step") or "Revisar correo",
                 f"Agente sugerido: {routing.get('agent_id')} ({routing.get('module')})",
-                f"mail_id: {mail_id}",
             ]
+            checklist.append(f"mail_id: {mail_id}")
+            if action.get("document_type"):
+                checklist.insert(0, f"document_type: {action['document_type']}")
             task_result = coordination_live.create_ops_task(
                 assignee=str(routing.get("assignee") or "ralfia"),
                 title=title,
@@ -402,17 +460,53 @@ def list_email_actions(*, status: str | None = None, limit: int = 20) -> dict[st
     return {"ok": True, "count": len(rows), "actions": rows}
 
 
+def intelligence_summary(*, limit: int = 50) -> dict[str, Any]:
+    from collections import Counter
+
+    db = mongo_store.get_db()
+    cap = max(5, min(limit, 200))
+    pending = list(
+        db[ACTIONS_COL].find({"status": "pending"}, {"_id": 0, "document_type": 1, "category": 1, "priority": 1, "agent_id": 1})
+        .sort("updated_at", -1)
+        .limit(cap)
+    )
+    by_type = Counter(str(r.get("document_type") or r.get("category") or "?") for r in pending)
+    by_agent = Counter(str(r.get("agent_id") or "?") for r in pending)
+    noise = db[ACTIONS_COL].count_documents({"status": "pending", "document_type": {"$in": ["spam_newsletter", "fyi"]}})
+    high = db[ACTIONS_COL].count_documents({"status": "pending", "priority": "high", "document_type": {"$nin": ["spam_newsletter", "fyi"]}})
+    return {
+        "ok": True,
+        "pending_total": db[ACTIONS_COL].count_documents({"status": "pending"}),
+        "pending_high": high,
+        "pending_noise_types": noise,
+        "by_document_type": dict(by_type.most_common(20)),
+        "by_agent": dict(by_agent.most_common(15)),
+        "samples": pending[: min(10, cap)],
+    }
+
+
+def process_mail_id(mail_id: str, *, create_task: bool = False, hydrate: bool = True) -> dict[str, Any]:
+    from raphiia_openai.notifications import email_review
+
+    review = email_review.get_review(mail_id, hydrate=hydrate)
+    if not review.get("ok"):
+        return {"ok": False, "error": review.get("error") or "mail_not_found", "mail_id": mail_id}
+    msg = review.get("message") or {}
+    return process_email_intelligence(msg, create_task=create_task, analysis=review.get("analysis"))
+
+
 def process_email_intelligence(
     doc: dict[str, Any],
     *,
     create_task: bool = True,
     analysis: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Pipeline completo: seguridad → análisis → routing → captura documental."""
-    from raphiia_openai.notifications import email_review
+    """Pipeline completo: seguridad → análisis documental → routing → captura."""
+    from raphiia_openai.notifications import email_intelligence, email_review
 
-    if analysis is None:
-        analysis = email_review.analyze_email(doc)
+    review = analysis if analysis is not None else email_review.analyze_email(doc)
+    decision = email_intelligence.decide_email(doc, base_analysis=review)
+    analysis = _merge_review_with_intelligence(review, decision)
     security = None
     try:
         from raphiia_openai.notifications import email_security
@@ -422,7 +516,9 @@ def process_email_intelligence(
     except Exception as exc:
         analysis["security"] = {"ok": False, "error": str(exc)[:120]}
 
-    routing = route_email(doc, analysis)
+    routing = _routing_from_intelligence(decision)
+    if routing.get("confidence", 0) < 0.5 or not routing.get("agent_id"):
+        routing = route_email(doc, analysis)
     analysis["routing"] = routing
 
     capture = None

@@ -13,7 +13,7 @@ import re
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +52,18 @@ EMAIL_VKR_CATEGORIES = frozenset(
         "invoice",
         "trusted_sender",
         "keyword_match",
+    }
+)
+EMAIL_VKR_DOCUMENT_TYPES = frozenset(
+    {
+        "factura",
+        "nota_credito",
+        "retencion",
+        "estado_cuenta",
+        "comprobante_pago",
+        "cotizacion_propuesta",
+        "contrato_legal",
+        "hackathon_funding_credits",
     }
 )
 EMAIL_VKR_SUBJECT_RE = re.compile(
@@ -217,9 +229,12 @@ def _resolve_ollama_model() -> str:
 
 def _vkr_email_filter(done_ids: set[str], *, worker_shard: int = 0, worker_shards: int = 1) -> dict[str, Any]:
     cats = list(EMAIL_VKR_CATEGORIES)
+    doc_types = list(EMAIL_VKR_DOCUMENT_TYPES)
     ors: list[dict[str, Any]] = [
         {"ralfia_review.category": {"$in": cats}},
+        {"ralfia_review.document_type": {"$in": doc_types}},
         {"review.category": {"$in": cats}},
+        {"source": {"$ne": "pst_import"}, "has_attachment": True, "ralfia_review.priority": {"$in": ["high", "normal"]}},
         {"source": "pst_import", "ralfia_review.priority": {"$in": ["high", "normal"]}},
         {"source": "pst_import", "ralfia_review.category": {"$in": ["payment", "document"]}},
         {"source": "pst_import", "subject": EMAIL_VKR_SUBJECT_RE},
@@ -265,7 +280,14 @@ def ingest_email_vkr_batch(
 
     filt = _vkr_email_filter(done_ids, worker_shard=worker_shard, worker_shards=worker_shards)
     cap = max(1, min(limit, 500))
-    rows = list(db.email_messages.find(filt).sort("received_at", -1).limit(cap))
+    live_cutoff = datetime.now(timezone.utc) - timedelta(days=120)
+    live_filt = {**filt, "source": {"$ne": "pst_import"}, "received_at": {"$gte": live_cutoff}}
+    rows = list(db.email_messages.find(live_filt).sort("received_at", -1).limit(cap))
+    if len(rows) < cap:
+        pst_filt = {**filt, "source": "pst_import"}
+        rows.extend(
+            list(db.email_messages.find(pst_filt).sort("received_at", -1).limit(cap - len(rows)))
+        )
 
     stats = {"processed": 0, "skipped": 0, "canonical": 0, "review": 0, "errors": 0}
     for row in rows:
