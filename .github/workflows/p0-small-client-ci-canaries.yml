@@ -1,0 +1,75 @@
+name: P0 Small Client CI Canaries (Lane A)
+
+on:
+  pull_request:
+    paths:
+      - "platform/inneros_core_runtime/auth_middleware.py"
+      - "platform/inneros_core_runtime/mcp_diagnostics.py"
+      - "platform/inneros_core_runtime/coordination_live.py"
+      - "platform/tests/test_p0_lane_a_scope_contract.py"
+      - "platform/tests/test_coordination_recovery_p0.py"
+      - "platform/tests/test_mcp_diagnostics_small_profile.py"
+      - "scripts/audit_p0_mcp_small_public_oauth.py"
+      - ".github/workflows/p0-small-client-ci-canaries.yml"
+  push:
+    branches:
+      - cursor/p0-small-client-ci-canaries-20261001
+
+permissions:
+  contents: read
+
+jobs:
+  lane-a-offline-canaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install minimal test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install python-dotenv pymongo temporalio nats-py pytest
+      - name: Compile critical modules
+        run: |
+          python -m py_compile \
+            inneros_core_runtime/auth_middleware.py \
+            inneros_core_runtime/mcp_diagnostics.py \
+            inneros_core_runtime/coordination_live.py \
+            tests/test_p0_lane_a_scope_contract.py \
+            tests/test_coordination_recovery_p0.py
+      - name: Canary 1 — scope / catalog / Temporal admission contracts
+        env:
+          PYTHONPATH: .
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python -m pytest tests/test_p0_lane_a_scope_contract.py tests/test_coordination_recovery_p0.py -v --tb=short
+      - name: Canary 2 — MCP short profile + diagnostics contract
+        env:
+          PYTHONPATH: .
+        run: python -m pytest tests/test_mcp_diagnostics_small_profile.py -v --tb=short
+      - name: Whitespace / conflict markers
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+          else
+            git diff --check HEAD~1...HEAD || true
+          fi
+
+  lane-a-public-oauth-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Public MCP Small OAuth metadata audit (read-only)
+        run: python scripts/audit_p0_mcp_small_public_oauth.py

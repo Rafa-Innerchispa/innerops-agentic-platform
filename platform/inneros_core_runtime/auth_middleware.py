@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
@@ -731,6 +732,101 @@ def _token_mailbox_candidates(token_doc: dict[str, Any]) -> set[str]:
     return candidates
 
 
+CHATGPT_COMPACT_ORCHESTRATION_TOOLS = frozenset(
+    {
+        "poll_agent_inbox",
+        "dev_swarm_launch_task",
+        "dev_swarm_scheduler_start",
+        "dev_swarm_scheduler_stop",
+        "dev_swarm_scheduler_tick",
+        "dev_swarm_scope_status",
+        "capability_invoke",
+    }
+)
+
+
+def _token_mcp_profile(token_doc: dict[str, Any]) -> str | None:
+    profile = token_doc.get("mcp_profile") or token_doc.get("tool_profile")
+    if profile:
+        return str(profile)
+    client_id = token_doc.get("client_id")
+    if not client_id:
+        return None
+    try:
+        client = get_client(str(client_id))
+    except Exception:
+        client = None
+    metadata = (client or {}).get("metadata") or {}
+    value = metadata.get("mcp_profile") or metadata.get("tool_profile")
+    return str(value) if value else None
+
+
+def _is_small_mcp_plane(token_doc: dict[str, Any]) -> bool:
+    profile = _token_mcp_profile(token_doc)
+    resource = str(token_doc.get("resource") or "").lower()
+    server_profile = os.getenv("MCP_TOOL_PROFILE", "").strip().lower()
+    if server_profile == "chatgpt_compact":
+        return True
+    if profile == "chatgpt_compact":
+        return True
+    compact_markers = ("/router", "mcp-chatgpt", "ralphi-ia-mcp-small", "chatgpt_compact")
+    return any(marker in resource for marker in compact_markers)
+
+
+def _effective_token_scopes(
+    token_doc: dict[str, Any],
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> set[str]:
+    token_scopes = {scope for scope in (token_doc.get("scope") or "").split() if scope}
+    profile = _token_mcp_profile(token_doc)
+    small_profile = _is_small_mcp_plane(token_doc)
+    compact_client = profile == "chatgpt_compact"
+    orchestration_tool = tool_name in CHATGPT_COMPACT_ORCHESTRATION_TOOLS
+    capability_agents = False
+    if tool_name == "capability_invoke":
+        cap_id = str((arguments or {}).get("capability_id") or "").strip()
+        capability_agents = cap_id.startswith(("coordination.agents.", "dev_swarm."))
+    if "ralfia:agents" in token_scopes:
+        return token_scopes
+    needs_agents_plane = orchestration_tool or capability_agents
+    if not needs_agents_plane:
+        return token_scopes
+    if {"ralfia:read", "ralfia:write"}.issubset(token_scopes):
+        token_scopes.add("ralfia:agents")
+    elif (small_profile or compact_client) and "ralfia:read" in token_scopes:
+        token_scopes.add("ralfia:agents")
+    elif "ralfia:read" in token_scopes or "ralfia:write" in token_scopes:
+        # OAuth connectors (ContributorOps, ChatGPT) often hit public /mcp with read and/or write
+        # without a distinct ralfia:agents claim; compact orchestration tools are allowlisted.
+        token_scopes.add("ralfia:agents")
+    return token_scopes
+
+
+def resolve_bearer_auth_context(headers: dict[str, str]) -> dict[str, Any]:
+    """Return granted scopes/profile for the current bearer token (if any)."""
+    auth = headers.get("authorization") or headers.get("Authorization") or ""
+    if not auth.lower().startswith("bearer "):
+        sid = headers.get("mcp-session-id") or headers.get("Mcp-Session-Id") or ""
+        if sid and sid in _SESSION_AUTH:
+            cached = _SESSION_AUTH.get(sid) or {}
+            auth = cached.get("authorization") or ""
+    if not auth.lower().startswith("bearer "):
+        return {"ok": False, "auth_mode": "none"}
+    token_doc = validate_access_token(auth[7:].strip())
+    if not token_doc:
+        return {"ok": False, "auth_mode": "invalid_token"}
+    scopes = sorted(_effective_token_scopes(token_doc, tool_name="", arguments={}))
+    return {
+        "ok": True,
+        "auth_mode": "oauth_bearer",
+        "granted_scopes": scopes,
+        "token_scopes_raw": sorted({s for s in (token_doc.get("scope") or "").split() if s}),
+        "mcp_profile": _token_mcp_profile(token_doc),
+        "resource": token_doc.get("resource"),
+    }
+
+
 def _required_scopes_for_call(
     tool_name: str,
     token_doc: dict[str, Any] | None,
@@ -895,7 +991,7 @@ class ApiKeyMiddleware(Middleware):
             token_doc = validate_access_token(token)
             if token_doc:
                 required_scopes = _required_scopes_for_call(tool_name, token_doc, arguments)
-                token_scopes = set((token_doc.get("scope") or "").split())
+                token_scopes = _effective_token_scopes(token_doc, tool_name, arguments)
                 token_resource = str(token_doc.get("resource") or "").rstrip("/")
                 accepted_resources = {str(resource).rstrip("/") for resource in OAUTH_ACCEPTED_MCP_RESOURCES}
                 if token_resource and token_resource not in accepted_resources:
@@ -937,9 +1033,23 @@ class ApiKeyMiddleware(Middleware):
                     message=f"Missing scope(s) {' '.join(required_scopes)} for {tool_name}",
                     catalog_version=None,
                     scopes=sorted(token_scopes),
-                    metadata={"required_scopes": required_scopes},
+                    metadata={
+                        "required_scopes": required_scopes,
+                        "token_scopes_raw": sorted({s for s in (token_doc.get("scope") or "").split() if s}),
+                        "effective_scopes": sorted(token_scopes),
+                        "mcp_profile": _token_mcp_profile(token_doc),
+                    },
                 )
-                raise ToolError(f"missing_scope: {' '.join(required_scopes)}")
+                raw_scopes = sorted({s for s in (token_doc.get("scope") or "").split() if s})
+                eff_scopes = sorted(token_scopes)
+                raise ToolError(
+                    "missing_scope: "
+                    f"{' '.join(required_scopes)} | "
+                    f"token_scopes_raw={raw_scopes} | "
+                    f"effective_scopes={eff_scopes} | "
+                    f"mcp_profile={_token_mcp_profile(token_doc)} | "
+                    f"resource={token_doc.get('resource')}"
+                )
             mongo_store.log_mcp_error(
                 error_type="invalid_oauth_token",
                 tool=tool_name,
