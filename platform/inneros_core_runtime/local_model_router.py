@@ -113,6 +113,10 @@ TASK_ALIASES = {
     "basic_ops": "operational",
     "general_chat": "operational",
     "ops": "operational",
+    "no_code": "operational",
+    "no-code": "operational",
+    "coordination": "operational",
+    "coordination_ops": "operational",
     "field_visit": "operational",
     "visit": "operational",
     "ocr": "vision_ocr",
@@ -200,6 +204,17 @@ EXTERNAL_TASKS = {
 
 HIGH_RISK_PATTERNS = re.compile(
     r"(password|secret|token|api[_ -]?key|refresh[_ -]?token|private[_ -]?key|credenciales?|secreto|contrase[a-z]+|client secret)",
+    re.I,
+)
+
+# Coordination / MCP / GitLab ops often mention "implementar", "fix", etc. without being coding tasks.
+NO_CODE_OPS_PATTERNS = re.compile(
+    r"("
+    r"poll_agent_inbox|create_agent_message|get_coordination_live|bootstrap_context|"
+    r"mcp_version|diagnose_mcp_session|capability_invoke|capability_search|route_mcp_tools|"
+    r"project_runtime_bootstrap|dry_run|gitlab|contributorops|notion|coordination|"
+    r"dev_swarm|ops_task|send_general_email|email\.send|target_agent"
+    r")",
     re.I,
 )
 
@@ -350,6 +365,132 @@ def _vllm_url_for_provider(provider_id: str | None) -> str:
     return VLLM_URL
 
 
+def _installed_ollama_models(ollama_url: str) -> set[str]:
+    tags = _http_json(f"{ollama_url.rstrip('/')}/api/tags")
+    if not tags.get("ok"):
+        return set()
+    models = tags.get("data", {}).get("models") or []
+    names: set[str] = set()
+    for item in models:
+        if isinstance(item, dict):
+            name = str(item.get("name") or item.get("model") or "").strip()
+            if name:
+                names.add(name)
+    return names
+
+
+def _pick_installed_ollama_model(ollama_url: str, preferred: str | None = None) -> str | None:
+    available = _installed_ollama_models(ollama_url)
+    if not available:
+        return None
+    if preferred and preferred in available:
+        return preferred
+    for fallback in LOCAL_MODEL_FALLBACKS:
+        if fallback in available:
+            return fallback
+    return next(iter(sorted(available)))
+
+
+def _ollama_chat(
+    *,
+    ollama_url: str,
+    model: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+) -> dict[str, Any]:
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": False,
+        "options": {"temperature": temperature},
+    }
+    if max_tokens:
+        payload["options"]["num_predict"] = int(max_tokens)
+    return _http_json(f"{ollama_url.rstrip('/')}/api/chat", method="POST", body=payload, timeout=180)
+
+
+def _intel_ollama_fallback(
+    *,
+    task_type: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+    fallback_reason: str,
+    preferred_model: str | None = None,
+) -> dict[str, Any]:
+    """Single fallback hop: AMD vLLM failure → Intel/local Ollama (no cloud escalation)."""
+    ollama_url = _ollama_url_for_provider("local-intel-4")
+    model = _pick_installed_ollama_model(ollama_url, preferred=preferred_model)
+    if not model:
+        return {
+            "ok": False,
+            "error": "intel_ollama_no_models",
+            "external_needed": False,
+            "fallback_reason": fallback_reason,
+            "endpoint": ollama_url,
+        }
+    chat = _ollama_chat(
+        ollama_url=ollama_url,
+        model=model,
+        prompt=prompt,
+        system_prompt=system_prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+    if not chat.get("ok"):
+        return {
+            "ok": False,
+            "error": chat.get("error") or "intel_ollama_generation_failed",
+            "external_needed": False,
+            "fallback_reason": fallback_reason,
+            "endpoint": ollama_url,
+            "selected_model": model,
+        }
+    data = chat.get("data") or {}
+    content = (data.get("message") or {}).get("content", "")
+    if not str(content).strip():
+        return {
+            "ok": False,
+            "error": "intel_ollama_empty_response",
+            "external_needed": False,
+            "fallback_reason": fallback_reason,
+            "selected_model": model,
+        }
+    log = _log_route(
+        title=task_type,
+        body=prompt,
+        task_type=task_type,
+        runtime="local_model",
+        model=model,
+        local_ok=True,
+        external_needed=False,
+        approval_required=False,
+        reason=f"intel_ollama_fallback:{fallback_reason}",
+        decision="executed_local_intel_ollama",
+    )
+    return {
+        "ok": True,
+        "runtime": "local_model",
+        "response": content,
+        "raw": data,
+        "task_type": task_type,
+        "selected_model": model,
+        "selected_node": "intel",
+        "provider_id": "local-intel-4",
+        "external_needed": False,
+        "fallback_silent": False,
+        "fallback_reason": fallback_reason,
+        "endpoint": f"{ollama_url.rstrip('/')}/api/chat",
+        "routing_log": log,
+    }
+
+
 def _router_default(task_type: str) -> dict[str, Any] | None:
     state_doc = mongo_store.get_coordination_state(ROUTER_KEY)
     state = (state_doc.get("state") or {}) if state_doc.get("ok") else {}
@@ -418,6 +559,8 @@ def _normalize_task(task_type: str | None, text: str) -> str:
         raw = task_type.strip().lower().replace("-", "_").replace(" ", "_")
         return TASK_ALIASES.get(raw, raw)
     hay = f"{text or ''}".lower()
+    if NO_CODE_OPS_PATTERNS.search(hay):
+        return "operational"
     for needle, mapped in TASK_ALIASES.items():
         if needle in hay:
             return mapped
@@ -779,9 +922,24 @@ def run_local_model(
     health = local_model_health()
     provider_health = _http_ok(f"{vllm_url}/v1/models") if backend == "vllm" and provider_id == "local-amd-5" else _http_ok(f"{ollama_url}/api/tags")
     if backend == "vllm" and provider_id == "local-amd-5" and not provider_health.get("ok"):
+        fallback_reason = (
+            "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable"
+        )
+        system_prompt = "Ayuda con codigo de forma precisa y directa."
+        fb = _intel_ollama_fallback(
+            task_type=classification["task_type"],
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            fallback_reason=fallback_reason,
+            preferred_model=selected,
+        )
+        if fb.get("ok"):
+            return fb
         return {
             "ok": False,
-            "error": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
+            "error": fb.get("error") or fallback_reason,
             "endpoint": vllm_url,
             "health": health,
             "provider_health": provider_health,
@@ -790,7 +948,8 @@ def run_local_model(
             "selected_node": "amd",
             "provider_id": provider_id,
             "fallback_silent": False,
-            "fallback_reason": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
+            "fallback_reason": fallback_reason,
+            "external_needed": False,
         }
     if not (health.get("ok") or provider_health.get("ok")):
         return {
@@ -828,6 +987,17 @@ def run_local_model(
             endpoint=vllm_url,
         )
         if not result.get("ok"):
+            fb = _intel_ollama_fallback(
+                task_type=classification["task_type"],
+                prompt=prompt,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                fallback_reason="amd_vllm_generation_failed",
+                preferred_model=selected,
+            )
+            if fb.get("ok"):
+                return fb
             _log_route(
                 title=classification["task_type"],
                 body=prompt,
@@ -837,7 +1007,7 @@ def run_local_model(
                 local_ok=True,
                 external_needed=False,
                 approval_required=False,
-                reason="vLLM execution failed; no silent fallback",
+                reason="vLLM execution failed; intel ollama fallback unavailable",
                 decision="error",
             )
             return {
@@ -847,6 +1017,8 @@ def run_local_model(
                 "selected_node": "amd",
                 "provider_id": provider_id,
                 "fallback_silent": False,
+                "external_needed": False,
+                "fallback_reason": "amd_vllm_generation_failed",
             }
         log = _log_route(
             title=classification["task_type"],
@@ -909,6 +1081,14 @@ def run_local_model(
 
     data = result.get("data", {})
     content = data.get("message", {}).get("content", "")
+    if not str(content).strip():
+        return {
+            "ok": False,
+            "error": "local_ollama_empty_response",
+            "model": selected,
+            "endpoint": f"{ollama_url}/api/chat",
+            "external_needed": False,
+        }
     log = _log_route(
         title=classification["task_type"],
         body=prompt,

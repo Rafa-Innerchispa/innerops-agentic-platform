@@ -3865,8 +3865,9 @@ def send_general_email(
     from_account: str | None = None,
     idempotency_key: str | None = None,
     dedupe_window_seconds: int = 3600,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Envía un correo electrónico usando SMTP configurado en email_accounts (ej. rlopez@innerchispa.us)."""
+    """Envía un correo electrónico usando SMTP configurado en email_accounts (allowlist gobernada)."""
     from raphiia_openai.notifications.email_client import send_email
     return send_email(
         to_addr=to_addr,
@@ -3877,7 +3878,16 @@ def send_general_email(
         from_account=from_account,
         idempotency_key=idempotency_key,
         dedupe_window_seconds=dedupe_window_seconds,
+        dry_run=dry_run,
     )
+
+
+@mcp.tool
+def list_email_send_identities() -> dict[str, Any]:
+    """Identidades de envío allowlisted (sin secretos) — Email Ops multicuenta."""
+    from raphiia_openai.notifications.email_client import list_send_identities
+
+    return list_send_identities()
 
 
 @mcp.tool
@@ -4482,7 +4492,10 @@ def preview_whatsapp_agent_reply(message: str, sender: str | None = None) -> dic
 @mcp.tool
 def mcp_version(session_id: str | None = None) -> dict[str, Any]:
     """Versión viva del bridge, catálogo y manifest."""
-    return mcp_diagnostics.mcp_version(session_id=session_id)
+    from inneros_core_runtime import auth_middleware as runtime_auth
+
+    auth_ctx = runtime_auth.resolve_bearer_auth_context(runtime_auth._request_headers())
+    return mcp_diagnostics.mcp_version(session_id=session_id, auth_context=auth_ctx)
 
 
 @mcp.tool
@@ -7251,9 +7264,9 @@ async def mcp_capabilities_http(_request: Request) -> JSONResponse:
 
 @mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
 async def mcp_oauth_protected_resource(request: Request) -> JSONResponse:
-    from raphiia_openai.oauth_metadata import protected_resource_metadata
+    from inneros_core_runtime.oauth_metadata import small_router_protected_resource_metadata
 
-    return JSONResponse(protected_resource_metadata(request.headers.get("host")))
+    return JSONResponse(small_router_protected_resource_metadata(request.headers.get("host")))
 
 
 @mcp.custom_route("/.well-known/oauth-protected-resource/mcp", methods=["GET"])

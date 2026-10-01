@@ -27,6 +27,14 @@ def harness(monkeypatch):
     monkeypatch.setattr(router, "_http_json", http)
     return calls, logs
 
+def test_normalize_task_prefers_operational_for_coordination_text():
+    normalized = router._normalize_task(
+        None,
+        "Implementar poll_agent_inbox y reportar a Notion con correlation_id gitlab-contributorops",
+    )
+    assert normalized == "operational"
+
+
 def test_health_failure_uses_installed_local_model(harness):
     calls, logs = harness
     result = router.run_local_model(task_type="coding", prompt="code", max_tokens=100)

@@ -48,3 +48,23 @@ def test_unknown_profile_marks_invalid():
     result = mcp_diagnostics.diagnose_mcp_session(profile="not_a_real_profile", client_tool_count=23)
     assert result["session_valid"] is False
     assert "unknown_profile" in result["reasons"]
+
+
+def test_mcp_version_compact_auth_context_projects_23_tools_not_global(monkeypatch):
+    profile = mcp_profiles.get_profile("chatgpt_compact")
+    global_count = len(tool_catalog.ALL_MCP_TOOL_NAMES)
+    assert global_count > profile["tool_count"]
+    auth_ctx = {
+        "ok": True,
+        "token_scopes_raw": ["email", "openid", "ralfia:read", "ralfia:write"],
+        "granted_scopes": ["email", "openid", "ralfia:agents", "ralfia:read", "ralfia:write"],
+        "mcp_profile": "chatgpt_compact",
+        "resource": "https://mcp.pcdoctor.ai/router/mcp",
+    }
+    payload = mcp_diagnostics.mcp_version(auth_context=auth_ctx)
+    assert payload["profile"] == "chatgpt_compact"
+    assert payload["projected_public_tool_count"] == profile["tool_count"]
+    assert payload["backend_global_tool_count"] == global_count
+    assert len(payload["projected_public_tool_names"]) == profile["tool_count"]
+    assert payload["runtime_tool_count"] == profile["tool_count"]
+    assert payload["tool_name_count"] == profile["tool_count"]

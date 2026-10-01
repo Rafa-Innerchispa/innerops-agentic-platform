@@ -219,7 +219,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "communications": {
         "label": "WhatsApp + correo",
         "model_minimum": "small",
-        "max_tools": 12,
+        "max_tools": 14,
         "tools": [
             "get_whatsapp_status",
             "send_whatsapp_message",
@@ -232,6 +232,8 @@ PROFILES: dict[str, dict[str, Any]] = {
             "get_email_archive_status",
             "search_email_archive",
             "get_email_archive_message",
+            "list_email_send_identities",
+            "send_general_email",
             "get_operational_runbooks",
         ],
     },

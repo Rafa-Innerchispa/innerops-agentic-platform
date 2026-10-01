@@ -162,11 +162,31 @@ def mcp_version(
         "oauth_issuer": OAUTH_ISSUER,
         "updated_at": ralfia_time.now_utc_iso(),
     }
+    active_profile = os.getenv("MCP_TOOL_PROFILE") or None
     if auth_context and auth_context.get("ok"):
         payload["token_granted_scopes"] = auth_context.get("token_scopes_raw") or []
         payload["effective_scopes"] = auth_context.get("granted_scopes") or []
         payload["mcp_profile"] = auth_context.get("mcp_profile")
         payload["oauth_resource"] = auth_context.get("resource")
+        if auth_context.get("mcp_profile"):
+            active_profile = auth_context.get("mcp_profile")
+    if active_profile == "chatgpt_compact" or (
+        str(active_profile or "").strip().lower() == "chatgpt_compact"
+    ):
+        from inneros_core_runtime import mcp_profiles
+
+        selected = mcp_profiles.get_profile("chatgpt_compact")
+        projected = sorted(selected.get("tools") or []) if selected.get("ok") else []
+        payload["profile"] = "chatgpt_compact"
+        payload["projected_public_tool_count"] = len(projected)
+        payload["projected_public_tool_names"] = projected
+        payload["backend_global_tool_count"] = runtime_tool_count
+        payload["public_url"] = _public_mcp_url(profile="chatgpt_compact")
+        payload["tool_names"] = projected
+        payload["tool_names_hash"] = _tool_names_hash(projected)
+        payload["tool_name_count"] = len(projected)
+        payload["catalog_tool_count"] = len(projected)
+        payload["runtime_tool_count"] = len(projected)
     return payload
 
 

@@ -63,6 +63,15 @@ class TestEmailOutboundIdempotency(unittest.TestCase):
             "imap_password": "secret",
             "imap_host": "imap.example.test",
         }
+        self._allowlist_patch = patch.object(
+            email_client,
+            "send_allowlist",
+            return_value={"sender@example.test"},
+        )
+        self._allowlist_patch.start()
+
+    def tearDown(self):
+        self._allowlist_patch.stop()
 
     def _smtp(self):
         smtp = MagicMock()

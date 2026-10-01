@@ -80,7 +80,7 @@ def _http_target(path: str) -> str:
     if path.startswith("/raphiia-mcp/.well-known"):
         return RAPHI_IA_AUTH
     if path.startswith("/.well-known/oauth-protected-resource"):
-        return RAPHI_IA_AUTH
+        return RAPHI_IA_MCP
     if path.startswith("/raphiia-mcp"):
         return RAPHI_IA_MCP
     if path.startswith("/funding/ui"):

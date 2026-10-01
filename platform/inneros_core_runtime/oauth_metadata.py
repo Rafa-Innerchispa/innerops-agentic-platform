@@ -16,6 +16,9 @@ from raphiia_openai.settings import (
     RALFIA_INTEL_HOST,
 )
 
+# Codex / MCP Small canonical OAuth resource (router entry).
+SMALL_ROUTER_MCP_RESOURCE = "https://mcp.pcdoctor.ai/router/mcp"
+
 
 def _hostname(host_header: str | None) -> str:
     raw = (host_header or "").split(",")[0].strip().lower()
@@ -101,7 +104,7 @@ def protected_resource_metadata(
     if resource_override:
         resource = resource_override.rstrip("/")
         _accepted_resource(resource)
-    return {
+    meta: dict[str, Any] = {
         "resource": resource,
         "authorization_servers": [issuer],
         "scopes_supported": list(oauth_store.SCOPES),
@@ -111,3 +114,14 @@ def protected_resource_metadata(
         "mcp_lan_url": MCP_LAN_URL.rstrip("/"),
         "intel_host": RALFIA_INTEL_HOST,
     }
+    if resource.rstrip("/") == SMALL_ROUTER_MCP_RESOURCE.rstrip("/"):
+        meta["router_profile"] = "chatgpt_compact"
+    return meta
+
+
+def small_router_protected_resource_metadata(host_header: str | None = None) -> dict[str, Any]:
+    """Root OAuth discovery for MCP Small — same resource as /router/mcp path-aware route."""
+    return protected_resource_metadata(
+        host_header,
+        resource_override=SMALL_ROUTER_MCP_RESOURCE,
+    )

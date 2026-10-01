@@ -22,9 +22,29 @@ class EffectiveScopeContractTests(unittest.TestCase):
             "poll_agent_inbox",
             "dev_swarm_launch_task",
             "dev_swarm_scheduler_tick",
+            "project_runtime_bootstrap",
         ):
             scopes = am._effective_token_scopes(token, tool, {})
             self.assertIn("ralfia:agents", scopes, msg=tool)
+
+    def test_router_resource_infers_compact_profile_without_claim(self) -> None:
+        token = {
+            "scope": "ralfia:read ralfia:write email openid",
+            "resource": "https://mcp.pcdoctor.ai/router/mcp",
+        }
+        self.assertEqual(am._token_mcp_profile(token), "chatgpt_compact")
+        scopes = am._effective_token_scopes(token, "project_runtime_bootstrap", {})
+        self.assertIn("ralfia:agents", scopes)
+
+    def test_root_oauth_metadata_points_at_small_router_resource(self) -> None:
+        from inneros_core_runtime.oauth_metadata import (
+            SMALL_ROUTER_MCP_RESOURCE,
+            small_router_protected_resource_metadata,
+        )
+
+        meta = small_router_protected_resource_metadata("mcp.pcdoctor.ai")
+        self.assertEqual(meta["resource"], SMALL_ROUTER_MCP_RESOURCE)
+        self.assertEqual(meta.get("router_profile"), "chatgpt_compact")
 
     def test_non_orchestration_tool_keeps_raw_scopes_without_agents(self) -> None:
         token = {"scope": "ralfia:read openid", "mcp_profile": "chatgpt_compact"}

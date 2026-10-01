@@ -78,6 +78,13 @@ def _scope_for_user(user: dict[str, Any], requested_scope: str) -> str:
     if "ralfia:write" in allowed and "ralfia:write" not in granted:
         granted.append("ralfia:write")
         granted = sorted(set(granted))
+    if (
+        "ralfia:agents" in allowed
+        and {"ralfia:read", "ralfia:write"}.issubset(set(granted))
+        and "ralfia:agents" not in granted
+    ):
+        granted.append("ralfia:agents")
+        granted = sorted(set(granted))
     if not granted:
         granted = ["ralfia:read"] if "ralfia:read" in allowed else []
     if not granted:
