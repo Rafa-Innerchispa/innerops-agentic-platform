@@ -11,6 +11,38 @@ PROFILES_VERSION = "1.3.0"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
+    "chatgpt_compact": {
+        "label": "ChatGPT bootstrap compacto — descubrir, coordinar y enrutar",
+        "model_minimum": "small",
+        "max_tools": 25,
+        "tools": [
+            "mcp_version",
+            "diagnose_mcp_session",
+            "list_mcp_tool_profiles",
+            "route_mcp_tools",
+            "capability_search",
+            "capability_describe",
+            "capability_invoke",
+            "capability_execution",
+            "bootstrap_context",
+            "get_coordination_live",
+            "poll_agent_inbox",
+            "list_ops_tasks",
+            "create_agent_message",
+            "a2a_status",
+            "a2a_agent_cards",
+            "project_runtime_bootstrap",
+            "dev_swarm_scope_status",
+            "dev_swarm_launch_task",
+            "dev_swarm_scheduler_status",
+            "device_fabric_health",
+            "device_fabric_get",
+            "device_fabric_providers",
+            "bellini_guardian_status",
+            "device_fabric_inventory",
+            "device_fabric_discover",
+        ],
+    },
     "contifico_analytics": {
         "label": "Contífico analítico (piloto RO)",
         "model_minimum": "small",

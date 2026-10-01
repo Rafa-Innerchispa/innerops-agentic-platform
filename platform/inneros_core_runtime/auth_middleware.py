@@ -6,9 +6,18 @@ import os
 import time
 from typing import Any
 
-from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import get_http_headers, get_http_request
-from fastmcp.server.middleware import Middleware, MiddlewareContext
+try:
+    from fastmcp.exceptions import ToolError
+    from fastmcp.server.dependencies import get_http_headers, get_http_request
+    from fastmcp.server.middleware import Middleware, MiddlewareContext
+except ImportError:
+    class ToolError(Exception):
+        pass
+    class Middleware:
+        pass
+    MiddlewareContext = Any
+    def get_http_headers(*args, **kwargs): return {}
+    def get_http_request(*args, **kwargs): return None
 
 from raphiia_openai import mongo_store
 from raphiia_openai.oauth_store import get_client, validate_access_token
@@ -233,6 +242,15 @@ TOOL_SCOPES = {
     "dispatch_local_agent": "ralfia:agents",
     "run_self_heal_cycle": "ralfia:write",
     "run_service_guardian": "ralfia:read",
+    "device_fabric_health": "ralfia:read",
+    "device_fabric_get": "ralfia:read",
+    "device_fabric_providers": "ralfia:read",
+    "device_fabric_inventory": "ralfia:read",
+    "device_fabric_discover": "ralfia:read",
+    "device_fabric_capabilities": "ralfia:read",
+    "device_fabric_probe": "ralfia:read",
+    "bellini_guardian_status": "ralfia:read",
+    "bellini_guardian_dashboard": "ralfia:read",
     "agent_quote_prepare": "ralfia:agents",
     "agent_report_technical": "ralfia:agents",
     "agent_invoice_prepare": "ralfia:agents",
@@ -919,7 +937,10 @@ def _token_profile_guard(token_doc: dict[str, Any], tool_name: str) -> dict[str,
         return {"ok": True, "profile": None}
 
     try:
-        from raphiia_openai import mcp_profiles
+        try:
+            from inneros_core_runtime import mcp_profiles
+        except ImportError:
+            from raphiia_openai import mcp_profiles
 
         conf = mcp_profiles.PROFILES.get(str(profile))
     except Exception as exc:

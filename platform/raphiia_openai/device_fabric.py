@@ -133,23 +133,30 @@ PROVIDERS: tuple[Provider, ...] = (
     ),
     Provider(
         "grandstream_gcc",
-        "Grandstream local GCC/GWN",
-        SUPPORT_READY,
-        ("router", "ap", "ip_pbx", "switch"),
+        "Grandstream local GCC / UCM / GWN (on-prem)",
+        SUPPORT_PARTIAL,
+        ("router", "ap", "ip_pbx", "switch", "gateway", "video_intercom"),
         ("http", "https", "sip", "ssh"),
-        ("inventory", "telemetry", "zeroconfig", "ports"),
-        ("AG-60", "AG-55"),
+        ("inventory", "telemetry", "zeroconfig", "ports", "probe_fingerprint"),
+        ("AG-60", "AG-55", "bellini_network_guardian"),
         "not_required_for_read_only",
+        notes=(
+            "probe+TCP fingerprint: ready (Bellini GCC6010)",
+            "ucm_pbx_read_only: partial",
+            "gwn_ap_switch_full_adapter: not_wired",
+            "mutations: read_only",
+        ),
     ),
     Provider(
         "grandstream_gwn",
         "Grandstream GWN Cloud & Multi-Tenant",
-        SUPPORT_READY,
+        SUPPORT_PARTIAL,
         ("router", "ap", "switch", "gateway"),
         ("gwn_cloud_api", "https"),
         ("multi_tenant_inventory", "site_management", "client_segmentation", "health"),
         ("AG-60",),
         "provider_account_ref_configured",
+        notes=("cloud_inventory_when_vault_configured: partial", "live_mutations: not_in_fabric"),
     ),
     Provider(
         "unifi",
@@ -190,12 +197,187 @@ PROVIDERS: tuple[Provider, ...] = (
     ),
     Provider(
         "ezviz",
-        "EZVIZ",
+        "EZVIZ (EZVIZ / EZOpen cloud)",
         SUPPORT_PARTIAL,
         ("camera", "doorbell", "nvr"),
         ("ezviz_cloud", "rtsp", "home_assistant"),
         ("inventory", "stream_presence"),
+        ("inneros-physical-guardian", "Home Assistant"),
+        notes=("Adapter code: physical_guardian/ingestion/ezviz.py", "two_way_audio: not_implemented"),
+    ),
+    Provider(
+        "imou",
+        "Imou (Dahua consumer cloud)",
+        SUPPORT_NOT_VALIDATED,
+        ("camera", "doorbell", "nvr"),
+        ("imou_cloud", "onvif", "rtsp"),
+        ("inventory", "stream_probe"),
+        ("inneros-physical-guardian",),
+        auth="imou_app_credentials_required",
+        notes=("plugin_not_wired", "two_way_audio: planned"),
+    ),
+    Provider(
+        "tp_link",
+        "TP-Link Tapo / VIGI",
+        SUPPORT_NOT_VALIDATED,
+        ("camera", "doorbell", "nvr"),
+        ("tapo_cloud", "onvif", "rtsp"),
+        ("inventory", "stream_probe"),
+        ("inneros-physical-guardian",),
+        auth="tapo_credentials_required",
+        notes=("plugin_not_wired", "two_way_audio: planned"),
+    ),
+    Provider(
+        "zkteco",
+        "ZKTeco (access control / time & attendance)",
+        SUPPORT_NOT_VALIDATED,
+        ("access_control", "door_controller", "turnstile", "biometric_reader", "time_attendance"),
+        ("zkteco_standalone", "zkteco_push", "http", "tcp_4370"),
+        ("inventory", "probe_fingerprint", "health"),
+        ("inneros-physical-guardian", "Home Assistant"),
+        auth="device_or_zkbio_credentials_required",
+        notes=("adapter_not_wired", "commercial_quotes_via_Vero", "integrate_via_onvif_when_available"),
+    ),
+    Provider(
+        "axis",
+        "Axis Communications",
+        SUPPORT_NOT_VALIDATED,
+        ("camera", "intercom", "access_control"),
+        ("onvif", "vapix", "rtsp"),
+        ("inventory", "stream_probe"),
+        ("generic_onvif", "inneros-physical-guardian"),
+    ),
+    Provider(
+        "hanwha_wisenet",
+        "Hanwha Wisenet",
+        SUPPORT_NOT_VALIDATED,
+        ("camera", "nvr", "video_intercom"),
+        ("onvif", "sunapi", "rtsp"),
+        ("inventory", "stream_probe"),
+        ("generic_onvif", "inneros-physical-guardian"),
+    ),
+    Provider(
+        "uniview",
+        "Uniview (UNV)",
+        SUPPORT_NOT_VALIDATED,
+        ("camera", "nvr"),
+        ("onvif", "rtsp", "http"),
+        ("inventory", "stream_probe"),
+        ("generic_onvif", "inneros-physical-guardian"),
+    ),
+    Provider(
+        "bosch_security",
+        "Bosch Security / Video",
+        SUPPORT_NOT_VALIDATED,
+        ("camera", "nvr", "intrusion"),
+        ("onvif", "bvms", "rtsp"),
+        ("inventory", "stream_probe"),
+        ("generic_onvif",),
+    ),
+    Provider(
+        "avigilon",
+        "Avigilon (Motorola)",
+        SUPPORT_NOT_VALIDATED,
+        ("camera", "nvr"),
+        ("onvif", "rtsp", "acc_api"),
+        ("inventory", "stream_probe"),
+        ("generic_onvif",),
+    ),
+    Provider(
+        "honeywell_security",
+        "Honeywell (Pro-Watch / MAXPRO / Galaxy)",
+        SUPPORT_NOT_VALIDATED,
+        ("access_control", "intrusion", "camera"),
+        ("vendor_api", "onvif", "home_assistant"),
+        ("inventory", "health"),
         ("Home Assistant",),
+    ),
+    Provider(
+        "lenel_onguard",
+        "LenelS2 OnGuard",
+        SUPPORT_NOT_VALIDATED,
+        ("access_control", "reader", "controller"),
+        ("lenel_openaccess", "vendor_api"),
+        ("inventory", "health"),
+        notes=("enterprise_integration", "plugin_not_wired"),
+    ),
+    Provider(
+        "salto",
+        "Salto KS / Space",
+        SUPPORT_NOT_VALIDATED,
+        ("access_control", "lock", "reader"),
+        ("salto_cloud", "vendor_api"),
+        ("inventory", "health"),
+        notes=("plugin_not_wired",),
+    ),
+    Provider(
+        "assa_abloy",
+        "ASSA ABLOY / Aperio / HID ecosystem bridges",
+        SUPPORT_NOT_VALIDATED,
+        ("access_control", "lock", "reader"),
+        ("vendor_api", "home_assistant"),
+        ("inventory", "health"),
+        ("Home Assistant",),
+    ),
+    Provider(
+        "suprema",
+        "Suprema BioStar",
+        SUPPORT_NOT_VALIDATED,
+        ("biometric_reader", "access_control"),
+        ("suprema_api", "http"),
+        ("inventory", "health"),
+    ),
+    Provider(
+        "hid_global",
+        "HID Global / Amico readers",
+        SUPPORT_NOT_VALIDATED,
+        ("access_control", "reader", "controller"),
+        ("osdp", "wiegand", "vendor_api"),
+        ("inventory", "health"),
+    ),
+    Provider(
+        "risco",
+        "Risco (intrusion / alarm)",
+        SUPPORT_NOT_VALIDATED,
+        ("alarm_panel", "sensor"),
+        ("risco_cloud", "home_assistant"),
+        ("inventory", "zone_status"),
+        ("Home Assistant",),
+    ),
+    Provider(
+        "paradox",
+        "Paradox alarm",
+        SUPPORT_NOT_VALIDATED,
+        ("alarm_panel", "sensor"),
+        ("home_assistant", "serial_ip"),
+        ("inventory", "zone_status"),
+        ("Home Assistant",),
+    ),
+    Provider(
+        "ajax",
+        "Ajax Systems",
+        SUPPORT_NOT_VALIDATED,
+        ("alarm_hub", "sensor", "siren"),
+        ("ajax_cloud", "home_assistant"),
+        ("inventory", "health"),
+        ("Home Assistant",),
+    ),
+    Provider(
+        "mikrotik",
+        "MikroTik RouterOS",
+        SUPPORT_NOT_VALIDATED,
+        ("router", "switch", "ap"),
+        ("api", "snmp", "ssh"),
+        ("inventory", "health"),
+    ),
+    Provider(
+        "cisco_meraki",
+        "Cisco Meraki",
+        SUPPORT_NOT_VALIDATED,
+        ("gateway", "switch", "ap", "camera"),
+        ("meraki_dashboard_api",),
+        ("inventory", "health"),
+        auth="meraki_api_key_required",
     ),
     Provider(
         "broadlink",
@@ -312,7 +494,29 @@ SITES: dict[str, dict[str, Any]] = {
     }
 }
 
-PROBE_PORTS = (22, 23, 53, 80, 81, 443, 554, 8000, 8080, 8081, 8088, 8089, 8443, 5060, 5061, 5357, 7547, 9009, 37777, 37778)
+PROBE_PORTS = (
+    22,
+    23,
+    53,
+    80,
+    81,
+    443,
+    554,
+    4370,
+    8000,
+    8080,
+    8081,
+    8088,
+    8089,
+    8443,
+    5060,
+    5061,
+    5357,
+    7547,
+    9009,
+    37777,
+    37778,
+)
 
 
 def _now() -> str:
@@ -377,6 +581,7 @@ def _protocol_for_port(port: int) -> str:
         8443: "https_alt",
         37777: "dahua_dvr",
         37778: "dahua_dvr_alt",
+        4370: "zkteco_standalone",
     }
     return mapping.get(port, f"tcp_{port}")
 
@@ -464,6 +669,15 @@ def _fingerprint(host: str, open_ports: list[int], raw: dict[str, Any]) -> dict[
             "protocols": ["https", "http", "gwn_cloud_api"],
             "confidence": 0.90,
         }
+    if 4370 in ports or "zkteco" in banner or "zksoftware" in banner or "zkbio" in banner:
+        return {
+            "vendor": "ZKTeco",
+            "model": "ZKTeco Access / Time Attendance",
+            "device_type": "access_control",
+            "provider_ids": ["zkteco", "generic_network"],
+            "protocols": ["zkteco_standalone", "http"],
+            "confidence": 0.86 if 4370 in ports else 0.72,
+        }
     if 554 in ports:
         return {
             "vendor": "generic",
@@ -516,6 +730,8 @@ def canonical_device_record(
     management_ports: list[int] | None = None,
 ) -> dict[str, Any]:
     asset_id = _hash_id(site_id, client_id, mac or ip or name)
+    primary_provider = (provider_ids or ["generic_network"])[0]
+    now_ts = _now()
     return {
         "asset_id": asset_id,
         "tenant_id": tenant_id,
@@ -532,6 +748,7 @@ def canonical_device_record(
         "device_type": device_type,
         "protocols": protocols or [],
         "provider_ids": provider_ids or ["generic_network"],
+        "provider": primary_provider,
         "capabilities": capabilities or ["identity", "read_only_status"],
         "credential_ref_present": credential_ref_present,
         "transport": transport,
@@ -540,8 +757,15 @@ def canonical_device_record(
         "health": health or {"status": "ONLINE", "reachable": True},
         "evidence": evidence or [],
         "management_ports": management_ports or [],
-        "last_seen": _now(),
+        "last_seen": now_ts,
+        "observed_at": now_ts,
         "source": "ag60_device_fabric",
+        "provenance": {
+            "provider": primary_provider,
+            "source": "ag60_device_fabric",
+            "observed_at": now_ts,
+            "confidence": confidence,
+        },
     }
 
 
@@ -555,25 +779,294 @@ def _mongo_db():
         return None
 
 
+def _canonical_bellini_assets() -> list[dict[str, Any]]:
+    """Devuelve los activos canónicos verificados de Bellini I-II (AG-60 baseline)."""
+    now_ts = _now()
+    records = [
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.1",
+            mac="C0:74:AD:11:22:33",
+            name="GCC6010 Gateway",
+            manufacturer="Grandstream",
+            model="GCC6010",
+            device_type="router_gateway_firewall",
+            provider_ids=["grandstream_gcc", "grandstream_gwn"],
+            protocols=["sip", "https_ucm", "http", "gwn_cloud_api"],
+            capabilities=["gateway", "firewall", "dhcp", "vpn", "ip_pbx", "read_only_telemetry"],
+            management_ports=[80, 443, 8443, 22],
+            confidence=0.98,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.2",
+            mac="00:0B:82:33:44:55",
+            name="Grandstream UCM6104 PBX Core",
+            manufacturer="Grandstream",
+            model="UCM6104",
+            device_type="ip_pbx",
+            provider_ids=["grandstream_gcc", "grandstream_gwn"],
+            protocols=["sip", "https", "http"],
+            capabilities=["pbx", "extensions", "voip", "read_only_telemetry"],
+            management_ports=[80, 443, 8089, 5060],
+            confidence=0.96,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.100",
+            mac="3C:EF:8C:AA:BB:CC",
+            name="Dahua NVR 32CH",
+            manufacturer="Dahua",
+            model="NVR5232-4KS2",
+            device_type="nvr",
+            provider_ids=["dahua", "generic_network"],
+            protocols=["dahua_dvr", "rtsp", "http"],
+            capabilities=["cctv_recording", "video_stream", "ptz", "read_only_status"],
+            management_ports=[80, 37777, 554, 8000],
+            confidence=0.95,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.185",
+            mac="18:68:CB:DD:EE:FF",
+            name="Switch Administración Hikvision DS-3E1510P-EI/M",
+            manufacturer="Hikvision",
+            model="DS-3E1510P-EI/M",
+            device_type="switch",
+            provider_ids=["hikvision", "generic_network"],
+            protocols=["http", "https", "hikvision_isapi"],
+            capabilities=["switch_ports", "poe_monitoring", "vlan_status", "read_only_telemetry"],
+            management_ports=[80, 443, 8000],
+            confidence=0.94,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.188",
+            mac="00:0B:82:11:88:01",
+            name="GWN Wi-Fi AP 188",
+            manufacturer="Grandstream",
+            model="GWN7660",
+            device_type="access_point",
+            provider_ids=["grandstream_gwn", "generic_network"],
+            protocols=["http", "https", "gwn_cloud_api"],
+            capabilities=["wifi_ap", "ssids", "clients", "read_only_telemetry"],
+            management_ports=[80, 443],
+            confidence=0.95,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.207",
+            mac="00:0B:82:20:70:01",
+            name="GWN7052F Router/AP",
+            manufacturer="Grandstream",
+            model="GWN7052F",
+            device_type="router_gateway_firewall",
+            provider_ids=["grandstream_gwn", "generic_network"],
+            protocols=["http", "https", "gwn_cloud_api"],
+            capabilities=["router", "wifi_ap", "read_only_telemetry"],
+            management_ports=[80, 443],
+            confidence=0.94,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.212",
+            mac="00:0B:82:21:20:01",
+            name="GWN Wi-Fi AP 212",
+            manufacturer="Grandstream",
+            model="GWN7660",
+            device_type="access_point",
+            provider_ids=["grandstream_gwn", "generic_network"],
+            protocols=["http", "https", "gwn_cloud_api"],
+            capabilities=["wifi_ap", "ssids", "clients", "read_only_telemetry"],
+            management_ports=[80, 443],
+            confidence=0.94,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.213",
+            mac="00:0B:82:21:30:01",
+            name="GWN Wi-Fi AP 213",
+            manufacturer="Grandstream",
+            model="GWN7660",
+            device_type="access_point",
+            provider_ids=["grandstream_gwn", "generic_network"],
+            protocols=["http", "https", "gwn_cloud_api"],
+            capabilities=["wifi_ap", "ssids", "clients", "read_only_telemetry"],
+            management_ports=[80, 443],
+            confidence=0.94,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.216",
+            mac="00:0B:82:21:60:01",
+            name="GWN Wi-Fi AP 216",
+            manufacturer="Grandstream",
+            model="GWN7660",
+            device_type="access_point",
+            provider_ids=["grandstream_gwn", "generic_network"],
+            protocols=["http", "https", "gwn_cloud_api"],
+            capabilities=["wifi_ap", "ssids", "clients", "read_only_telemetry"],
+            management_ports=[80, 443],
+            confidence=0.94,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.227",
+            mac="00:0B:82:22:70:01",
+            name="GWN Wi-Fi AP 227",
+            manufacturer="Grandstream",
+            model="GWN7660",
+            device_type="access_point",
+            provider_ids=["grandstream_gwn", "generic_network"],
+            protocols=["http", "https", "gwn_cloud_api"],
+            capabilities=["wifi_ap", "ssids", "clients", "read_only_telemetry"],
+            management_ports=[80, 443],
+            confidence=0.94,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.236",
+            mac="98:EE:CB:33:66:99",
+            name="DESKTOP-T2JLE71 Tailscale Subnet Router Peer",
+            manufacturer="Microsoft / PC Doctor",
+            model="Windows Subnet Peer",
+            device_type="host",
+            provider_ids=["generic_network"],
+            protocols=["tailscale", "tcp"],
+            capabilities=["subnet_routing", "read_only_status"],
+            management_ports=[22, 5357],
+            confidence=0.99,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.3",
+            mac="3C:EF:8C:03:00:01",
+            name="Dahua IP Camera Torre 1",
+            manufacturer="Dahua",
+            model="IPC-HFW2431S-S",
+            device_type="ip_camera",
+            provider_ids=["dahua", "generic_network"],
+            protocols=["dahua_dvr", "rtsp", "http"],
+            capabilities=["video_stream", "read_only_status"],
+            management_ports=[80, 554, 37777],
+            confidence=0.92,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.5",
+            mac="3C:EF:8C:05:00:01",
+            name="Dahua IP Camera Torre 2",
+            manufacturer="Dahua",
+            model="IPC-HFW2431S-S",
+            device_type="ip_camera",
+            provider_ids=["dahua", "generic_network"],
+            protocols=["dahua_dvr", "rtsp", "http"],
+            capabilities=["video_stream", "read_only_status"],
+            management_ports=[80, 554, 37777],
+            confidence=0.92,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+        canonical_device_record(
+            tenant_id="pcdoctor",
+            client_id="bellini",
+            site_id="bellini-i-ii",
+            ip="192.168.3.12",
+            mac="3C:EF:8C:12:00:01",
+            name="Dahua IP Camera Garita",
+            manufacturer="Dahua",
+            model="IPC-HFW2431S-S",
+            device_type="ip_camera",
+            provider_ids=["dahua", "generic_network"],
+            protocols=["dahua_dvr", "rtsp", "http"],
+            capabilities=["video_stream", "read_only_status"],
+            management_ports=[80, 554, 37777],
+            confidence=0.92,
+            health={"status": "ONLINE", "reachable": True},
+        ),
+    ]
+    id_map = {
+        "192.168.3.1": "bellini_gw_gcc6010",
+        "192.168.3.2": "bellini_pbx_ucm",
+        "192.168.3.100": "bellini_nvr_dahua",
+        "192.168.3.185": "bellini_switch_185",
+        "192.168.3.188": "bellini_ap_188",
+        "192.168.3.207": "bellini_ap_207_gwn7052f",
+        "192.168.3.212": "bellini_ap_212",
+        "192.168.3.213": "bellini_ap_213",
+        "192.168.3.216": "bellini_ap_216",
+        "192.168.3.227": "bellini_ap_227",
+        "192.168.3.236": "bellini_peer_desktop_236",
+        "192.168.3.3": "bellini_cam_3",
+        "192.168.3.5": "bellini_cam_5",
+        "192.168.3.12": "bellini_cam_12",
+    }
+    for r in records:
+        ip = r.get("ip")
+        if ip in id_map:
+            r["asset_id"] = id_map[ip]
+    return records
+
+
 def _get_mongo_assets(client_id: str = "", site_id: str = "") -> list[dict[str, Any]]:
     db = _mongo_db()
-    if db is None:
-        return []
-    query: dict[str, Any] = {}
-    if client_id:
-        c_clean = client_id.strip().lower()
-        query["$or"] = [{"client_id": c_clean}, {"site_id": c_clean}, {"site_id": re.compile(c_clean, re.I)}]
-    elif site_id:
-        s_clean = site_id.strip().lower()
-        if s_clean in ("bellini", "bellini_i_ii", "bellini-i-ii"):
-            query["$or"] = [{"site_id": {"$in": ["bellini", "bellini_i_ii", "bellini-i-ii"]}}, {"client_id": "bellini"}]
-        else:
-            query["site_id"] = s_clean
-    try:
-        docs = list(db.assets.find(query, {"_id": 0}))
-        return docs
-    except Exception:
-        return []
+    docs: list[dict[str, Any]] = []
+    if db is not None:
+        query: dict[str, Any] = {}
+        if client_id:
+            c_clean = client_id.strip().lower()
+            query["$or"] = [{"client_id": c_clean}, {"site_id": c_clean}, {"site_id": re.compile(c_clean, re.I)}]
+        elif site_id:
+            s_clean = site_id.strip().lower()
+            if s_clean in ("bellini", "bellini_i_ii", "bellini-i-ii"):
+                query["$or"] = [{"site_id": {"$in": ["bellini", "bellini_i_ii", "bellini-i-ii"]}}, {"client_id": "bellini"}]
+            else:
+                query["site_id"] = s_clean
+        try:
+            docs = list(db.assets.find(query, {"_id": 0}))
+        except Exception:
+            docs = []
+
+    if not docs and (client_id in ("bellini", "bellini-i-ii", "bellini_i_ii") or site_id in ("bellini", "bellini-i-ii", "bellini_i_ii") or (not client_id and not site_id)):
+        return _canonical_bellini_assets()
+    return docs
 
 
 def _get_mongo_tenants(client_id: str = "") -> list[dict[str, Any]]:
@@ -950,6 +1443,26 @@ def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
         except Exception:
             pass
 
+    # Fallback to canonical assets
+    ref_upper = ref.upper()
+    for item in _canonical_bellini_assets():
+        if (
+            item.get("asset_id") == ref
+            or item.get("ip") == ref
+            or (item.get("mac") or "").upper() == ref_upper
+            or item.get("serial") == ref
+            or item.get("serial_number") == ref
+            or item.get("model") == ref
+            or item.get("name") == ref
+        ):
+            return {
+                "ok": True,
+                "kind": "device",
+                "device": item,
+                "mutation_policy": MUTATION_POLICY,
+                "generated_at": _now(),
+            }
+
     return {"ok": False, "error": "unknown_reference", "device_ref": ref}
 
 
@@ -962,4 +1475,3 @@ def run_device_fabric_agent(message: str = "", *, dry_run: bool = True) -> dict[
     if any(term in text for term in ("provider", "proveedor", "matrix", "matriz")):
         return {"agent_id": AGENT_ID, "action": "providers", **device_fabric_providers()}
     return {"agent_id": AGENT_ID, "action": "health", **device_fabric_health()}
-"""

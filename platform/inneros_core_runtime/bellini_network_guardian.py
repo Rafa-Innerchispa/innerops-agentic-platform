@@ -17,7 +17,10 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-import pymongo
+try:
+    import pymongo
+except ImportError:
+    pymongo = None
 
 GUARDIAN_VERSION = "2026.09.29"
 SITE_ID = "bellini-i-ii"
@@ -226,7 +229,7 @@ def _now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
-def get_mongo_db() -> pymongo.database.Database | None:
+def get_mongo_db() -> Any:
     mongo_uri = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017/")
     try:
         client = pymongo.MongoClient(mongo_uri, serverSelectionTimeoutMS=1500)
@@ -684,9 +687,12 @@ def bellini_guardian_status() -> dict[str, Any]:
     """Retorna el estado operativo en vivo y telemetría de Bellini Network Guardian."""
     db = get_mongo_db()
     if db is not None:
-        state = db.bellini_guardian_state.find_one({"site_id": SITE_ID}, {"_id": 0})
-        if state:
-            return {"ok": True, "source": "mongodb_guardian_state", **state}
+        try:
+            state = db.bellini_guardian_state.find_one({"site_id": SITE_ID}, {"_id": 0})
+            if state:
+                return {"ok": True, "source": "mongodb_guardian_state", **state}
+        except Exception:
+            pass
     g = get_guardian()
     return {"ok": True, "source": "live_sweep", **g.capture_single_sweep()}
 

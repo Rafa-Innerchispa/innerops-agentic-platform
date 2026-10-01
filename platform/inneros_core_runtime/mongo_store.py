@@ -7,8 +7,13 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from bson import ObjectId
-from pymongo import MongoClient
+try:
+    from bson import ObjectId
+    from pymongo import MongoClient
+except ImportError:
+    class ObjectId(str):
+        pass
+    MongoClient = Any
 
 from raphiia_openai.settings import (
     COL_CONVERSATIONS,

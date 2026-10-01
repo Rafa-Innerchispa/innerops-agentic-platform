@@ -40,6 +40,8 @@ PROFILES: dict[str, dict[str, Any]] = {
             "device_fabric_get",
             "device_fabric_providers",
             "bellini_guardian_status",
+            "device_fabric_inventory",
+            "device_fabric_discover",
         ],
     },
 
