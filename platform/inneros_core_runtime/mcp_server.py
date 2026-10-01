@@ -76,40 +76,103 @@ mcp.add_middleware(ToolCallIsolationMiddleware())
 if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
 
-class McpCompatibilityProbeMiddleware:
-    """Return a harmless 200 for bare GET /mcp probes that are not SSE streams."""
+def _normalized_http_path(path: str) -> str:
+    value = (path or "").strip()
+    if not value:
+        return "/"
+    return value.rstrip("/") or "/"
+
+
+def _is_mcp_entry_path(path: str) -> bool:
+    normalized = _normalized_http_path(path)
+    return normalized in {"/mcp", "/router/mcp"}
+
+
+def _router_mcp_public_url() -> str:
+    base = MCP_PUBLIC_URL.rstrip("/")
+    if base.endswith("/router/mcp"):
+        return base
+    return f"{base}/router/mcp"
+
+
+def _oauth_protected_resource_metadata_url() -> str:
+    return f"{_router_mcp_public_url()}/.well-known/oauth-protected-resource"
+
+
+def _compact_mcp_oauth_challenge() -> JSONResponse:
+    from inneros_core_runtime.oauth_metadata import build_oauth_www_authenticate
+
+    meta_url = _oauth_protected_resource_metadata_url()
+    scope = "ralfia:read ralfia:write ralfia:agents"
+    return JSONResponse(
+        {
+            "ok": False,
+            "error": "authentication_required",
+            "resource_metadata": meta_url,
+        },
+        status_code=401,
+        headers={"WWW-Authenticate": build_oauth_www_authenticate(meta_url, scope=scope)},
+    )
+
+
+def _router_health_payload() -> dict[str, Any]:
+    profile = os.getenv("MCP_TOOL_PROFILE", "").strip().lower() or None
+    return {
+        "ok": True,
+        "service": "mcp-router-gateway",
+        "transport": "streamable-http",
+        "mcp_endpoint": _router_mcp_public_url(),
+        "profile": profile or "full",
+        "note": "Health probe only — not an OAuth protected resource. MCP clients must authenticate against /router/mcp.",
+    }
+
+
+class McpSmallOAuthDiscoveryMiddleware:
+    """Fail-closed OAuth discovery for chatgpt_compact: unauthenticated MCP entry returns 401 + metadata."""
 
     def __init__(self, app):
         self.app = app
 
+    def _compact_plane(self) -> bool:
+        return os.getenv("MCP_TOOL_PROFILE", "").strip().lower() == "chatgpt_compact"
+
     async def __call__(self, scope, receive, send):
-        if scope.get("type") == "http" and scope.get("path") == "/mcp":
-            method = scope.get("method")
-            headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers") or []}
-            accept = headers.get("accept", "")
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path") or ""
+        normalized = _normalized_http_path(path)
+        if normalized in {"/health", "/router/health"}:
+            response = JSONResponse(_router_health_payload())
+            await response(scope, receive, send)
+            return
+
+        if not self._compact_plane() or not _is_mcp_entry_path(path):
+            await self.app(scope, receive, send)
+            return
+
+        method = (scope.get("method") or "GET").upper()
+        headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers") or []}
+        from inneros_core_runtime import auth_middleware as am
+
+        auth_ctx = am.resolve_bearer_auth_context(headers)
+        authenticated = bool(auth_ctx.get("ok"))
+
+        if not authenticated and method in {"GET", "HEAD", "POST"}:
+            challenge = _compact_mcp_oauth_challenge()
             if method == "HEAD":
-                response = Response(
-                    status_code=200,
-                    headers={
-                        "x-inneros-mcp-endpoint": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
-                        "x-inneros-mcp-transport": "streamable-http",
-                    },
-                )
-                await response(scope, receive, send)
-                return
-            if method == "GET" and "text/event-stream" not in accept:
-                response = JSONResponse(
-                    {
-                        "ok": True,
-                        "service": MCP_DISPLAY_NAME,
-                        "transport": "streamable-http",
-                        "mcp_endpoint": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
-                        "note": "Compatibility probe only. MCP clients must use POST and SSE GET with Accept: text/event-stream.",
-                    }
-                )
-                await response(scope, receive, send)
-                return
+                response = Response(status_code=401, headers=dict(challenge.headers))
+            else:
+                response = challenge
+            await response(scope, receive, send)
+            return
+
         await self.app(scope, receive, send)
+
+
+# Backward-compatible alias for imports/tests.
+McpCompatibilityProbeMiddleware = McpSmallOAuthDiscoveryMiddleware
 
 
 
@@ -3633,8 +3696,13 @@ def hubitat_device_events(device_id: str, limit: int = 20) -> dict[str, Any]:
 
 
 @mcp.tool
-def run_home_ops_cycle() -> dict[str, Any]:
-    """Ciclo local: poll email + snapshot HA + digest Ollama (sin cloud)."""
+def run_home_ops_cycle(message: str = "") -> dict[str, Any]:
+    """Ciclo local email+HA+digest, o ruta UniFi/GWN/alarma según el mensaje."""
+    from raphiia_openai import homeassistant_client as ha
+
+    trigger = (message or "").strip()
+    if trigger:
+        return ha.run_home_ops_cycle(trigger=trigger)
     from raphiia_openai import home_ops_daemon
 
     return home_ops_daemon.run_cycle()
@@ -7759,6 +7827,177 @@ def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
     from inneros_core_runtime import device_fabric
     return device_fabric.device_fabric_get(device_ref=device_ref)
 
+
+@mcp.tool
+def grandstream_gwn_network_ops(
+    message: str = "",
+    client_id: str = "",
+    site_id: str = "",
+    network_id: int = 0,
+    apply_changes: bool = False,
+    owner_approval_ref: str = "",
+) -> dict[str, Any]:
+    """AG-60: Observa/diagnostica red Grandstream GWN (GWN Cloud + fabric local)."""
+    from inneros_core_runtime import grandstream_gwn_network_ops as gwn_ops
+
+    return gwn_ops.grandstream_gwn_network_ops(
+        message,
+        client_id=client_id,
+        site_id=site_id,
+        network_id=network_id,
+        apply_changes=apply_changes,
+        owner_approval_ref=owner_approval_ref,
+    )
+
+
+@mcp.tool
+def grandstream_gwn_api_capabilities() -> dict[str, Any]:
+    """AG-60: Capacidades GWN Cloud vs UniFi en InnerOS."""
+    from inneros_core_runtime import grandstream_gwn_client as gwn
+
+    return {"ok": True, **gwn.gwn_api_capabilities()}
+
+
+@mcp.tool
+def grandstream_gwn_full_snapshot(
+    network_id: int = 0,
+    client_id: str = "bellini",
+    site_id: str = "bellini-i-ii",
+    include_device_details: bool = True,
+) -> dict[str, Any]:
+    """AG-60: Export completo GWN Cloud (routers, switches, APs, SSIDs, clientes, WAN, alertas)."""
+    from inneros_core_runtime import grandstream_gwn_client as gwn
+
+    creds, err = gwn.load_gwn_credentials()
+    if not creds:
+        return {"ok": False, "error": err}
+    tenant = None
+    try:
+        from inneros_core_runtime import device_fabric
+
+        rows = device_fabric._get_mongo_tenants(client_id=client_id.strip().lower())  # noqa: SLF001
+        tenant = rows[0] if rows else None
+    except Exception:
+        tenant = None
+    nid = gwn.resolve_network_id(
+        client_id=client_id,
+        site_id=site_id,
+        network_id=network_id or None,
+        tenant_row=tenant,
+    )
+    if not nid:
+        token, _ = gwn.get_access_token(creds)
+        hint = (tenant or {}).get("site_name") or client_id
+        nid, pick = gwn.pick_network_id_from_cloud(creds, hint=str(hint), access_token=token)
+        if not nid:
+            return {"ok": False, "error": "gwn_network_id_unresolved", "detail": pick}
+    return gwn.fetch_full_network_snapshot(
+        network_id=int(nid),
+        creds=creds,
+        include_device_details=include_device_details,
+    )
+
+
+@mcp.tool
+def grandstream_gwn_device_reboot(
+    mac: str,
+    network_id: int = 0,
+    client_id: str = "bellini",
+    dry_run: bool = True,
+    owner_approval_ref: str = "",
+) -> dict[str, Any]:
+    """AG-60: Reboot gobernado de AP/router/switch GWN via cloud (ap/reboot)."""
+    from inneros_core_runtime import grandstream_gwn_client as gwn
+
+    creds, err = gwn.load_gwn_credentials()
+    if not creds:
+        return {"ok": False, "error": err}
+    nid = network_id or gwn.resolve_network_id(client_id=client_id, site_id="bellini-i-ii") or 0
+    if not nid:
+        return {"ok": False, "error": "network_id_required"}
+    return gwn.device_reboot(
+        creds,
+        int(nid),
+        mac,
+        dry_run=dry_run,
+        owner_approval_ref=owner_approval_ref,
+    )
+
+
+@mcp.tool
+def grandstream_gwn_ssid_update(
+    payload_json: str = "{}",
+    dry_run: bool = True,
+    owner_approval_ref: str = "",
+) -> dict[str, Any]:
+    """AG-60: SSID update gobernado en GWN Cloud (fail-closed sin owner_approval_ref)."""
+    from inneros_core_runtime import grandstream_gwn_client as gwn
+
+    creds, err = gwn.load_gwn_credentials()
+    if not creds:
+        return {"ok": False, "error": err}
+    try:
+        payload = json.loads(payload_json or "{}")
+    except json.JSONDecodeError:
+        return {"ok": False, "error": "invalid_payload_json"}
+    if not isinstance(payload, dict):
+        return {"ok": False, "error": "payload_must_be_object"}
+    return gwn.ssid_update(
+        creds,
+        payload,
+        dry_run=dry_run,
+        owner_approval_ref=owner_approval_ref,
+    )
+
+
+@mcp.tool
+def ruijie_reyee_network_ops(
+    message: str = "",
+    client_id: str = "",
+    site_id: str = "",
+    group_id: int = 0,
+) -> dict[str, Any]:
+    """AG-60: Observa/diagnostica red Ruijie/Reyee (cloud + probe LAN)."""
+    from inneros_core_runtime import ruijie_reyee_network_ops as rj_ops
+
+    return rj_ops.ruijie_reyee_network_ops(
+        message, client_id=client_id, site_id=site_id, group_id=group_id
+    )
+
+
+@mcp.tool
+def ruijie_reyee_api_capabilities() -> dict[str, Any]:
+    """AG-60: Capacidades Ruijie Cloud / Reyee en InnerOS."""
+    from inneros_core_runtime import ruijie_reyee_client as rj
+
+    return {"ok": True, **rj.reyee_api_capabilities()}
+
+
+@mcp.tool
+def ruijie_reyee_full_snapshot(
+    group_id: int = 0,
+    client_id: str = "bellini",
+    site_id: str = "bellini-i-ii",
+    include_switch_ports: bool = True,
+) -> dict[str, Any]:
+    """AG-60: Export Ruijie Cloud: APs, switches, gateways, clientes, puertos."""
+    from inneros_core_runtime import ruijie_reyee_client as rj
+
+    creds, err = rj.load_ruijie_credentials()
+    if not creds:
+        return {"ok": False, "error": err, "capabilities": rj.reyee_api_capabilities()}
+    gid = rj.resolve_group_id(client_id=client_id, site_id=site_id, group_id=group_id or None)
+    if not gid:
+        gid, pick = rj.pick_group_id_from_cloud(creds, hint=client_id)
+        if not gid:
+            return {"ok": False, "error": "ruijie_group_unresolved", "detail": pick}
+    return rj.fetch_full_network_snapshot(
+        group_id=int(gid),
+        creds=creds,
+        include_switch_ports=include_switch_ports,
+    )
+
+
 # --- AG-60 Bellini Network Guardian & Dashboard tools ---
 
 @mcp.tool
@@ -7816,4 +8055,10 @@ if __name__ == "__main__":
         profile_info = _apply_runtime_tool_profile(runtime_profile)
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
-    mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp", middleware=[StarletteMiddleware(McpCompatibilityProbeMiddleware)])
+    mcp.run(
+        transport="streamable-http",
+        host=MCP_HOST,
+        port=MCP_PORT,
+        path="/mcp",
+        middleware=[StarletteMiddleware(McpSmallOAuthDiscoveryMiddleware)],
+    )
