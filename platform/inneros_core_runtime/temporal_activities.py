@@ -1,3 +1,7 @@
+from __future__ import annotations
+class AgentState:
+    pass
+
 """Temporal Activities for InnerOS Task Execution and Completion Gating.
 
 Implements:
@@ -8,7 +12,6 @@ Implements:
 - NATS JetStream durable event publication.
 - MongoDB projection synchronization.
 """
-from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone

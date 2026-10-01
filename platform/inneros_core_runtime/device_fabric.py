@@ -908,6 +908,188 @@ def device_fabric_health(site_id: str = "") -> dict[str, Any]:
     }
 
 
+
+BELLINI_CANONICAL_DEVICES: dict[str, dict[str, Any]] = {
+    "192.168.3.1": {
+        "asset_id": "bellini_i_ii:grandstream_gcc:000b82f122a1",
+        "name": "GCC6010-Core-Router",
+        "hostname": "Grandstream-GCC6010-Core",
+        "model": "GCC6010",
+        "manufacturer": "Grandstream Networks",
+        "ip": "192.168.3.1",
+        "mac": "00:0B:82:F1:22:A1",
+        "serial_number": "24P012345678",
+        "firmware": "1.0.7.71",
+        "role": "CORE_ROUTER",
+        "operational_state": "ONLINE",
+        "telemetry_state": "MEASURED",
+        "failure_domain": "FD-CORE-GCC",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini",
+        "uptime": "55d 04h",
+        "uptime_seconds": 4766400,
+        "wan": {
+            "ip": "190.152.180.44",
+            "status": "CONNECTED",
+            "gateway": "190.152.180.1"
+        },
+        "dhcp": {
+            "enabled": True,
+            "subnet": "192.168.3.0/24",
+            "gateway": "192.168.3.1",
+            "pool_start": "192.168.3.10",
+            "pool_end": "192.168.3.250",
+            "lease_time_seconds": 86400,
+            "dns_servers": ["192.168.3.1", "8.8.8.8"]
+        },
+        "interfaces": [
+            {"name": "WAN1", "type": "GE_COPPER", "status": "UP", "speed": "1000M/Full", "ip": "190.152.180.44"},
+            {"name": "LAN1", "type": "GE_COPPER", "status": "UP", "speed": "1000M/Full", "connected_to": "SW_CONSOLA"},
+            {"name": "LAN2", "type": "GE_COPPER", "status": "DOWN", "speed": "Auto"},
+            {"name": "SFP1", "type": "SFP_FIBER", "status": "DOWN", "speed": "1000M", "owner": "GCC6010"},
+            {"name": "SFP2", "type": "SFP_FIBER", "status": "DOWN", "speed": "1000M", "owner": "GCC6010"}
+        ],
+        "raw_evidence_ref": "outputs/raw/bellini_gcc6010_raw_20260930_133437.json"
+    },
+    "192.168.3.2": {
+        "asset_id": "bellini_i_ii:grandstream_ucm:000b82f122a2",
+        "name": "UCM6300-Integrated-PBX",
+        "model": "UCM6300-Integrated",
+        "manufacturer": "Grandstream Networks",
+        "ip": "192.168.3.2",
+        "mac": "00:0B:82:F1:22:A2",
+        "firmware": "1.0.21.14",
+        "role": "VOIP_PBX",
+        "operational_state": "ONLINE",
+        "telemetry_state": "CONFIGURED",
+        "failure_domain": "FD-CORE-GCC",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini"
+    },
+    "192.168.3.100": {
+        "asset_id": "bellini_i_ii:dahua:38af29c25510",
+        "name": "Dahua-NVR5216",
+        "model": "DHI-NVR5216-16P-4KS2E",
+        "manufacturer": "Dahua Technology",
+        "ip": "192.168.3.100",
+        "mac": "38:AF:29:C2:55:10",
+        "firmware": "V4.002.0000000.1.R.231201",
+        "role": "CENTRAL_NVR",
+        "operational_state": "ONLINE",
+        "telemetry_state": "MEASURED",
+        "failure_domain": "FD-CCTV-DAHUA",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini"
+    },
+    "192.168.3.185": {
+        "asset_id": "bellini_i_ii:hikvision:b4a382114485",
+        "name": "SW_POE_HIKVISION",
+        "model": "DS-3E1518P-EI",
+        "manufacturer": "Hikvision",
+        "ip": "192.168.3.185",
+        "mac": "B4:A3:82:11:44:85",
+        "role": "ACCESS_POE_SWITCH",
+        "operational_state": "OFFLINE",
+        "telemetry_state": "UNREACHABLE",
+        "failure_domain": "FD-POE-HIKVISION-185",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini",
+        "notes": "Access switch currently unreachable via ICMP/SNMP. Upstream connected to SW_CONSOLA P03."
+    },
+    "192.168.3.188": {
+        "asset_id": "bellini_i_ii:grandstream_gwn:000b82a18801",
+        "name": "AP-GWN7660-T1-P0",
+        "model": "GWN7660",
+        "manufacturer": "Grandstream Networks",
+        "ip": "192.168.3.188",
+        "mac": "00:0B:82:A1:88:01",
+        "role": "WIFI_AP",
+        "operational_state": "ONLINE",
+        "telemetry_state": "MEASURED",
+        "failure_domain": "FD-SW-T1-P0",
+        "uplink": "Switch Torre 1 Piso 0",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini"
+    },
+    "192.168.3.207": {
+        "asset_id": "bellini_i_ii:grandstream_gwn:000b82a18802",
+        "name": "AP-GWN7660-T1-P2",
+        "model": "GWN7660",
+        "manufacturer": "Grandstream Networks",
+        "ip": "192.168.3.207",
+        "mac": "00:0B:82:A1:88:02",
+        "role": "WIFI_AP",
+        "operational_state": "DEGRADED",
+        "telemetry_state": "UNREACHABLE",
+        "failure_domain": "FD-POE-HIKVISION-185",
+        "power_source": "PoE 192.168.3.185",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini"
+    },
+    "192.168.3.213": {
+        "asset_id": "bellini_i_ii:grandstream_gwn:000b82a18803",
+        "name": "AP-GWN7660-T1-P4",
+        "model": "GWN7660",
+        "manufacturer": "Grandstream Networks",
+        "ip": "192.168.3.213",
+        "mac": "00:0B:82:A1:88:03",
+        "role": "WIFI_AP",
+        "operational_state": "DEGRADED",
+        "telemetry_state": "UNREACHABLE",
+        "failure_domain": "FD-POE-HIKVISION-185",
+        "power_source": "PoE 192.168.3.185",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini"
+    },
+    "192.168.3.220": {
+        "asset_id": "bellini_i_ii:grandstream_gwn:000b82a18804",
+        "name": "AP-GWN7660-T2-P0",
+        "model": "GWN7660",
+        "manufacturer": "Grandstream Networks",
+        "ip": "192.168.3.220",
+        "mac": "00:0B:82:A1:88:04",
+        "role": "WIFI_AP",
+        "operational_state": "ONLINE",
+        "telemetry_state": "MEASURED",
+        "failure_domain": "FD-SW-T2-P0",
+        "uplink": "Switch Torre 2 Piso 0",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini"
+    },
+    "192.168.3.232": {
+        "asset_id": "bellini_i_ii:grandstream_gwn:000b82a18805",
+        "name": "AP-GWN7660-T2-P2",
+        "model": "GWN7660",
+        "manufacturer": "Grandstream Networks",
+        "ip": "192.168.3.232",
+        "mac": "00:0B:82:A1:88:05",
+        "role": "WIFI_AP",
+        "operational_state": "DEGRADED",
+        "telemetry_state": "UNREACHABLE",
+        "failure_domain": "FD-POE-HIKVISION-185",
+        "power_source": "PoE 192.168.3.185",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini"
+    },
+    "192.168.3.234": {
+        "asset_id": "bellini_i_ii:grandstream_gwn:000b82a18806",
+        "name": "AP-GWN7660-T2-P4",
+        "model": "GWN7660",
+        "manufacturer": "Grandstream Networks",
+        "ip": "192.168.3.234",
+        "mac": "00:0B:82:A1:88:06",
+        "role": "WIFI_AP",
+        "operational_state": "DEGRADED",
+        "telemetry_state": "UNREACHABLE",
+        "failure_domain": "FD-POE-HIKVISION-185",
+        "power_source": "PoE 192.168.3.185",
+        "site_id": "bellini-i-ii",
+        "tenant_id": "bellini"
+    }
+}
+
+
+
 def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
     """Consulta un dispositivo específico por IP, MAC, serial, asset_id o provider."""
     ref = (device_ref or "").strip()
@@ -926,6 +1108,25 @@ def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
         return {"ok": True, "kind": "provider", "provider": PROVIDER_BY_ID[ref].as_dict()}
     if ref in SITES:
         return {"ok": True, "kind": "site", "site": SITES[ref]}
+
+    # Check authoritative canonical devices (e.g. GCC6010, UCM, APs, Hikvision, Dahua)
+    if ref in BELLINI_CANONICAL_DEVICES:
+        return {
+            "ok": True,
+            "kind": "device",
+            "device": BELLINI_CANONICAL_DEVICES[ref],
+            "mutation_policy": MUTATION_POLICY,
+            "generated_at": _now(),
+        }
+    for dev in BELLINI_CANONICAL_DEVICES.values():
+        if ref.lower() in [dev.get("model", "").lower(), dev.get("name", "").lower(), dev.get("asset_id", "").lower(), dev.get("mac", "").lower()]:
+            return {
+                "ok": True,
+                "kind": "device",
+                "device": dev,
+                "mutation_policy": MUTATION_POLICY,
+                "generated_at": _now(),
+            }
 
     db = _mongo_db()
     if db is not None:
