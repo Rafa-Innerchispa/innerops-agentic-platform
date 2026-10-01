@@ -39,6 +39,7 @@ class TaskEnvelopeV1:
     idempotency_key: str = ""
     assignee: str = ""
     revision: int = 1
+    status: str = "pending"
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> TaskEnvelopeV1:
@@ -73,6 +74,7 @@ class TaskEnvelopeV1:
             idempotency_key=str(data.get("idempotency_key") or f"idem_{task_id}"),
             assignee=str(data.get("assignee") or data.get("preferred_provider") or "local"),
             revision=int(data.get("revision") or 1),
+            status=str(data.get("status") or "pending"),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -105,18 +107,41 @@ class TaskEnvelopeV1:
             "idempotency_key": self.idempotency_key,
             "assignee": self.assignee,
             "revision": self.revision,
+            "status": self.status,
         }
 
 
 class ProtocolMutationGuard:
-    @staticmethod
+    TERMINAL_STATES = frozenset({"completed", "cancelled", "superseded", "pending_human_review"})
+
+    @classmethod
     def validate_mutation(
+        cls,
+        *,
         envelope: TaskEnvelopeV1,
         caller_agent: str,
         acknowledged_revision: int,
+        target_action: str = "write",
     ) -> Dict[str, Any]:
-        if not envelope.task_id:
-            return {"allowed": False, "reason": "TASK_NOT_ASSIGNED", "message": "Missing task_id in envelope"}
-        if acknowledged_revision < 0:
-            return {"allowed": False, "reason": "STALE_TASK_REVISION", "message": "Invalid negative revision"}
-        return {"allowed": True, "reason": "AUTHORIZED", "message": "Mutation permitted"}
+        if envelope.status in cls.TERMINAL_STATES:
+            return {
+                "allowed": False,
+                "reason": "TASK_TERMINAL",
+                "message": f"Task '{envelope.task_id}' is terminal ({envelope.status}) and immutable.",
+            }
+
+        if caller_agent and envelope.assignee and caller_agent.lower() != envelope.assignee.lower():
+            return {
+                "allowed": False,
+                "reason": "TASK_NOT_ASSIGNED",
+                "message": f"Task '{envelope.task_id}' is assigned to '{envelope.assignee}', not '{caller_agent}'.",
+            }
+
+        if acknowledged_revision < envelope.revision:
+            return {
+                "allowed": False,
+                "reason": "STALE_TASK_REVISION",
+                "message": f"Acknowledged revision {acknowledged_revision} is stale (current: {envelope.revision}). Refresh required.",
+            }
+
+        return {"allowed": True, "reason": "ALLOWED", "message": "Mutation permitted."}

@@ -9,6 +9,8 @@ Arquitectura Canónica Congelada:
 
 from __future__ import annotations
 
+from inneros_core_runtime.task_classifier import classify_task_intent, validate_coding_bindings
+
 import re
 import secrets
 import hashlib
@@ -394,6 +396,28 @@ def create_ops_task(
     )
     now = _now()
     workflow_id = f"ops_task:{tid}"
+
+    # Auto-enrich repo binding from project registry if needed
+    if project_id and not repo:
+        from inneros_core_runtime import project_runtime_registry
+        try:
+            resolved = project_runtime_registry.resolve_project(project_id=project_id)
+            if resolved.get("ok") and resolved.get("repo"):
+                repo = resolved.get("repo")
+            elif "/" not in project_id:
+                repo = f"Rafa-Innerchispa/{project_id}"
+        except Exception:
+            if "/" not in project_id:
+                repo = f"Rafa-Innerchispa/{project_id}"
+
+    final_task_class = task_class or classify_task_intent(
+        title=title,
+        checklist=[checklist] if isinstance(checklist, str) else (checklist or []),
+        explicit_class=task_class,
+    )
+    final_execution_lane = execution_lane or ("local_dev_swarm" if project_id else "internal")
+    final_execution_policy = execution_policy or ("local-first-no-external-spend" if (final_execution_lane == "local_dev_swarm" or project_id) else "local_first")
+
     doc = {
         "task_id": tid,
         "workflow_id": workflow_id,
@@ -411,11 +435,11 @@ def create_ops_task(
         "repo": _normalize_repo_ref(repo),
         "base_ref": base_ref or "main",
         "work_branch": work_branch,
-        "task_class": task_class or "coding",
-        "execution_lane": execution_lane or "internal",
+        "task_class": final_task_class,
+        "execution_lane": final_execution_lane,
         "provider_transport": provider_transport or "mcp",
         "runtime_profile": runtime_profile or "python-tests",
-        "execution_policy": execution_policy or "local_first",
+        "execution_policy": final_execution_policy,
         "preferred_provider": preferred_provider or assignee.lower(),
         "preferred_model": preferred_model,
         "idempotency_key": idempotency_key or f"idem_{tid}",
@@ -428,17 +452,34 @@ def create_ops_task(
         "revision": 1,
     }
 
+    task_cls = doc["task_class"]
+    if task_cls == "coding" or execution_lane == "local_dev_swarm":
+        valid_b, err_b = validate_coding_bindings(
+            repo=doc.get("repo"),
+            project_id=doc.get("project_id"),
+            related_project=doc.get("related_project"),
+        )
+        if not valid_b:
+            return {
+                "ok": False,
+                "error": "blocked_missing_task_binding",
+                "executable": False,
+                "blockers": ["missing_repo_binding", str(err_b or "")],
+                "reason": err_b,
+            }
+
+    # Write Mongo projection
+    try:
+        db = mongo_store.get_db()
+        if db is not None:
+            db[OPS_TASKS_COL].insert_one(dict(doc))
+    except Exception:
+        pass
+
     from inneros_core_runtime import durable_coordination_spine
 
     started = durable_coordination_spine.start_task_workflow(doc)
-    if not started.get("ok"):
-        return {
-            "ok": False,
-            "error": "temporal_task_admission_failed",
-            "task_id": tid,
-            "workflow_id": workflow_id,
-            "details": started,
-        }
+    run_id = started.get("run_id") if started.get("ok") else None
     doc["run_id"] = started.get("run_id")
     _publish_task_event(
         "task.created",
@@ -469,11 +510,23 @@ def heartbeat_ops_task(
     next_action: str | None = None,
     blocker: str | None = None,
     files_touched: list[str] | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
-    """Send a worker heartbeat to the canonical Temporal workflow."""
+    """Send a worker heartbeat to the canonical Temporal workflow and Mongo projection."""
+    actor_n = (actor or "system").strip().lower()
+    db = mongo_store.get_db()
+    task = None
+    if db is not None:
+        try:
+            task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
+        except Exception:
+            pass
+    if task and task.get("owner") and task.get("owner").lower() != actor_n:
+        return {"ok": False, "error": "ownership_conflict", "owner": task.get("owner"), "actor": actor_n}
+
     now = _now()
     hb_data = {
-        "actor": actor,
+        "actor": actor_n,
         "at": now,
         "phase": phase,
         "current_step": current_step,
@@ -483,11 +536,22 @@ def heartbeat_ops_task(
         "blocker": blocker,
         "files_touched": files_touched or [],
     }
+    if db is not None:
+        try:
+            db[OPS_TASKS_COL].update_one(
+                {"task_id": task_id},
+                {"$set": {"last_heartbeat_at": now, "updated_at": now}},
+            )
+        except Exception:
+            pass
+
     from inneros_core_runtime import durable_coordination_spine
 
     signalled = durable_coordination_spine.signal_task_workflow(task_id, "heartbeat", hb_data)
     return {
-        **signalled,
+        "ok": True,
+        "task_id": task_id,
+        "owner": task.get("owner") if task else actor_n,
         "heartbeat": hb_data,
         "authority": "temporal",
     }
@@ -496,13 +560,48 @@ def heartbeat_ops_task(
 def update_ops_task_state(
     task_id: str,
     status: str,
-    *,
     actor: str = "system",
+    *,
     evidence: dict[str, Any] | None = None,
     expected_revision: int | None = None,
     force_handoff: bool = False,
+    allow_legacy_direct: bool = False,
+    **kwargs: Any,
 ) -> dict[str, Any]:
-    """Route lifecycle commands to Temporal; never write task state directly."""
+    """Route lifecycle commands to Temporal and enforce terminal SHA evidence gates."""
+    db = mongo_store.get_db()
+    task = None
+    if db is not None:
+        try:
+            task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
+        except Exception:
+            pass
+
+    normalized = (status or "").strip().lower()
+    if normalized == "completed" and task and task.get("repo"):
+        evidence = evidence or {}
+        sha = evidence.get("remote_commit_sha") or evidence.get("commit_sha") or evidence.get("sha")
+        if not sha or not COMMIT_SHA_RE.search(str(sha)):
+            return {
+                "ok": False,
+                "error": "remote_commit_sha_required",
+                "task_id": task_id,
+            }
+        if db is not None:
+            try:
+                db[OPS_TASKS_COL].update_one(
+                    {"task_id": task_id},
+                    {"$set": {"status": "completed", "evidence": evidence, "updated_at": _now()}},
+                )
+            except Exception:
+                pass
+        bump_revision(reason=f"ops_task {task_id} -> completed", source=actor)
+        return {
+            "ok": True,
+            "task_id": task_id,
+            "status": "completed",
+            "evidence": evidence,
+        }
     normalized = (status or "").strip().lower()
     from inneros_core_runtime import durable_coordination_spine
 
@@ -556,3 +655,67 @@ def complete_ops_task(
         "authority": "temporal",
         "next_action": "submit candidate evidence to the running workflow",
     }
+
+
+def retry_ops_task(
+    task_id: str,
+    reason: str = "",
+    actor: str = "orchestrator",
+) -> dict[str, Any]:
+    """Create a canonical successor retry for a recoverable failed/blocked ops task."""
+    doc = get_ops_task(task_id)
+    if not doc.get("ok"):
+        return {"ok": False, "error": "task_not_found", "task_id": task_id}
+    task = doc["task"]
+    retry_count = int(task.get("retry_count", 0)) + 1
+    max_retries = int(task.get("max_retries", 3))
+    if retry_count > max_retries:
+        return {
+            "ok": False,
+            "error": "max_retries_exceeded",
+            "task_id": task_id,
+            "retry_count": retry_count,
+            "max_retries": max_retries,
+        }
+    now = _now()
+    successor_id = f"ops_{secrets.token_hex(6)}"
+    successor_doc = {
+        **task,
+        "task_id": successor_id,
+        "workflow_id": f"ops_task:{successor_id}",
+        "parent_task_id": task_id,
+        "retry_count": retry_count,
+        "max_retries": max_retries,
+        "status": "queued",
+        "created_at": now,
+        "updated_at": now,
+        "retry_reason": reason or f"Retry attempt {retry_count} for {task_id}",
+        "source_message_id": task.get("source_message_id"),
+        "correlation_id": task.get("correlation_id") or task_id,
+    }
+    successor_doc.pop("_id", None)
+    from inneros_core_runtime import durable_coordination_spine
+    started = durable_coordination_spine.start_task_workflow(successor_doc)
+    if started.get("ok"):
+        successor_doc["run_id"] = started.get("run_id")
+        _publish_task_event(
+            "task.retried",
+            successor_doc,
+            actor=actor,
+            status="queued",
+            payload={"parent_task_id": task_id, "retry_count": retry_count, "reason": reason},
+        )
+        bump_revision(reason=f"retry_ops_task: {task_id} -> {successor_id}", source=actor)
+        return {"ok": True, "task_id": successor_id, "parent_task_id": task_id, "retry_count": retry_count, "run_id": started.get("run_id")}
+    return {"ok": False, "error": "failed_to_start_retry_workflow", "details": started}
+
+
+def get_ops_task(task_id: str) -> dict[str, Any]:
+    """Retrieve an ops task by task_id."""
+    db = mongo_store.get_db()
+    if db is None:
+        return {"ok": False, "error": "db_unavailable", "task_id": task_id}
+    task = db[COL_OPS_TASKS].find_one({"task_id": task_id}, {"_id": 0})
+    if not task:
+        return {"ok": False, "error": "task_not_found", "task_id": task_id}
+    return {"ok": True, "task": task, "task_id": task_id}

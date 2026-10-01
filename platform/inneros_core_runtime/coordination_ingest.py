@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from inneros_core_runtime.task_classifier import classify_task_intent, is_informational_message, validate_coding_bindings
+
 import re
 from typing import Any
 
@@ -51,6 +53,8 @@ def _checklist_from_body(body: str) -> list[str]:
 
 
 def should_create_task(*, title: str, body: str, message_type: str, payload: dict[str, Any] | None) -> bool:
+    if is_informational_message(message_type=message_type, title=title, body=body, payload=payload):
+        return False
     payload = payload or {}
     return bool(
         str(message_type or "").strip().lower() == "task"
@@ -150,7 +154,13 @@ def ingest_agent_message(
         repo=str(payload_n.get("repo") or fields.get("repo") or "").strip() or None,
         base_ref=str(payload_n.get("base_ref") or "").strip() or None,
         work_branch=str(payload_n.get("work_branch") or "").strip() or None,
-        task_class=str(payload_n.get("task_class") or "").strip() or None,
+        task_class=classify_task_intent(
+            title=title,
+            body=body_n,
+            checklist=_list_value(payload_n.get("checklist")) or _checklist_from_body(body_n),
+            payload=payload_n,
+            explicit_class=str(payload_n.get("task_class") or "").strip() or None,
+        ),
         execution_lane=str(payload_n.get("execution_lane") or "").strip() or None,
         provider_transport=str(payload_n.get("provider_transport") or "").strip() or None,
         runtime_profile=str(payload_n.get("runtime_profile") or "").strip() or None,

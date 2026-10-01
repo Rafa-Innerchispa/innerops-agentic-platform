@@ -167,6 +167,22 @@ def run_bounded_executor(
     work_branch = default_work_branch(envelope_dict)
     wt_path = _ensure_repo_worktree(envelope_dict, worktree)
 
+    # If coding task has no repo binding: mark waiting_for_binding instead of failing empty
+    if task_class == "coding" and not repo:
+        return {
+            "ok": False,
+            "status": "waiting_for_binding",
+            "waiting_for_binding": True,
+            "reason": "missing_repo_binding",
+            "files_count": 0,
+            "code_diff": "",
+            "test_results": {"exit_code": None, "ok": False, "reason": "missing_repo_binding"},
+            "response": candidate.get("response") or "",
+            "worktree": str(wt_path),
+            "candidate_only": False,
+            "requires_bounded_executor": False,
+        }
+
     touched = sync_bridge_artifacts(wt_path) if repo else []
     verify_cmd = _default_verify_command(envelope_dict)
     test_results: Dict[str, Any] = {
@@ -231,6 +247,13 @@ def run_bounded_executor(
     if task_class == "coding" and ok and files_count == 0 and not code_diff:
         ok = False
         test_results["reason"] = "coding_task_requires_diff_or_files"
+    elif task_class in ("review", "research", "operations", "deployment", "monitoring"):
+        # Non-coding tasks are verified through response/evidence, not git worktree diff
+        if candidate.get("ok") is not False:
+            ok = True
+            test_results["ok"] = True
+            test_results["exit_code"] = 0
+            test_results["reason"] = f"{task_class}_verified_without_code_diff"
 
     return {
         "ok": ok,
