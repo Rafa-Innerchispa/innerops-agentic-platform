@@ -408,11 +408,7 @@ def create_ops_task(
         "updated_at": now,
         "correlation_id": correlation_id or tid,
         "project_id": project_id,
-<<<<<<< HEAD
-        "repo": repo,
-=======
         "repo": _normalize_repo_ref(repo),
->>>>>>> e756042a (fix(coordination): normalizar repo GitHub URL a owner/name para bounded executor)
         "base_ref": base_ref or "main",
         "work_branch": work_branch,
         "task_class": task_class or "coding",
