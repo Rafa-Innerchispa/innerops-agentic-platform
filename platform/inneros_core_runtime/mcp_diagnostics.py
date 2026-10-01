@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,6 +25,16 @@ AUTH_SCOPES_AVAILABLE = [
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _public_mcp_url(*, profile: str | None = None) -> str:
+    base = MCP_PUBLIC_URL.rstrip("/")
+    compact = profile == "chatgpt_compact" or os.getenv("MCP_TOOL_PROFILE", "").strip().lower() == "chatgpt_compact"
+    if compact:
+        if base.endswith("/router/mcp"):
+            return base
+        return f"{base}/router/mcp"
+    return f"{base}/mcp"
 
 
 def _manifest_payload() -> dict[str, Any]:
@@ -112,13 +123,16 @@ def _visibility(required_scopes: list[str]) -> str:
     return "read_only"
 
 
-def mcp_version(session_id: str | None = None) -> dict[str, Any]:
+def mcp_version(
+    session_id: str | None = None,
+    auth_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     manifest = _manifest_payload()
     guard = _catalog_guard()
     auth_status = "api_key+oauth" if MCP_API_KEY else "oauth_only"
-    oauth_scopes = AUTH_SCOPES_AVAILABLE
+    oauth_scopes_supported = AUTH_SCOPES_AVAILABLE
     runtime_tool_count = len(tool_catalog.ALL_MCP_TOOL_NAMES)
-    return {
+    payload: dict[str, Any] = {
         "ok": True,
         "timestamp": _now_iso(),
         "server_version": SERVER_VERSION,
@@ -133,12 +147,27 @@ def mcp_version(session_id: str | None = None) -> dict[str, Any]:
         "tool_name_count": runtime_tool_count,
         "catalog_guard": guard,
         "auth_status": auth_status,
-        "oauth_scopes": oauth_scopes,
+        "oauth_scopes_supported": oauth_scopes_supported,
+        "oauth_scopes": oauth_scopes_supported,
+        "oauth_scopes_note": (
+            "DEPRECATED FIELD: oauth_scopes is NOT your bearer grant. "
+            "Use token_scopes_raw and effective_scopes when auth_context is present."
+        ),
+        "mcp_tool_profile": os.getenv("MCP_TOOL_PROFILE") or None,
+        "mcp_canonical_client_url": os.getenv(
+            "MCP_CANONICAL_CLIENT_URL", "https://mcp.pcdoctor.ai/router/mcp"
+        ),
         "session_id": session_id,
         "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
         "oauth_issuer": OAUTH_ISSUER,
         "updated_at": ralfia_time.now_utc_iso(),
     }
+    if auth_context and auth_context.get("ok"):
+        payload["token_granted_scopes"] = auth_context.get("token_scopes_raw") or []
+        payload["effective_scopes"] = auth_context.get("granted_scopes") or []
+        payload["mcp_profile"] = auth_context.get("mcp_profile")
+        payload["oauth_resource"] = auth_context.get("resource")
+    return payload
 
 
 def list_mcp_capabilities() -> dict[str, Any]:
@@ -426,6 +455,7 @@ def diagnose_mcp_session(
             "server_version": SERVER_VERSION,
             "bridge_version": BRIDGE_VERSION,
             "manifest_hash": manifest["manifest_hash"],
-            "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
+            "public_url": _public_mcp_url(profile=profile),
+            "canonical_small_entry": "https://mcp.pcdoctor.ai/router/mcp",
         },
     }
