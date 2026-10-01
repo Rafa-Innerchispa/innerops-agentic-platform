@@ -13,6 +13,14 @@ def test_device_fabric_providers_surface():
     assert "hikvision" in provider_ids
     assert "dahua" in provider_ids
     assert "unifi" in provider_ids
+    assert "zkteco" in provider_ids
+    assert "axis" in provider_ids
+
+
+def test_fingerprint_zkteco_banner():
+    fp = device_fabric._fingerprint("10.0.0.50", [80, 443], {"http": {"body_snippet": "ZKTeco Access Control"}})
+    assert fp["vendor"] == "ZKTeco"
+    assert "zkteco" in fp["provider_ids"]
 
 
 def test_bellini_inventory_segmentation():
