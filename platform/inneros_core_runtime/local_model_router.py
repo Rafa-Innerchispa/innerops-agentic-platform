@@ -101,7 +101,7 @@ TASK_ALIASES = {
     "reporte": "technical_report",
     "quote": "quote",
     "cotizacion": "quote",
-    "cotización": "quote",
+    "cotizaciÃ³n": "quote",
     "quote_intro": "quote_intro",
     "intro_cotizacion": "quote_intro",
     "routing": "routing",
@@ -132,7 +132,7 @@ TASK_ALIASES = {
     "programar": "coding",
     "programa": "coding",
     "programacion": "coding",
-    "programación": "coding",
+    "programaciÃ³n": "coding",
     "implementar": "coding",
     "implementa": "coding",
     "corrige": "coding",
@@ -147,7 +147,7 @@ TASK_ALIASES = {
     "self_repair": "coding",
     "autoreparar": "coding",
     "autoreparacion": "coding",
-    "autoreparación": "coding",
+    "autoreparaciÃ³n": "coding",
     "heavy_reasoning": "heavy_reasoning",
     "deep_coding": "heavy_reasoning",
     "architecture_coding": "heavy_reasoning",
@@ -350,6 +350,132 @@ def _vllm_url_for_provider(provider_id: str | None) -> str:
     return VLLM_URL
 
 
+def _installed_ollama_models(ollama_url: str) -> set[str]:
+    tags = _http_json(f"{ollama_url.rstrip('/')}/api/tags")
+    if not tags.get("ok"):
+        return set()
+    models = tags.get("data", {}).get("models") or []
+    names: set[str] = set()
+    for item in models:
+        if isinstance(item, dict):
+            name = str(item.get("name") or item.get("model") or "").strip()
+            if name:
+                names.add(name)
+    return names
+
+
+def _pick_installed_ollama_model(ollama_url: str, preferred: str | None = None) -> str | None:
+    available = _installed_ollama_models(ollama_url)
+    if not available:
+        return None
+    if preferred and preferred in available:
+        return preferred
+    for fallback in LOCAL_MODEL_FALLBACKS:
+        if fallback in available:
+            return fallback
+    return next(iter(sorted(available)))
+
+
+def _ollama_chat(
+    *,
+    ollama_url: str,
+    model: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+) -> dict[str, Any]:
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": False,
+        "options": {"temperature": temperature},
+    }
+    if max_tokens:
+        payload["options"]["num_predict"] = int(max_tokens)
+    return _http_json(f"{ollama_url.rstrip('/')}/api/chat", method="POST", body=payload, timeout=180)
+
+
+def _intel_ollama_fallback(
+    *,
+    task_type: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+    fallback_reason: str,
+    preferred_model: str | None = None,
+) -> dict[str, Any]:
+    """Single fallback hop: AMD vLLM failure → Intel/local Ollama (no cloud escalation)."""
+    ollama_url = _ollama_url_for_provider("local-intel-4")
+    model = _pick_installed_ollama_model(ollama_url, preferred=preferred_model)
+    if not model:
+        return {
+            "ok": False,
+            "error": "intel_ollama_no_models",
+            "external_needed": False,
+            "fallback_reason": fallback_reason,
+            "endpoint": ollama_url,
+        }
+    chat = _ollama_chat(
+        ollama_url=ollama_url,
+        model=model,
+        prompt=prompt,
+        system_prompt=system_prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+    if not chat.get("ok"):
+        return {
+            "ok": False,
+            "error": chat.get("error") or "intel_ollama_generation_failed",
+            "external_needed": False,
+            "fallback_reason": fallback_reason,
+            "endpoint": ollama_url,
+            "selected_model": model,
+        }
+    data = chat.get("data") or {}
+    content = (data.get("message") or {}).get("content", "")
+    if not str(content).strip():
+        return {
+            "ok": False,
+            "error": "intel_ollama_empty_response",
+            "external_needed": False,
+            "fallback_reason": fallback_reason,
+            "selected_model": model,
+        }
+    log = _log_route(
+        title=task_type,
+        body=prompt,
+        task_type=task_type,
+        runtime="local_model",
+        model=model,
+        local_ok=True,
+        external_needed=False,
+        approval_required=False,
+        reason=f"intel_ollama_fallback:{fallback_reason}",
+        decision="executed_local_intel_ollama",
+    )
+    return {
+        "ok": True,
+        "runtime": "local_model",
+        "response": content,
+        "raw": data,
+        "task_type": task_type,
+        "selected_model": model,
+        "selected_node": "intel",
+        "provider_id": "local-intel-4",
+        "external_needed": False,
+        "fallback_silent": False,
+        "fallback_reason": fallback_reason,
+        "endpoint": f"{ollama_url.rstrip('/')}/api/chat",
+        "routing_log": log,
+    }
+
+
 def _router_default(task_type: str) -> dict[str, Any] | None:
     state_doc = mongo_store.get_coordination_state(ROUTER_KEY)
     state = (state_doc.get("state") or {}) if state_doc.get("ok") else {}
@@ -369,7 +495,8 @@ def _vllm_chat(
     endpoint: str | None = None,
 ) -> dict[str, Any]:
     vllm_url = (endpoint or VLLM_URL).rstrip("/")
-    payload = {
+    json_mode = "json" in prompt.lower() or "json" in system_prompt.lower()
+    payload: dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
@@ -379,13 +506,37 @@ def _vllm_chat(
         "temperature": temperature,
         "max_tokens": int(max_tokens or 3200),
     }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+
     result = _http_json(f"{vllm_url}/v1/chat/completions", method="POST", body=payload, timeout=180)
+    retried_without_json = False
+    if not result.get("ok") and json_mode:
+        payload_no_json = dict(payload)
+        payload_no_json.pop("response_format", None)
+        retry_res = _http_json(f"{vllm_url}/v1/chat/completions", method="POST", body=payload_no_json, timeout=180)
+        if retry_res.get("ok"):
+            result = retry_res
+            retried_without_json = True
+
     if not result.get("ok"):
         return {"ok": False, "error": "vllm_unavailable", "endpoint": vllm_url, "model": model, "raw": result}
     data = result.get("data", {})
     choices = data.get("choices") or []
     content = (((choices[0] or {}).get("message") or {}).get("content") if choices else "") or ""
-    return {"ok": True, "backend": "vllm", "endpoint": vllm_url, "model": model, "response": content, "raw": data}
+    res_dict: dict[str, Any] = {
+        "ok": True,
+        "backend": "vllm",
+        "endpoint": vllm_url,
+        "model": model,
+        "response": content,
+        "raw": data,
+    }
+    if json_mode:
+        res_dict["json_mode_requested"] = True
+    if retried_without_json:
+        res_dict["retried_without_json_mode"] = True
+    return res_dict
 
 
 def _normalize_task(task_type: str | None, text: str) -> str:
@@ -754,9 +905,24 @@ def run_local_model(
     health = local_model_health()
     provider_health = _http_ok(f"{vllm_url}/v1/models") if backend == "vllm" and provider_id == "local-amd-5" else _http_ok(f"{ollama_url}/api/tags")
     if backend == "vllm" and provider_id == "local-amd-5" and not provider_health.get("ok"):
+        fallback_reason = (
+            "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable"
+        )
+        system_prompt = "Ayuda con codigo de forma precisa y directa."
+        fb = _intel_ollama_fallback(
+            task_type=classification["task_type"],
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            fallback_reason=fallback_reason,
+            preferred_model=selected,
+        )
+        if fb.get("ok"):
+            return fb
         return {
             "ok": False,
-            "error": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
+            "error": fb.get("error") or fallback_reason,
             "endpoint": vllm_url,
             "health": health,
             "provider_health": provider_health,
@@ -765,7 +931,8 @@ def run_local_model(
             "selected_node": "amd",
             "provider_id": provider_id,
             "fallback_silent": False,
-            "fallback_reason": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
+            "fallback_reason": fallback_reason,
+            "external_needed": False,
         }
     if not (health.get("ok") or provider_health.get("ok")):
         return {
@@ -803,6 +970,17 @@ def run_local_model(
             endpoint=vllm_url,
         )
         if not result.get("ok"):
+            fb = _intel_ollama_fallback(
+                task_type=classification["task_type"],
+                prompt=prompt,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                fallback_reason="amd_vllm_generation_failed",
+                preferred_model=selected,
+            )
+            if fb.get("ok"):
+                return fb
             _log_route(
                 title=classification["task_type"],
                 body=prompt,
@@ -812,7 +990,7 @@ def run_local_model(
                 local_ok=True,
                 external_needed=False,
                 approval_required=False,
-                reason="vLLM execution failed; no silent fallback",
+                reason="vLLM execution failed; intel ollama fallback unavailable",
                 decision="error",
             )
             return {
@@ -822,6 +1000,8 @@ def run_local_model(
                 "selected_node": "amd",
                 "provider_id": provider_id,
                 "fallback_silent": False,
+                "external_needed": False,
+                "fallback_reason": "amd_vllm_generation_failed",
             }
         log = _log_route(
             title=classification["task_type"],
@@ -884,6 +1064,14 @@ def run_local_model(
 
     data = result.get("data", {})
     content = data.get("message", {}).get("content", "")
+    if not str(content).strip():
+        return {
+            "ok": False,
+            "error": "local_ollama_empty_response",
+            "model": selected,
+            "endpoint": f"{ollama_url}/api/chat",
+            "external_needed": False,
+        }
     log = _log_route(
         title=classification["task_type"],
         body=prompt,
@@ -944,13 +1132,6 @@ def get_ai_usage_report(limit: int = 200) -> dict[str, Any]:
     }
 
 
-def model_routing_policy(task_class: str = "", project_id: str = "") -> dict[str, Any]:
-    """Return the auditable Judge/ARIA routing policy without running models."""
-    from raphiia_openai import judge_console_content
-
-    return judge_console_content.model_routing_policy(task_class=task_class, project_id=project_id)
-
-
 def _fallback_daily_brief(payload: dict[str, Any]) -> str:
     local = payload.get("local_model_health", {})
     report = payload.get("usage_report", {})
@@ -977,7 +1158,7 @@ def _fallback_daily_brief(payload: dict[str, Any]) -> str:
         "- Ninguno bloqueante detectado por el brief de fallback.",
         "",
         "## Siguientes pasos",
-        "- Mantener local-first en resúmenes, clasificacion y borradores.",
+        "- Mantener local-first en resÃºmenes, clasificacion y borradores.",
         "- Dejar externo solo para arquitectura compleja, revision critica o vision/OCR duro.",
     ]
     return "\n".join(lines).strip() + "\n"
@@ -1085,4 +1266,140 @@ def cognitive_kernel_check(objective: str, context: str | None = None) -> dict[s
             "reason": classification["reason"],
         },
         "kernel": known,
+    }
+
+
+# --- Canonical Agent Model Routing Connectors (2026-09-25) ---
+AGENT_CANONICAL_MODEL_ROUTING: dict[str, dict[str, Any]] = {
+    "antigravity": {
+        "provider": "antigravity",
+        "model": "gemini-3.7",
+        "fallback_model": "gemini-2.5-pro",
+        "transport": "mcp",
+        "vendor": "google",
+        "available_models": ["gemini-3.7", "gemini-3.7-flash", "gemini-2.5-pro"],
+    },
+    "codex": {
+        "provider": "codex",
+        "model": "gpt-5.6",
+        "fallback_model": "gpt-sol",
+        "transport": "mcp",
+        "vendor": "openai",
+        "available_models": ["gpt-5.6", "gpt-sol", "gpt-4o", "o3-mini"],
+    },
+    "cursor": {
+        "provider": "cursor",
+        "model": "composer-2.5",
+        "fallback_model": "cursor-fast",
+        "transport": "cli",
+        "vendor": "cursor",
+        "available_models": ["composer-2.5", "cursor-fast", "claude-3.5-sonnet"],
+    },
+    "ralfia": {
+        "provider": "local",
+        "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+        "fallback_model": "qwen2.5:7b",
+        "transport": "vllm",
+        "vendor": "qwen",
+        "available_models": ["QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ", "qwen2.5-coder:7b", "qwen2.5:7b", "llama3.1:8b"],
+    },
+    "dev_swarm": {
+        "provider": "local",
+        "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+        "fallback_model": "qwen2.5-coder:7b",
+        "transport": "vllm",
+        "vendor": "qwen",
+        "available_models": ["QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ", "qwen2.5-coder:32b", "qwen2.5-coder:7b"],
+    },
+}
+
+
+def route_agent_model(agent_name: str, task_type: str | None = None) -> dict[str, Any]:
+    """Route an agent to its canonical pinned model and provider connector."""
+    agent_clean = (agent_name or "").strip().lower()
+    mapping = AGENT_CANONICAL_MODEL_ROUTING.get(agent_clean)
+    if not mapping:
+        return {
+            "ok": True,
+            "agent": agent_name,
+            "provider": "local",
+            "model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "fallback_model": "qwen2.5:7b",
+            "transport": "vllm",
+            "vendor": "qwen",
+            "available_models": ["QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ", "qwen2.5:7b"],
+            "is_external": False,
+        }
+    return {
+        "ok": True,
+        "agent": agent_clean,
+        "provider": mapping["provider"],
+        "model": mapping["model"],
+        "fallback_model": mapping["fallback_model"],
+        "transport": mapping["transport"],
+        "vendor": mapping.get("vendor", "unknown"),
+        "available_models": mapping.get("available_models", []),
+        "is_external": mapping["provider"] in {"codex", "cursor", "antigravity"},
+    }
+
+
+# --- Model Policy & Provider Metering (ops_da50a6e23298) ---
+CURSOR_DENIED_MODELS: set[str] = {"auto", "router", "grok", "grok-2", "grok-beta", "claude-2", "gpt-3.5-turbo"}
+CURSOR_ALLOWED_MODELS: set[str] = {"composer-2.5", "composer-2.5-fast", "cursor-fast", "claude-3.5-sonnet"}
+
+
+def validate_cursor_model(model_name: str) -> dict[str, Any]:
+    """Enforce Cursor policy: NEVER use Auto/Router and NEVER use Grok models."""
+    name = (model_name or "").strip().lower()
+    if any(denied in name for denied in CURSOR_DENIED_MODELS):
+        return {
+            "ok": False,
+            "error": "BLOCK_MODEL_POLICY: Cursor model denied by policy (Auto/Router/Grok are forbidden)",
+            "model": model_name,
+            "allowed_models": sorted(list(CURSOR_ALLOWED_MODELS)),
+        }
+    return {"ok": True, "model": model_name, "pinned_variant": "composer-2.5-fast"}
+
+
+def get_model_policy_status() -> dict[str, Any]:
+    """Return model policy status surface showing desired/allowed/denied models and credit safety caps."""
+    return {
+        "ok": True,
+        "ts": _now_iso(),
+        "providers": {
+            "cursor": {
+                "desired_model": "composer-2.5-fast",
+                "fallback_model": "composer-2.5",
+                "allowed_models": sorted(list(CURSOR_ALLOWED_MODELS)),
+                "denied_models": sorted(list(CURSOR_DENIED_MODELS)),
+                "chargeable_default": True,
+                "fast_mode": True,
+            },
+            "codex": {
+                "desired_model": "gpt-5.6",
+                "fallback_model": "gpt-sol",
+                "reasoning_effort": "medium",
+                "allowed_models": ["gpt-5.6", "gpt-sol", "gpt-4o", "o3-mini"],
+                "denied_models": ["gpt-3.5-turbo", "davinci"],
+                "chargeable_default": True,
+            },
+            "antigravity": {
+                "desired_model": "gemini-3.7",
+                "fallback_model": "gemini-2.5-pro",
+                "allowed_models": ["gemini-3.7", "gemini-3.7-flash", "gemini-2.5-pro"],
+                "transport": "mcp",
+                "truthful_execution_mode": "labeled_per_run",
+            },
+            "local_dev_swarm": {
+                "desired_model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+                "fallback_model": "qwen2.5-coder:7b",
+                "chargeable": False,
+                "node": "local-amd-5",
+            },
+        },
+        "credit_safety_caps": {
+            "codex": {"daily": 3, "monthly": 30},
+            "cursor": {"daily": 5, "monthly": 50},
+            "antigravity": {"daily": 50, "monthly": 500},
+        },
     }

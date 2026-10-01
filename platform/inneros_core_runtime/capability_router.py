@@ -119,21 +119,44 @@ def route_tools(
             excluded.append({"tool": tool_name, "reason": "max_tools_cap"})
 
     recommended_capabilities: list[dict[str, str]] = []
+    hay = f"{title} {body}".lower()
     if profile_name == "communications" or any(
-        token in f"{title} {body}".lower() for token in ("correo", "email", "smtp", "ruijie")
+        token in hay for token in ("correo", "email", "smtp", "ruijie")
     ):
-        recommended_capabilities = [
-            {
-                "capability_id": "email.send.v1",
-                "invoke_via": "capability_invoke",
-                "note": "Outbound email from allowlisted from_identity (e.g. rlopez@pcdoctor.com.ec).",
-            },
-            {
-                "capability_id": "email.identities.list.v1",
-                "invoke_via": "capability_invoke",
-                "note": "List send identities without secrets.",
-            },
-        ]
+        recommended_capabilities.extend(
+            [
+                {
+                    "capability_id": "email.send.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Outbound email from allowlisted from_identity (e.g. rlopez@pcdoctor.com.ec).",
+                },
+                {
+                    "capability_id": "email.identities.list.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "List send identities without secrets.",
+                },
+            ]
+        )
+    if profile_name in {"funding", "coordination"} or any(
+        token in hay for token in ("opportunity", "submission", "grant", "funding", "dev_swarm", "ops_task")
+    ):
+        recommended_capabilities.extend(
+            [
+                {
+                    "capability_id": "coordination.messaging.list.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "List coordination messages without expanding tools/list.",
+                },
+            ]
+        )
+        if profile_name == "funding" or "submission" in hay or "application" in hay:
+            recommended_capabilities.append(
+                {
+                    "capability_id": "network.device.query.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "For funding/opportunity research with live inventory sections when needed.",
+                }
+            )
 
     return {
         "ok": True,
@@ -151,4 +174,9 @@ def route_tools(
         "excluded": excluded,
         "catalog_pin": profile["catalog_pin"],
         "profile_pin": profile["profile_pin"],
+        "recommended_capabilities": recommended_capabilities,
+        "actionability": (
+            "Use capability_invoke for capabilities listed in recommended_capabilities; "
+            "projected tools remain within chatgpt_compact budget."
+        ),
     }
