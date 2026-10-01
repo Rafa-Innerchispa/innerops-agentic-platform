@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.7"
+PROFILES_VERSION = "1.4.8"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -38,6 +38,8 @@ PROFILES: dict[str, dict[str, Any]] = {
             "dev_swarm_scheduler_status",
             "device_fabric_health",
             "device_fabric_get",
+            "device_fabric_inventory",
+            "device_fabric_discover",
             "device_fabric_providers",
             "bellini_guardian_status",
         ],
