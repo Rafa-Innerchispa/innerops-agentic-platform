@@ -1,4 +1,4 @@
-"""Metadatos OAuth compartidos — URLs públicas (ChatGPT) vs LAN (IP interna)."""
+"""OAuth & OIDC Metadata for InnerOS Unified Identity Plane."""
 
 from __future__ import annotations
 
@@ -15,6 +15,9 @@ from raphiia_openai.settings import (
     OAUTH_MCP_RESOURCE_LAN,
     RALFIA_INTEL_HOST,
 )
+
+# Codex / MCP Small canonical OAuth resource (router entry).
+SMALL_ROUTER_MCP_RESOURCE = "https://mcp.pcdoctor.ai/router/mcp"
 
 
 def _hostname(host_header: str | None) -> str:
@@ -36,15 +39,18 @@ def is_private_host(host_header: str | None) -> bool:
         return False
 
 
-def resolve_oauth_urls(host_header: str | None = None) -> tuple[str, str]:
-    """Devuelve (issuer, mcp_resource) según cliente LAN o público."""
+def resolve_oauth_urls(host_header: str | None = None, request_path: str | None = None) -> tuple[str, str]:
     if is_private_host(host_header):
         issuer = OAUTH_ISSUER_LAN
         resource = OAUTH_MCP_RESOURCE_LAN
     else:
         issuer = OAUTH_ISSUER
         resource = OAUTH_MCP_RESOURCE
-    if not resource.endswith("/mcp"):
+    path = (request_path or "").lower()
+    if "/router" in path or path.rstrip("/").endswith("/router/mcp"):
+        public_base = OAUTH_MCP_RESOURCE.rsplit("/mcp", 1)[0].rstrip("/")
+        resource = f"{public_base}/router/mcp"
+    elif not resource.endswith("/mcp"):
         resource = f"{resource.rstrip('/')}/mcp"
     return issuer.rstrip("/"), resource
 
@@ -55,19 +61,50 @@ def authorization_server_metadata(host_header: str | None = None) -> dict[str, A
         "issuer": issuer,
         "authorization_endpoint": f"{issuer}/authorize",
         "token_endpoint": f"{issuer}/token",
+        "userinfo_endpoint": f"{issuer}/userinfo",
+        "introspection_endpoint": f"{issuer}/introspect",
+        "jwks_uri": f"{issuer}/.well-known/jwks.json",
         "registration_endpoint": f"{issuer}/register",
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
         "scopes_supported": list(oauth_store.SCOPES),
+        "claims_supported": ["sub", "preferred_username", "role", "scopes", "name", "email"],
         "client_id_metadata_document_supported": False,
     }
 
 
-def protected_resource_metadata(host_header: str | None = None) -> dict[str, Any]:
-    issuer, resource = resolve_oauth_urls(host_header)
-    return {
+def _accepted_resource(resource: str) -> None:
+    from inneros_core_runtime import settings
+
+    normalized = resource.rstrip("/")
+    accepted = {item.rstrip("/") for item in settings.OAUTH_ACCEPTED_MCP_RESOURCES}
+    if normalized not in accepted:
+        raise ValueError("oauth_resource_not_accepted")
+
+
+def build_oauth_www_authenticate(
+    resource_metadata_url: str,
+    *,
+    scope: str = "ralfia:read",
+) -> str:
+    """RFC 6750-style challenge pointing at OAuth protected-resource metadata."""
+    safe_url = resource_metadata_url.strip().replace('"', "")
+    return f'Bearer resource_metadata="{safe_url}", scope="{scope}"'
+
+
+def protected_resource_metadata(
+    host_header: str | None = None,
+    *,
+    request_path: str | None = None,
+    resource_override: str | None = None,
+) -> dict[str, Any]:
+    issuer, resource = resolve_oauth_urls(host_header, request_path=request_path)
+    if resource_override:
+        resource = resource_override.rstrip("/")
+        _accepted_resource(resource)
+    meta: dict[str, Any] = {
         "resource": resource,
         "authorization_servers": [issuer],
         "scopes_supported": list(oauth_store.SCOPES),
@@ -77,3 +114,14 @@ def protected_resource_metadata(host_header: str | None = None) -> dict[str, Any
         "mcp_lan_url": MCP_LAN_URL.rstrip("/"),
         "intel_host": RALFIA_INTEL_HOST,
     }
+    if resource.rstrip("/") == SMALL_ROUTER_MCP_RESOURCE.rstrip("/"):
+        meta["router_profile"] = "chatgpt_compact"
+    return meta
+
+
+def small_router_protected_resource_metadata(host_header: str | None = None) -> dict[str, Any]:
+    """Root OAuth discovery for MCP Small — same resource as /router/mcp path-aware route."""
+    return protected_resource_metadata(
+        host_header,
+        resource_override=SMALL_ROUTER_MCP_RESOURCE,
+    )

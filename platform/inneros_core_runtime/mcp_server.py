@@ -4487,7 +4487,10 @@ def preview_whatsapp_agent_reply(message: str, sender: str | None = None) -> dic
 @mcp.tool
 def mcp_version(session_id: str | None = None) -> dict[str, Any]:
     """Versión viva del bridge, catálogo y manifest."""
-    return mcp_diagnostics.mcp_version(session_id=session_id)
+    from inneros_core_runtime import auth_middleware as runtime_auth
+
+    auth_ctx = runtime_auth.resolve_bearer_auth_context(runtime_auth._request_headers())
+    return mcp_diagnostics.mcp_version(session_id=session_id, auth_context=auth_ctx)
 
 
 @mcp.tool
@@ -7256,9 +7259,9 @@ async def mcp_capabilities_http(_request: Request) -> JSONResponse:
 
 @mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
 async def mcp_oauth_protected_resource(request: Request) -> JSONResponse:
-    from raphiia_openai.oauth_metadata import protected_resource_metadata
+    from inneros_core_runtime.oauth_metadata import small_router_protected_resource_metadata
 
-    return JSONResponse(protected_resource_metadata(request.headers.get("host")))
+    return JSONResponse(small_router_protected_resource_metadata(request.headers.get("host")))
 
 
 @mcp.custom_route("/.well-known/oauth-protected-resource/mcp", methods=["GET"])
