@@ -11,7 +11,7 @@ from fastmcp.server.middleware import Middleware, MiddlewareContext
 
 from raphiia_openai import mongo_store
 from raphiia_openai.oauth_store import validate_access_token
-from raphiia_openai.settings import OAUTH_MCP_RESOURCE
+from raphiia_openai.settings import OAUTH_ACCEPTED_MCP_RESOURCES, OAUTH_MCP_RESOURCE
 
 # Cache credenciales por sesión MCP (streamable-http no siempre reenvía headers en tools/call).
 _SESSION_AUTH: dict[str, dict[str, str]] = {}
@@ -585,8 +585,23 @@ class ApiKeyMiddleware(Middleware):
             token_doc = validate_access_token(token)
             if token_doc:
                 token_scopes = set((token_doc.get("scope") or "").split())
-                token_resource = token_doc.get("resource")
-                if token_resource and token_resource != OAUTH_MCP_RESOURCE:
+                token_resource = str(token_doc.get("resource") or "").rstrip("/")
+                accepted_resources = {str(resource).rstrip("/") for resource in OAUTH_ACCEPTED_MCP_RESOURCES}
+                if token_resource and token_resource not in accepted_resources:
+                    mongo_store.log_mcp_error(
+                        error_type="oauth_resource_mismatch",
+                        tool=tool_name,
+                        session_id=session_id,
+                        client=user_agent,
+                        message=f"OAuth resource mismatch for {tool_name}",
+                        catalog_version=None,
+                        scopes=sorted(token_scopes),
+                        metadata={
+                            "token_resource": token_resource,
+                            "expected_resource": OAUTH_MCP_RESOURCE,
+                            "accepted_resources": sorted(accepted_resources),
+                        },
+                    )
                     raise ToolError("Unauthorized: OAuth resource mismatch")
                 if set(required_scopes).issubset(token_scopes) or "ralfia:admin" in token_scopes:
                     return await call_next(context)
