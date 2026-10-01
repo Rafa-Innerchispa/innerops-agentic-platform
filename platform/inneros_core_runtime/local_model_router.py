@@ -113,6 +113,10 @@ TASK_ALIASES = {
     "basic_ops": "operational",
     "general_chat": "operational",
     "ops": "operational",
+    "no_code": "operational",
+    "no-code": "operational",
+    "coordination": "operational",
+    "coordination_ops": "operational",
     "field_visit": "operational",
     "visit": "operational",
     "ocr": "vision_ocr",
@@ -200,6 +204,17 @@ EXTERNAL_TASKS = {
 
 HIGH_RISK_PATTERNS = re.compile(
     r"(password|secret|token|api[_ -]?key|refresh[_ -]?token|private[_ -]?key|credenciales?|secreto|contrase[a-z]+|client secret)",
+    re.I,
+)
+
+# Coordination / MCP / GitLab ops often mention "implementar", "fix", etc. without being coding tasks.
+NO_CODE_OPS_PATTERNS = re.compile(
+    r"("
+    r"poll_agent_inbox|create_agent_message|get_coordination_live|bootstrap_context|"
+    r"mcp_version|diagnose_mcp_session|capability_invoke|capability_search|route_mcp_tools|"
+    r"project_runtime_bootstrap|dry_run|gitlab|contributorops|notion|coordination|"
+    r"dev_swarm|ops_task|send_general_email|email\.send|target_agent"
+    r")",
     re.I,
 )
 
@@ -544,6 +559,8 @@ def _normalize_task(task_type: str | None, text: str) -> str:
         raw = task_type.strip().lower().replace("-", "_").replace(" ", "_")
         return TASK_ALIASES.get(raw, raw)
     hay = f"{text or ''}".lower()
+    if NO_CODE_OPS_PATTERNS.search(hay):
+        return "operational"
     for needle, mapped in TASK_ALIASES.items():
         if needle in hay:
             return mapped
