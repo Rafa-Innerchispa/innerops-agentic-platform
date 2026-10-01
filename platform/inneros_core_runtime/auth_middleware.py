@@ -792,13 +792,8 @@ def _effective_token_scopes(
     needs_agents_plane = orchestration_tool or capability_agents
     if not needs_agents_plane:
         return token_scopes
-    if {"ralfia:read", "ralfia:write"}.issubset(token_scopes):
-        token_scopes.add("ralfia:agents")
-    elif (small_profile or compact_client) and "ralfia:read" in token_scopes:
-        token_scopes.add("ralfia:agents")
-    elif "ralfia:read" in token_scopes or "ralfia:write" in token_scopes:
-        # OAuth connectors (ContributorOps, ChatGPT) often hit public /mcp with read and/or write
-        # without a distinct ralfia:agents claim; compact orchestration tools are allowlisted.
+    # Uplift to ralfia:agents is limited to the Small / chatgpt_compact plane only.
+    if (small_profile or compact_client) and "ralfia:read" in token_scopes:
         token_scopes.add("ralfia:agents")
     return token_scopes
 

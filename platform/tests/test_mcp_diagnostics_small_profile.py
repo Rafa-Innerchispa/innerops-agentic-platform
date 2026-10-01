@@ -26,6 +26,7 @@ def test_chatgpt_compact_23_of_23_passes_without_global_stale():
     assert result["diagnosis_mode"] == "profile"
     assert result["catalog_guard"]["status"] == "profile_projection"
     assert result["global_catalog_guard"] is not None
+    assert result["server_snapshot"]["public_url"].endswith("/router/mcp")
 
 
 def test_global_tool_count_on_small_profile_is_hint_not_automatic_stale():

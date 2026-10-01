@@ -251,15 +251,19 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
         now = datetime.now(timezone.utc).isoformat()
         
         # Mirror projection update
+        mirror_fields = {
+            "status": status,
+            "updated_at": now,
+            "evidence": evidence,
+            "workflow_id": f"ops_task:{task_id}",
+        }
+        correlation_id = str(envelope_dict.get("correlation_id") or "").strip()
+        if correlation_id:
+            mirror_fields["correlation_id"] = correlation_id
         col.update_one(
             {"task_id": task_id},
             {
-                "$set": {
-                    "status": status,
-                    "updated_at": now,
-                    "evidence": evidence,
-                    "workflow_id": f"ops_task:{task_id}",
-                },
+                "$set": mirror_fields,
                 "$inc": {"revision": 1},
             },
             upsert=True,

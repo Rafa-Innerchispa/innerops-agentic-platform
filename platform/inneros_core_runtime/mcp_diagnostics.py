@@ -27,6 +27,16 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _public_mcp_url(*, profile: str | None = None) -> str:
+    base = MCP_PUBLIC_URL.rstrip("/")
+    compact = profile == "chatgpt_compact" or os.getenv("MCP_TOOL_PROFILE", "").strip().lower() == "chatgpt_compact"
+    if compact:
+        if base.endswith("/router/mcp"):
+            return base
+        return f"{base}/router/mcp"
+    return f"{base}/mcp"
+
+
 def _manifest_payload() -> dict[str, Any]:
     tool_names = _tool_names()
     tools = []
@@ -445,6 +455,7 @@ def diagnose_mcp_session(
             "server_version": SERVER_VERSION,
             "bridge_version": BRIDGE_VERSION,
             "manifest_hash": manifest["manifest_hash"],
-            "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
+            "public_url": _public_mcp_url(profile=profile),
+            "canonical_small_entry": "https://mcp.pcdoctor.ai/router/mcp",
         },
     }

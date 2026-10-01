@@ -31,6 +31,25 @@ class EffectiveScopeContractTests(unittest.TestCase):
         scopes = am._effective_token_scopes(token, "search", {})
         self.assertNotIn("ralfia:agents", scopes)
 
+    def test_full_plane_read_does_not_uplift_agents_for_orchestration(self) -> None:
+        token = {
+            "scope": "ralfia:read openid profile",
+            "mcp_profile": "full",
+            "resource": "https://mcp.pcdoctor.ai/mcp",
+        }
+        scopes = am._effective_token_scopes(token, "dev_swarm_launch_task", {})
+        self.assertNotIn("ralfia:agents", scopes)
+        self.assertIn("ralfia:read", scopes)
+
+    def test_full_plane_write_does_not_uplift_agents_for_orchestration(self) -> None:
+        token = {
+            "scope": "ralfia:write openid profile",
+            "mcp_profile": "full",
+            "resource": "https://mcp.pcdoctor.ai/mcp",
+        }
+        scopes = am._effective_token_scopes(token, "poll_agent_inbox", {})
+        self.assertNotIn("ralfia:agents", scopes)
+
     def test_resolve_bearer_exposes_raw_and_effective_scopes(self) -> None:
         token = {
             "scope": "ralfia:read ralfia:write",

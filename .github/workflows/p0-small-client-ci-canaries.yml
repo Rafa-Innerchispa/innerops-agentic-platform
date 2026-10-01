@@ -6,8 +6,11 @@ on:
       - "platform/inneros_core_runtime/auth_middleware.py"
       - "platform/inneros_core_runtime/mcp_diagnostics.py"
       - "platform/inneros_core_runtime/coordination_live.py"
+      - "platform/inneros_core_runtime/temporal_activities.py"
+      - "platform/inneros_core_runtime/temporal_bounded_executor.py"
       - "platform/tests/test_p0_lane_a_scope_contract.py"
       - "platform/tests/test_coordination_recovery_p0.py"
+      - "platform/tests/test_temporal_bounded_executor.py"
       - "platform/tests/test_mcp_diagnostics_small_profile.py"
       - "scripts/audit_p0_mcp_small_public_oauth.py"
       - ".github/workflows/p0-small-client-ci-canaries.yml"
@@ -42,14 +45,17 @@ jobs:
             inneros_core_runtime/auth_middleware.py \
             inneros_core_runtime/mcp_diagnostics.py \
             inneros_core_runtime/coordination_live.py \
+            inneros_core_runtime/temporal_activities.py \
+            inneros_core_runtime/temporal_bounded_executor.py \
             tests/test_p0_lane_a_scope_contract.py \
-            tests/test_coordination_recovery_p0.py
+            tests/test_coordination_recovery_p0.py \
+            tests/test_temporal_bounded_executor.py
       - name: Canary 1 — scope / catalog / Temporal admission contracts
         env:
           PYTHONPATH: .
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
-          python -m pytest tests/test_p0_lane_a_scope_contract.py tests/test_coordination_recovery_p0.py -v --tb=short
+          python -m pytest tests/test_p0_lane_a_scope_contract.py tests/test_coordination_recovery_p0.py tests/test_temporal_bounded_executor.py -v --tb=short
       - name: Canary 2 — MCP short profile + diagnostics contract
         env:
           PYTHONPATH: .
