@@ -539,6 +539,7 @@ def upsert_coordination_state(*, key: str, data: dict[str, Any]) -> dict[str, An
     db = get_db()
     now = _now_iso()
     payload = {**data, "updated_at": now, "key": key}
+    payload.pop("_id", None)
     db[COL_COORDINATION_STATE].update_one({"key": key}, {"$set": payload}, upsert=True)
     return payload
 

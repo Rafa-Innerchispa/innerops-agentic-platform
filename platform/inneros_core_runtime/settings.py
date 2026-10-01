@@ -55,6 +55,7 @@ OAUTH_ALLOWED_REDIRECT_HOSTS = tuple(
 _default_canonical_resources = [
     OAUTH_MCP_RESOURCE,
     OAUTH_MCP_RESOURCE_LAN,
+    "https://mcp.pcdoctor.ai/router/mcp",
     "https://mcp-chatgpt.creatorcore.ai",
     "https://mcp-chatgpt.creatorcore.ai/mcp",
     "https://sworn-profusely-alongside.ngrok-free.dev/raphiia-mcp",

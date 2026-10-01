@@ -9,7 +9,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from inneros_core_runtime import capability_router, project_runtime_registry
+from inneros_core_runtime import capability_router, mcp_profiles, project_runtime_registry
+
+
+def test_chatgpt_compact_exposes_capability_gateway_tools():
+    profile = mcp_profiles.PROFILES["chatgpt_compact"]
+    tools = profile["tools"]
+    assert len(tools) <= profile["max_tools"]
+    for name in (
+        "capability_search",
+        "capability_describe",
+        "capability_invoke",
+        "capability_execution",
+    ):
+        assert name in tools
+    validation = mcp_profiles.validate_profiles()
+    assert validation["ok"] is True
 
 
 def test_route_tools_accepts_published_optional_bounds():

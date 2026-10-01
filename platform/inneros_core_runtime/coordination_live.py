@@ -446,8 +446,8 @@ def create_ops_task(
 
 def heartbeat_ops_task(
     task_id: str,
+    actor: str = "system",
     *,
-    actor: str,
     phase: str = "",
     current_step: str = "",
     last_progress: str = "",

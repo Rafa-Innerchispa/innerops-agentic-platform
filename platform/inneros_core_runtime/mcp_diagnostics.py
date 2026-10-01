@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,6 +25,16 @@ AUTH_SCOPES_AVAILABLE = [
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _public_mcp_url(*, profile: str | None = None) -> str:
+    base = MCP_PUBLIC_URL.rstrip("/")
+    compact = profile == "chatgpt_compact" or os.getenv("MCP_TOOL_PROFILE", "").strip().lower() == "chatgpt_compact"
+    if compact:
+        if base.endswith("/router/mcp"):
+            return base
+        return f"{base}/router/mcp"
+    return f"{base}/mcp"
 
 
 def _manifest_payload() -> dict[str, Any]:
@@ -112,13 +123,16 @@ def _visibility(required_scopes: list[str]) -> str:
     return "read_only"
 
 
-def mcp_version(session_id: str | None = None) -> dict[str, Any]:
+def mcp_version(
+    session_id: str | None = None,
+    auth_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     manifest = _manifest_payload()
     guard = _catalog_guard()
     auth_status = "api_key+oauth" if MCP_API_KEY else "oauth_only"
-    oauth_scopes = AUTH_SCOPES_AVAILABLE
+    oauth_scopes_supported = AUTH_SCOPES_AVAILABLE
     runtime_tool_count = len(tool_catalog.ALL_MCP_TOOL_NAMES)
-    return {
+    payload: dict[str, Any] = {
         "ok": True,
         "timestamp": _now_iso(),
         "server_version": SERVER_VERSION,
@@ -133,12 +147,27 @@ def mcp_version(session_id: str | None = None) -> dict[str, Any]:
         "tool_name_count": runtime_tool_count,
         "catalog_guard": guard,
         "auth_status": auth_status,
-        "oauth_scopes": oauth_scopes,
+        "oauth_scopes_supported": oauth_scopes_supported,
+        "oauth_scopes": oauth_scopes_supported,
+        "oauth_scopes_note": (
+            "DEPRECATED FIELD: oauth_scopes is NOT your bearer grant. "
+            "Use token_scopes_raw and effective_scopes when auth_context is present."
+        ),
+        "mcp_tool_profile": os.getenv("MCP_TOOL_PROFILE") or None,
+        "mcp_canonical_client_url": os.getenv(
+            "MCP_CANONICAL_CLIENT_URL", "https://mcp.pcdoctor.ai/router/mcp"
+        ),
         "session_id": session_id,
         "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
         "oauth_issuer": OAUTH_ISSUER,
         "updated_at": ralfia_time.now_utc_iso(),
     }
+    if auth_context and auth_context.get("ok"):
+        payload["token_granted_scopes"] = auth_context.get("token_scopes_raw") or []
+        payload["effective_scopes"] = auth_context.get("granted_scopes") or []
+        payload["mcp_profile"] = auth_context.get("mcp_profile")
+        payload["oauth_resource"] = auth_context.get("resource")
+    return payload
 
 
 def list_mcp_capabilities() -> dict[str, Any]:
@@ -248,83 +277,185 @@ def system_debug() -> dict[str, Any]:
     }
 
 
+def _profile_guard(expected_tools: list[str]) -> dict[str, Any]:
+    """Profile-scoped guard: compares only the projected toolset, not the global catalog."""
+    current_hash = _tool_names_hash(expected_tools)
+    return {
+        "status": "profile_projection",
+        "tool_loss_detected": False,
+        "removed_tools": [],
+        "added_tools": [],
+        "current_tool_count": len(expected_tools),
+        "previous_tool_count": len(expected_tools),
+        "current_tool_names_hash": current_hash,
+        "previous_tool_names_hash": current_hash,
+        "baseline_key": "profile_pin",
+    }
+
+
 def diagnose_mcp_session(
     client_tool_count: int | None = None,
     client_catalog_version: str | None = None,
     client_seen_tools: list[str] | None = None,
+    client_profile_pin: str | None = None,
     profile: str | None = None,
     session_id: str | None = None,
     user_agent: str | None = None,
 ) -> dict[str, Any]:
     manifest = _manifest_payload()
-    current_guard = _catalog_guard()
+    global_guard = _catalog_guard()
+    global_tool_count = len(tool_catalog.ALL_MCP_TOOL_NAMES)
+
+    from inneros_core_runtime import mcp_profiles
+
+    diagnosis_mode = "profile" if profile else "global"
+    profile_meta: dict[str, Any] | None = None
     expected_tools = sorted(tool_catalog.ALL_MCP_TOOL_NAMES)
     profile_error: str | None = None
-    if profile:
-        from inneros_core_runtime import mcp_profiles
+    expected_profile_pin: str | None = None
+    expected_profiles_version = mcp_profiles.PROFILES_VERSION
 
+    if profile:
         selected = mcp_profiles.get_profile(profile)
         if selected.get("ok"):
             expected_tools = sorted(selected.get("tools") or [])
+            expected_profile_pin = str(selected.get("profile_pin") or "")
+            profile_meta = {
+                "profile": profile,
+                "profile_pin": expected_profile_pin,
+                "profiles_version": expected_profiles_version,
+                "max_tools": selected.get("max_tools"),
+                "model_minimum": selected.get("model_minimum"),
+            }
         else:
             profile_error = "unknown_profile"
-    seen_tools = sorted(set(client_seen_tools or []))
-    stale_catalog = False
-    reasons: list[str] = []
 
-    if client_catalog_version and client_catalog_version != CATALOG_VERSION:
-        stale_catalog = True
-        reasons.append("client_catalog_version_mismatch")
+    seen_tools = sorted(set(client_seen_tools or []))
+    reasons: list[str] = []
+    hints: list[str] = []
     expected_tool_count = len(expected_tools)
-    if client_tool_count is not None and client_tool_count != expected_tool_count:
-        stale_catalog = True
-        reasons.append("client_tool_count_mismatch")
+    session_valid = profile_error is None
+    global_count_confusion = False
+
     if profile_error:
         reasons.append(profile_error)
-    if seen_tools and any(tool not in expected_tools for tool in seen_tools):
-        reasons.append("client_reports_unknown_tools")
-    if client_tool_count is None and client_catalog_version is None and not seen_tools:
-        reasons.append("client_context_not_provided")
+        session_valid = False
 
-    likely_issue = (
-        "stale_catalog"
-        if stale_catalog
-        else "oauth_refresh_needed"
-        if not MCP_API_KEY and not OAUTH_ISSUER
-        else "stream_or_connector_cache"
-    )
-    recommended_actions = [
-        "refresh connector",
-        "reopen chat in a new conversation",
-        "re-authorize OAuth if the chat is holding an old token",
-        "reload the connector manifest after catalog_version changes",
-    ]
-    if stale_catalog:
-        recommended_actions.insert(0, "recreate or refresh the connector entry")
+    if diagnosis_mode == "profile":
+        accepted_versions = {
+            expected_profiles_version,
+            CATALOG_VERSION,
+            expected_profile_pin or "",
+        }
+        if client_catalog_version and client_catalog_version not in accepted_versions:
+            if client_catalog_version == CATALOG_VERSION and client_tool_count == global_tool_count:
+                hints.append("client_sent_global_catalog_version_on_small_profile")
+            else:
+                session_valid = False
+                reasons.append("client_profile_version_mismatch")
+
+        if client_profile_pin and expected_profile_pin and client_profile_pin != expected_profile_pin:
+            session_valid = False
+            reasons.append("client_profile_pin_mismatch")
+
+        global_count_confusion = False
+        if client_tool_count is not None:
+            if client_tool_count != expected_tool_count:
+                if client_tool_count == global_tool_count:
+                    hints.append("client_reports_global_tool_count_use_profile_projection")
+                    global_count_confusion = True
+                session_valid = False
+                reasons.append("client_tool_count_mismatch")
+            elif client_tool_count == expected_tool_count:
+                hints.append("profile_tool_count_match")
+
+        if seen_tools:
+            unknown = [tool for tool in seen_tools if tool not in expected_tools]
+            if unknown:
+                session_valid = False
+                reasons.append("client_reports_unknown_tools")
+    else:
+        if client_catalog_version and client_catalog_version != CATALOG_VERSION:
+            session_valid = False
+            reasons.append("client_catalog_version_mismatch")
+        if client_tool_count is not None and client_tool_count != global_tool_count:
+            session_valid = False
+            reasons.append("client_tool_count_mismatch")
+        if seen_tools and any(tool not in expected_tools for tool in seen_tools):
+            session_valid = False
+            reasons.append("client_reports_unknown_tools")
+
+    if client_tool_count is None and client_catalog_version is None and not seen_tools and not client_profile_pin:
+        hints.append("client_context_not_provided")
+
+    stale_catalog = not session_valid
+    if diagnosis_mode == "profile" and not session_valid and global_count_confusion:
+        stale_catalog = False
+    catalog_guard = _profile_guard(expected_tools) if diagnosis_mode == "profile" else global_guard
+
+    if session_valid and diagnosis_mode == "profile":
+        likely_issue = "profile_ok"
+        needs_refresh_connector = False
+        needs_reauthorize_oauth = False
+        recommended_actions = [
+            "No action required when profile_pin and projected tool count match.",
+            "Use route_mcp_tools or capability_search for tools outside chatgpt_compact.",
+        ]
+    elif stale_catalog:
+        likely_issue = "stale_catalog"
+        needs_refresh_connector = True
+        needs_reauthorize_oauth = any("oauth" in reason for reason in reasons)
+        recommended_actions = [
+            "recreate or refresh the connector entry",
+            "reload the connector manifest after profile_pin or profiles_version changes",
+            "re-authorize OAuth if the chat is holding an old token",
+        ]
+    else:
+        likely_issue = (
+            "oauth_refresh_needed"
+            if not MCP_API_KEY and not OAUTH_ISSUER
+            else "stream_or_connector_cache"
+        )
+        needs_refresh_connector = bool(reasons)
+        needs_reauthorize_oauth = False
+        recommended_actions = [
+            "refresh connector",
+            "reopen chat in a new conversation",
+        ]
+
     return {
         "ok": True,
         "timestamp": _now_iso(),
         "session_id": session_id,
         "user_agent": user_agent,
+        "diagnosis_mode": diagnosis_mode,
         "profile": profile,
+        "profile_meta": profile_meta,
         "this_client_sees_tools": client_tool_count,
         "this_client_catalog_version": client_catalog_version,
+        "client_profile_pin": client_profile_pin,
         "client_seen_tools": seen_tools,
         "expected_tool_count": expected_tool_count,
-        "expected_catalog_version": CATALOG_VERSION,
+        "expected_catalog_version": expected_profiles_version if diagnosis_mode == "profile" else CATALOG_VERSION,
+        "expected_profile_pin": expected_profile_pin,
         "expected_tools": expected_tools,
         "expected_tool_names_hash": _tool_names_hash(expected_tools),
-        "catalog_guard": current_guard,
+        "tool_count_global": global_tool_count,
+        "catalog_guard": catalog_guard,
+        "global_catalog_guard": global_guard if diagnosis_mode == "profile" else None,
+        "session_valid": session_valid,
         "stale_catalog": stale_catalog,
         "likely_issue": likely_issue,
         "reasons": reasons,
-        "needs_reauthorize_oauth": stale_catalog,
-        "needs_refresh_connector": stale_catalog or bool(reasons),
+        "hints": hints,
+        "needs_reauthorize_oauth": needs_reauthorize_oauth,
+        "needs_refresh_connector": needs_refresh_connector,
         "recommended_actions": recommended_actions,
         "server_snapshot": {
             "server_version": SERVER_VERSION,
             "bridge_version": BRIDGE_VERSION,
             "manifest_hash": manifest["manifest_hash"],
-            "public_url": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
+            "public_url": _public_mcp_url(profile=profile),
+            "canonical_small_entry": "https://mcp.pcdoctor.ai/router/mcp",
         },
     }

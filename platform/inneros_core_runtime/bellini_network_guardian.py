@@ -219,20 +219,6 @@ TARGETS = [
         "device_type": "host",
         "ports": [80, 443]
     }
-},
-    {"ip": "192.168.3.2", "asset_id": "bellini_pbx_ucm", "name": "UCM IP-PBX Core", "segment": "core", "device_type": "pbx", "ports": [80, 443, 5060},
-    {"ip": "192.168.3.100", "asset_id": "bellini_nvr_dahua", "name": "Dahua NVR", "segment": "cctv", "device_type": "nvr", "ports": [80, 37777, 554},
-    {"ip": "192.168.3.185", "asset_id": "bellini_switch_185", "name": "Switch Administración", "segment": "admin", "device_type": "switch", "ports": [80, 443, 8000},
-    {"ip": "192.168.3.188", "asset_id": "bellini_ap_188", "name": "GWN Wi-Fi AP 188", "segment": "admin", "device_type": "ap", "ports": [80, 443},
-    {"ip": "192.168.3.207", "asset_id": "bellini_ap_207_gwn7052f", "name": "GWN7052F Router/AP", "segment": "wifi", "device_type": "ap", "ports": [80, 443},
-    {"ip": "192.168.3.212", "asset_id": "bellini_ap_212", "name": "GWN Wi-Fi AP 212", "segment": "wifi", "device_type": "ap", "ports": [80, 443},
-    {"ip": "192.168.3.213", "asset_id": "bellini_ap_213", "name": "GWN Wi-Fi AP 213", "segment": "wifi", "device_type": "ap", "ports": [80, 443},
-    {"ip": "192.168.3.216", "asset_id": "bellini_ap_216", "name": "GWN Wi-Fi AP 216", "segment": "wifi", "device_type": "ap", "ports": [80, 443},
-    {"ip": "192.168.3.227", "asset_id": "bellini_ap_227", "name": "GWN Wi-Fi AP 227", "segment": "wifi", "device_type": "ap", "ports": [80, 443},
-    {"ip": "192.168.3.180", "asset_id": "bellini_host_180", "name": "Documented Host 180", "segment": "other", "device_type": "host", "ports": [80, 443},
-    {"ip": "192.168.3.220", "asset_id": "bellini_host_220", "name": "Documented Host 220", "segment": "other", "device_type": "host", "ports": [80, 443},
-    {"ip": "192.168.3.232", "asset_id": "bellini_host_232", "name": "Documented Host 232", "segment": "other", "device_type": "host", "ports": [80, 443},
-    {"ip": "192.168.3.234", "asset_id": "bellini_host_234", "name": "Documented Host 234", "segment": "other", "device_type": "host", "ports": [80, 443},
 ]
 
 
@@ -549,7 +535,7 @@ class BelliniNetworkGuardian:
                 if db is not None:
                     try:
                         db.bellini_incidents.update_one(
-                            {"incident_id": self.active_incident["incident_id"},
+                            {"incident_id": self.active_incident["incident_id"]},
                             {"$set": {"recovered_at": sample["timestamp"], "timeline": self.active_incident["timeline"]}},
                         )
                     except Exception:

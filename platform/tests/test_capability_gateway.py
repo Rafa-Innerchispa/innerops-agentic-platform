@@ -49,7 +49,7 @@ class TestCapabilityGateway(unittest.TestCase):
             "risk_class": "high"
         }
         register_capability(mut_manifest, lambda p, c: {"mutated": True})
-
+        
         # When mode != read_only or context enforce_read_only is active, it must fail-closed
         res = capability_invoke(
             capability_id="test.mutation.sample.v1",

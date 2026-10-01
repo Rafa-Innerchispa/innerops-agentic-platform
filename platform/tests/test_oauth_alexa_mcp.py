@@ -87,7 +87,8 @@ def test_router_protected_resource_metadata_is_exact_and_fail_closed():
 def test_router_protected_resource_metadata_route_is_declared():
     source = (PLATFORM_DIR / "inneros_core_runtime" / "mcp_server.py").read_text(encoding="utf-8")
     assert '@mcp.custom_route("/.well-known/oauth-protected-resource/router/mcp"' in source
-    assert 'resource_override="https://mcp.pcdoctor.ai/router/mcp"' in source
+    assert '"/.well-known/oauth-protected-resource/router/mcp"' in source
+    assert "ROUTER_MCP_PUBLIC_RESOURCE" in source
 
 def test_metadata_matches_official_alexa_authorization_code_flow():
     meta = authorization_server_metadata("auth.pcdoctor.ai")

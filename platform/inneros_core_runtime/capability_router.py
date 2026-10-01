@@ -54,7 +54,9 @@ def route_tools(
     tenant_id: str | None = None,
     for_model: str | None = None,
     max_tools: int | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
+    _ = kwargs  # absorb forward-compatible MCP layer fields without breaking older callers
     validation = mcp_profiles.validate_profiles()
     if not validation["ok"]:
         return {"ok": False, "error": "invalid_profile_registry", "validation": validation}
