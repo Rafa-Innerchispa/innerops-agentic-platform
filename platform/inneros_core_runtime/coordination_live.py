@@ -107,6 +107,20 @@ def _task_id() -> str:
     return f"ops_{secrets.token_hex(6)}"
 
 
+def _normalize_repo_ref(repo: str | None) -> str | None:
+    """Accept owner/name or https://github.com/owner/name(.git) for execution plane."""
+    if not repo:
+        return None
+    ref = str(repo).strip().rstrip("/")
+    for prefix in ("https://github.com/", "http://github.com/", "git@github.com:"):
+        if ref.startswith(prefix):
+            ref = ref[len(prefix) :]
+            break
+    if ref.endswith(".git"):
+        ref = ref[:-4]
+    return ref or None
+
+
 def bump_revision(*, reason: str, source: str = "system", current_priority: dict[str, Any] | None = None) -> dict[str, Any]:
     now = _now()
     now_d = _now_display()
@@ -394,7 +408,11 @@ def create_ops_task(
         "updated_at": now,
         "correlation_id": correlation_id or tid,
         "project_id": project_id,
+<<<<<<< HEAD
         "repo": repo,
+=======
+        "repo": _normalize_repo_ref(repo),
+>>>>>>> e756042a (fix(coordination): normalizar repo GitHub URL a owner/name para bounded executor)
         "base_ref": base_ref or "main",
         "work_branch": work_branch,
         "task_class": task_class or "coding",
