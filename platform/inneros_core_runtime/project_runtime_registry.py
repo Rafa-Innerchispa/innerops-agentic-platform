@@ -249,6 +249,15 @@ def bootstrap_runtime(
     dry_run: bool = True,
 ) -> dict[str, Any]:
     resolved = resolve_project(project_id=project_id or repo, repo=repo, node=node)
+    if not resolved.get("ok"):
+        return {
+            **resolved,
+            "ok": False,
+            "dry_run": dry_run,
+            "correlation_id": correlation_id or None,
+            "task_id": task_id or None,
+            "actor": actor,
+        }
     path = resolved["project_path"]
     remote = (remote_url or "").strip()
     if remote and not SAFE_REMOTE_RE.match(remote):
@@ -330,6 +339,7 @@ def migrate_existing(actor: str = "codex") -> dict[str, Any]:
         ("ralphiia-founderos-openai", "Rafa-Innerchispa/ralphiia-founderos-openai"),
         ("innerspark-workforce-ai", "Rafa-Innerchispa/innerspark-workforce-ai"),
         ("innerops-agentic-platform", "Rafa-Innerchispa/innerops-agentic-platform"),
+        ("gitlab-contributorops-agent", "Rafa-Innerchispa/gitlab-contributorops-agent"),
     ]
     items = []
     for pid, repo in targets:

@@ -49,6 +49,7 @@ def test_project_runtime_bootstrap_forwards_git_contract(monkeypatch):
         project_runtime_registry,
         "resolve_project",
         lambda **kwargs: {
+            "ok": True,
             "node": "primary",
             "project_path": "/home/rlopez/projects/example",
             "project": {"repo": "Rafa-Innerchispa/example"},
