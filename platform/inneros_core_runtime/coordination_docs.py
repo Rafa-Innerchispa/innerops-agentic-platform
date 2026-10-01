@@ -584,6 +584,19 @@ def save_chatgpt_draft(title: str, body: str, channel: str | None = None, tags: 
     return {"ok": True, "path": str(path.relative_to(COORD_ROOT)), "saved_chars": len(content)}
 
 
+def _mailbox_last_modified(inbox_path: Path, outbox_path: Path) -> str:
+    stamps: list[float] = []
+    for path in (inbox_path, outbox_path):
+        try:
+            if path.is_file():
+                stamps.append(path.stat().st_mtime)
+        except OSError:
+            continue
+    if not stamps:
+        return datetime.now(timezone.utc).isoformat()
+    return datetime.fromtimestamp(max(stamps), tz=timezone.utc).isoformat()
+
+
 def get_agent_mailboxes(
     agent: str | None = None,
     limit: int = 20,
@@ -628,10 +641,7 @@ def get_agent_mailboxes(
                 "outbox": outbox_text,
                 "inbox_truncated": bool(inbox.get("truncated")),
                 "outbox_truncated": bool(outbox.get("truncated")),
-                "last_modified": max(
-                    datetime.fromtimestamp(inbox_path.stat().st_mtime, tz=timezone.utc).isoformat(),
-                    datetime.fromtimestamp(outbox_path.stat().st_mtime, tz=timezone.utc).isoformat(),
-                ),
+                "last_modified": _mailbox_last_modified(inbox_path, outbox_path),
                 "pending": _pending_lines(inbox_text),
                 "recent_messages": _extract_section_lines(inbox_text + "\n" + outbox_text, ("##",)),
             }
@@ -700,6 +710,8 @@ def bootstrap_context() -> dict[str, Any]:
     runbook_excerpt = (runbook.get("content") or "")[:7500]
     prefix = (
         f"# COORDINATION LIVE — revision {live.get('revision')}\n"
+        f"INNEROPS START HERE (Notion): https://app.notion.com/p/a6f2bb2d6dfd45c794f17b27b7107e83\n"
+        f"CARRILES ACTIVOS: inneros-audit-closure-lane-a-20261001 (Cursor P0), lane-b Bellini, lane-c Codex verify\n"
         f"OBLIGATORIO: leer {', '.join(live.get('mandatory_reads', [])[:4])} …\n"
         f"Órdenes ops abiertas: {live.get('open_ops_count', 0)}\n"
         f"Mensajes open: {live.get('unread_messages', {})}\n"
