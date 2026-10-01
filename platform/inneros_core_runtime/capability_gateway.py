@@ -36,8 +36,21 @@ def _capability_query_matches(query: str, search_corpus: str) -> bool:
         return True
     if q_norm in search_corpus:
         return True
-    corpus_tokens = search_corpus.replace(".", " ").replace("_", " ").replace("-", " ")
-    return all(token in corpus_tokens for token in q_norm.split() if token)
+    corpus_norm = search_corpus.replace(".", " ").replace("_", " ").replace("-", " ")
+    tokens = [t for t in q_norm.split() if t]
+    if not tokens:
+        return True
+    hits = sum(1 for token in tokens if token in corpus_norm)
+    if hits == len(tokens):
+        return True
+    if len(tokens) == 1:
+        return hits == 1
+    min_hits = max(2, (len(tokens) + 1) // 2)
+    if hits >= min_hits:
+        return True
+    if "network" in tokens and "network" in corpus_norm and hits >= 2:
+        return True
+    return False
 
 
 def capability_search(
