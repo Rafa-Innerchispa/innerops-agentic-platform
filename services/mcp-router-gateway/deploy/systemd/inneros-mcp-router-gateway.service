@@ -1,0 +1,24 @@
+[Unit]
+Description=InnerOS MCP Router Gateway (:8250)
+After=network-online.target ralfia-mcp.service ralfia-mcp-profile@chatgpt_compact.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/rlopez/inneros/inneros_core/services/mcp-router-gateway
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/services/mcp-router-gateway/src
+Environment=MCP_ROUTER_HOST=0.0.0.0
+Environment=MCP_ROUTER_PORT=8250
+Environment=MCP_ROUTER_PUBLIC_URL=https://mcp.pcdoctor.ai/router/mcp
+Environment=MCP_ROUTER_PROFILE=chatgpt_compact
+Environment=MCP_ROUTER_PROFILES=/home/rlopez/inneros/inneros_core/services/mcp-router-gateway/profiles.json
+Environment=MCP_ROUTER_AUTH_MODE=oauth_passthrough
+Environment=MCP_ROUTER_OAUTH_RESOURCE=https://mcp.pcdoctor.ai/mcp
+Environment=MCP_ROUTER_OAUTH_AUTHORIZATION_SERVER=https://auth.pcdoctor.ai
+EnvironmentFile=-/home/rlopez/.config/inneros/mcp-router-gateway.env
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m mcp_router_gateway.server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

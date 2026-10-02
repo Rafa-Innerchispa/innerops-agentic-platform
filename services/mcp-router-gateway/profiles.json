@@ -1,0 +1,242 @@
+{
+  "default_profile": "chatgpt_compact",
+  "default_backend": "inneros_compact",
+  "backends": {
+    "inneros_compact": {
+      "description": "Bounded InnerOS profile for ChatGPT and small-context agents.",
+      "url": "http://127.0.0.1:8112/mcp",
+      "enabled": true
+    },
+    "inneros_core": {
+      "description": "Canonical full InnerOS MCP. Admin only.",
+      "url": "http://127.0.0.1:8102/mcp",
+      "enabled": true
+    },
+    "quoteops": {
+      "description": "Bounded quote operations profile.",
+      "url": "http://127.0.0.1:8110/mcp",
+      "enabled": true
+    },
+    "gitlab": {
+      "description": "Reserved short GitLab MCP surface.",
+      "url": "http://127.0.0.1:8120/mcp",
+      "enabled": false
+    },
+    "infra_docker": {
+      "description": "Reserved Docker/infra MCP surface.",
+      "url": "http://127.0.0.1:8121/mcp",
+      "enabled": false
+    },
+    "inneros_compact_amd": {
+      "description": "ChatGPT compact MCP on AMD (.5) — primary ROCm/Qwen execution node",
+      "url": "http://100.72.153.124:8112/mcp",
+      "enabled": true
+    }
+  },
+  "profiles": {
+    "chatgpt_compact": {
+      "description": "ChatGPT compact — primary backend AMD (.5), Intel (.4) fallback",
+      "backends": [
+        "inneros_compact_amd",
+        "inneros_compact"
+      ],
+      "default_backend": "inneros_compact_amd",
+      "allow_all": false,
+      "prefixes": [
+        "device_fabric_",
+        "bellini_",
+        "capability_"
+      ],
+      "whitelist": [
+        "a2a_status",
+        "a2a_agent_cards",
+        "create_agent_message",
+        "poll_agent_inbox",
+        "project_runtime_bootstrap",
+        "list_mcp_tool_profiles",
+        "route_mcp_tools",
+        "mcp_version",
+        "diagnose_mcp_session",
+        "get_coordination_live",
+        "list_ops_tasks",
+        "bootstrap_context",
+        "dev_swarm_scope_status",
+        "dev_swarm_launch_task",
+        "dev_swarm_scheduler_status",
+        "device_fabric_providers",
+        "device_fabric_inventory",
+        "device_fabric_get",
+        "device_fabric_health",
+        "device_fabric_discover",
+        "bellini_guardian_status",
+        "bellini_guardian_dashboard",
+        "bellini_governed_action",
+        "capability_search",
+        "capability_describe",
+        "capability_invoke",
+        "capability_execution"
+      ],
+      "max_tools": 30,
+      "sandbox": {
+        "allowed_roots": [
+          "/home/rlopez/inneros",
+          "/home/rlopez/projects",
+          "/workspace"
+        ],
+        "read_only_required_for_prefixes": [
+          "fs_",
+          "terminal_",
+          "shell_",
+          "exec_"
+        ]
+      }
+    },
+    "coding": {
+      "description": "Coding profile with source, git and safe Docker visibility. Uses short micro-MCPs when enabled.",
+      "backends": [
+        "inneros_compact",
+        "infra_docker"
+      ],
+      "default_backend": "inneros_compact",
+      "allow_all": false,
+      "prefixes": [
+        "git_",
+        "docker_",
+        "fs_"
+      ],
+      "whitelist": [
+        "mcp_version",
+        "diagnose_mcp_session",
+        "project_runtime_bootstrap",
+        "create_agent_message"
+      ],
+      "max_tools": 25,
+      "sandbox": {
+        "allowed_roots": [
+          "/home/rlopez/inneros",
+          "/home/rlopez/projects",
+          "/workspace"
+        ],
+        "read_only_required_for_prefixes": [
+          "fs_",
+          "terminal_",
+          "shell_",
+          "exec_"
+        ]
+      }
+    },
+    "gitlab": {
+      "description": "Short GitLab profile. It stays unavailable until mcp-gitlab is enabled.",
+      "backends": [
+        "gitlab"
+      ],
+      "default_backend": "gitlab",
+      "allow_all": false,
+      "prefixes": [
+        "gitlab_"
+      ],
+      "whitelist": [
+        "mcp_version",
+        "diagnose_mcp_session"
+      ],
+      "max_tools": 12,
+      "sandbox": {
+        "allowed_roots": [
+          "/workspace"
+        ],
+        "read_only_required_for_prefixes": []
+      }
+    },
+    "infra_docker": {
+      "description": "Short Docker/infra profile. Read-mostly diagnostics and bounded actions.",
+      "backends": [
+        "infra_docker",
+        "inneros_compact"
+      ],
+      "default_backend": "infra_docker",
+      "allow_all": false,
+      "prefixes": [
+        "docker_",
+        "container_",
+        "peer_",
+        "network_"
+      ],
+      "whitelist": [
+        "mcp_version",
+        "diagnose_mcp_session",
+        "record_site_network_snapshot",
+        "list_site_network_snapshots"
+      ],
+      "max_tools": 25,
+      "sandbox": {
+        "allowed_roots": [
+          "/home/rlopez/inneros",
+          "/workspace"
+        ],
+        "read_only_required_for_prefixes": [
+          "docker_",
+          "container_",
+          "peer_",
+          "network_",
+          "shell_",
+          "exec_"
+        ]
+      }
+    },
+    "quoteops": {
+      "description": "Commercial quote profile routed to the quoteops bounded MCP.",
+      "backends": [
+        "quoteops"
+      ],
+      "default_backend": "quoteops",
+      "allow_all": false,
+      "prefixes": [
+        "quote_",
+        "resolve_",
+        "send_whatsapp_"
+      ],
+      "whitelist": [
+        "get_operational_runbooks",
+        "sync_quote_sources",
+        "resolve_party",
+        "resolve_client",
+        "create_quote_draft",
+        "update_quote_draft",
+        "generate_quote_intro",
+        "generate_quote_pdf",
+        "render_quote_document",
+        "send_quote_delivery",
+        "get_quote_tracking",
+        "send_whatsapp_document"
+      ],
+      "max_tools": 12,
+      "sandbox": {
+        "allowed_roots": [
+          "/home/rlopez/inneros",
+          "/home/rlopez/projects",
+          "/workspace"
+        ],
+        "read_only_required_for_prefixes": []
+      }
+    },
+    "admin": {
+      "description": "Full InnerOS MCP visibility. Do not expose to default ChatGPT sessions.",
+      "backends": [
+        "inneros_core"
+      ],
+      "default_backend": "inneros_core",
+      "allow_all": true,
+      "prefixes": [],
+      "whitelist": [],
+      "max_tools": null,
+      "sandbox": {
+        "allowed_roots": [
+          "/home/rlopez/inneros",
+          "/home/rlopez/projects",
+          "/workspace"
+        ],
+        "read_only_required_for_prefixes": []
+      }
+    }
+  }
+}

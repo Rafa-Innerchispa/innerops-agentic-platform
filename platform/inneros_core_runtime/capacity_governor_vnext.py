@@ -25,6 +25,10 @@ VERSION = "capacity_governor_vnext_20260826"
 INTEL_BASELINE_MODELS = {"qwen2.5vl:7b"}
 AMD_BASELINE_MODELS = {"QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ"}
 WATCHDOG_STATE = Path("/tmp/inneros_capacity_governor_watchdog.json")
+VLLM_WATCHDOG_UNIT = "inneros-vllm-qwen3-coder-30b-awq.service"
+VLLM_STARTUP_GRACE_SECONDS = 900
+VLLM_MAX_RESTARTS_BEFORE_STOP = 8
+
 
 
 def _now() -> str:
@@ -325,10 +329,22 @@ def _http_json(url: str, *, method: str = "GET", body: dict[str, Any] | None = N
         return {"ok": False, "error": str(exc)}
 
 
+def _vllm_systemd_state() -> str:
+    proc = subprocess.run(
+        ["systemctl", "--user", "is-active", VLLM_WATCHDOG_UNIT],
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    return (proc.stdout or proc.stderr or "").strip() or "unknown"
+
+
 def amd_vllm_watchdog_tick(*, endpoint: str = "http://127.0.0.1:8000", model: str | None = None, dry_run: bool = False) -> dict[str, Any]:
     if not is_amd_node():
         return {"ok": True, "skipped": "not_amd_node"}
     model = model or next(iter(AMD_BASELINE_MODELS))
+    unit_state = _vllm_systemd_state()
     models = _http_json(f"{endpoint.rstrip('/')}/v1/models", timeout=5)
     infer = {"ok": False, "skipped": "models_failed"}
     if models.get("ok"):
@@ -347,9 +363,39 @@ def amd_vllm_watchdog_tick(*, endpoint: str = "http://127.0.0.1:8000", model: st
             pass
     now_ts = time.time()
     if healthy:
-        state.update({"first_failure_ts": None, "fail_count": 0, "last_healthy_at": _now(), "last_action": "healthy"})
+        state.update(
+            {
+                "first_failure_ts": None,
+                "fail_count": 0,
+                "startup_grace_until": None,
+                "last_healthy_at": _now(),
+                "last_action": "healthy",
+            }
+        )
         WATCHDOG_STATE.write_text(json.dumps(state, indent=2), encoding="utf-8")
-        return {"ok": True, "healthy": True, "models": models, "inference": {"ok": True}}
+        return {"ok": True, "healthy": True, "models": models, "inference": {"ok": True}, "unit_state": unit_state}
+    grace_until = float(state.get("startup_grace_until") or 0)
+    if unit_state in {"activating", "active"} and grace_until <= now_ts:
+        state["startup_grace_until"] = now_ts + VLLM_STARTUP_GRACE_SECONDS
+        grace_until = float(state["startup_grace_until"])
+    if unit_state in {"activating", "active"} and now_ts < grace_until:
+        state.update(
+            {
+                "last_action": "startup_grace_observe",
+                "last_failure_at": _now(),
+                "models": models,
+                "inference": infer,
+                "unit_state": unit_state,
+            }
+        )
+        WATCHDOG_STATE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        return {
+            "ok": True,
+            "healthy": False,
+            "action": "startup_grace_observe",
+            "startup_grace_seconds_remaining": round(grace_until - now_ts, 1),
+            "state": state,
+        }
     first = float(state.get("first_failure_ts") or now_ts)
     state["first_failure_ts"] = first
     state["fail_count"] = int(state.get("fail_count") or 0) + 1
@@ -359,13 +405,26 @@ def amd_vllm_watchdog_tick(*, endpoint: str = "http://127.0.0.1:8000", model: st
     if elapsed >= 120 and state["fail_count"] <= 3:
         action = "restart_vllm"
         if not dry_run:
-            proc = subprocess.run(["systemctl", "--user", "restart", "inneros-vllm-qwen3-coder-30b-awq.service"], text=True, capture_output=True, timeout=90, check=False)
+            proc = subprocess.run(
+                ["systemctl", "--user", "restart", VLLM_WATCHDOG_UNIT],
+                text=True,
+                capture_output=True,
+                timeout=90,
+                check=False,
+            )
+            state["startup_grace_until"] = now_ts + VLLM_STARTUP_GRACE_SECONDS
             command = {"ok": proc.returncode == 0, "returncode": proc.returncode, "stderr": (proc.stderr or "")[-1000:]}
-    elif elapsed >= 120 and state["fail_count"] > 3:
+    elif elapsed >= 300 and state["fail_count"] > VLLM_MAX_RESTARTS_BEFORE_STOP and unit_state not in {"activating"}:
         action = "stop_vllm_and_fallback_intel"
         if not dry_run:
-            proc = subprocess.run(["systemctl", "--user", "stop", "inneros-vllm-qwen3-coder-30b-awq.service"], text=True, capture_output=True, timeout=90, check=False)
+            proc = subprocess.run(
+                ["systemctl", "--user", "stop", VLLM_WATCHDOG_UNIT],
+                text=True,
+                capture_output=True,
+                timeout=90,
+                check=False,
+            )
             command = {"ok": proc.returncode == 0, "returncode": proc.returncode, "stderr": (proc.stderr or "")[-1000:]}
-    state.update({"last_action": action, "last_failure_at": _now(), "models": models, "inference": infer})
+    state.update({"last_action": action, "last_failure_at": _now(), "models": models, "inference": infer, "unit_state": unit_state})
     WATCHDOG_STATE.write_text(json.dumps(state, indent=2), encoding="utf-8")
-    return {"ok": action == "observe", "healthy": False, "action": action, "elapsed_failure_seconds": round(elapsed, 1), "state": state, "command": command}
+    return {"ok": action in {"observe", "startup_grace_observe"}, "healthy": False, "action": action, "elapsed_failure_seconds": round(elapsed, 1), "state": state, "command": command}

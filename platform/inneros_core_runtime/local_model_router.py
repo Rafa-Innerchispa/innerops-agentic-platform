@@ -51,19 +51,19 @@ IS_INTEL_NODE = "192.168.1.4" in _LOCAL_IPS or "intel" in _HOSTNAME or "ver-10" 
 
 if IS_AMD_NODE:
     OLLAMA_URL = "http://192.168.1.4:11434"
-    VLLM_URL = "http://127.0.0.1:8000"
+    VLLM_URL = _env_url("VLLM_URL", "http://127.0.0.1:8000")
 elif IS_INTEL_NODE:
     OLLAMA_URL = "http://127.0.0.1:11434"
-    VLLM_URL = _env_url("AMD_VLLM_TUNNEL_URL", "http://127.0.0.1:18000")
+    VLLM_URL = _env_url("AMD_VLLM_TUNNEL_URL", "http://100.72.153.124:8001")
 elif GPU_ROLE == "vllm-primary":
     OLLAMA_URL = "http://192.168.1.4:11434"
-    VLLM_URL = "http://127.0.0.1:8000"
+    VLLM_URL = _env_url("VLLM_URL", "http://127.0.0.1:8000")
 elif GPU_ROLE == "ollama-primary":
     OLLAMA_URL = "http://127.0.0.1:11434"
-    VLLM_URL = _env_url("AMD_VLLM_TUNNEL_URL", "http://127.0.0.1:18000")
+    VLLM_URL = _env_url("AMD_VLLM_TUNNEL_URL", "http://100.72.153.124:8001")
 else:
     OLLAMA_URL = _env_url("OLLAMA_URL", "http://192.168.1.4:11434")
-    VLLM_URL = _env_url("VLLM_URL", "http://192.168.1.5:8000")
+    VLLM_URL = _env_url("AMD_VLLM_TUNNEL_URL", "http://100.72.153.124:8001")
 OPEN_WEBUI_URL = "http://127.0.0.1:3000"
 ANYTHINGLLM_URL = "http://127.0.0.1:3001"
 N8N_URL = "http://127.0.0.1:5678"

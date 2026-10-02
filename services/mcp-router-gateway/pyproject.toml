@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-router-gateway"
+version = "0.1.0"
+description = "Small JSON-RPC MCP router that filters tools/list and gates tools/call."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+mcp-router-gateway = "mcp_router_gateway.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
