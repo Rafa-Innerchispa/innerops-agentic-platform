@@ -1,7 +1,7 @@
 {
   "projects": {
     "cozmo-alive": {
-      "created_at": "2026-08-22T17:32:10.208329+00:00",
+      "created_at": "2026-10-02T05:37:05.503418+00:00",
       "paths": {
         "amd": "/home/rlopez/inneros/inneros_core/workspaces/cozmo-alive",
         "primary": "/home/rlopez/inneros/inneros_core/workspaces/cozmo-alive"
@@ -24,13 +24,189 @@
           "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
         ]
       },
-      "updated_at": "2026-08-22T17:32:10.208319+00:00",
+      "updated_at": "2026-10-02T05:37:05.503402+00:00",
+      "updated_by": "cursor",
+      "write_scope": "worktree"
+    },
+    "gitlab-contributorops-agent": {
+      "allowed_commands_profile": "python-tests",
+      "allowed_paths": [
+        "src",
+        "docs",
+        "tests",
+        "scripts",
+        "contributions.json",
+        "README.md",
+        "pyproject.toml",
+        "systemd"
+      ],
+      "created_at": "2026-10-01T19:15:41.446195+00:00",
+      "package_roots": [
+        "src"
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/gitlab-contributorops-agent",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/gitlab-contributorops-agent"
+      },
+      "policy_class": "gitlab_contributorops",
+      "project_id": "gitlab-contributorops-agent",
+      "repo": "Rafa-Innerchispa/gitlab-contributorops-agent",
+      "source": "migration",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-10-02T05:37:05.507579+00:00",
+      "updated_by": "cursor",
+      "write_scope": "worktree_branch_only"
+    },
+    "gitlab-org-gitlab": {
+      "allowed_commands_profile": "ruby-tests-local-only",
+      "allowed_paths": [
+        "app",
+        "bin",
+        "config",
+        "db",
+        "doc",
+        "ee",
+        "lib",
+        "public",
+        "spec",
+        "rubocop",
+        "scripts",
+        "vendor",
+        "AGENTS.md",
+        "Gemfile",
+        "Gemfile.lock",
+        "Rakefile",
+        "README.md"
+      ],
+      "created_at": "2026-10-02T05:37:05.508267+00:00",
+      "package_roots": [
+        "."
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/var/local_execution/repos/gitlab-community__gitlab-org__gitlab",
+        "primary": "/home/rlopez/inneros/inneros_core/var/local_execution/repos/gitlab-community__gitlab-org__gitlab"
+      },
+      "policy_class": "contributor-upstream",
+      "project_id": "gitlab-org-gitlab",
+      "repo": "gitlab-org/gitlab",
+      "source": "migration",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-10-02T05:37:05.508262+00:00",
+      "updated_by": "cursor",
+      "write_scope": "worktree_branch_only"
+    },
+    "gitlab-runner": {
+      "allowed_commands_profile": "go_gitlab_runner",
+      "allowed_paths": [
+        "docs/configuration/init.md",
+        "README.md",
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "scripts"
+      ],
+      "created_at": "2026-08-26T19:52:00.535832+00:00",
+      "package_roots": [
+        "."
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/gitlab-runner",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/gitlab-runner"
+      },
+      "policy_class": "external_fork_gitlab_runner",
+      "project_id": "gitlab-runner",
+      "repo": "rafagye/gitlab-runner",
+      "source": "repo_authorize",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-08-26T19:52:00.535820+00:00",
+      "updated_by": "codex",
+      "write_scope": "worktree_branch_only"
+    },
+    "hyperloom-r9700-experimental": {
+      "allowed_commands_profile": "python-tests",
+      "allowed_paths": [
+        "backend",
+        "docs",
+        "examples",
+        "hyperloom",
+        "scripts",
+        "src",
+        "tests",
+        "README.md",
+        "pyproject.toml",
+        "requirements.txt",
+        "setup.py"
+      ],
+      "created_at": "2026-09-04T21:53:17.183781+00:00",
+      "package_roots": [
+        "."
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/hyperloom-r9700-experimental",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/hyperloom-r9700-experimental"
+      },
+      "policy_class": "owner-approved",
+      "project_id": "hyperloom-r9700-experimental",
+      "repo": "Rafa-Innerchispa/hyperloom-r9700-experimental",
+      "source": "ops_73193db2e5a2",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-09-04T21:53:17.183766+00:00",
       "updated_by": "codex",
       "write_scope": "worktree"
     },
     "innerops-agentic-platform": {
-      "allowed_commands_profile": "python-tests",
-      "created_at": "2026-08-22T17:32:10.213557+00:00",
+      "created_at": "2026-10-02T05:37:05.506925+00:00",
       "paths": {
         "amd": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
         "primary": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform"
@@ -53,20 +229,75 @@
           "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
         ]
       },
-      "updated_at": "2026-08-23T01:13:11.626473+00:00",
-      "updated_by": "codex-infra-repair",
+      "updated_at": "2026-10-02T05:37:05.506919+00:00",
+      "updated_by": "cursor",
       "write_scope": "worktree"
     },
-    "inneros": {
-      "created_at": "2026-08-22T19:20:49.472369+00:00",
+    "innerops-example": {
+      "created_at": "2026-08-30T15:16:35.326082+00:00",
       "paths": {
-        "amd": "/home/rlopez/inneros/inneros_core/workspaces/inneros",
-        "primary": "/home/rlopez/inneros/inneros_core/workspaces/inneros"
+        "amd": "/tmp/tmpa0ypmaxm/innerops-example",
+        "primary": "/tmp/tmpa0ypmaxm/innerops-example"
       },
       "policy_class": "product-app",
-      "project_id": "inneros",
-      "repo": "Rafa-Innerchispa/inneros",
-      "source": "auto_resolve",
+      "project_id": "innerops-example",
+      "repo": "Rafa-Innerchispa/innerops-example",
+      "source": "local_project_bootstrap",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees",
+          "/tmp/tmpnhhqixnv"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees",
+          "/tmp/tmpnhhqixnv"
+        ]
+      },
+      "updated_at": "2026-09-04T10:15:40.526998+00:00",
+      "updated_by": "chatgpt",
+      "write_scope": "worktree"
+    },
+    "innerops-service-ops": {
+      "allowed_commands_profile": "node-tests",
+      "allowed_paths": [
+        "app",
+        "components",
+        "docs",
+        "lib",
+        "public",
+        "scripts",
+        "src",
+        "tests",
+        "AGENT_CONTRACT.md",
+        "BASELINE_PROVENANCE.md",
+        "DEPLOYMENT.md",
+        "README.md",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "tsconfig.json",
+        "next.config.js",
+        "next.config.mjs",
+        "vite.config.ts"
+      ],
+      "created_at": "2026-09-07T14:23:00.950994+00:00",
+      "package_roots": [
+        "."
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/innerops-service-ops",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/innerops-service-ops"
+      },
+      "policy_class": "product-app",
+      "project_id": "innerops-service-ops",
+      "repo": "Rafa-Innerchispa/innerops-service-ops",
+      "source": "codex-canonical-workspace-repair",
       "trusted_roots": {
         "amd": [
           "/home/rlopez/inneros/inneros_core/workspaces",
@@ -81,12 +312,96 @@
           "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
         ]
       },
-      "updated_at": "2026-08-22T19:20:49.472357+00:00",
-      "updated_by": "chatgpt",
+      "updated_at": "2026-09-07T14:24:39.616139+00:00",
+      "updated_by": "codex",
       "write_scope": "worktree"
     },
+    "inneros-forensic-replay": {
+      "allowed_commands_profile": "python-tests",
+      "allowed_paths": [
+        "docs",
+        "examples",
+        "inneros_forensic_replay",
+        "scripts",
+        "src",
+        "tests",
+        "README.md",
+        "pyproject.toml",
+        "requirements.txt",
+        "setup.py"
+      ],
+      "created_at": "2026-09-07T14:23:00.951825+00:00",
+      "package_roots": [
+        "."
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/inneros-forensic-replay",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/inneros-forensic-replay"
+      },
+      "policy_class": "sdk",
+      "project_id": "inneros-forensic-replay",
+      "repo": "Rafa-Innerchispa/inneros-forensic-replay",
+      "source": "codex-canonical-workspace-repair",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-09-07T14:24:39.616815+00:00",
+      "updated_by": "codex",
+      "write_scope": "worktree"
+    },
+    "inneros-webmcp": {
+      "allowed_commands_profile": "node-tests",
+      "allowed_paths": [
+        "docs",
+        "src",
+        "public",
+        "tests",
+        "package.json",
+        "wrangler.toml"
+      ],
+      "created_at": "2026-09-02T22:16:25.089155+00:00",
+      "package_roots": [
+        "."
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees/Rafa-Innerchispa__inneros-webmcp/codex__webmcp-live-proof-20260902",
+        "primary": "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees/Rafa-Innerchispa__inneros-webmcp/codex__webmcp-live-proof-20260902"
+      },
+      "policy_class": "product-app",
+      "project_id": "inneros-webmcp",
+      "repo": "Rafa-Innerchispa/inneros-webmcp",
+      "source": "webmcp-live-adapter-cleanup",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-09-02T22:16:25.089143+00:00",
+      "updated_by": "codex",
+      "write_scope": "worktree_branch_only"
+    },
     "innerspark-workforce-ai": {
-      "created_at": "2026-08-22T17:32:10.213002+00:00",
+      "created_at": "2026-10-02T05:37:05.506201+00:00",
       "paths": {
         "amd": "/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai",
         "primary": "/home/rlopez/inneros/inneros_core/workspaces/innerspark-workforce-ai"
@@ -109,12 +424,12 @@
           "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
         ]
       },
-      "updated_at": "2026-08-22T17:32:10.212995+00:00",
-      "updated_by": "codex",
+      "updated_at": "2026-10-02T05:37:05.506193+00:00",
+      "updated_by": "cursor",
       "write_scope": "worktree"
     },
     "ralphiia-ecosystem-core": {
-      "created_at": "2026-08-22T17:32:10.208881+00:00",
+      "created_at": "2026-10-02T05:37:05.504704+00:00",
       "paths": {
         "amd": "/home/rlopez/inneros/inneros_core/workspaces/ralphiia-ecosystem-core",
         "primary": "/home/rlopez/inneros/inneros_core/workspaces/ralphiia-ecosystem-core"
@@ -137,12 +452,12 @@
           "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
         ]
       },
-      "updated_at": "2026-08-22T17:32:10.208876+00:00",
-      "updated_by": "codex",
+      "updated_at": "2026-10-02T05:37:05.504698+00:00",
+      "updated_by": "cursor",
       "write_scope": "worktree"
     },
     "ralphiia-founderos-openai": {
-      "created_at": "2026-08-22T17:32:10.209365+00:00",
+      "created_at": "2026-10-02T05:37:05.505455+00:00",
       "paths": {
         "amd": "/home/rlopez/inneros/inneros_core/workspaces/ralphiia-founderos-openai",
         "primary": "/home/rlopez/inneros/inneros_core/workspaces/ralphiia-founderos-openai"
@@ -165,8 +480,8 @@
           "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
         ]
       },
-      "updated_at": "2026-08-22T17:32:10.209360+00:00",
-      "updated_by": "codex",
+      "updated_at": "2026-10-02T05:37:05.505441+00:00",
+      "updated_by": "cursor",
       "write_scope": "worktree"
     }
   },

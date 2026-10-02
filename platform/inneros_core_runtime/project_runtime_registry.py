@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from raphiia_openai import project_git_alignment
 from raphiia_openai.notifications import whatsapp_service_ops
 
 CAPABILITY = "project_runtime_registry"
@@ -24,9 +25,17 @@ NODE_HELPER = "/home/rlopez/bin/ralfia-peer-node-helper"
 PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NESTED_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-SAFE_REMOTE_RE = re.compile(r"^(https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?|git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git|https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner(?:\\.git)?)$")
+SAFE_REMOTE_RE = re.compile(
+    r"^(https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?|git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git|"
+    r"https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner(?:\\.git)?|"
+    r"https://gitlab.com/gitlab-org/gitlab(?:\\.git)?|"
+    r"https://gitlab.com/gitlab-community/gitlab-org/gitlab(?:\\.git)?)$"
+)
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
-OWNER_APPROVED_NESTED_REPOS = {"gitlab-community/gitlab-org/gitlab-runner"}
+OWNER_APPROVED_NESTED_REPOS = {
+    "gitlab-community/gitlab-org/gitlab-runner",
+    "gitlab-community/gitlab-org/gitlab",
+}
 
 
 def _now() -> str:
@@ -48,21 +57,12 @@ def _registry_file() -> Path:
 def trusted_roots(node: str = "primary") -> list[str]:
     # Paths are intentionally identical across .4/.5 so the ecosystem can fail over.
     core = _core_root()
-    roots = [
+    return [
         str(core / "workspaces"),
         "/home/rlopez/projects",
         str(core / "var" / "local_execution" / "repos"),
         str(core / "var" / "local_execution" / "worktrees"),
     ]
-    raw = os.getenv("RALFIA_FS_ROOTS_JSON", "").strip()
-    if raw:
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, list):
-                roots.extend(str(item) for item in parsed if isinstance(item, str) and item.strip())
-        except json.JSONDecodeError:
-            pass
-    return list(dict.fromkeys(roots))
 
 
 def _load() -> dict[str, Any]:
@@ -100,11 +100,17 @@ def _project_id(value: str) -> str:
 
 
 def _repo(value: str | None, project_id: str) -> str:
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
     item = (value or "").strip() or f"Rafa-Innerchispa/{project_id}"
-    if not (REPO_RE.match(item) or item in OWNER_APPROVED_NESTED_REPOS):
+    if not (REPO_RE.match(item) or item in OWNER_APPROVED_NESTED_REPOS or gcp.is_contributor_policy_repo(item)):
         raise ValueError("invalid_repo")
     owner = item.split("/", 1)[0]
-    if owner not in OWNER_APPROVED_GITHUB_OWNERS and item not in OWNER_APPROVED_NESTED_REPOS:
+    if (
+        owner not in OWNER_APPROVED_GITHUB_OWNERS
+        and item not in OWNER_APPROVED_NESTED_REPOS
+        and not gcp.is_contributor_policy_repo(item)
+    ):
         raise PermissionError("repo_owner_not_allowlisted")
     return item
 
@@ -212,11 +218,14 @@ def status(project_id: str = "", repo: str = "", node: str = "primary") -> dict[
     if not resolved.get("ok"):
         return resolved
     path = Path(resolved["project_path"])
+    project = resolved.get("project") if isinstance(resolved.get("project"), dict) else {}
+    alignment = project_git_alignment.alignment_status(str(path), str((project or {}).get("repo") or repo)) if path.exists() else {"ok": False, "reason": "project_path_missing", "aligned_with_origin_main": False}
     return {
         **resolved,
         "exists": path.exists(),
         "is_git": (path / ".git").exists(),
         "trusted_roots": trusted_roots(resolved["node"]),
+        "git_alignment": alignment,
     }
 
 
@@ -246,17 +255,37 @@ def bootstrap_runtime(
     project_id: str = "",
     repo: str = "",
     remote_url: str = "",
+    base_ref: str = "",
+    expected_sha: str = "",
     actor: str = "chatgpt",
     task_id: str = "",
     correlation_id: str = "",
     dry_run: bool = True,
 ) -> dict[str, Any]:
     resolved = resolve_project(project_id=project_id or repo, repo=repo, node=node)
+    if not resolved.get("ok"):
+        return {
+            **resolved,
+            "ok": False,
+            "dry_run": dry_run,
+            "correlation_id": correlation_id or None,
+            "task_id": task_id or None,
+            "actor": actor,
+        }
     path = resolved["project_path"]
     remote = (remote_url or "").strip()
     if remote and not SAFE_REMOTE_RE.match(remote):
         return {"ok": False, "error": "remote_url_not_allowlisted"}
-    payload = json.dumps({"project_path": path, "repo": resolved["project"]["repo"], "remote_url": remote, "dry_run": dry_run})
+    payload = json.dumps(
+        {
+            "project_path": path,
+            "repo": resolved["project"]["repo"],
+            "remote_url": remote,
+            "base_ref": (base_ref or "").strip() or None,
+            "expected_sha": (expected_sha or "").strip() or None,
+            "dry_run": dry_run,
+        }
+    )
     proc = _run_node(resolved["node"], [NODE_HELPER, "project_bootstrap"], input_text=payload, timeout=300)
     try:
         result = json.loads(proc.stdout or "{}")
@@ -317,16 +346,54 @@ def reconcile(
     return {**resolved, "ok": ok, "action": op, "dry_run": dry_run, "result": result, "helper_returncode": proc.returncode}
 
 
+def _gitlab_rails_contributor_paths() -> list[str]:
+    return [
+        "app",
+        "bin",
+        "config",
+        "db",
+        "doc",
+        "ee",
+        "lib",
+        "public",
+        "spec",
+        "rubocop",
+        "scripts",
+        "vendor",
+        "AGENTS.md",
+        "Gemfile",
+        "Gemfile.lock",
+        "Rakefile",
+        "README.md",
+    ]
+
+
 def migrate_existing(actor: str = "codex") -> dict[str, Any]:
-    targets = [
-        ("cozmo-alive", "Rafa-Innerchispa/cozmo-alive"),
-        ("ralphiia-ecosystem-core", "Rafa-Innerchispa/ralphiia-ecosystem-core"),
-        ("ralphiia-founderos-openai", "Rafa-Innerchispa/ralphiia-founderos-openai"),
-        ("innerspark-workforce-ai", "Rafa-Innerchispa/innerspark-workforce-ai"),
-        ("innerops-agentic-platform", "Rafa-Innerchispa/innerops-agentic-platform"),
+    core = _core_root()
+    gitlab_fork_path = str(core / "var" / "local_execution" / "repos" / "gitlab-community__gitlab-org__gitlab")
+    targets: list[tuple[str, str, str | None, dict[str, Any] | None]] = [
+        ("cozmo-alive", "Rafa-Innerchispa/cozmo-alive", None, None),
+        ("ralphiia-ecosystem-core", "Rafa-Innerchispa/ralphiia-ecosystem-core", None, None),
+        ("ralphiia-founderos-openai", "Rafa-Innerchispa/ralphiia-founderos-openai", None, None),
+        ("innerspark-workforce-ai", "Rafa-Innerchispa/innerspark-workforce-ai", None, None),
+        ("innerops-agentic-platform", "Rafa-Innerchispa/innerops-agentic-platform", None, None),
+        ("gitlab-contributorops-agent", "Rafa-Innerchispa/gitlab-contributorops-agent", None, None),
+        (
+            "gitlab-org-gitlab",
+            "gitlab-org/gitlab",
+            gitlab_fork_path,
+            {
+                "policy_class": "contributor-upstream",
+                "allowed_commands_profile": "ruby-tests-local-only",
+                "allowed_paths": _gitlab_rails_contributor_paths(),
+                "package_roots": ["."],
+                "write_scope": "worktree_branch_only",
+            },
+        ),
     ]
     items = []
-    for pid, repo in targets:
-        path = _default_path(pid)
-        items.append(register_project(pid, repo, path, actor=actor, source="migration"))
+    for pid, repo, path, extras in targets:
+        project_path = path or _default_path(pid)
+        kwargs = dict(extras or {})
+        items.append(register_project(pid, repo, project_path, actor=actor, source="migration", **kwargs))
     return {"ok": all(i.get("ok") for i in items), "capability": CAPABILITY, "count": len(items), "items": items}

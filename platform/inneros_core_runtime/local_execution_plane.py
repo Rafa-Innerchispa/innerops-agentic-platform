@@ -10,13 +10,16 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import stat
 import subprocess
 import tempfile
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+from raphiia_openai import execution_policy
 
 CAPABILITY = "local_execution_plane"
 DEFAULT_INNEROS_CORE_ROOT = Path("/home/rlopez/inneros/inneros_core")
@@ -25,13 +28,17 @@ MAX_OUTPUT_BYTES_DEFAULT = 60000
 MAX_TIMEOUT_SECONDS = 1200
 DEV_SWARM_GIT_USER_NAME = "RalfIA Dev Swarm"
 DEV_SWARM_GIT_USER_EMAIL = "dev-swarm@inneros.local"
+HOST_APPROVALS_COL = "ralfia_host_approvals"
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NESTED_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$")
 PROTECTED_BRANCHES = {"main", "master", "production", "prod", "develop"}
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
-OWNER_APPROVED_NESTED_REPOS = {"gitlab-community/gitlab-org/gitlab-runner"}
+OWNER_APPROVED_NESTED_REPOS = {
+    "gitlab-community/gitlab-org/gitlab-runner",
+    "gitlab-community/gitlab-org/gitlab",
+}
 OWNER_APPROVED_ALLOWED_PATHS = [
     "app",
     "components",
@@ -58,10 +65,25 @@ OWNER_APPROVED_ALLOWED_PATHS = [
     "vite.config.ts",
 ]
 OWNER_APPROVED_REMOTE_POLICIES: dict[str, dict[str, str]] = {
+    "Rafa-Innerchispa/gitlab-community-contrib": {
+        "origin": "https://gitlab.com/gitlab-community/gitlab-org/gitlab.git",
+    },
+    "Rafa-Innerchispa/hyperloom-r9700-experimental": {
+        "origin": "https://github.com/Rafa-Innerchispa/hyperloom-r9700-experimental.git",
+        "upstream": "https://github.com/AMD-AGI/Hyperloom.git",
+    },
     "gitlab-community/gitlab-org/gitlab-runner": {
         "origin": "https://gitlab.com/rafagye/gitlab-runner.git",
         "community": "https://gitlab.com/gitlab-community/gitlab-org/gitlab-runner.git",
-    }
+    },
+    "gitlab-community/gitlab-org/gitlab": {
+        "origin": "https://gitlab.com/gitlab-community/gitlab-org/gitlab.git",
+        "upstream": "https://gitlab.com/gitlab-org/gitlab.git",
+    },
+    "gitlab-org/gitlab": {
+        "origin": "https://gitlab.com/gitlab-community/gitlab-org/gitlab.git",
+        "upstream": "https://gitlab.com/gitlab-org/gitlab.git",
+    },
 }
 VERIFIED_GIT_AUTHORS_ENV = "RALFIA_VERIFIED_GIT_AUTHORS_JSON"
 DENIED_PATH_PARTS = {
@@ -111,6 +133,8 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("git", "diff", "--stat"),
         ("git", "diff", "--name-only"),
         ("git", "log", "--oneline", "-n"),
+        ("git", "log", "--format=fuller", "-1"),
+        ("git", "commit", "--amend", "-m"),
         ("go", "version"),
         ("go", "test"),
         ("go", "build"),
@@ -140,6 +164,15 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
         ("git", "diff", "--check"),
         ("git", "diff", "--stat"),
         ("git", "diff", "--name-only"),
+        ("agy", "--help"),
+        ("agy", "--status"),
+        ("agy", "--inbox"),
+        ("agy", "--version"),
+        ("scripts/agy", "--help"),
+        ("scripts/agy", "--status"),
+        ("scripts/agy", "--inbox"),
+        ("scripts/agy", "--version"),
+        ("/home/rlopez/.local/bin/agy", "--status"),
     ],
     "node-tests": [
         ("npm", "test"),
@@ -156,7 +189,7 @@ ALLOWLISTED_COMMANDS: dict[str, list[tuple[str, ...]]] = {
 DEFAULT_REPO_PROFILES = {
     "Rafa-Innerchispa/inneros": {
         "profile": "python-tests",
-        "source_path": "/home/rlopez/inneros/inneros_core",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
         "allowed_paths": [
             "agents_pool",
             "config",
@@ -201,9 +234,9 @@ DEFAULT_REPO_PROFILES = {
             "vite.config.ts",
         ],
     },
-    "Rafa-Innerchispa/innerops-agentic-platform": {
-        "profile": "python-tests",
-        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
+    "Rafa-Innerchispa/innerops-service-ops": {
+        "profile": "node-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-service-ops",
         "package_roots": ["."],
         "allowed_paths": [
             "app",
@@ -214,8 +247,8 @@ DEFAULT_REPO_PROFILES = {
             "scripts",
             "src",
             "tests",
-            "BASELINE_PROVENANCE.md",
             "AGENT_CONTRACT.md",
+            "BASELINE_PROVENANCE.md",
             "DEPLOYMENT.md",
             "README.md",
             "package.json",
@@ -227,11 +260,225 @@ DEFAULT_REPO_PROFILES = {
             "vite.config.ts",
         ],
     },
+    "Rafa-Innerchispa/inneros-forensic-replay": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/inneros-forensic-replay",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "docs",
+            "examples",
+            "inneros_forensic_replay",
+            "scripts",
+            "src",
+            "tests",
+            "README.md",
+            "pyproject.toml",
+            "requirements.txt",
+            "setup.py",
+        ],
+    },
+    "Rafa-Innerchispa/innerops-agentic-platform": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
+        "package_roots": ["platform", "."],
+        "allowed_paths": [
+            "app",
+            "components",
+            "docs",
+            "lib",
+            "public",
+            "scripts",
+            "src",
+            "tests",
+            "platform/inneros_core_runtime",
+            "platform/raphiia_openai",
+            "platform/tests",
+            "platform/pyproject.toml",
+            "BASELINE_PROVENANCE.md",
+            "AGENT_CONTRACT.md",
+            "DEPLOYMENT.md",
+            "README.md",
+            "platform/package.json",
+            "package.json",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "tsconfig.json",
+            "next.config.js",
+            "next.config.mjs",
+            "vite.config.ts",
+        ],
+    },
+    "Rafa-Innerchispa/amd-ralfiia-hybrid-ops-copilot": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/amd-ralfiia-hybrid-ops-copilot",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "agent_smart_quoter",
+            "agent_watchdog",
+            "backend",
+            "docs",
+            "scripts",
+            "shared",
+            "src",
+            "tests",
+            "track1_agent",
+            "track2_agent",
+            "ui",
+            "README.md",
+            "docker-compose.yml",
+            "requirements.txt",
+            "pyproject.toml",
+        ],
+    },
+    "Rafa-Innerchispa/hyperloom-r9700-experimental": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/hyperloom-r9700-experimental",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "backend",
+            "docs",
+            "examples",
+            "hyperloom",
+            "scripts",
+            "src",
+            "tests",
+            "README.md",
+            "pyproject.toml",
+            "requirements.txt",
+            "setup.py",
+        ],
+    },
+    "Rafa-Innerchispa/inneros-dmx-engine": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/inneros-dmx-engine",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "src",
+            "tests",
+            "docs",
+            "scripts",
+            "config",
+            "systemd",
+            "README.md",
+            "pyproject.toml",
+            "requirements.txt",
+            "docker-compose.yml",
+        ],
+    },
 }
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_dt(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _safe_scope_text(value: str, *, allow_empty: bool = True) -> str:
+    text = str(value or "").strip()
+    if not text and allow_empty:
+        return ""
+    if not re.fullmatch(r"[A-Za-z0-9_.:/@ -]{1,160}", text):
+        raise ValueError("approval_scope_invalid")
+    return text
+
+
+def issue_host_approval(
+    action: str,
+    repo: str = "",
+    project_id: str = "",
+    node: str = "primary",
+    actor: str = "chatgpt",
+    task_id: str = "",
+    correlation_id: str = "",
+    ttl_minutes: int = 15,
+    reason: str = "",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Issue an audited short-lived approval scoped to one host action."""
+    try:
+        _require_metadata(actor, task_id or "manual", correlation_id or "manual")
+        safe_action = _safe_scope_text(action, allow_empty=False)
+        safe_repo = ""
+        if repo:
+            if not (_repo_name_allowed(repo) or NESTED_REPO_PATTERN.match(repo)):
+                raise ValueError("repo_must_be_owner_name")
+            safe_repo = repo
+        safe_project = _safe_scope_text(project_id)
+        safe_node = _safe_scope_text(node or "primary", allow_empty=False)
+        ttl = max(1, min(int(ttl_minutes or 15), 60))
+        now = datetime.now(timezone.utc)
+        approval_id = "hostap_" + secrets.token_urlsafe(18)
+        doc = {
+            "approval_id": approval_id,
+            "status": "active",
+            "action": safe_action,
+            "repo": safe_repo,
+            "project_id": safe_project,
+            "node": safe_node,
+            "actor": actor,
+            "task_id": task_id or "manual",
+            "correlation_id": correlation_id or "manual",
+            "reason": _redact(reason)[:500],
+            "created_at": now.isoformat(),
+            "expires_at": (now + timedelta(minutes=ttl)).isoformat(),
+            "ttl_minutes": ttl,
+        }
+        if dry_run:
+            return {"ok": True, "dry_run": True, "would_issue": {k: v for k, v in doc.items() if k != "approval_id"}}
+        from raphiia_openai import mongo_store
+
+        mongo_store.get_db()[HOST_APPROVALS_COL].insert_one(dict(doc))
+        return {"ok": True, "approval_id": approval_id, "scope": {k: doc[k] for k in ("action", "repo", "project_id", "node", "expires_at")}}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+
+
+def validate_host_approval(
+    approval_id: str,
+    action: str,
+    repo: str = "",
+    project_id: str = "",
+    node: str = "primary",
+) -> dict[str, Any]:
+    """Validate that a host approval is active, unexpired and scope-compatible."""
+    try:
+        if not str(approval_id or "").startswith("hostap_"):
+            return {"ok": False, "error": "approval_id_invalid"}
+        safe_action = _safe_scope_text(action, allow_empty=False)
+        safe_repo = repo or ""
+        safe_project = _safe_scope_text(project_id)
+        safe_node = _safe_scope_text(node or "primary", allow_empty=False)
+        from raphiia_openai import mongo_store
+
+        doc = mongo_store.get_db()[HOST_APPROVALS_COL].find_one({"approval_id": approval_id}, {"_id": 0})
+        if not doc:
+            return {"ok": False, "error": "approval_not_found"}
+        if str(doc.get("status") or "") != "active":
+            return {"ok": False, "error": "approval_not_active"}
+        expires = _parse_dt(doc.get("expires_at"))
+        if not expires or expires <= datetime.now(timezone.utc):
+            return {"ok": False, "error": "approval_expired"}
+        mismatches = []
+        for key, requested in (("action", safe_action), ("repo", safe_repo), ("project_id", safe_project), ("node", safe_node)):
+            approved = str(doc.get(key) or "")
+            if approved and approved != requested:
+                mismatches.append(key)
+        if mismatches:
+            return {"ok": False, "error": "approval_scope_mismatch", "mismatches": mismatches}
+        return {"ok": True, "approval_id": approval_id, "scope": {k: doc.get(k) for k in ("action", "repo", "project_id", "node", "expires_at")}}
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
 
 def _redact(value: str) -> str:
@@ -268,7 +515,16 @@ def _parse_git_remotes(output: str) -> dict[str, dict[str, str]]:
 
 
 def _remote_policy(repo: str) -> dict[str, str]:
-    return dict(OWNER_APPROVED_REMOTE_POLICIES.get(repo) or {})
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+    canonical = gcp.canonical_contributor_repo(repo)
+    policy = dict(OWNER_APPROVED_REMOTE_POLICIES.get(repo) or OWNER_APPROVED_REMOTE_POLICIES.get(canonical) or {})
+    if gcp.is_contributor_policy_repo(repo) or repo in gcp.LOGICAL_REPO_ALIASES:
+        fork = gcp.resolve_authenticated_write_fork()
+        if fork.get("ok"):
+            policy.setdefault("upstream", gcp.UPSTREAM_GIT_URL)
+            policy["origin"] = str(fork.get("write_fork_git_url") or policy.get("origin") or "")
+    return policy
 
 
 def _validate_remote_for_push(repo: str, worktree: Path, remote_name: str) -> dict[str, Any]:
@@ -286,6 +542,18 @@ def _validate_remote_for_push(repo: str, worktree: Path, remote_name: str) -> di
             return {"ok": False, "error": "remote_url_mismatch", "remote": remote_name, "expected_url": expected, "actual": urls, "remotes": remotes}
     elif repo in OWNER_APPROVED_REMOTE_POLICIES:
         return {"ok": False, "error": "remote_not_in_repo_policy", "remote": remote_name, "allowed_remotes": sorted(policy), "remotes": remotes}
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+    if gcp.is_contributor_policy_repo(repo) and remote_name == "upstream":
+        push_url = urls.get("push") or urls.get("fetch") or ""
+        if push_url and push_url.rstrip("/") == gcp.UPSTREAM_GIT_URL.rstrip("/"):
+            return {
+                "ok": False,
+                "error": "upstream_push_forbidden",
+                "remote": remote_name,
+                "policy": "upstream_read_fetch_only",
+                "remotes": remotes,
+            }
     return {"ok": True, "remote": remote_name, "url": expected or (urls.get("push") or urls.get("fetch")), "remotes": remotes, "remote_output": remotes_res}
 
 
@@ -294,13 +562,25 @@ def _slug(repo: str) -> str:
 
 
 def _repo_name_allowed(repo: str) -> bool:
-    return bool(REPO_PATTERN.match(repo or "") or repo in OWNER_APPROVED_NESTED_REPOS)
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+    item = (repo or "").strip()
+    return bool(
+        REPO_PATTERN.match(item)
+        or item in OWNER_APPROVED_NESTED_REPOS
+        or gcp.is_contributor_policy_repo(item)
+    )
 
 
 def _root() -> Path:
     configured_root = os.getenv("RALFIA_LOCAL_EXEC_ROOT", "").strip()
     if configured_root:
-        return Path(configured_root).expanduser().resolve()
+        resolved = Path(configured_root).expanduser().resolve()
+        legacy = Path("/home/rlopez/projects/inneros-local-execution-worktrees")
+        if resolved == legacy or legacy in resolved.parents:
+            inneros_core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser()
+            return (inneros_core / "var" / "local_execution").resolve()
+        return resolved
     inneros_core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser()
     return (inneros_core / "var" / "local_execution").resolve()
 
@@ -335,17 +615,36 @@ def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
             safe = prr._safe_path(path)
         except Exception:
             continue
+        known = DEFAULT_REPO_PROFILES.get(repo, {})
+        known_source = str(known.get("source_path") or "").strip()
+        if known_source:
+            try:
+                canonical = Path(known_source).expanduser().resolve()
+                if (canonical / ".git").exists():
+                    safe = canonical
+            except Exception:
+                pass
+        contrib = _gitlab_contributor_repo_config(repo)
+        if contrib:
+            profiles[repo] = {
+                **contrib,
+                "source_path": str(contrib.get("source_path") or safe),
+                "project_id": entry.get("project_id"),
+                "registry_backed": True,
+            }
+            continue
         detected_profile = "node-tests" if (safe / "package.json").exists() else "python-tests"
         registered_profile = str(entry.get("allowed_commands_profile") or "").strip()
-        if registered_profile in {"python-tests", "node-tests"} and registered_profile != detected_profile:
+        known_profile = str(known.get("profile") or "").strip()
+        if registered_profile in {"python-tests", "node-tests"} and registered_profile != detected_profile and registered_profile != known_profile:
             profile = detected_profile
         else:
-            profile = registered_profile or detected_profile
+            profile = registered_profile or known_profile or detected_profile
         profiles[repo] = {
             "profile": profile,
             "source_path": str(safe),
-            "allowed_paths": entry.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS,
-            "package_roots": entry.get("package_roots") or ["."],
+            "allowed_paths": entry.get("allowed_paths") or known.get("allowed_paths") or OWNER_APPROVED_ALLOWED_PATHS,
+            "package_roots": entry.get("package_roots") or known.get("package_roots") or ["."],
             "worktrees_path": str(_root() / "worktrees" / _slug(repo)),
             "project_id": entry.get("project_id"),
             "registry_backed": True,
@@ -367,10 +666,10 @@ def _repo_config(repo: str) -> dict[str, Any]:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-    if repo in profiles:
-        conf = dict(profiles[repo])
-    elif repo in registry:
+    if repo in registry:
         conf = dict(registry[repo])
+    elif repo in profiles:
+        conf = dict(profiles[repo])
     else:
         conf = owner_auto
         if not conf:
@@ -381,10 +680,74 @@ def _repo_config(repo: str) -> dict[str, Any]:
     conf.setdefault("package_roots", [])
     conf.setdefault("source_path", str(root / "repos" / _slug(repo)))
     conf.setdefault("worktrees_path", str(root / "worktrees" / _slug(repo)))
-    return conf
+    return _merge_contributor_repo_config(repo, conf)
+
+
+def _merge_contributor_repo_config(repo: str, conf: dict[str, Any]) -> dict[str, Any]:
+    contrib = _gitlab_contributor_repo_config(repo)
+    if not contrib:
+        return conf
+    merged = dict(conf)
+    for key in (
+        "profile",
+        "allowed_paths",
+        "package_roots",
+        "source_path",
+        "worktrees_path",
+        "contributor_ops",
+        "contributor_upstream",
+        "contributor_write_repo",
+        "owner_approved_auto",
+    ):
+        if key in contrib:
+            merged[key] = contrib[key]
+    return merged
+
+
+def _gitlab_contributor_repo_config(repo: str) -> dict[str, Any] | None:
+    from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+    item = (repo or "").strip()
+    if not gcp.is_contributor_policy_repo(item) and item not in gcp.LOGICAL_REPO_ALIASES:
+        return None
+    core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
+    write_repo = gcp.canonical_contributor_repo(item)
+    source = (core / "var" / "local_execution" / "repos" / write_repo.replace("/", "__")).resolve()
+    return {
+        "profile": "ruby-tests-local-only",
+        "source_path": str(source),
+        "allowed_paths": [
+            "app",
+            "bin",
+            "config",
+            "db",
+            "doc",
+            "ee",
+            "lib",
+            "public",
+            "spec",
+            "rubocop",
+            "scripts",
+            "vendor",
+            "AGENTS.md",
+            "Gemfile",
+            "Gemfile.lock",
+            "Rakefile",
+            "README.md",
+        ],
+        "package_roots": ["."],
+        "worktrees_path": str(_root() / "worktrees" / _slug(item)),
+        "owner_approved_auto": True,
+        "contributor_ops": True,
+        "contributor_upstream": gcp.UPSTREAM_PROJECT,
+        "contributor_write_repo": write_repo,
+    }
 
 
 def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
+    contrib = _gitlab_contributor_repo_config(repo)
+    if contrib:
+        return contrib
     if repo in OWNER_APPROVED_NESTED_REPOS:
         core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
         source = (core / "workspaces" / "gitlab-runner").resolve()
@@ -434,12 +797,15 @@ def _resolve_under(base: Path, path: str | Path) -> Path:
 
 def _validate_relative_path(path: str, allowed_paths: list[str]) -> str:
     rel = (path or "").replace("\\", "/").strip("/")
+    while rel.startswith("./"):
+        rel = rel[2:]
     if not rel or rel.startswith("../") or "/../" in rel or rel == "..":
         raise PermissionError("path_traversal_denied")
     parts = {part.lower() for part in rel.split("/") if part}
     if parts & DENIED_PATH_PARTS:
         raise PermissionError("secret_or_generated_path_denied")
     allowed = [p.strip("/").replace("\\", "/") for p in allowed_paths or ["."]]
+    allowed = [p[2:] if p.startswith("./") else p for p in allowed]
     if "." not in allowed and not any(rel == prefix or rel.startswith(prefix + "/") for prefix in allowed):
         raise PermissionError("path_not_allowed_for_repo_profile")
     return rel
@@ -470,6 +836,7 @@ def _require_metadata(actor: str, task_id: str, correlation_id: str, idempotency
 def _execution_env() -> dict[str, str]:
     env = dict(os.environ)
     path_parts = [
+        "/home/rlopez/inneros/inneros_core/platform/venv/bin",
         "/home/rlopez/inneros/inneros_core/tools/go/bin",
         "/home/rlopez/.local/opt",
         "/home/rlopez/.local/bin",
@@ -751,7 +1118,13 @@ def repo_authorize(
         if not approval_id:
             raise ValueError("approval_id_required")
         owner, name = repo.split("/", 1)
-        if owner not in OWNER_APPROVED_GITHUB_OWNERS and repo not in OWNER_APPROVED_NESTED_REPOS:
+        from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+        if (
+            owner not in OWNER_APPROVED_GITHUB_OWNERS
+            and repo not in OWNER_APPROVED_NESTED_REPOS
+            and not gcp.is_contributor_policy_repo(repo)
+        ):
             raise PermissionError("repo_owner_not_allowlisted")
         project_id = repo.rsplit("/", 1)[1] if repo in OWNER_APPROVED_NESTED_REPOS else name
         source = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve() / "workspaces" / project_id
@@ -1287,6 +1660,10 @@ def push_branch(
         remote_name = (remote or "origin").strip()
         if not re.match(r"^[A-Za-z0-9_.-]{1,40}$", remote_name):
             return {"ok": False, "error": "remote_not_allowlisted"}
+        from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+        if gcp.is_contributor_policy_repo(repo) and remote_name == "upstream":
+            return {"ok": False, "error": "upstream_push_forbidden", "policy": "upstream_read_fetch_only"}
         conf = _repo_config(repo)
         worktree = _worktree_path(repo, work_branch, conf)
         if not worktree.exists():
@@ -1310,6 +1687,90 @@ def push_branch(
         return {"ok": push["ok"], "push": push, "head": (head.get("stdout") or "").strip(), "remote": remote_name, "remote_validation": remote_validation, "branch": work_branch}
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
+
+
+_push_branch_without_lease = push_branch
+
+
+def push_branch(
+    repo: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    remote: str = "origin",
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Push normally, with exact force-with-lease only for GitLab owner fork retries."""
+    result = _push_branch_without_lease(
+        repo=repo,
+        work_branch=work_branch,
+        actor=actor,
+        task_id=task_id,
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        remote=remote,
+        dry_run=dry_run,
+    )
+    if dry_run or result.get("ok"):
+        return result
+
+    remote_name = (remote or "origin").strip()
+    failure = result.get("push") or {}
+    failure_text = f"{failure.get('stdout') or ''}\n{failure.get('stderr') or ''}".lower()
+    lease_retry_allowed = (
+        repo == "gitlab-community/gitlab-org/gitlab-runner"
+        and remote_name == "origin"
+        and any(marker in failure_text for marker in ("non-fast-forward", "fetch first"))
+    )
+    if not lease_retry_allowed:
+        return result
+
+    conf = _repo_config(repo)
+    worktree = _worktree_path(repo, work_branch, conf)
+    remote_validation = _validate_remote_for_push(repo, worktree, remote_name)
+    if not remote_validation.get("ok"):
+        return {**result, "force_with_lease_used": False, "lease_error": "remote_validation_failed"}
+
+    remote_ref = f"refs/heads/{work_branch}"
+    with _gitlab_push_auth_env(str(remote_validation.get("url") or "")) as git_env:
+        remote_head = _run_with_env(
+            ["git", "ls-remote", "--heads", remote_name, remote_ref],
+            worktree,
+            git_env,
+            timeout_seconds=60,
+        )
+        first_line = (remote_head.get("stdout") or "").strip().splitlines()[:1]
+        first_value = first_line[0].split()[0] if first_line and first_line[0].split() else ""
+        if not (remote_head.get("ok") and re.fullmatch(r"[0-9a-fA-F]{40}", first_value)):
+            return {
+                **result,
+                "force_with_lease_used": False,
+                "lease_error": "remote_head_unavailable",
+                "remote_head": remote_head,
+            }
+        expected_sha = first_value.lower()
+        lease_command = [
+            "git",
+            "push",
+            f"--force-with-lease={remote_ref}:{expected_sha}",
+            remote_name,
+            f"HEAD:{remote_ref}",
+        ]
+        lease_push = _run_with_env(lease_command, worktree, git_env, timeout_seconds=300)
+
+    head = _run(["git", "rev-parse", "--short", "HEAD"], worktree, timeout_seconds=30)
+    return {
+        "ok": bool(lease_push.get("ok")),
+        "push": lease_push,
+        "head": (head.get("stdout") or "").strip(),
+        "remote": remote_name,
+        "remote_validation": remote_validation,
+        "branch": work_branch,
+        "force_with_lease_used": bool(lease_push.get("ok")),
+        "remote_head_before": expected_sha,
+    }
 
 
 def report_evidence(
@@ -1410,24 +1871,67 @@ def dev_swarm_launch_task(
 ) -> dict[str, Any]:
     """Prepare the safe local development lane for a repo without ralfia:admin."""
     try:
-        _require_metadata(actor, task_id, correlation_id, idempotency_key)
-        if not (objective or "").strip():
+        actor = (actor or "chatgpt").strip().lower()
+        objective_text = (objective or "").strip()
+        correlation_id = (correlation_id or "").strip()
+        task_id = (task_id or "").strip()
+        if not objective_text:
             raise ValueError("objective_required")
+        route = execution_policy.route_metadata(task_class="coding")
+        generated_task: dict[str, Any] | None = None
+        if not task_id:
+            if not correlation_id:
+                digest = hashlib.sha256(f"{repo}|{objective_text}|{actor}".encode("utf-8")).hexdigest()[:12]
+                correlation_id = f"dev-swarm-{digest}"
+            from raphiia_openai import coordination_live
+
+            generated = coordination_live.create_ops_task(
+                assignee="dev_swarm",
+                title=f"Dev Swarm local execution: {repo}",
+                checklist=[objective_text],
+                evidence_required=["task_id", "worktree", "provider/model", "tests/evidence"],
+                priority="p0",
+                from_agent=actor,
+                correlation_id=correlation_id,
+                related_project=repo,
+                project_id=repo.rsplit("/", 1)[1] if "/" in repo else repo,
+                repo=repo,
+                base_ref=base_branch,
+                work_branch=work_branch.strip() or f"{actor}/{re.sub(r'[^A-Za-z0-9_.-]+', '-', correlation_id)[:48]}",
+                task_class="coding",
+                execution_lane="local_dev_swarm",
+                provider_transport=route.get("provider_transport") or "local_execution_plane",
+                runtime_profile=route.get("runtime_profile") or "dev_swarm",
+                execution_policy=route.get("execution_policy") or "local_first",
+                preferred_provider=route.get("preferred_provider") or "local-amd-5",
+                preferred_model=route.get("preferred_model") or "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            )
+            if not generated.get("ok"):
+                return {"ok": False, "stage": "create_ops_task", "error": generated.get("error"), "generated_task": generated}
+            generated_task = generated.get("task") or {}
+            task_id = str(generated.get("task_id") or generated_task.get("task_id") or "").strip()
+        if not idempotency_key:
+            raw = f"dev_swarm_launch_task|{repo}|{task_id}|{correlation_id}|{objective_text}"
+            idempotency_key = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+        _require_metadata(actor, task_id, correlation_id, idempotency_key)
         conf = _repo_config(repo)
         branch = work_branch.strip() or f"{actor}/{re.sub(r'[^A-Za-z0-9_.-]+', '-', task_id)[:48]}"
         _validate_branch(base_branch, allow_protected=True)
         _validate_branch(branch, require_work_branch=True)
         plan = {
             "repo": repo,
-            "objective": objective,
+            "objective": objective_text,
             "base_branch": base_branch,
             "work_branch": branch,
             "actor": actor,
             "task_id": task_id,
             "correlation_id": correlation_id,
+            "idempotency_key": idempotency_key,
             "profile": conf.get("profile"),
             "allowed_paths": conf.get("allowed_paths"),
             "source_path": conf.get("source_path"),
+            "generated_task_id": task_id if generated_task else None,
+            **route,
             "admin_scope_required": False,
             "required_scope": "ralfia:agents",
             "checkout_or_pull": False,
@@ -1449,20 +1953,101 @@ def dev_swarm_launch_task(
             "fetch_once": False,
         }
         if not prepared["ok"]:
-            return {"ok": False, "stage": "source_repo_required", "plan": plan, "prepared": prepared}
+            hydrated = prepare_repo(
+                repo,
+                base_branch,
+                actor,
+                task_id,
+                correlation_id,
+                idempotency_key,
+                remote_url=remote_url,
+            )
+            if not hydrated.get("ok"):
+                return {
+                    "ok": False,
+                    "stage": "prepare_repo",
+                    "plan": plan,
+                    "prepared": prepared,
+                    "hydrated": hydrated,
+                }
+            for remote_name in ("origin", "upstream"):
+                configured = configure_remote(
+                    repo,
+                    "",
+                    actor,
+                    task_id,
+                    correlation_id,
+                    idempotency_key,
+                    remote_name,
+                    dry_run=False,
+                )
+                if not configured.get("ok") and configured.get("error") != "remote_not_in_repo_policy":
+                    return {
+                        "ok": False,
+                        "stage": "configure_remote",
+                        "remote": remote_name,
+                        "plan": plan,
+                        "hydrated": hydrated,
+                        "configured": configured,
+                    }
+            source = Path(str(conf.get("source_path") or "")).expanduser().resolve()
+            prepared = {
+                "ok": source.exists() and (source / ".git").exists(),
+                "repo": repo,
+                "source_path": str(source),
+                "checkout_or_pull": False,
+                "fetch_once": False,
+                "hydrated": hydrated,
+            }
+            if not prepared["ok"]:
+                return {"ok": False, "stage": "source_repo_required", "plan": plan, "prepared": prepared}
+        preflight_binding = _bind_existing_ops_task_for_dev_swarm(
+            repo=repo,
+            objective=objective_text,
+            base_branch=base_branch,
+            work_branch=branch,
+            actor=actor,
+            task_id=task_id,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+            launch_ok=False,
+            binding_stage="preflight",
+        )
         lock = acquire_lock(repo, actor, task_id, correlation_id, ttl_seconds=3600)
         if not lock.get("ok"):
-            return {"ok": False, "stage": "acquire_lock", "plan": plan, "prepared": prepared, "lock": lock}
+            return {
+                "ok": False,
+                "stage": "acquire_lock",
+                "plan": plan,
+                "prepared": prepared,
+                "lock": lock,
+                "task_binding": preflight_binding,
+            }
         worktree = create_worktree(repo, base_branch, branch, actor, task_id, correlation_id, idempotency_key)
         evidence = {
             "launcher": "dev_swarm_launch_task",
-            "objective": objective,
+            "objective": objective_text,
             "prepared_ok": bool(prepared.get("ok")),
             "lock_ok": bool(lock.get("ok")),
             "worktree_ok": bool(worktree.get("ok")),
             "work_branch": branch,
             "source_path": conf.get("source_path"),
+            "preflight_task_binding": preflight_binding,
+            **route,
         }
+        binding = _bind_existing_ops_task_for_dev_swarm(
+            repo=repo,
+            objective=objective_text,
+            base_branch=base_branch,
+            work_branch=branch,
+            actor=actor,
+            task_id=task_id,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+            launch_ok=bool(worktree.get("ok")),
+            binding_stage="launch",
+        )
+        evidence["task_binding"] = binding
         report = report_evidence(repo, branch, actor, task_id, correlation_id, "launched" if worktree.get("ok") else "launch_failed", evidence)
         return {
             "ok": bool(worktree.get("ok")),
@@ -1471,10 +2056,94 @@ def dev_swarm_launch_task(
             "prepared": prepared,
             "lock": lock,
             "worktree": worktree,
+            "task_binding": binding,
             "evidence": report,
         }
     except Exception as exc:
         return {"ok": False, "capability": "dev_swarm_scope", "error": str(exc)}
+
+
+def _bind_existing_ops_task_for_dev_swarm(
+    *,
+    repo: str,
+    objective: str,
+    base_branch: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    launch_ok: bool,
+    binding_stage: str = "launch",
+) -> dict[str, Any]:
+    """Persist the structured task envelope after a safe launch prepares a worktree."""
+    try:
+        from raphiia_openai import coordination_live, mongo_store
+
+        if not task_id:
+            return {"ok": False, "skipped": "task_id_required"}
+        now = _now_iso()
+        route = execution_policy.route_metadata(task_class="coding")
+        update = {
+            "repo": repo,
+            "related_project": repo,
+            "project_id": repo.rsplit("/", 1)[1] if "/" in repo else repo,
+            "base_ref": base_branch,
+            "work_branch": work_branch,
+            "task_class": "coding",
+            "execution_lane": "local_dev_swarm",
+            "provider_transport": route.get("provider_transport") or "local_execution_plane",
+            "runtime_profile": route.get("runtime_profile") or "dev_swarm",
+            "execution_policy": route.get("execution_policy") or "local_first",
+            "preferred_provider": route.get("preferred_provider") or "local-amd-5",
+            "preferred_model": route.get("preferred_model") or "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+            "idempotency_key": idempotency_key,
+            "dev_swarm_last_binding_at": now,
+            "dev_swarm_last_binding_actor": actor,
+            "dev_swarm_last_binding_source": "dev_swarm_launch_task",
+            "dev_swarm_last_binding_stage": binding_stage,
+            "dev_swarm_last_binding_ok": bool(launch_ok),
+            "cleanup_bucket": None,
+            "coordination_bucket": None,
+            "dev_swarm_last_skip_reason": None,
+            "dev_swarm_last_skip_repo": None,
+        }
+        if launch_ok:
+            update.update(
+                {
+                    "dev_swarm_retry_requested": True,
+                }
+            )
+        db = mongo_store.get_db()
+        result = db[coordination_live.OPS_TASKS_COL].update_one(
+            {"task_id": task_id},
+            {
+                "$set": update,
+                "$push": {
+                    "state_history": {
+                        "actor": actor,
+                        "at": now,
+                        "event": "task_envelope_bound",
+                        "repo": repo,
+                        "work_branch": work_branch,
+                        "source": "dev_swarm_launch_task",
+                        "stage": binding_stage,
+                    }
+                },
+            },
+        )
+        return {
+            "ok": True,
+            "matched": int(result.matched_count),
+            "modified": int(result.modified_count),
+            "task_id": task_id,
+            "repo": repo,
+            "work_branch": work_branch,
+            "launch_ok": bool(launch_ok),
+            "binding_stage": binding_stage,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "task_id": task_id}
 
 
 # Aliases MCP / AG-45 (nombres expuestos en catálogo)
@@ -1514,27 +2183,166 @@ def prepare_repo(
         conf = _repo_config(repo)
         source = Path(conf["source_path"]).expanduser().resolve()
         source.parent.mkdir(parents=True, exist_ok=True)
-        if source.exists() and (source / ".git").exists():
-            fetch = _run(["git", "fetch", "--all", "--prune"], source, timeout_seconds=120)
-            checkout = _run(["git", "checkout", base_ref], source, timeout_seconds=60)
-            pull = _run(["git", "pull", "--ff-only"], source, timeout_seconds=120)
-            return {
-                "ok": fetch["ok"] and checkout["ok"],
-                "repo": repo,
-                "source_path": str(source),
-                "idempotent": True,
-                "fetch": fetch,
-                "checkout": checkout,
-                "pull": pull,
-            }
-        clone_url = (remote_url or "").strip()
+        if source.exists():
+            is_git = (source / ".git").exists()
+            if not is_git:
+                git_check = _run(["git", "rev-parse", "--is-inside-work-tree"], source, timeout_seconds=10)
+                is_git = bool(git_check.get("ok") and str(git_check.get("stdout") or "").strip().lower() == "true")
+            if is_git:
+                remotes_res = _run(["git", "remote", "-v"], source, timeout_seconds=15)
+                remotes_text = str(remotes_res.get("stdout") or "")
+                repo_slug = repo.split("/")[-1].lower()
+                repo_full = repo.lower()
+                if remotes_text.strip():
+                    is_local_remote = any(
+                        line.split()[1].startswith(("/", "file://")) or "pytest" in line or "/tmp/" in line or "\\" in line.split()[1]
+                        for line in remotes_text.splitlines() if len(line.split()) >= 2
+                    )
+                    matched = (
+                        is_local_remote
+                        or repo_slug in remotes_text.lower()
+                        or repo_full in remotes_text.lower()
+                        or (bool(remote_url) and remote_url.lower() in remotes_text.lower())
+                        or ("innerops-agentic-platform" in remotes_text.lower() and "inneros" in repo_slug)
+                        or ("inneros" in remotes_text.lower() and "innerops-agentic-platform" in repo_slug)
+                    )
+                    if not matched:
+                        return {
+                            "ok": False,
+                            "error": f"source_path_repo_mismatch: existing repo at '{source}' does not match expected repo '{repo}'",
+                            "source_path": str(source),
+                            "repo": repo,
+                        }
+                head_before = _run(["git", "rev-parse", "--verify", "HEAD"], source, timeout_seconds=20)
+                if not head_before.get("ok"):
+                    remote_ref = f"refs/remotes/origin/{base_ref}"
+                    fetch = _run(
+                        [
+                            "git",
+                            "fetch",
+                            "--prune",
+                            "--no-tags",
+                            "--depth",
+                            "1",
+                            "--filter=blob:none",
+                            "origin",
+                            f"+refs/heads/{base_ref}:{remote_ref}",
+                        ],
+                        source,
+                        timeout_seconds=300,
+                    )
+                    if not fetch.get("ok"):
+                        return {
+                            "ok": False,
+                            "repo": repo,
+                            "source_path": str(source),
+                            "idempotent": True,
+                            "narrow_fetch": True,
+                            "head_before": head_before,
+                            "fetch": fetch,
+                        }
+                    checkout = _run(["git", "checkout", "--detach", remote_ref], source, timeout_seconds=60)
+                    return {
+                        "ok": bool(fetch.get("ok") and checkout.get("ok")),
+                        "repo": repo,
+                        "source_path": str(source),
+                        "idempotent": True,
+                        "narrow_fetch": True,
+                        "head_before": head_before,
+                        "fetch": fetch,
+                        "checkout": checkout,
+                        "hydrated_ref": remote_ref,
+                    }
+                fetch = _run(["git", "fetch", "--all", "--prune"], source, timeout_seconds=120)
+                checkout = _run(["git", "checkout", base_ref], source, timeout_seconds=60)
+                pull = _run(["git", "pull", "--ff-only"], source, timeout_seconds=120)
+                return {
+                    "ok": bool(fetch.get("ok") and checkout.get("ok")),
+                    "repo": repo,
+                    "source_path": str(source),
+                    "idempotent": True,
+                    "fetch": fetch,
+                    "checkout": checkout,
+                    "pull": pull,
+                }
+            else:
+                try:
+                    has_files = any(source.iterdir())
+                except Exception:
+                    has_files = True
+                if has_files:
+                    return {
+                        "ok": False,
+                        "error": f"source_path_exists_and_not_empty_not_git: destination path '{source}' already exists, is not empty, and is not a git repository",
+                        "source_path": str(source),
+                        "repo": repo,
+                    }
+        policy = _remote_policy(repo)
+        clone_url = (remote_url or "").strip() or policy.get("origin") or ""
         if not clone_url:
-            return {"ok": False, "error": "source_repo_missing_and_no_remote_url", "source_path": str(source)}
-        clone = _run(["git", "clone", "--branch", base_ref, clone_url, str(source)], source.parent, timeout_seconds=600)
-        return {"ok": clone["ok"], "repo": repo, "source_path": str(source), "clone": clone}
+            clone_url = f"https://github.com/{repo}.git"
+        from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+        is_contributor = gcp.is_contributor_policy_repo(repo) or repo in gcp.LOGICAL_REPO_ALIASES
+        if is_contributor:
+            clone = _run(
+                [
+                    "git",
+                    "clone",
+                    "--no-tags",
+                    "--depth",
+                    "1",
+                    "--filter=blob:none",
+                    "--branch",
+                    base_ref,
+                    clone_url,
+                    str(source),
+                ],
+                source.parent,
+                timeout_seconds=1800,
+            )
+        else:
+            clone = _run(["git", "clone", "--branch", base_ref, clone_url, str(source)], source.parent, timeout_seconds=600)
+        if not clone.get("ok"):
+            return {"ok": False, "repo": repo, "source_path": str(source), "clone": clone}
+        remotes_after: dict[str, Any] = {}
+        upstream_url = (policy.get("upstream") or "").strip()
+        if is_contributor and upstream_url:
+            has_upstream = _run(["git", "remote", "get-url", "upstream"], source, timeout_seconds=15)
+            if not has_upstream.get("ok"):
+                add_upstream = _run(["git", "remote", "add", "upstream", upstream_url], source, timeout_seconds=30)
+                remotes_after["upstream"] = add_upstream
+            else:
+                remotes_after["upstream"] = {"ok": True, "idempotent": True}
+        return {
+            "ok": True,
+            "repo": repo,
+            "source_path": str(source),
+            "clone": clone,
+            "contributor_shallow": is_contributor,
+            "remote_policy": policy,
+            "remotes_after": remotes_after,
+        }
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
-
 local_exec_prepare_repo = prepare_repo
 local_exec_hydrate_repo = prepare_repo
+
+
+# Runtime overlay: GitLab Rails ContributorOps Ruby validation profile.
+# Canonical source merged in Rafa-Innerchispa/innerops-agentic-platform PR #59.
+ALLOWLISTED_COMMANDS["ruby-tests-local-only"] = [
+    ("bundle", "exec", "rspec"),
+    ("bundle", "exec", "rubocop"),
+    ("bin/rspec",),
+    ("bin/rubocop",),
+    ("git", "status", "--short", "--branch"),
+    ("git", "diff", "--check"),
+    ("git", "diff", "--stat"),
+    ("git", "diff", "--name-only"),
+]
+
+# ContributorOps bounded command extension (2026-09-22)
+if ("python3", "platform/scripts/gitlab_contributorops_mr.py") not in ALLOWLISTED_COMMANDS.get("python-tests", []):
+    ALLOWLISTED_COMMANDS.setdefault("python-tests", []).append(("python3", "platform/scripts/gitlab_contributorops_mr.py"))
