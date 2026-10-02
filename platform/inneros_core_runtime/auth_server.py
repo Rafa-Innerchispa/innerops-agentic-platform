@@ -28,6 +28,25 @@ from raphiia_openai.settings import (
 
 SSO_COOKIE_NAME = "inneros_sso_session"
 
+import base64
+
+def _basic_client_credentials(request: Any) -> tuple[str | None, str | None]:
+    auth_hdr = ""
+    if hasattr(request, "headers") and request.headers:
+        auth_hdr = request.headers.get("Authorization") or request.headers.get("authorization") or ""
+    if not auth_hdr.lower().startswith("basic "):
+        return None, None
+    b64_val = auth_hdr[6:].strip()
+    try:
+        decoded = base64.b64decode(b64_val).decode("utf-8")
+        if ":" in decoded:
+            client_id, client_secret = decoded.split(":", 1)
+            return client_id, client_secret
+    except Exception:
+        pass
+    return None, None
+
+
 app = FastAPI(title="InnerOS Unified SSO & OAuth", docs_url=None, redoc_url=None)
 app.add_middleware(
     CORSMiddleware,
@@ -161,51 +180,36 @@ def _authorize_form(params: dict[str, str], issuer: str, active_user: str | None
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>InnerOS Unified SSO</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f172a; color: #e5e7eb; }
-    main { max-width: 440px; margin: 8vh auto; padding: 32px; background: #111827; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
-    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; text-align: center; color: #38bdf8; }
-    .muted { color: #94a3b8; font-size: 0.88rem; margin-bottom: 1.25rem; text-align: center; }
-    .sso-banner { background: #1e293b; border: 1px solid #0284c7; padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; text-align: center; color: #bae6fd; }
-    label { display: block; margin: 12px 0 4px; font-size: 0.88rem; font-weight: 500; }
-    input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; font-size: 0.95rem; }
-    input:focus { outline: none; border-color: #38bdf8; }
-    button { width: 100%; margin-top: 20px; padding: 12px; border-radius: 6px; border: none; background: #2563eb; color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; }
-    button:hover { background: #1d4ed8; }
-    .error { color: #f87171; font-size: 0.85rem; margin-bottom: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 4px; }
+    body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f172a; color: #e5e7eb; }}
+    main {{ max-width: 440px; margin: 8vh auto; padding: 32px; background: #111827; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }}
+    h1 {{ font-size: 1.4rem; margin-bottom: 0.5rem; text-align: center; color: #38bdf8; }}
+    .muted {{ color: #94a3b8; font-size: 0.88rem; margin-bottom: 1.25rem; text-align: center; }}
+    .sso-banner {{ background: #1e293b; border: 1px solid #0284c7; padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; text-align: center; color: #bae6fd; }}
+    label {{ display: block; margin: 12px 0 4px; font-size: 0.88rem; font-weight: 500; }}
+    input {{ width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; font-size: 0.95rem; }}
+    input:focus {{ outline: none; border-color: #38bdf8; }}
+    button {{ width: 100%; margin-top: 20px; padding: 12px; border-radius: 6px; border: none; background: #2563eb; color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; }}
+    button:hover {{ background: #1d4ed8; }}
+    .error {{ color: #f87171; font-size: 0.85rem; margin-bottom: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 4px; }}
   </style>
 </head>
 <body>
   <main>
     <h1>InnerOS Unified SSO</h1>
-    <p class="muted">Aplicaci?n: <strong>{client}</strong></p>
+    <p class="muted">Aplicaci&oacute;n: <strong>{client}</strong></p>
     {logged_in_banner}
     {error_html}
     <form method="post" action="{html.escape(issuer)}/authorize">
       {hidden}
       <label for="username">Usuario</label>
       <input id="username" name="username" autocomplete="username" value="{html.escape(active_user or "")}" required>
-      <label for="password">Contrase?a</label>
+      <label for="password">Contrase&ntilde;a</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required>
-      <button type="submit">Iniciar Sesi?n y Autorizar</button>
+      <button type="submit">Iniciar Sesi&oacute;n y Autorizar</button>
     </form>
   </main>
 </body>
 </html>"""
-
-
-def _validate_authorize_params(params: dict[str, str]) -> tuple[dict[str, Any], str]:
-    if params.get("response_type") != "code":
-        raise HTTPException(status_code=400, detail="response_type must be code")
-    if params.get("code_challenge_method") != "S256":
-        raise HTTPException(status_code=400, detail="PKCE S256 required")
-    client = oauth_store.get_client(params.get("client_id", ""))
-    if not client:
-        raise HTTPException(status_code=400, detail="Unknown client_id")
-    redirect_uri = params.get("redirect_uri", "")
-    if not oauth_store.redirect_uri_allowed(redirect_uri, client.get("redirect_uris")):
-        raise HTTPException(status_code=400, detail="redirect_uri not allowed")
-    scope = " ".join(oauth_store.parse_scopes(params.get("scope") or client.get("scope")))
-    return client, scope
 
 
 @app.get("/authorize", response_class=HTMLResponse)
