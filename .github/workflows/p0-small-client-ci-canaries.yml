@@ -17,6 +17,7 @@ on:
   push:
     branches:
       - cursor/p0-small-client-ci-canaries-20261001
+      - chatgpt/p0-temporal-golden-flow-provenance-v5
 
 permissions:
   contents: read
