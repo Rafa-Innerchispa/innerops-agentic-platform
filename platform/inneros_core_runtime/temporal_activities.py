@@ -152,14 +152,57 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
                 "files_count": files_count
             }
 
-    # 2. Ops / Network / Read-Only Validation Gate
+    # 2. Structured objective/evidence alignment gate.
     evidence_req = envelope_dict.get("evidence_required") or []
+    execution_evidence = agent_result.get("execution_evidence") or {}
+    changed_paths = execution_evidence.get("changed_paths") or []
+    executed_commands = execution_evidence.get("executed_commands") or []
+    evidence = agent_result.get("evidence") or {}
+
+    # Bridge/runtime synchronization is infrastructure evidence only. It must
+    # never satisfy the product-change requirement for a coding task.
+    if task_class == "coding" and not changed_paths:
+        return {
+            "passed": False,
+            "error": "Completion prohibited: no product changed_paths; bridge artifacts do not count",
+            "execution_evidence": execution_evidence,
+        }
+
+    # When the envelope declares structured evidence requirements, each item
+    # must be backed by authoritative execution evidence rather than model prose.
     if evidence_req:
-        evidence = agent_result.get("evidence") or {}
-        if not evidence and not agent_result.get("ok"):
+        missing = []
+        for req in evidence_req:
+            if isinstance(req, str):
+                if req not in evidence:
+                    missing.append(req)
+                continue
+            if not isinstance(req, dict):
+                missing.append(str(req))
+                continue
+            req_id = str(req.get("id") or req.get("name") or req.get("type") or req)
+            req_type = str(req.get("type") or "").lower()
+            if req_type == "command":
+                expected = [str(x) for x in (req.get("argv") or [])]
+                matched = any(
+                    list(item.get("argv") or []) == expected
+                    and item.get("ok") is True
+                    and item.get("returncode") == 0
+                    for item in executed_commands
+                )
+                if not matched:
+                    missing.append(req_id)
+            elif req_type == "no_product_changes":
+                if changed_paths:
+                    missing.append(req_id)
+            elif req_id not in evidence:
+                missing.append(req_id)
+        if missing:
             return {
                 "passed": False,
-                "error": f"Completion prohibited: Required evidence missing for task {envelope_dict.get('task_id')}",
+                "error": "Completion prohibited: required structured evidence missing",
+                "missing_evidence": missing,
+                "execution_evidence": execution_evidence,
             }
 
     return {
