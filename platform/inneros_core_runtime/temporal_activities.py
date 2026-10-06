@@ -66,6 +66,26 @@ async def activity_validate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str,
 async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("hydrating_worktree")
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
+    if envelope.repo:
+        from inneros_core_runtime import local_execution_plane as lep
+        from inneros_core_runtime import temporal_bounded_executor as tbe
+        work_branch = envelope.work_branch or tbe.default_work_branch(envelope_dict)
+        created = lep.create_worktree(
+            repo=envelope.repo,
+            base_branch=envelope.base_ref or "main",
+            work_branch=work_branch,
+            actor=envelope.assignee or envelope.preferred_provider or "temporal",
+            task_id=envelope.task_id,
+            correlation_id=envelope.correlation_id or envelope.task_id,
+            idempotency_key=envelope.idempotency_key or f"temporal-hydrate-{envelope.task_id}",
+        )
+        if not created.get("ok") or not created.get("worktree"):
+            raise ApplicationError(
+                f"Canonical worktree hydration failed: {created}",
+                type="WORKTREE_PROVENANCE_MISMATCH",
+                non_retryable=True,
+            )
+        return {"ok": True, "worktree": str(created["worktree"]), "work_branch": work_branch, "repo": envelope.repo}
     worktree_path = WORKTREE_BASE / f"temporal-{envelope.task_id}"
     worktree_path.mkdir(parents=True, exist_ok=True)
     return {"ok": True, "worktree": str(worktree_path)}

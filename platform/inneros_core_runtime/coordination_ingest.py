@@ -13,7 +13,7 @@ from . import agent_autonomy_policy
 _TASK_TITLE = re.compile(r"^\s*\[(?:OPS|P[0-3]|E2E\s+P[0-3])(?:\s+[^]]*)?\]", re.IGNORECASE)
 _TASK_BODY = re.compile(r"\b(?:INSTRUCCI[ÓO]N|TAREA|ORDEN)\s+P[0-3]\b", re.IGNORECASE)
 _FIELD = re.compile(
-    r"^\s*(correlation_id|project|project_id|repo|related_project|conversation_ref)\s*:\s*(.+?)\s*$",
+    r"^\s*(correlation_id|project|project_id|repo|related_project|conversation_ref|base_ref|work_branch|task_class|execution_lane|runtime_profile|preferred_provider|preferred_model)\s*:\s*(.+?)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -148,19 +148,19 @@ def ingest_agent_message(
         related_project=project,
         project_id=str(payload_n.get("project_id") or "").strip() or None,
         repo=str(payload_n.get("repo") or fields.get("repo") or "").strip() or None,
-        base_ref=str(payload_n.get("base_ref") or "").strip() or None,
-        work_branch=str(payload_n.get("work_branch") or "").strip() or None,
-        task_class=str(payload_n.get("task_class") or "").strip() or None,
-        execution_lane=str(payload_n.get("execution_lane") or "").strip() or None,
+        base_ref=str(payload_n.get("base_ref") or fields.get("base_ref") or "").strip() or None,
+        work_branch=str(payload_n.get("work_branch") or fields.get("work_branch") or "").strip() or None,
+        task_class=str(payload_n.get("task_class") or fields.get("task_class") or "").strip() or None,
+        execution_lane=str(payload_n.get("execution_lane") or fields.get("execution_lane") or "").strip() or None,
         provider_transport=str(payload_n.get("provider_transport") or "").strip() or None,
-        runtime_profile=str(payload_n.get("runtime_profile") or "").strip() or None,
+        runtime_profile=str(payload_n.get("runtime_profile") or fields.get("runtime_profile") or "").strip() or None,
         execution_policy=agent_autonomy_policy.default_execution_policy(
             payload_n.get("execution_policy"),
             target=target_identity["mailbox"],
             payload=payload_n,
         ),
-        preferred_provider=str(payload_n.get("preferred_provider") or "").strip() or None,
-        preferred_model=str(payload_n.get("preferred_model") or "").strip() or None,
+        preferred_provider=str(payload_n.get("preferred_provider") or fields.get("preferred_provider") or "").strip() or None,
+        preferred_model=str(payload_n.get("preferred_model") or fields.get("preferred_model") or "").strip() or None,
         idempotency_key=str(payload_n.get("idempotency_key") or idempotency_key or "").strip() or None,
     )
     if task.get("ok"):

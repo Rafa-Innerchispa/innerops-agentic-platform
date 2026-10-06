@@ -167,7 +167,7 @@ def run_bounded_executor(
     work_branch = default_work_branch(envelope_dict)
     wt_path = _ensure_repo_worktree(envelope_dict, worktree)
 
-    touched = sync_bridge_artifacts(wt_path) if repo else []
+    touched: List[str] = []  # bridge sync is maintenance, never implementation evidence
     verify_cmd = _default_verify_command(envelope_dict)
     test_results: Dict[str, Any] = {
         "exit_code": None,
@@ -228,6 +228,9 @@ def run_bounded_executor(
         code_diff = "\n".join(f"+ {path}" for path in touched)
 
     ok = bool(test_results.get("ok"))
+    if task_class == "coding" and candidate.get("requires_bounded_executor"):
+        ok = False
+        test_results["reason"] = "candidate_not_materialized_into_real_repo_writes"
     if task_class == "coding" and ok and files_count == 0 and not code_diff:
         ok = False
         test_results["reason"] = "coding_task_requires_diff_or_files"

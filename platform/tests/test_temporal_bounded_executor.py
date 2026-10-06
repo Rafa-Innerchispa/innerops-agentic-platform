@@ -46,8 +46,13 @@ class TemporalBoundedExecutorTests(unittest.TestCase):
             result = tbe.run_bounded_executor(envelope, fake_wt, {"response": "plan"})
         self.assertFalse(result.get("candidate_only"))
         self.assertFalse(result.get("requires_bounded_executor"))
-        self.assertTrue(result.get("ok"))
+        self.assertFalse(result.get("ok"))
         self.assertEqual(result["test_results"]["exit_code"], 0)
+        self.assertEqual(
+            result["test_results"].get("reason"),
+            "candidate_not_materialized_into_real_repo_writes",
+        )
+        self.assertEqual(result["bounded_executor"]["artifacts_synced"], [])
         run_cmd.assert_called_once()
 
 
