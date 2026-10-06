@@ -379,6 +379,26 @@ def migrate_existing(actor: str = "codex") -> dict[str, Any]:
         ("innerops-agentic-platform", "Rafa-Innerchispa/innerops-agentic-platform", None, None),
         ("gitlab-contributorops-agent", "Rafa-Innerchispa/gitlab-contributorops-agent", None, None),
         (
+            "infralens-ocr-amd",
+            "Rafa-Innerchispa/infralens-ocr-amd",
+            "/home/rlopez/projects/infralens-ocr-amd-mc2-final",
+            {
+                "policy_class": "product-app",
+                "allowed_commands_profile": "python-tests",
+                "allowed_paths": [
+                    "src",
+                    "tests",
+                    "scripts",
+                    "docs",
+                    "README.md",
+                    "pyproject.toml",
+                    "requirements.txt",
+                ],
+                "package_roots": ["."],
+                "write_scope": "worktree",
+            },
+        ),
+        (
             "gitlab-org-gitlab",
             "gitlab-org/gitlab",
             gitlab_fork_path,

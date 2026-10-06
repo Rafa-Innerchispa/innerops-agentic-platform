@@ -744,6 +744,12 @@ CHATGPT_COMPACT_ORCHESTRATION_TOOLS = frozenset(
     }
 )
 
+CHATGPT_COMPACT_WRITE_UPLIFT_TOOLS = frozenset(
+    {
+        "capability_invoke",
+    }
+)
+
 
 def _token_mcp_profile(token_doc: dict[str, Any]) -> str | None:
     profile = token_doc.get("mcp_profile") or token_doc.get("tool_profile")
@@ -817,6 +823,8 @@ def _effective_token_scopes(
     # Uplift to ralfia:agents is limited to the Small / chatgpt_compact plane only.
     if (small_profile or compact_client) and "ralfia:read" in token_scopes:
         token_scopes.add("ralfia:agents")
+        if tool_name in CHATGPT_COMPACT_WRITE_UPLIFT_TOOLS:
+            token_scopes.add("ralfia:write")
     return token_scopes
 
 

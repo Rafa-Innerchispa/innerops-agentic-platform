@@ -36,8 +36,21 @@ def _capability_query_matches(query: str, search_corpus: str) -> bool:
         return True
     if q_norm in search_corpus:
         return True
-    corpus_tokens = search_corpus.replace(".", " ").replace("_", " ").replace("-", " ")
-    return all(token in corpus_tokens for token in q_norm.split() if token)
+    corpus_norm = search_corpus.replace(".", " ").replace("_", " ").replace("-", " ")
+    tokens = [t for t in q_norm.split() if t]
+    if not tokens:
+        return True
+    hits = sum(1 for token in tokens if token in corpus_norm)
+    if hits == len(tokens):
+        return True
+    if len(tokens) == 1:
+        return hits == 1
+    min_hits = max(2, (len(tokens) + 1) // 2)
+    if hits >= min_hits:
+        return True
+    if "network" in tokens and "network" in corpus_norm and hits >= 2:
+        return True
+    return False
 
 
 def capability_search(
@@ -267,32 +280,6 @@ def network_device_query_handler(parameters: Dict[str, Any], context: Dict[str, 
                     provider_id=str(parameters.get("provider_id") or "").strip(),
                 )
                 data[key] = payload
-            elif key in {"clients", "ssids", "channels", "mac_table", "poe"}:
-                from inneros_core_runtime import grandstream_gwn_client as gwn
-
-                creds, err = gwn.load_gwn_credentials()
-                tenant_rows = device_fabric._get_mongo_tenants(client_id=tenant_id)  # noqa: SLF001
-                tenant_row = tenant_rows[0] if tenant_rows else None
-                nid = gwn.resolve_network_id(
-                    client_id=tenant_id,
-                    site_id=site_id,
-                    tenant_row=tenant_row,
-                )
-                if not creds:
-                    data[key] = {"ok": False, "error": err or "gwn_credentials_missing"}
-                elif not nid:
-                    data[key] = {"ok": False, "error": "gwn_network_id_unresolved"}
-                elif key == "clients":
-                    data[key] = gwn.list_clients(creds, int(nid))
-                elif key == "ssids":
-                    data[key] = gwn.list_ssids(creds, int(nid))
-                elif key == "mac_table":
-                    data[key] = gwn.list_switches(creds, int(nid))
-                elif key == "poe":
-                    data[key] = gwn.list_switches(creds, int(nid))
-                else:
-                    data[key] = gwn.list_access_points(creds, int(nid))
-                provider_used = "grandstream_gwn_cloud_api"
             elif device_ref:
                 payload = device_fabric.device_fabric_get(device_ref=device_ref)
                 data[key] = payload
@@ -426,3 +413,13 @@ register_capability(NETWORK_DEVICE_QUERY_MANIFEST, network_device_query_handler)
 register_capability(COORDINATION_MESSAGING_LIST_MANIFEST, coordination_messaging_list_handler)
 register_capability(EMAIL_SEND_MANIFEST, email_send_handler)
 register_capability(EMAIL_IDENTITIES_LIST_MANIFEST, email_identities_list_handler)
+
+from inneros_core_runtime.universal_network_audit import register_universal_network_audit_capabilities
+
+register_universal_network_audit_capabilities()
+
+from inneros_core_runtime.capability_gateway_lep import register_local_execution_capabilities
+from inneros_core_runtime.capability_gateway_runtime import register_project_runtime_capabilities
+
+register_local_execution_capabilities()
+register_project_runtime_capabilities()

@@ -75,41 +75,112 @@ mcp = FastMCP(
 mcp.add_middleware(ToolCallIsolationMiddleware())
 if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
+if os.getenv("MCP_TOOL_PROFILE", "").strip().lower() == "chatgpt_compact":
+    from inneros_core_runtime.mcp_compact_refresh import CompactProfileRefreshMiddleware
 
-class McpCompatibilityProbeMiddleware:
-    """Return a harmless 200 for bare GET /mcp probes that are not SSE streams."""
+    mcp.add_middleware(CompactProfileRefreshMiddleware())
+
+def _normalized_http_path(path: str) -> str:
+    value = (path or "").strip()
+    if not value:
+        return "/"
+    return value.rstrip("/") or "/"
+
+
+def _is_mcp_entry_path(path: str) -> bool:
+    normalized = _normalized_http_path(path)
+    return normalized in {"/mcp", "/router/mcp"}
+
+
+def _router_mcp_public_url() -> str:
+    base = MCP_PUBLIC_URL.rstrip("/")
+    if base.endswith("/router/mcp"):
+        return base
+    return f"{base}/router/mcp"
+
+
+def _oauth_protected_resource_metadata_url() -> str:
+    return f"{_router_mcp_public_url()}/.well-known/oauth-protected-resource"
+
+
+def _compact_mcp_oauth_challenge() -> JSONResponse:
+    from inneros_core_runtime.oauth_metadata import build_oauth_www_authenticate
+
+    meta_url = _oauth_protected_resource_metadata_url()
+    scope = "ralfia:read ralfia:write ralfia:agents"
+    return JSONResponse(
+        {
+            "ok": False,
+            "error": "authentication_required",
+            "resource_metadata": meta_url,
+        },
+        status_code=401,
+        headers={"WWW-Authenticate": build_oauth_www_authenticate(meta_url, scope=scope)},
+    )
+
+
+def _router_health_payload() -> dict[str, Any]:
+    profile = os.getenv("MCP_TOOL_PROFILE", "").strip().lower() or None
+    return {
+        "ok": True,
+        "service": "mcp-router-gateway",
+        "transport": "streamable-http",
+        "mcp_endpoint": _router_mcp_public_url(),
+        "profile": profile or "full",
+        "note": "Health probe only — not an OAuth protected resource. MCP clients must authenticate against /router/mcp.",
+    }
+
+
+class McpSmallOAuthDiscoveryMiddleware:
+    """Fail-closed OAuth discovery for chatgpt_compact: unauthenticated MCP entry returns 401 + metadata."""
 
     def __init__(self, app):
         self.app = app
 
+    def _compact_plane(self) -> bool:
+        return os.getenv("MCP_TOOL_PROFILE", "").strip().lower() == "chatgpt_compact"
+
     async def __call__(self, scope, receive, send):
-        if scope.get("type") == "http" and scope.get("path") == "/mcp":
-            method = scope.get("method")
-            headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers") or []}
-            accept = headers.get("accept", "")
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path") or ""
+        normalized = _normalized_http_path(path)
+        if normalized in {"/health", "/router/health"}:
+            response = JSONResponse(_router_health_payload())
+            await response(scope, receive, send)
+            return
+
+        if not self._compact_plane() or not _is_mcp_entry_path(path):
+            await self.app(scope, receive, send)
+            return
+
+        method = (scope.get("method") or "GET").upper()
+        headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers") or []}
+        from inneros_core_runtime import auth_middleware as am
+
+        auth_ctx = am.resolve_bearer_auth_context(headers)
+        authenticated = bool(auth_ctx.get("ok"))
+        if not authenticated and MCP_API_KEY:
+            api_key = headers.get("x-api-key") or ""
+            if api_key and api_key == MCP_API_KEY:
+                authenticated = True
+
+        if not authenticated and method in {"GET", "HEAD", "POST"}:
+            challenge = _compact_mcp_oauth_challenge()
             if method == "HEAD":
-                response = Response(
-                    status_code=200,
-                    headers={
-                        "x-inneros-mcp-endpoint": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
-                        "x-inneros-mcp-transport": "streamable-http",
-                    },
-                )
-                await response(scope, receive, send)
-                return
-            if method == "GET" and "text/event-stream" not in accept:
-                response = JSONResponse(
-                    {
-                        "ok": True,
-                        "service": MCP_DISPLAY_NAME,
-                        "transport": "streamable-http",
-                        "mcp_endpoint": f"{MCP_PUBLIC_URL.rstrip('/')}/mcp",
-                        "note": "Compatibility probe only. MCP clients must use POST and SSE GET with Accept: text/event-stream.",
-                    }
-                )
-                await response(scope, receive, send)
-                return
+                response = Response(status_code=401, headers=dict(challenge.headers))
+            else:
+                response = challenge
+            await response(scope, receive, send)
+            return
+
         await self.app(scope, receive, send)
+
+
+# Backward-compatible alias for imports/tests.
+McpCompatibilityProbeMiddleware = McpSmallOAuthDiscoveryMiddleware
 
 
 
@@ -7237,16 +7308,18 @@ async def mcp_ready_http(_request: Request) -> JSONResponse:
 
 @mcp.custom_route("/version", methods=["GET"])
 async def mcp_version_http(_request: Request) -> JSONResponse:
+    from inneros_core_runtime.mcp_compact_refresh import compact_refresh_metadata
+
     ver = mcp_diagnostics.mcp_version()
-    return JSONResponse(
-        {
-            "ok": True,
-            "server_version": MCP_SERVER_VERSION,
-            "catalog_version": ver.get("catalog_version"),
-            "tool_count": ver.get("runtime_tool_count"),
-            "manifest_hash": ver.get("manifest_hash"),
-        }
-    )
+    payload = {
+        "ok": True,
+        "server_version": MCP_SERVER_VERSION,
+        "catalog_version": ver.get("catalog_version"),
+        "tool_count": ver.get("runtime_tool_count"),
+        "manifest_hash": ver.get("manifest_hash"),
+    }
+    payload.update(compact_refresh_metadata())
+    return JSONResponse(payload)
 
 
 @mcp.custom_route("/capabilities", methods=["GET"])
@@ -7969,6 +8042,8 @@ def bellini_governed_action(
 
 def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
     """Restrict tools advertised and callable by this MCP process to one profile."""
+    import asyncio
+
     from fastmcp.server.transforms import Visibility
     from raphiia_openai import mcp_profiles
 
@@ -7976,13 +8051,36 @@ def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
     if not profile.get("ok"):
         raise RuntimeError(f"unknown MCP tool profile: {profile_name}")
     names = set(profile["tools"])
+
+    async def _registered_tool_names() -> set[str]:
+        listed = await mcp.list_tools()
+        return {tool.name for tool in listed}
+
+    registered = asyncio.run(_registered_tool_names())
+    missing = sorted(names - registered)
+    if missing:
+        raise RuntimeError(
+            f"MCP profile {profile_name} references tools that are not registered in this process: {missing}. "
+            "Restart after deploying mcp_server.py or fix the profile allowlist."
+        )
+
     mcp.add_transform(Visibility(False, components={"tool"}, match_all=True))
     mcp.add_transform(Visibility(True, components={"tool"}, names=names))
+    from inneros_core_runtime.mcp_compact_refresh import record_compact_surface
+
+    record_compact_surface(
+        profile_pin=str(profile.get("profile_pin") or profile["catalog_pin"]),
+        profiles_version=str(profile["profiles_version"]),
+        tool_count=len(names),
+    )
     return {
         "profile": profile_name,
         "tool_count": len(names),
+        "registered_tool_count": len(registered),
+        "surface_complete": True,
         "catalog_pin": profile["catalog_pin"],
         "profiles_version": profile["profiles_version"],
+        "profile_pin": profile.get("profile_pin"),
     }
 
 
@@ -7992,4 +8090,10 @@ if __name__ == "__main__":
         profile_info = _apply_runtime_tool_profile(runtime_profile)
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
-    mcp.run(transport="streamable-http", host=MCP_HOST, port=MCP_PORT, path="/mcp", middleware=[StarletteMiddleware(McpCompatibilityProbeMiddleware)])
+    mcp.run(
+        transport="streamable-http",
+        host=MCP_HOST,
+        port=MCP_PORT,
+        path="/mcp",
+        middleware=[StarletteMiddleware(McpSmallOAuthDiscoveryMiddleware)],
+    )

@@ -46,10 +46,15 @@ class EffectiveScopeContractTests(unittest.TestCase):
         self.assertEqual(meta["resource"], SMALL_ROUTER_MCP_RESOURCE)
         self.assertEqual(meta.get("router_profile"), "chatgpt_compact")
 
-    def test_non_orchestration_tool_keeps_raw_scopes_without_agents(self) -> None:
-        token = {"scope": "ralfia:read openid", "mcp_profile": "chatgpt_compact"}
-        scopes = am._effective_token_scopes(token, "search", {})
-        self.assertNotIn("ralfia:agents", scopes)
+    def test_compact_read_uplifts_agents_for_capability_invoke_write(self) -> None:
+        token = {
+            "scope": "ralfia:read openid",
+            "mcp_profile": "chatgpt_compact",
+            "resource": "https://mcp.pcdoctor.ai/router/mcp",
+        }
+        scopes = am._effective_token_scopes(token, "capability_invoke", {})
+        self.assertIn("ralfia:agents", scopes)
+        self.assertIn("ralfia:write", scopes)
 
     def test_full_plane_read_does_not_uplift_agents_for_orchestration(self) -> None:
         token = {
