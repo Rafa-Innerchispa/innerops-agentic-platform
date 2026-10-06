@@ -17,6 +17,33 @@ from typing import Any, Callable, Dict, List, Optional
 _CAPABILITY_REGISTRY: Dict[str, Dict[str, Any]] = {}
 _CAPABILITY_HANDLERS: Dict[str, Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]] = {}
 _EXECUTIONS_STORE: Dict[str, Dict[str, Any]] = {}
+_LEGACY_CAPABILITY_ALIASES: Dict[str, str] = {
+    "local_exec_inspect_repo": "local_exec.inspect_repo.v1",
+    "local_exec_prepare_repo": "local_exec.prepare_repo.v1",
+    "local_exec_acquire_lock": "local_exec.acquire_lock.v1",
+    "local_exec_release_lock": "local_exec.release_lock.v1",
+    "local_exec_create_worktree": "local_exec.create_worktree.v1",
+    "local_exec_write_file": "local_exec.write_file.v1",
+    "local_exec_apply_patch": "local_exec.apply_patch.v1",
+    "local_exec_run_command_allowlisted": "local_exec.run_command_allowlisted.v1",
+    "local_exec_commit_branch": "local_exec.commit_branch.v1",
+    "local_exec_push_branch": "local_exec.push_branch.v1",
+    "local_exec_report_evidence": "local_exec.report_evidence.v1",
+    "local_gitlab_create_draft_merge_request": "local_gitlab.create_draft_merge_request.v1",
+}
+
+
+def resolve_capability_id(capability_id: str) -> str:
+    """Map legacy MCP tool names and aliases to governed capability_id."""
+    raw = (capability_id or "").strip()
+    if not raw:
+        return raw
+    if raw in _CAPABILITY_REGISTRY:
+        return raw
+    aliased = _LEGACY_CAPABILITY_ALIASES.get(raw)
+    if aliased and aliased in _CAPABILITY_REGISTRY:
+        return aliased
+    return raw
 
 
 def register_capability(
@@ -98,6 +125,7 @@ def capability_describe(
     version: Optional[str] = None
 ) -> Dict[str, Any]:
     """Retrieve full manifest, schema, scopes, and policies for a capability."""
+    capability_id = resolve_capability_id(capability_id)
     manifest = _CAPABILITY_REGISTRY.get(capability_id)
     if not manifest:
         return {
@@ -119,6 +147,7 @@ def capability_invoke(
     context: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Invoke a registered capability handler with schema & policy enforcement."""
+    capability_id = resolve_capability_id(capability_id)
     manifest = _CAPABILITY_REGISTRY.get(capability_id)
     if not manifest:
         return {

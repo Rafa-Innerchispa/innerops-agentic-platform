@@ -5,6 +5,7 @@ from inneros_core_runtime.capability_gateway import (
     capability_describe,
     capability_invoke,
     capability_execution,
+    resolve_capability_id,
     NETWORK_DEVICE_QUERY_MANIFEST,
 )
 
@@ -70,7 +71,7 @@ def test_capability_invoke_mutation_guard():
     assert res["error"] == "MUTATION_FORBIDDEN_IN_READ_ONLY_MODE"
 
 def test_local_execution_capabilities_discoverable():
-    res = capability_search(query="local execution repo", max_results=20)
+    res = capability_search(query="local execution repo", max_results=30)
     assert res["ok"] is True
     ids = {item["capability_id"] for item in res["capabilities"]}
     assert "local_exec.inspect_repo.v1" in ids
@@ -79,6 +80,29 @@ def test_local_execution_capabilities_discoverable():
     desc = capability_describe("local_exec.write_file.v1")
     assert desc["ok"] is True
     assert desc["capability"]["domain"] == "local_execution"
+
+
+def test_lep_golden_flow_capabilities_searchable():
+    cases = {
+        "lock repo": "local_exec.acquire_lock.v1",
+        "release lock": "local_exec.release_lock.v1",
+        "apply patch": "local_exec.apply_patch.v1",
+        "push branch": "local_exec.push_branch.v1",
+        "report evidence": "local_exec.report_evidence.v1",
+        "draft merge request": "local_gitlab.create_draft_merge_request.v1",
+    }
+    for query, cap_id in cases.items():
+        res = capability_search(query=query, max_results=15)
+        assert res["ok"] is True
+        found = {item["capability_id"] for item in res["capabilities"]}
+        assert cap_id in found, f"query={query!r} got {sorted(found)}"
+
+
+def test_legacy_local_exec_alias_describe():
+    assert resolve_capability_id("local_exec_write_file") == "local_exec.write_file.v1"
+    desc = capability_describe("local_exec_write_file")
+    assert desc["ok"] is True
+    assert desc["capability"]["capability_id"] == "local_exec.write_file.v1"
 
 
 def test_coordination_messaging_list_capability(monkeypatch):

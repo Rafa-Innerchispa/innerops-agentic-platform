@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from inneros_core_runtime import local_execution_plane as lep
+from inneros_core_runtime import local_gitlab_plane as gl
 from inneros_core_runtime.capability_gateway import register_capability
 
 _LEP_TOOL_SPECS: list[tuple[dict[str, Any], Callable[..., dict[str, Any]]]] = []
@@ -177,6 +178,145 @@ def register_local_execution_capabilities() -> int:
                 required_scopes=["ralfia:agents"],
             ),
             _handler(lep.run_command_allowlisted),
+        ),
+        (
+            _manifest(
+                "local_exec.acquire_lock.v1",
+                title="Acquire RACB repository lock",
+                description="Acquire a coordination lock on an allowlisted repo before mutations.",
+                keywords=["lock", "racb", "acquire", "coordination"],
+                mode="mutation",
+                risk_class="medium",
+                properties={
+                    "repo": {"type": "string"},
+                    "actor": {"type": "string"},
+                    "task_id": {"type": "string"},
+                    "correlation_id": {"type": "string"},
+                    "ttl_seconds": {"type": "integer"},
+                },
+                required=["repo", "actor", "task_id", "correlation_id"],
+                required_scopes=["ralfia:agents"],
+            ),
+            _handler(lep.acquire_lock),
+        ),
+        (
+            _manifest(
+                "local_exec.release_lock.v1",
+                title="Release RACB repository lock",
+                description="Release a coordination lock held for an allowlisted repo.",
+                keywords=["lock", "racb", "release", "coordination"],
+                mode="mutation",
+                risk_class="low",
+                properties={
+                    "repo": {"type": "string"},
+                    "actor": {"type": "string"},
+                    "task_id": {"type": "string"},
+                    "correlation_id": {"type": "string"},
+                },
+                required=["repo", "actor", "task_id", "correlation_id"],
+                required_scopes=["ralfia:agents"],
+            ),
+            _handler(lep.release_lock),
+        ),
+        (
+            _manifest(
+                "local_exec.apply_patch.v1",
+                title="Apply unified diff in worktree",
+                description="Apply a bounded unified diff patch inside a governed worktree.",
+                keywords=["patch", "diff", "apply", "edit"],
+                mode="mutation",
+                risk_class="medium",
+                properties={
+                    "repo": {"type": "string"},
+                    "work_branch": {"type": "string"},
+                    "patch": {"type": "string"},
+                    "actor": {"type": "string"},
+                    "task_id": {"type": "string"},
+                    "correlation_id": {"type": "string"},
+                    "idempotency_key": {"type": "string"},
+                },
+                required=["repo", "work_branch", "patch", "actor", "task_id", "correlation_id", "idempotency_key"],
+                required_scopes=["ralfia:agents"],
+            ),
+            _handler(lep.apply_patch),
+        ),
+        (
+            _manifest(
+                "local_exec.push_branch.v1",
+                title="Push work branch to remote",
+                description="Push a validated agent work branch to an allowlisted remote (dry_run default).",
+                keywords=["push", "branch", "remote", "git"],
+                mode="mutation",
+                risk_class="high",
+                properties={
+                    "repo": {"type": "string"},
+                    "work_branch": {"type": "string"},
+                    "actor": {"type": "string"},
+                    "task_id": {"type": "string"},
+                    "correlation_id": {"type": "string"},
+                    "idempotency_key": {"type": "string"},
+                    "remote": {"type": "string"},
+                    "dry_run": {"type": "boolean"},
+                },
+                required=["repo", "work_branch", "actor", "task_id", "correlation_id", "idempotency_key"],
+                required_scopes=["ralfia:agents"],
+            ),
+            _handler(lep.push_branch),
+        ),
+        (
+            _manifest(
+                "local_exec.report_evidence.v1",
+                title="Report local execution evidence",
+                description="Persist a compact evidence event for golden-flow continuity.",
+                keywords=["evidence", "report", "checkpoint", "continuity"],
+                mode="mutation",
+                risk_class="low",
+                properties={
+                    "repo": {"type": "string"},
+                    "work_branch": {"type": "string"},
+                    "actor": {"type": "string"},
+                    "task_id": {"type": "string"},
+                    "correlation_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "evidence": {"type": "object"},
+                },
+                required=["repo", "work_branch", "actor", "task_id", "correlation_id", "status"],
+                required_scopes=["ralfia:agents"],
+            ),
+            _handler(lep.report_evidence),
+        ),
+        (
+            {
+                "capability_id": "local_gitlab.create_draft_merge_request.v1",
+                "version": "1.0.0",
+                "title": "Create GitLab draft merge request",
+                "domain": "local_gitlab",
+                "risk_class": "medium",
+                "mode": "mutation",
+                "description": "Open a draft MR on allowlisted GitLab source/target project pairs.",
+                "keywords": [
+                    "gitlab",
+                    "merge request",
+                    "draft mr",
+                    "draft merge",
+                    "pull request",
+                ],
+                "parameters_schema": {
+                    "type": "object",
+                    "properties": {
+                        "source_project": {"type": "string"},
+                        "source_branch": {"type": "string"},
+                        "target_project": {"type": "string"},
+                        "target_branch": {"type": "string"},
+                        "title": {"type": "string"},
+                        "description": {"type": "string"},
+                        "dry_run": {"type": "boolean"},
+                    },
+                    "required": ["source_project", "source_branch", "target_project", "title", "description"],
+                },
+                "required_scopes": ["ralfia:agents"],
+            },
+            _handler(gl.create_draft_merge_request),
         ),
     ]
 
