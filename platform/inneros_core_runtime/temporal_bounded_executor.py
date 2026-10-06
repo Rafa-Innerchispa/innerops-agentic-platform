@@ -67,44 +67,52 @@ def sync_bridge_artifacts(worktree: Path) -> List[str]:
     return touched
 
 
-def _git_diff_summary(worktree: Path) -> Tuple[int, str]:
+def _git_changed_paths(worktree: Path) -> List[str]:
+    """Return changed/untracked paths from git status without counting bridge metadata."""
     if not (worktree / ".git").exists() and not (worktree / ".git").is_file():
-        files = [
-            p
+        return [
+            str(p.relative_to(worktree))
             for p in worktree.rglob("*")
             if p.is_file() and ".git" not in p.parts and "venv" not in p.parts
         ]
-        return len(files), f"+ {len(files)} files in worktree (non-git)"
     try:
-        stat = subprocess.run(
-            ["git", "diff", "--stat"],
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
             cwd=worktree,
             capture_output=True,
             text=True,
             timeout=60,
         )
-        names = subprocess.run(
-            ["git", "diff", "--name-only"],
-            cwd=worktree,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        diff_text = (stat.stdout or "").strip() or (names.stdout or "").strip()
-        files_count = len([line for line in (names.stdout or "").splitlines() if line.strip()])
-        if files_count == 0:
-            status = subprocess.run(
-                ["git", "status", "--porcelain"],
-                cwd=worktree,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            files_count = len([line for line in (status.stdout or "").splitlines() if line.strip()])
-        return files_count, diff_text[:8000]
+        paths: List[str] = []
+        for raw in (status.stdout or "").splitlines():
+            if not raw.strip():
+                continue
+            path = raw[3:].strip()
+            if " -> " in path:
+                path = path.split(" -> ", 1)[1].strip()
+            if path:
+                paths.append(path)
+        return paths
     except Exception as exc:
-        logger.warning("git diff summary failed: %s", exc)
-        return 0, ""
+        logger.warning("git changed paths failed: %s", exc)
+        return []
+
+
+def _git_diff_summary(
+    worktree: Path,
+    *,
+    exclude_paths: List[str] | Tuple[str, ...] = (),
+) -> Tuple[int, str, List[str]]:
+    """Return product change evidence, excluding infrastructure bridge artifacts."""
+    excluded = {str(path) for path in exclude_paths}
+    changed_paths = [
+        path for path in _git_changed_paths(worktree)
+        if path not in excluded
+    ]
+    if not changed_paths:
+        return 0, "", []
+    diff_text = "\n".join(f"+ {path}" for path in changed_paths)
+    return len(changed_paths), diff_text[:8000], changed_paths
 
 
 def _default_verify_command(envelope_dict: Dict[str, Any]) -> List[str]:
@@ -222,15 +230,15 @@ def run_bounded_executor(
             "sandboxed": res.get("sandboxed"),
         }
 
-    files_count, code_diff = _git_diff_summary(wt_path)
-    if touched and files_count == 0:
-        files_count = len(touched)
-        code_diff = "\n".join(f"+ {path}" for path in touched)
+    files_count, code_diff, changed_paths = _git_diff_summary(
+        wt_path,
+        exclude_paths=touched,
+    )
 
     ok = bool(test_results.get("ok"))
     if task_class == "coding" and ok and files_count == 0 and not code_diff:
         ok = False
-        test_results["reason"] = "coding_task_requires_diff_or_files"
+        test_results["reason"] = "coding_task_requires_product_diff_or_files"
 
     return {
         "ok": ok,
@@ -241,10 +249,23 @@ def run_bounded_executor(
         "worktree": str(wt_path),
         "candidate_only": False,
         "requires_bounded_executor": False,
+        "execution_evidence": {
+            "changed_paths": changed_paths,
+            "bridge_artifacts": touched,
+            "executed_commands": [
+                {
+                    "argv": verify_cmd,
+                    "ok": test_results.get("ok"),
+                    "returncode": test_results.get("exit_code"),
+                    "command_run_id": command_audit.get("command_run_id"),
+                }
+            ],
+        },
         "bounded_executor": {
             "repo": repo,
             "work_branch": work_branch,
             "artifacts_synced": touched,
+            "product_changed_paths": changed_paths,
             "command_audit": {
                 "ok": command_audit.get("ok"),
                 "error": command_audit.get("error"),
