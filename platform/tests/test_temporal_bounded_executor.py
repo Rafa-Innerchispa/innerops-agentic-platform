@@ -34,7 +34,11 @@ class TemporalBoundedExecutorTests(unittest.TestCase):
         with (
             patch.object(tbe, "_ensure_repo_worktree", return_value=Path(fake_wt)),
             patch.object(tbe, "sync_bridge_artifacts", return_value=["platform/inneros_core_runtime/temporal_activities.py"]),
-            patch.object(tbe, "_git_diff_summary", return_value=(1, "+ platform/inneros_core_runtime/temporal_activities.py")),
+            patch.object(
+                tbe,
+                "_git_diff_summary",
+                return_value=(1, "+ src/product.py", ["src/product.py"]),
+            ),
             patch(
                 "inneros_core_runtime.local_execution_plane.run_command_allowlisted",
                 return_value={
@@ -49,6 +53,79 @@ class TemporalBoundedExecutorTests(unittest.TestCase):
         self.assertTrue(result.get("ok"))
         self.assertEqual(result["test_results"]["exit_code"], 0)
         run_cmd.assert_called_once()
+
+
+    def test_bridge_artifacts_do_not_count_as_product_changes(self) -> None:
+        envelope = {
+            "task_id": "ops_bridge_only",
+            "correlation_id": "corr-bridge-only",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "task_class": "coding",
+            "assignee": "dev_swarm",
+            "base_ref": "main",
+        }
+        fake_wt = "/tmp/fake-worktree"
+        bridge = ["platform/inneros_core_runtime/temporal_activities.py"]
+        with (
+            patch.object(tbe, "_ensure_repo_worktree", return_value=Path(fake_wt)),
+            patch.object(tbe, "sync_bridge_artifacts", return_value=bridge),
+            patch.object(tbe, "_git_diff_summary", return_value=(0, "", [])) as diff_summary,
+            patch(
+                "inneros_core_runtime.local_execution_plane.run_command_allowlisted",
+                return_value={
+                    "ok": True,
+                    "command_result": {"ok": True, "returncode": 0, "stdout": "3 passed"},
+                },
+            ),
+        ):
+            result = tbe.run_bounded_executor(envelope, fake_wt, {"response": "generic plan"})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["files_count"], 0)
+        self.assertEqual(result["execution_evidence"]["changed_paths"], [])
+        self.assertEqual(result["execution_evidence"]["bridge_artifacts"], bridge)
+        self.assertEqual(
+            result["test_results"]["reason"],
+            "coding_task_requires_product_diff_or_files",
+        )
+        diff_summary.assert_called_once_with(Path(fake_wt), exclude_paths=bridge)
+
+    def test_execution_evidence_records_authoritative_command(self) -> None:
+        envelope = {
+            "task_id": "ops_product_change",
+            "correlation_id": "corr-product",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "task_class": "coding",
+            "assignee": "dev_swarm",
+            "base_ref": "main",
+            "verify_command": ["python3", "-m", "pytest", "tests/test_product.py", "-q"],
+        }
+        fake_wt = "/tmp/fake-worktree"
+        with (
+            patch.object(tbe, "_ensure_repo_worktree", return_value=Path(fake_wt)),
+            patch.object(tbe, "sync_bridge_artifacts", return_value=[]),
+            patch.object(tbe, "_git_diff_summary", return_value=(1, "+ src/product.py", ["src/product.py"])),
+            patch(
+                "inneros_core_runtime.local_execution_plane.run_command_allowlisted",
+                return_value={
+                    "ok": True,
+                    "command_run_id": "cmd-123",
+                    "command_result": {"ok": True, "returncode": 0, "stdout": "1 passed"},
+                },
+            ),
+        ):
+            result = tbe.run_bounded_executor(envelope, fake_wt, {"response": "done"})
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["execution_evidence"]["changed_paths"], ["src/product.py"])
+        self.assertEqual(
+            result["execution_evidence"]["executed_commands"][0]["argv"],
+            envelope["verify_command"],
+        )
+        self.assertEqual(
+            result["execution_evidence"]["executed_commands"][0]["command_run_id"],
+            "cmd-123",
+        )
 
 
 if __name__ == "__main__":
