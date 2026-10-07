@@ -385,6 +385,8 @@ def create_ops_task(
     source_message_id: str | None = None,
     conversation_ref: str | None = None,
     related_project: str | None = None,
+    objective: str | None = None,
+    verify_tests: list[str] | None = None,
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
     tid = (
@@ -427,6 +429,10 @@ def create_ops_task(
         "evidence": {},
         "revision": 1,
     }
+    if objective:
+        doc["objective"] = objective
+    if verify_tests:
+        doc["verify_tests"] = list(verify_tests)
 
     from inneros_core_runtime import durable_coordination_spine
 
