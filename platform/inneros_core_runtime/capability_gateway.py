@@ -416,6 +416,29 @@ EMAIL_IDENTITIES_LIST_MANIFEST: Dict[str, Any] = {
     "required_scopes": ["ralfia:read"],
 }
 
+EMAIL_SENT_QUERY_MANIFEST: Dict[str, Any] = {
+    "capability_id": "email.sent.query.v1",
+    "version": "1.0.0",
+    "title": "Query sent email delivery and IMAP audit ledger",
+    "domain": "communications",
+    "risk_class": "low",
+    "mode": "read_only",
+    "description": "Query sent email records with message-id, delivery status, sent folder, and IMAP audit evidence.",
+    "keywords": ["email", "sent", "audit", "imap", "delivery", "query"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {
+            "from_identity": {"type": "string"},
+            "to": {"type": "string"},
+            "subject": {"type": "string"},
+            "execution_id": {"type": "string"},
+            "message_id": {"type": "string"},
+            "limit": {"type": "integer"},
+        },
+    },
+    "required_scopes": ["ralfia:read"],
+}
+
 
 def email_send_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
     from inneros_core_runtime.notifications import email_client
@@ -438,10 +461,24 @@ def email_identities_list_handler(parameters: Dict[str, Any], context: Dict[str,
     return email_client.list_send_identities()
 
 
+def email_sent_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.notifications import email_client
+
+    return email_client.query_sent_emails(
+        from_identity=str(parameters.get("from_identity") or "").strip() or None,
+        to=str(parameters.get("to") or "").strip() or None,
+        subject=str(parameters.get("subject") or "").strip() or None,
+        execution_id=str(parameters.get("execution_id") or "").strip() or None,
+        message_id=str(parameters.get("message_id") or "").strip() or None,
+        limit=int(parameters.get("limit") or 20),
+    )
+
+
 register_capability(NETWORK_DEVICE_QUERY_MANIFEST, network_device_query_handler)
 register_capability(COORDINATION_MESSAGING_LIST_MANIFEST, coordination_messaging_list_handler)
 register_capability(EMAIL_SEND_MANIFEST, email_send_handler)
 register_capability(EMAIL_IDENTITIES_LIST_MANIFEST, email_identities_list_handler)
+register_capability(EMAIL_SENT_QUERY_MANIFEST, email_sent_query_handler)
 
 from inneros_core_runtime.universal_network_audit import register_universal_network_audit_capabilities
 

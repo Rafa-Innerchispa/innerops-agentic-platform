@@ -135,6 +135,11 @@ def route_tools(
                     "invoke_via": "capability_invoke",
                     "note": "List send identities without secrets.",
                 },
+                {
+                    "capability_id": "email.sent.query.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Query sent email delivery and IMAP audit ledger without secrets.",
+                },
             ]
         )
     if profile_name in {"funding", "coordination"} or any(
@@ -157,6 +162,52 @@ def route_tools(
                     "note": "For funding/opportunity research with live inventory sections when needed.",
                 }
             )
+    if any(
+        token in hay
+        for token in (
+            "network audit",
+            "auditoría de red",
+            "auditoria de red",
+            "vlan",
+            "topology",
+            "topología",
+            "topologia",
+            "dhcp",
+            "arp",
+            "segmentation",
+            "segmentación",
+            "segmentacion",
+            "switch port",
+            "lldp",
+            "bellini",
+            "econbay",
+            "icon bay",
+        )
+    ):
+        recommended_capabilities.extend(
+            [
+                {
+                    "capability_id": "network.device.ports.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Read-only port/PoE/VLAN fields (partial until switch port adapter is complete).",
+                },
+                {
+                    "capability_id": "network.l2.topology.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Inventory + GWN uplink/client graph; LLDP/CDP gaps listed in response.",
+                },
+                {
+                    "capability_id": "network.segmentation.audit.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "SSID→VLAN and coarse segmentation signals.",
+                },
+                {
+                    "capability_id": "network.dhcp.arp.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "GWN client table + fabric inventory as ARP/DHCP proxy.",
+                },
+            ]
+        )
 
     return {
         "ok": True,
