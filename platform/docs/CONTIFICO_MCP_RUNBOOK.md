@@ -52,3 +52,16 @@ PYTHONPATH=. ./venv/bin/python3 scripts/contifico_p1_mcp_smoke.py
 ## Idempotencia
 
 Claves en Mongo `contifico_idempotency` evitan doble emisión con la misma `idempotency_key`.
+
+
+## Contabilidad dual (Mongo + ledger)
+
+Capabilities:
+- `contifico.accounting.status.v1` — conteos por entidad (`contifico_documents`, `contifico_personas`, `ralfia_ledger_documents`).
+- `contifico.accounting.sync.v1` — import por `entity_id` o todas; valida **RUC vs API key** antes de escribir.
+
+Colecciones etiquetadas con `contifico_entity_id`, `issuer_ruc`, `issuer_trade_name`.
+
+**Validación RUC:** si `connected_company_ruc` ≠ RUC de la entidad, la sync se omite (`api_key_ruc_mismatch`). Cada empresa Contifico/Siigo tiene su propia API key ([guía API](https://contifico.portaldeclientes.siigo.ec/basedeconocimiento/consultar-guia-de-uso-api/)).
+
+Ledger unificado: `ralfia_ledger_documents` con `ledger_id` = `contifico:{entity_id}:{contifico_id}`.

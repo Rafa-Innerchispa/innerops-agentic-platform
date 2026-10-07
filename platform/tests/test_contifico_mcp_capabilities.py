@@ -82,6 +82,18 @@ class ContificoBillingTests(unittest.TestCase):
         self.assertEqual(len(st["entities"]), 2)
         self.assertIn("registry", st)
 
+    def test_ledger_entity_scoped(self) -> None:
+        from inneros_core_runtime.operational.accounting_ledger import ledger_from_contifico
+        doc = ledger_from_contifico({
+            "contifico_entity_id": "domotika",
+            "contifico_id": "abc123",
+            "tipo_documento": "FAC",
+            "documento": "001",
+            "issuer_ruc": "0914832423001",
+        })
+        self.assertEqual(doc["ledger_id"], "contifico:domotika:abc123")
+        self.assertEqual(doc["contifico_entity_id"], "domotika")
+
 class ContificoCapabilityRegistryTests(unittest.TestCase):
     def test_capabilities_discoverable(self) -> None:
         res = capability_search(query="contifico", max_results=20)

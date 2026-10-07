@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict
 
 from inneros_core_runtime.capability_gateway import register_capability
 from inneros_core_runtime import contifico_billing as bill
+from inneros_core_runtime import contifico_accounting_sync as acct
 
 
 def _wrap(fn: Callable[..., dict[str, Any]]) -> Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]:
@@ -173,6 +174,28 @@ def register_contifico_capabilities() -> None:
         ),
         (
             _manifest(
+                "contifico.accounting.status.v1",
+                "Contifico accounting mirror status",
+                mode="read_only",
+                risk="low",
+                description="Mongo counts per entity: documents, personas, ledger, chart.",
+                keywords=["contifico", "accounting", "ledger", "entity"],
+            ),
+            acct.accounting_entities_status,
+        ),
+        (
+            _manifest(
+                "contifico.accounting.sync.v1",
+                "Sync Contifico → Mongo ledger (per entity)",
+                mode="mutation",
+                risk="medium",
+                description="Import documents/personas/chart for entity_id or all; optional push to ralfia_ledger_documents.",
+                keywords=["contifico", "sync", "import", "accounting"],
+            ),
+            acct.sync_all_entities_accounting,
+        ),
+        (
+            _manifest(
                 "contifico.payment.query.v1",
                 "Query document cobros",
                 mode="read_only",
@@ -184,7 +207,7 @@ def register_contifico_capabilities() -> None:
         ),
     ]
     for manifest, handler in specs:
-        if handler in (bill.connection_status, bill.customer_search, bill.customer_get, bill.item_search, bill.invoice_get, bill.invoice_status, bill.payment_query):
+        if handler in (bill.connection_status, bill.customer_search, bill.customer_get, bill.item_search, bill.invoice_get, bill.invoice_status, bill.payment_query, acct.accounting_entities_status):
             register_capability(manifest, _wrap(handler))
         else:
             register_capability(manifest, handler)
