@@ -15,7 +15,7 @@ if ROOT not in sys.path:
 
 CORRELATION = "chatgpt-golden-flow-20261005"
 REPO = "Rafa-Innerchispa/amd-academy-mc3-rag"
-IDEM = "msg_b35-temporal-persistent-canary-20261007-v1"
+IDEM = "msg_b35-temporal-persistent-canary-20261007-v2"
 
 
 def main() -> int:
