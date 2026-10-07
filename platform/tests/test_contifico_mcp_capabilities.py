@@ -11,7 +11,7 @@ from inneros_core_runtime.capability_gateway import capability_describe, capabil
 
 class ContificoBillingTests(unittest.TestCase):
     def test_connection_status_without_key(self) -> None:
-        with patch.object(bill, "CONTIFICO_API_KEY", ""):
+        with patch.object(bill, "_api_key_for", return_value=""):
             st = bill.connection_status()
         self.assertFalse(st["ok"])
         self.assertFalse(st["configured"])
@@ -64,6 +64,23 @@ class ContificoBillingTests(unittest.TestCase):
         self.assertFalse(res["ok"])
         self.assertEqual(res["error"], "duplicate_customer")
 
+
+
+    def test_resolve_entity_aliases(self) -> None:
+        from inneros_core_runtime import contifico_entities as ent
+        e = ent.resolve_entity("innerchispa")
+        self.assertEqual(e.entity_id, "domotika")
+
+    @patch.object(bill, "_connection_status_one")
+    def test_connection_status_all_entities(self, mock_one) -> None:
+        mock_one.side_effect = [
+            {"entity_id": "pcdoctor", "ok": True, "configured": True, "connected": True},
+            {"entity_id": "domotika", "ok": False, "configured": False, "connected": False},
+        ]
+        st = bill.connection_status()
+        self.assertTrue(st["ok"])
+        self.assertEqual(len(st["entities"]), 2)
+        self.assertIn("registry", st)
 
 class ContificoCapabilityRegistryTests(unittest.TestCase):
     def test_capabilities_discoverable(self) -> None:

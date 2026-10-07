@@ -26,10 +26,15 @@ def main() -> int:
 
     status = capability_invoke("contifico.connection.status.v1", {})
     step("capability_invoke_status", status)
+    if status.get("entities"):
+        report["entities"] = [
+            {k: e.get(k) for k in ("entity_id", "configured", "connected", "expected_ruc", "connected_company_ruc", "message")}
+            for e in status["entities"]
+        ]
 
     cust = capability_invoke(
         "contifico.customer.search.v1",
-        {"cedula": "0914832423", "max_pages": 5},
+        {"cedula": "0914832423", "max_pages": 5, "entity_id": "pcdoctor"},
     )
     step("customer_search_rafael", cust)
 

@@ -19,7 +19,7 @@ def _wrap(fn: Callable[..., dict[str, Any]]) -> Callable[[Dict[str, Any], Dict[s
 def _customer_create_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
     _ = context
     payload = parameters.get("payload") if isinstance(parameters.get("payload"), dict) else parameters
-    return bill.customer_create(payload, allow_duplicate=bool(parameters.get("allow_duplicate")))
+    return bill.customer_create(payload, allow_duplicate=bool(parameters.get("allow_duplicate")), entity_id=parameters.get("entity_id"))
 
 
 def _invoice_draft_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
@@ -30,6 +30,7 @@ def _invoice_draft_handler(parameters: Dict[str, Any], context: Dict[str, Any]) 
         descripcion=str(parameters.get("descripcion") or ""),
         dry_run=bool(parameters.get("dry_run")),
         idempotency_key=str(parameters.get("idempotency_key") or "") or None,
+        entity_id=parameters.get("entity_id"),
     )
 
 
@@ -42,6 +43,7 @@ def _invoice_create_handler(parameters: Dict[str, Any], context: Dict[str, Any])
         approved_by=str(parameters.get("approved_by") or ctx.get("approved_by") or "") or None,
         idempotency_key=str(parameters.get("idempotency_key") or "") or None,
         dry_run=bool(parameters.get("dry_run")),
+        entity_id=parameters.get("entity_id"),
     )
 
 
@@ -76,7 +78,7 @@ def register_contifico_capabilities() -> None:
                 "Contifico connection status",
                 mode="read_only",
                 risk="low",
-                description="API connectivity, document types, POS hint (no secrets).",
+                description="API connectivity per entity (pcdoctor, domotika/innerchispa). Omit entity_id to list all.",
                 keywords=["contifico", "connection", "status", "api"],
             ),
             bill.connection_status,
