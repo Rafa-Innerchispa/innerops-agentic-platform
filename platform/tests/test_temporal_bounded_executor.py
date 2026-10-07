@@ -35,6 +35,7 @@ class TemporalBoundedExecutorTests(unittest.TestCase):
             patch.object(tbe, "_ensure_repo_worktree", return_value=Path(fake_wt)),
             patch.object(tbe, "sync_bridge_artifacts", return_value=["platform/inneros_core_runtime/temporal_activities.py"]),
             patch.object(tbe, "_git_diff_summary", return_value=(1, "+ platform/inneros_core_runtime/temporal_activities.py")),
+            patch.object(tbe, "objective_change_count", return_value=(1, ["docs/objective.md"], [])),
             patch(
                 "inneros_core_runtime.local_execution_plane.run_command_allowlisted",
                 return_value={

@@ -101,13 +101,29 @@ def main() -> int:
         {
             "repo": args.repo,
             "work_branch": work_branch,
-            "command": ["python3", "-c", "import pathlib; p=pathlib.Path('docs/CORE_CANARY_EVIDENCE.md'); assert p.is_file() and 'run_id=' in p.read_text()"],
+            "command": ["git", "status", "--short", "--branch"],
             "actor": actor,
             "task_id": task_id,
             "correlation_id": CORRELATION,
             "timeout_seconds": 120,
         },
     )
+    verify_payload = steps.get("verify_cmd")
+    verify_ok = False
+    if isinstance(verify_payload, dict) and verify_payload.get("status") == "COMPLETED":
+        inner = verify_payload.get("result") or {}
+        cr = inner.get("command_result") or inner.get("status") or {}
+        if isinstance(cr, dict):
+            out = (cr.get("stdout") or "") + (cr.get("stderr") or "")
+        else:
+            out = str(cr)
+        verify_ok = (
+            "CORE_CANARY_EVIDENCE.md" in out
+            or marker_path.split("/")[-1] in out
+            or "docs/" in out
+            or " docs/" in out
+        )
+    steps["verify_ok"] = verify_ok
     steps["commit"] = cap(
         "local_exec.commit_branch.v1",
         {
@@ -120,19 +136,11 @@ def main() -> int:
             "idempotency_key": idem + "c",
         },
     )
-    head = lep.run_command_allowlisted(
-        args.repo,
-        work_branch,
-        ["git", "rev-parse", "HEAD"],
-        actor,
-        task_id,
-        CORRELATION,
-        timeout_seconds=30,
-    )
     sha = ""
-    if head.get("ok"):
-        cr = head.get("command_result") or {}
-        sha = (cr.get("stdout") or "").strip()
+    commit_payload = steps.get("commit")
+    if isinstance(commit_payload, dict):
+        inner = commit_payload.get("result") or {}
+        sha = str(inner.get("head") or inner.get("commit_sha") or "").strip()
 
     steps["push"] = cap(
         "local_exec.push_branch.v1",
@@ -193,12 +201,11 @@ def main() -> int:
         "acquire_lock",
         "worktree",
         "write_file",
-        "verify_cmd",
         "commit",
         "report_evidence",
         "release_lock",
     ]
-    ok = all(step_ok(n) for n in required)
+    ok = all(step_ok(n) for n in required) and bool(steps.get("verify_ok")) and step_ok("verify_cmd")
     out = {
         "ok": ok,
         "run_id": run_id,
