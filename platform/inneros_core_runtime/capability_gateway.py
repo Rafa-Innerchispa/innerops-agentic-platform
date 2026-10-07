@@ -17,6 +17,33 @@ from typing import Any, Callable, Dict, List, Optional
 _CAPABILITY_REGISTRY: Dict[str, Dict[str, Any]] = {}
 _CAPABILITY_HANDLERS: Dict[str, Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]] = {}
 _EXECUTIONS_STORE: Dict[str, Dict[str, Any]] = {}
+_LEGACY_CAPABILITY_ALIASES: Dict[str, str] = {
+    "local_exec_inspect_repo": "local_exec.inspect_repo.v1",
+    "local_exec_prepare_repo": "local_exec.prepare_repo.v1",
+    "local_exec_acquire_lock": "local_exec.acquire_lock.v1",
+    "local_exec_release_lock": "local_exec.release_lock.v1",
+    "local_exec_create_worktree": "local_exec.create_worktree.v1",
+    "local_exec_write_file": "local_exec.write_file.v1",
+    "local_exec_apply_patch": "local_exec.apply_patch.v1",
+    "local_exec_run_command_allowlisted": "local_exec.run_command_allowlisted.v1",
+    "local_exec_commit_branch": "local_exec.commit_branch.v1",
+    "local_exec_push_branch": "local_exec.push_branch.v1",
+    "local_exec_report_evidence": "local_exec.report_evidence.v1",
+    "local_gitlab_create_draft_merge_request": "local_gitlab.create_draft_merge_request.v1",
+}
+
+
+def resolve_capability_id(capability_id: str) -> str:
+    """Map legacy MCP tool names and aliases to governed capability_id."""
+    raw = (capability_id or "").strip()
+    if not raw:
+        return raw
+    if raw in _CAPABILITY_REGISTRY:
+        return raw
+    aliased = _LEGACY_CAPABILITY_ALIASES.get(raw)
+    if aliased and aliased in _CAPABILITY_REGISTRY:
+        return aliased
+    return raw
 
 
 def register_capability(
@@ -28,6 +55,29 @@ def register_capability(
     _CAPABILITY_REGISTRY[cap_id] = manifest
     if handler:
         _CAPABILITY_HANDLERS[cap_id] = handler
+
+
+def _capability_query_matches(query: str, search_corpus: str) -> bool:
+    q_norm = (query or "").lower().strip()
+    if not q_norm:
+        return True
+    if q_norm in search_corpus:
+        return True
+    corpus_norm = search_corpus.replace(".", " ").replace("_", " ").replace("-", " ")
+    tokens = [t for t in q_norm.split() if t]
+    if not tokens:
+        return True
+    hits = sum(1 for token in tokens if token in corpus_norm)
+    if hits == len(tokens):
+        return True
+    if len(tokens) == 1:
+        return hits == 1
+    min_hits = max(2, (len(tokens) + 1) // 2)
+    if hits >= min_hits:
+        return True
+    if "network" in tokens and "network" in corpus_norm and hits >= 2:
+        return True
+    return False
 
 
 def capability_search(
@@ -48,7 +98,7 @@ def capability_search(
             
         # Match text in id, title, description, keywords
         search_corpus = f"{cap_id} {manifest.get('title', '')} {manifest.get('description', '')} {' '.join(manifest.get('keywords', []))}".lower()
-        if not q_norm or q_norm in search_corpus:
+        if _capability_query_matches(q_norm, search_corpus):
             summary = {
                 "capability_id": cap_id,
                 "version": manifest.get("version", "1.0.0"),
@@ -75,6 +125,7 @@ def capability_describe(
     version: Optional[str] = None
 ) -> Dict[str, Any]:
     """Retrieve full manifest, schema, scopes, and policies for a capability."""
+    capability_id = resolve_capability_id(capability_id)
     manifest = _CAPABILITY_REGISTRY.get(capability_id)
     if not manifest:
         return {
@@ -96,6 +147,7 @@ def capability_invoke(
     context: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Invoke a registered capability handler with schema & policy enforcement."""
+    capability_id = resolve_capability_id(capability_id)
     manifest = _CAPABILITY_REGISTRY.get(capability_id)
     if not manifest:
         return {
@@ -325,5 +377,121 @@ def coordination_messaging_list_handler(parameters: Dict[str, Any], context: Dic
     )
 
 
+EMAIL_SEND_MANIFEST: Dict[str, Any] = {
+    "capability_id": "email.send.v1",
+    "version": "1.0.0",
+    "title": "Governed outbound email (allowlisted identities)",
+    "domain": "communications",
+    "risk_class": "medium",
+    "mode": "mutation",
+    "description": "Send email via SMTP email_accounts with idempotency and from_identity allowlist.",
+    "keywords": ["email", "smtp", "send", "outbound", "pcdoctor", "identity"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {
+            "from_identity": {"type": "string"},
+            "to": {"type": "string"},
+            "subject": {"type": "string"},
+            "body_text": {"type": "string"},
+            "body_html": {"type": "string"},
+            "attachment_path": {"type": "string"},
+            "idempotency_key": {"type": "string"},
+            "dry_run": {"type": "boolean"},
+        },
+        "required": ["from_identity", "to", "subject"],
+    },
+    "required_scopes": ["ralfia:write"],
+}
+
+EMAIL_IDENTITIES_LIST_MANIFEST: Dict[str, Any] = {
+    "capability_id": "email.identities.list.v1",
+    "version": "1.0.0",
+    "title": "Allowlisted outbound email identities",
+    "domain": "communications",
+    "risk_class": "low",
+    "mode": "read_only",
+    "description": "List send-capable allowlisted identities (no secrets).",
+    "keywords": ["email", "identity", "allowlist", "smtp"],
+    "parameters_schema": {"type": "object", "properties": {}},
+    "required_scopes": ["ralfia:read"],
+}
+
+EMAIL_SENT_QUERY_MANIFEST: Dict[str, Any] = {
+    "capability_id": "email.sent.query.v1",
+    "version": "1.0.0",
+    "title": "Query sent email delivery and IMAP audit ledger",
+    "domain": "communications",
+    "risk_class": "low",
+    "mode": "read_only",
+    "description": "Query sent email records with message-id, delivery status, sent folder, and IMAP audit evidence.",
+    "keywords": ["email", "sent", "audit", "imap", "delivery", "query"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {
+            "from_identity": {"type": "string"},
+            "to": {"type": "string"},
+            "subject": {"type": "string"},
+            "execution_id": {"type": "string"},
+            "message_id": {"type": "string"},
+            "limit": {"type": "integer"},
+        },
+    },
+    "required_scopes": ["ralfia:read"],
+}
+
+
+def email_send_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.notifications import email_client
+
+    body = str(parameters.get("body_text") or parameters.get("body") or parameters.get("body_html") or "")
+    return email_client.send_email(
+        to_addr=str(parameters.get("to") or "").strip(),
+        subject=str(parameters.get("subject") or "").strip(),
+        body=body,
+        attachment_path=str(parameters.get("attachment_path") or "") or None,
+        from_account=str(parameters.get("from_identity") or "").strip(),
+        idempotency_key=str(parameters.get("idempotency_key") or "") or None,
+        dry_run=bool(parameters.get("dry_run")),
+    )
+
+
+def email_identities_list_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.notifications import email_client
+
+    return email_client.list_send_identities()
+
+
+def email_sent_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.notifications import email_client
+
+    return email_client.query_sent_emails(
+        from_identity=str(parameters.get("from_identity") or "").strip() or None,
+        to=str(parameters.get("to") or "").strip() or None,
+        subject=str(parameters.get("subject") or "").strip() or None,
+        execution_id=str(parameters.get("execution_id") or "").strip() or None,
+        message_id=str(parameters.get("message_id") or "").strip() or None,
+        limit=int(parameters.get("limit") or 20),
+    )
+
+
 register_capability(NETWORK_DEVICE_QUERY_MANIFEST, network_device_query_handler)
 register_capability(COORDINATION_MESSAGING_LIST_MANIFEST, coordination_messaging_list_handler)
+register_capability(EMAIL_SEND_MANIFEST, email_send_handler)
+register_capability(EMAIL_IDENTITIES_LIST_MANIFEST, email_identities_list_handler)
+register_capability(EMAIL_SENT_QUERY_MANIFEST, email_sent_query_handler)
+
+from inneros_core_runtime.universal_network_audit import register_universal_network_audit_capabilities
+
+register_universal_network_audit_capabilities()
+
+from inneros_core_runtime.capability_gateway_lep import register_local_execution_capabilities
+from inneros_core_runtime.capability_gateway_runtime import register_project_runtime_capabilities
+from inneros_core_runtime.capability_gateway_peer import register_peer_capabilities
+
+register_local_execution_capabilities()
+register_project_runtime_capabilities()
+register_peer_capabilities()
+
+from inneros_core_runtime.capability_gateway_contifico import register_contifico_capabilities
+
+register_contifico_capabilities()
