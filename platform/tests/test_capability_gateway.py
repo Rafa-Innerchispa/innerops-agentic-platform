@@ -98,6 +98,13 @@ def test_lep_golden_flow_capabilities_searchable():
         assert cap_id in found, f"query={query!r} got {sorted(found)}"
 
 
+def test_peer_capabilities_searchable():
+    res = capability_search(query="peer observability amd", max_results=15)
+    ids = {item["capability_id"] for item in res["capabilities"]}
+    assert "peer.observability_snapshot.v1" in ids
+    assert "peer.route_check.v1" in ids
+
+
 def test_legacy_local_exec_alias_describe():
     assert resolve_capability_id("local_exec_write_file") == "local_exec.write_file.v1"
     desc = capability_describe("local_exec_write_file")

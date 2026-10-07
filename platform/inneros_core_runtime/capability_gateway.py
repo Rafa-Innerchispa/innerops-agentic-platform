@@ -486,6 +486,8 @@ register_universal_network_audit_capabilities()
 
 from inneros_core_runtime.capability_gateway_lep import register_local_execution_capabilities
 from inneros_core_runtime.capability_gateway_runtime import register_project_runtime_capabilities
+from inneros_core_runtime.capability_gateway_peer import register_peer_capabilities
 
 register_local_execution_capabilities()
 register_project_runtime_capabilities()
+register_peer_capabilities()

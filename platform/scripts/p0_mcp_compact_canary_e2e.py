@@ -20,8 +20,9 @@ def offline_checks() -> dict:
     from inneros_core_runtime import mcp_profiles
 
     profile = mcp_profiles.get_profile("chatgpt_compact")
-    lep_search = cg.capability_search("local execution", max_results=10)
+    lep_search = cg.capability_search("local execution", max_results=15)
     rt_search = cg.capability_search("project runtime", max_results=10)
+    peer_search = cg.capability_search("peer observability", max_results=10)
     resolve = prr.resolve_project(project_id="infralens-ocr-amd", node="amd")
     scope = lep.dev_swarm_scope_status(repo="Rafa-Innerchispa/infralens-ocr-amd")
     bootstrap = prr.bootstrap_runtime(
@@ -34,11 +35,14 @@ def offline_checks() -> dict:
     )
     lep_ids = {c["capability_id"] for c in lep_search.get("capabilities") or []}
     rt_ids = {c["capability_id"] for c in rt_search.get("capabilities") or []}
+    peer_ids = {c["capability_id"] for c in peer_search.get("capabilities") or []}
     return {
         "ok": (
             profile.get("tool_count") == 25
             and "local_exec.write_file.v1" in lep_ids
+            and "local_exec.push_branch.v1" in lep_ids
             and "project_runtime.resolve.v1" in rt_ids
+            and "peer.observability_snapshot.v1" in peer_ids
             and resolve.get("ok")
             and scope.get("ok")
             and bootstrap.get("ok")
@@ -46,6 +50,7 @@ def offline_checks() -> dict:
         "profile_tool_count": profile.get("tool_count"),
         "lep_capabilities": sorted(lep_ids),
         "runtime_capabilities": sorted(rt_ids),
+        "peer_capabilities": sorted(peer_ids),
         "infralens_resolve_ok": resolve.get("ok"),
         "infralens_scope_ok": scope.get("ok"),
         "infralens_bootstrap_ok": bootstrap.get("ok"),
