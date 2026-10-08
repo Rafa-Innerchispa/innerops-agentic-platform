@@ -34,9 +34,22 @@ def owner_order_execute(
         owner_approved=True,
         owner_actor=owner_actor,
     )
+    finish = None
+    if claim.get("ok") and tid:
+        try:
+            from inneros_core_runtime.ops_verification_autofinish import try_finish_verification_task
+
+            finish = try_finish_verification_task(
+                task_id=tid,
+                provider=prov,
+                owner_actor=owner_actor,
+            )
+        except Exception as exc:
+            finish = {"ok": False, "error": str(exc)[:200]}
     return {
         "ok": bool(claim.get("ok")),
         "provider": prov,
         "stage": "claimed" if claim.get("ok") else "claim",
         "claim": claim,
+        "autofinish": finish,
     }

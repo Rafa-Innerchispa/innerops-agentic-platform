@@ -201,8 +201,18 @@ def handle_owner_reply(
     ]
     if claim.get("worktree"):
         lines.append(f"Worktree: …{str(claim.get('worktree'))[-48:]}")
-    if provider in {"cursor", "codex", "antigravity", "gemini"}:
-        lines.append("La tarea quedó lista para ejecutar en el carril IDE (Temporal sigue abierto).")
+    finish = None
+    if tid:
+        try:
+            from inneros_core_runtime.ops_verification_autofinish import try_finish_verification_task
+
+            finish = try_finish_verification_task(task_id=tid, provider=provider, owner_actor=owner_actor)
+        except Exception:
+            finish = None
+    if finish and finish.get("ok"):
+        lines.append(f"Cierre automático canary · SHA `{finish.get('commit_sha', '')[:12]}`")
+    elif provider in {"cursor", "codex", "antigravity", "gemini"}:
+        lines.append("La tarea quedó en carril IDE; el autofinish intentará cerrar canaries read-only.")
     try:
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
