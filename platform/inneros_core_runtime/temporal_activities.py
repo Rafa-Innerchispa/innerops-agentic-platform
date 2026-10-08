@@ -63,6 +63,15 @@ async def activity_validate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str,
 
 
 @activity.defn
+async def activity_resolve_execution_binding(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
+    _safe_heartbeat("resolving_execution_binding")
+    from inneros_core_runtime import execution_binding
+
+    binding = execution_binding.resolve_execution_binding(envelope_dict)
+    return binding
+
+
+@activity.defn
 async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("hydrating_worktree")
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
@@ -114,6 +123,14 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     test_results = agent_result.get("test_results") or {}
     test_exit_code = test_results.get("exit_code", 0)
     test_ok = test_results.get("ok", True)
+
+    if agent_result.get("blocked"):
+        binding = agent_result.get("execution_binding") or {}
+        return {
+            "passed": False,
+            "error": binding.get("message") or agent_result.get("response") or "execution_binding_blocked",
+            "execution_binding": binding,
+        }
 
     if agent_result.get("candidate_only") and agent_result.get("requires_bounded_executor"):
         return {
@@ -177,6 +194,28 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
     worktree = worktree_info.get("worktree", "")
     _safe_heartbeat("running_agent_execution")
 
+    from inneros_core_runtime import execution_binding
+
+    binding = execution_binding.resolve_execution_binding(envelope_dict)
+    if not binding.get("allowed"):
+        return {
+            "ok": False,
+            "blocked": True,
+            "execution_binding": binding,
+            "files_count": 0,
+            "objective_files_count": 0,
+            "objective_paths": [],
+            "code_diff": "",
+            "response": binding.get("message") or binding.get("error") or "execution_binding_blocked",
+            "test_results": {
+                "exit_code": None,
+                "ok": False,
+                "reason": binding.get("error") or "execution_binding_blocked",
+            },
+            "candidate_only": False,
+            "requires_bounded_executor": False,
+        }
+
     # If mock/canary test execution:
     if envelope_dict.get("canary_test_type") == "failed_test":
         return {
@@ -219,10 +258,23 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "evidence": {"artifact": str(artifact), "persisted": artifact.is_file()},
         }
 
-    # Local models produce a candidate only; bounded execution supplies evidence.
+    if binding.get("runner") != execution_binding.INTERNAL_BOUNDED_RUNNER:
+        raise ApplicationError(
+            binding.get("message") or "execution_runner_not_internal_bounded",
+            type="EXECUTION_BINDING_BLOCKED",
+            non_retryable=True,
+        )
+
+    prompt_body = envelope.objective or envelope.title
+    if envelope.checklist:
+        prompt_body = f"{prompt_body}\n\nChecklist:\n" + "\n".join(f"- {item}" for item in envelope.checklist[:40])
+    model_kw: dict[str, Any] = {}
+    if envelope.preferred_model:
+        model_kw["model"] = envelope.preferred_model
     res = local_model_router.run_local_model(
         task_type=envelope.task_class or "coding",
-        prompt=f"Task {envelope.task_id}: {envelope.objective or envelope.title}",
+        prompt=f"Task {envelope.task_id}: {prompt_body}",
+        **model_kw,
     )
     candidate = {
         "ok": bool(res.get("ok")),

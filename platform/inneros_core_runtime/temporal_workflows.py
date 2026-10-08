@@ -16,6 +16,7 @@ from temporalio.exceptions import ActivityError
 with workflow.unsafe.imports_passed_through():
     from inneros_core_runtime.temporal_activities import (
         activity_validate_envelope,
+        activity_resolve_execution_binding,
         activity_hydrate_worktree,
         activity_execute_agent_graph,
         activity_sync_mongo_mirror,
@@ -66,6 +67,31 @@ class OpsTaskWorkflow:
             start_to_close_timeout=timedelta(seconds=30),
             retry_policy=STANDARD_RETRY_POLICY,
         )
+
+        binding_res = await workflow.execute_activity(
+            activity_resolve_execution_binding,
+            envelope_dict,
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=STANDARD_RETRY_POLICY,
+        )
+        if not binding_res.get("allowed"):
+            blocked_status = str(binding_res.get("status") or "waiting_for_binding")
+            self.status = blocked_status
+            self.phase = "execution_binding_blocked"
+            self.evidence = {"execution_binding": binding_res, "validated": val_res}
+            await workflow.execute_activity(
+                activity_publish_nats_event,
+                args=["task.blocked", envelope_dict, blocked_status, self.evidence],
+                start_to_close_timeout=timedelta(seconds=15),
+                retry_policy=STANDARD_RETRY_POLICY,
+            )
+            await workflow.execute_activity(
+                activity_sync_mongo_mirror,
+                args=[envelope_dict, blocked_status, self.evidence],
+                start_to_close_timeout=timedelta(seconds=30),
+                retry_policy=STANDARD_RETRY_POLICY,
+            )
+            return {"status": blocked_status, "execution_binding": binding_res, "validated": val_res}
 
         # 2. Publish dispatched event & mirror to Mongo
         await workflow.execute_activity(

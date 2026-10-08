@@ -385,8 +385,21 @@ def create_ops_task(
     source_message_id: str | None = None,
     conversation_ref: str | None = None,
     related_project: str | None = None,
+    objective: str | None = None,
+    dispatch_mode: str | None = None,
+    do_not_auto_dispatch: bool | None = None,
+    model_preflight_required: bool | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
+    from inneros_core_runtime.execution_binding import INTERACTIVE_IDE_PROVIDERS, normalize_provider
+
+    provider_norm = normalize_provider(preferred_provider or assignee)
+    lane = (execution_lane or "").strip().lower()
+    if not lane and provider_norm in INTERACTIVE_IDE_PROVIDERS:
+        lane = "interactive_ide"
+    elif not lane:
+        lane = "internal"
     tid = (
         f"ops_{hashlib.sha256(idempotency_key.encode()).hexdigest()[:12]}"
         if idempotency_key
@@ -412,7 +425,7 @@ def create_ops_task(
         "base_ref": base_ref or "main",
         "work_branch": work_branch,
         "task_class": task_class or "coding",
-        "execution_lane": execution_lane or "internal",
+        "execution_lane": lane,
         "provider_transport": provider_transport or "mcp",
         "runtime_profile": runtime_profile or "python-tests",
         "execution_policy": execution_policy or "local_first",
@@ -427,6 +440,26 @@ def create_ops_task(
         "evidence": {},
         "revision": 1,
     }
+    if objective:
+        doc["objective"] = str(objective)[:8000]
+    if dispatch_mode:
+        doc["dispatch_mode"] = dispatch_mode
+    if do_not_auto_dispatch is not None:
+        doc["do_not_auto_dispatch"] = bool(do_not_auto_dispatch)
+    if model_preflight_required is not None:
+        doc["model_preflight_required"] = bool(model_preflight_required)
+    if payload:
+        doc["payload"] = dict(payload)
+        for key in (
+            "dispatch_mode",
+            "do_not_auto_dispatch",
+            "model_preflight_required",
+            "automatic_model_fallback_allowed",
+            "contract_revision",
+            "assignment_override",
+        ):
+            if key in payload and key not in doc:
+                doc[key] = payload[key]
 
     from inneros_core_runtime import durable_coordination_spine
 

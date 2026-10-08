@@ -39,11 +39,22 @@ class TaskEnvelopeV1:
     idempotency_key: str = ""
     assignee: str = ""
     revision: int = 1
+    dispatch_mode: str = ""
+    do_not_auto_dispatch: bool = False
+    model_preflight_required: bool = False
+    provider_transport: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> TaskEnvelopeV1:
+        from inneros_core_runtime.execution_binding import merge_task_dispatch_fields
+
+        data = merge_task_dispatch_fields(dict(data or {}))
         task_id = str(data.get("task_id") or "")
         workflow_id = str(data.get("workflow_id") or (f"ops_task:{task_id}" if task_id else ""))
+        if "preferred_model" in data:
+            preferred_model = "" if data.get("preferred_model") is None else str(data.get("preferred_model") or "")
+        else:
+            preferred_model = "qwen2.5-coder:7b"
         return cls(
             task_id=task_id,
             workflow_id=workflow_id,
@@ -63,8 +74,8 @@ class TaskEnvelopeV1:
             execution_policy=str(data.get("execution_policy") or "local_first"),
             mutation_policy=str(data.get("mutation_policy") or "allow_worktree_commit"),
             approval_policy=str(data.get("approval_policy") or "auto"),
-            preferred_provider=str(data.get("preferred_provider") or "local"),
-            preferred_model=str(data.get("preferred_model") or "qwen2.5-coder:7b"),
+            preferred_provider=str(data.get("preferred_provider") or data.get("assignee") or "local"),
+            preferred_model=preferred_model,
             fallback_policy=str(data.get("fallback_policy") or "amd_vllm -> intel_ollama -> fail_closed"),
             evidence_required=list(data.get("evidence_required") or []),
             verification_policy=str(data.get("verification_policy") or "automated_gate"),
@@ -73,6 +84,10 @@ class TaskEnvelopeV1:
             idempotency_key=str(data.get("idempotency_key") or f"idem_{task_id}"),
             assignee=str(data.get("assignee") or data.get("preferred_provider") or "local"),
             revision=int(data.get("revision") or 1),
+            dispatch_mode=str(data.get("dispatch_mode") or ""),
+            do_not_auto_dispatch=bool(data.get("do_not_auto_dispatch")),
+            model_preflight_required=bool(data.get("model_preflight_required")),
+            provider_transport=str(data.get("provider_transport") or ""),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -105,6 +120,10 @@ class TaskEnvelopeV1:
             "idempotency_key": self.idempotency_key,
             "assignee": self.assignee,
             "revision": self.revision,
+            "dispatch_mode": self.dispatch_mode,
+            "do_not_auto_dispatch": self.do_not_auto_dispatch,
+            "model_preflight_required": self.model_preflight_required,
+            "provider_transport": self.provider_transport,
         }
 
 
