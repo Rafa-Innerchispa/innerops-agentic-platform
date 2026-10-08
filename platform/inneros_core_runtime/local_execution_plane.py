@@ -32,7 +32,7 @@ HOST_APPROVALS_COL = "ralfia_host_approvals"
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NESTED_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$")
+BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent|dev-swarm)/[A-Za-z0-9._/-]+$")
 PROTECTED_BRANCHES = {"main", "master", "production", "prod", "develop"}
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
 OWNER_APPROVED_NESTED_REPOS = {

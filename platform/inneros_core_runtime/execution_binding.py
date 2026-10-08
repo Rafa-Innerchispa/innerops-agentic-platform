@@ -47,11 +47,18 @@ def merge_task_dispatch_fields(task: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def _cursor_claim_active(env: dict[str, Any], provider: str) -> bool:
-    if provider != "cursor":
+_INTERACTIVE_CLAIM_PROVIDERS = frozenset({"cursor", "codex"})
+
+
+def _interactive_claim_active(env: dict[str, Any], provider: str) -> bool:
+    if provider not in _INTERACTIVE_CLAIM_PROVIDERS:
         return False
     status = str(env.get("status") or "").lower()
     return status in {"claimed", "running", "verification"} and bool(str(env.get("claim_token") or "").strip())
+
+
+def _cursor_claim_active(env: dict[str, Any], provider: str) -> bool:
+    return provider == "cursor" and _interactive_claim_active(env, provider)
 
 
 def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
@@ -77,29 +84,33 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         "preferred_model": preferred_model,
     }
 
-    if _cursor_claim_active(env, provider):
-        pinned_ok = str(effective_model or preferred_model or "").strip() == CURSOR_PINNED_MODEL
+    if _interactive_claim_active(env, provider):
+        expected_model = CURSOR_PINNED_MODEL if provider == "cursor" else str(
+            __import__("os").getenv("CODEX_OPS_PINNED_MODEL", __import__("os").getenv("CODEX_WHATSAPP_MODEL", "gpt-5.6-sol"))
+        ).strip()
+        pinned_ok = str(effective_model or preferred_model or "").strip() == expected_model
+        runner = CURSOR_INTERACTIVE_RUNNER if provider == "cursor" else INTERACTIVE_IDE_RUNNER
         if model_preflight and not pinned_ok:
             return {
                 **base,
                 "ok": False,
                 "allowed": False,
-                "runner": CURSOR_INTERACTIVE_RUNNER,
+                "runner": runner,
                 "status": "blocked",
-                "error": "cursor_model_not_accredited",
-                "message": f"Modelo acreditado requerido: {CURSOR_PINNED_MODEL}.",
+                "error": f"{provider}_model_not_accredited",
+                "message": f"Modelo acreditado requerido: {expected_model}.",
             }
+        complete_tool = "cursor_complete_ops_task" if provider == "cursor" else "codex_complete_ops_task"
         return {
             **base,
             "ok": True,
             "allowed": False,
-            "runner": CURSOR_INTERACTIVE_RUNNER,
+            "runner": runner,
             "status": str(env.get("status") or "claimed"),
             "error": None,
             "interactive_execution": True,
             "message": (
-                "Claim Cursor activo: ejecución en sesión IDE; "
-                "cierre con cursor_complete_ops_task + evidencia (Temporal gate)."
+                f"Claim {provider} activo: ejecución IDE; cierre con {complete_tool} + evidencia (Temporal gate)."
             ),
         }
 
@@ -115,6 +126,21 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         }
 
     owner_approved = bool(env.get("owner_approved") or env.get("owner_authorized_at"))
+    if provider == "codex" and (do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}):
+        codex_model = str(
+            __import__("os").getenv("CODEX_OPS_PINNED_MODEL", __import__("os").getenv("CODEX_WHATSAPP_MODEL", "gpt-5.6-sol"))
+        ).strip()
+        return {
+            **base,
+            "ok": False,
+            "allowed": False,
+            "runner": INTERACTIVE_IDE_RUNNER,
+            "status": "awaiting_codex_claim",
+            "error": "codex_claim_required",
+            "message": f"Temporal detenido. Usa codex_claim_ops_task (owner_approved); modelo {codex_model}.",
+            "preferred_model_default": codex_model,
+        }
+
     if provider == "cursor" and (do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}):
         return {
             **base,
@@ -168,6 +194,16 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
                 "error": "cursor_claim_required",
                 "message": f"Esperando cursor_claim_ops_task en sesión activa (modelo {CURSOR_PINNED_MODEL}).",
                 "preferred_model_default": CURSOR_PINNED_MODEL,
+            }
+        if provider == "codex" and lane in {"interactive_ide", "codex_interactive", "owner_handoff", "external_ide"}:
+            return {
+                **base,
+                "ok": False,
+                "allowed": False,
+                "runner": INTERACTIVE_IDE_RUNNER,
+                "status": "awaiting_codex_claim",
+                "error": "codex_claim_required",
+                "message": "Esperando codex_claim_ops_task con owner_approved.",
             }
         if lane in {"interactive_ide", "owner_handoff", "cursor_session", "external_ide"}:
             return {
@@ -263,8 +299,8 @@ def owner_execution_summary(
         action = f"procede cursor {corr}".strip() if corr else "procede cursor"
         action_detail = f"Responde *{action}* y luego *confirmar co_…* (o MCP cursor_owner_order)."
     elif provider == "codex":
-        action = "solicitud agente Codex vía WhatsApp/MCP (confirmar cj_… tras preview)"
-        action_detail = action
+        action = f"codex_claim_ops_task / MCP codex_owner_order (correlación {corr})" if corr else "codex_owner_order"
+        action_detail = f"Autoriza y claim Codex; modelo {model or 'gpt-5.6-sol'}."
     else:
         action = "autoriza vía MCP o ajusta assignee/lane en la ops task"
         action_detail = action

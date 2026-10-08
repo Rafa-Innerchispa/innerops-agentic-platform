@@ -346,17 +346,74 @@ def reconcile(
     return {**resolved, "ok": ok, "action": op, "dry_run": dry_run, "result": result, "helper_returncode": proc.returncode}
 
 
+def _gitlab_rails_contributor_paths() -> list[str]:
+    return [
+        "app",
+        "bin",
+        "config",
+        "db",
+        "doc",
+        "ee",
+        "lib",
+        "public",
+        "spec",
+        "rubocop",
+        "scripts",
+        "vendor",
+        "AGENTS.md",
+        "Gemfile",
+        "Gemfile.lock",
+        "Rakefile",
+        "README.md",
+    ]
+
+
 def migrate_existing(actor: str = "codex") -> dict[str, Any]:
-    targets = [
-        ("cozmo-alive", "Rafa-Innerchispa/cozmo-alive"),
-        ("ralphiia-ecosystem-core", "Rafa-Innerchispa/ralphiia-ecosystem-core"),
-        ("ralphiia-founderos-openai", "Rafa-Innerchispa/ralphiia-founderos-openai"),
-        ("innerspark-workforce-ai", "Rafa-Innerchispa/innerspark-workforce-ai"),
-        ("innerops-agentic-platform", "Rafa-Innerchispa/innerops-agentic-platform"),
-        ("gitlab-contributorops-agent", "Rafa-Innerchispa/gitlab-contributorops-agent"),
+    core = _core_root()
+    gitlab_fork_path = str(core / "var" / "local_execution" / "repos" / "gitlab-community__gitlab-org__gitlab")
+    targets: list[tuple[str, str, str | None, dict[str, Any] | None]] = [
+        ("cozmo-alive", "Rafa-Innerchispa/cozmo-alive", None, None),
+        ("ralphiia-ecosystem-core", "Rafa-Innerchispa/ralphiia-ecosystem-core", None, None),
+        ("ralphiia-founderos-openai", "Rafa-Innerchispa/ralphiia-founderos-openai", None, None),
+        ("innerspark-workforce-ai", "Rafa-Innerchispa/innerspark-workforce-ai", None, None),
+        ("innerops-agentic-platform", "Rafa-Innerchispa/innerops-agentic-platform", None, None),
+        ("gitlab-contributorops-agent", "Rafa-Innerchispa/gitlab-contributorops-agent", None, None),
+        (
+            "infralens-ocr-amd",
+            "Rafa-Innerchispa/infralens-ocr-amd",
+            "/home/rlopez/projects/infralens-ocr-amd-mc2-final",
+            {
+                "policy_class": "product-app",
+                "allowed_commands_profile": "python-tests",
+                "allowed_paths": [
+                    "src",
+                    "tests",
+                    "scripts",
+                    "docs",
+                    "README.md",
+                    "pyproject.toml",
+                    "requirements.txt",
+                ],
+                "package_roots": ["."],
+                "write_scope": "worktree",
+            },
+        ),
+        (
+            "gitlab-org-gitlab",
+            "gitlab-org/gitlab",
+            gitlab_fork_path,
+            {
+                "policy_class": "contributor-upstream",
+                "allowed_commands_profile": "ruby-tests-local-only",
+                "allowed_paths": _gitlab_rails_contributor_paths(),
+                "package_roots": ["."],
+                "write_scope": "worktree_branch_only",
+            },
+        ),
     ]
     items = []
-    for pid, repo in targets:
-        path = _default_path(pid)
-        items.append(register_project(pid, repo, path, actor=actor, source="migration"))
+    for pid, repo, path, extras in targets:
+        project_path = path or _default_path(pid)
+        kwargs = dict(extras or {})
+        items.append(register_project(pid, repo, project_path, actor=actor, source="migration", **kwargs))
     return {"ok": all(i.get("ok") for i in items), "capability": CAPABILITY, "count": len(items), "items": items}

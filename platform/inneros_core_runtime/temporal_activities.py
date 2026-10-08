@@ -75,9 +75,24 @@ async def activity_resolve_execution_binding(envelope_dict: Dict[str, Any]) -> D
 async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("hydrating_worktree")
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
+    repo = str(envelope_dict.get("repo") or envelope_dict.get("related_project") or "").strip()
+    if repo:
+        from inneros_core_runtime import local_execution_plane as lep
+
+        wt = lep.create_worktree(
+            repo=repo,
+            base_branch=str(envelope_dict.get("base_ref") or "main"),
+            work_branch=str(envelope_dict.get("work_branch") or f"dev-swarm/{envelope.task_id.replace('ops_', '')}"),
+            actor=str(envelope_dict.get("assignee") or "dev_swarm"),
+            task_id=envelope.task_id,
+            correlation_id=str(envelope_dict.get("correlation_id") or envelope.task_id),
+            idempotency_key=f"temporal-hydrate-{envelope.task_id}",
+        )
+        if wt.get("ok") and wt.get("worktree"):
+            return {"ok": True, "worktree": str(wt.get("worktree")), "source": "local_execution_plane"}
     worktree_path = WORKTREE_BASE / f"temporal-{envelope.task_id}"
     worktree_path.mkdir(parents=True, exist_ok=True)
-    return {"ok": True, "worktree": str(worktree_path)}
+    return {"ok": True, "worktree": str(worktree_path), "source": "temporal_stub"}
 
 
 @activity.defn
@@ -132,7 +147,14 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             "execution_binding": binding,
         }
 
-    if agent_result.get("completion_channel") == "cursor_interactive":
+    lane = str(envelope_dict.get("execution_lane") or "").lower()
+    if lane in {"local_dev_swarm", "dev_swarm", "internal"}:
+        tests = agent_result.get("test_results") or {}
+        exit_code = tests.get("exit_code")
+        if exit_code is not None and int(exit_code) == 0 and tests.get("ok", True):
+            return {"passed": True, "mode": "dev_swarm_pytest_pass", "test_results": tests}
+
+    if agent_result.get("completion_channel") in {"cursor_interactive", "codex_interactive"}:
         sha = str(agent_result.get("commit_sha") or "").strip()
         objective_files = int(agent_result.get("objective_files_count") or 0)
         objective_paths = list(agent_result.get("objective_paths") or [])

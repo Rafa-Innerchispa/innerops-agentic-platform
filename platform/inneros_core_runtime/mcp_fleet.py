@@ -67,6 +67,8 @@ AMD_PREFERRED_TOOLS = frozenset(
         "hubitat_discover",
         "hubitat_status",
         "run_home_ops_cycle",
+        "grandstream_gwn_network_ops",
+        "grandstream_gwn_api_capabilities",
         "generate_video_content",
         "publish_video_content",
         "video_pipeline_health",

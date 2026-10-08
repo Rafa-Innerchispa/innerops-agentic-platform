@@ -13,7 +13,7 @@ load_dotenv(ROOT / ".env")
 # IP LAN del nodo (primary .4, AMD .5, etc.)
 RALFIA_LAN_IP = os.getenv("RALFIA_LAN_IP", os.getenv("NODE_IP", "192.168.1.4"))
 RALFIA_INTEL_HOST = os.getenv("RALFIA_INTEL_HOST", "192.168.1.4")
-RALFIA_AMD_HOST = os.getenv("RALFIA_AMD_HOST", "100.72.153.124")
+RALFIA_AMD_HOST = os.getenv("RALFIA_AMD_HOST", "192.168.1.5")
 
 # HTTP status / health
 RAPHI_IA_OPENAI_PORT = int(os.getenv("RAPHI_IA_OPENAI_PORT", "8101"))

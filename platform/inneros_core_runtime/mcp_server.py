@@ -461,6 +461,63 @@ def cursor_owner_order(
 
 
 @mcp.tool
+def codex_list_claimable_ops_tasks(limit: int = 10, correlation_id: str = "") -> dict[str, Any]:
+    from inneros_core_runtime import codex_ops_runner as cx
+
+    return cx.list_claimable_ops_tasks(limit=limit, correlation_id=correlation_id or None)
+
+
+@mcp.tool
+def codex_claim_ops_task(
+    task_id: str = "",
+    correlation_id: str = "",
+    owner_approved: bool = False,
+    owner_actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    from inneros_core_runtime import codex_ops_runner as cx
+
+    return cx.claim_ops_task(
+        task_id=task_id or None,
+        correlation_id=correlation_id or None,
+        owner_approved=owner_approved,
+        owner_actor=owner_actor,
+    )
+
+
+@mcp.tool
+def codex_complete_ops_task(
+    task_id: str,
+    claim_token: str,
+    status: str = "completed",
+    commit_sha: str = "",
+    evidence_json: str = "",
+) -> dict[str, Any]:
+    import json
+    from inneros_core_runtime import codex_ops_runner as cx
+
+    evidence: dict[str, Any] = json.loads(evidence_json) if evidence_json.strip() else {}
+    return cx.complete_ops_task(task_id, claim_token=claim_token, status=status, evidence=evidence or None, commit_sha=commit_sha or None)
+
+
+@mcp.tool
+def codex_owner_order(
+    correlation_id: str = "",
+    task_id: str = "",
+    owner_approved: bool = True,
+    owner_actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    from inneros_core_runtime.codex_ops_orchestrator import owner_order_execute
+
+    return owner_order_execute(
+        correlation_id=correlation_id or None,
+        task_id=task_id or None,
+        owner_actor=owner_actor,
+        channel="mcp",
+        owner_approved=owner_approved,
+    )
+
+
+@mcp.tool
 def identify_agent_session(
     agent: str,
     account: str = "",

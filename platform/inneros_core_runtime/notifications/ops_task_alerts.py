@@ -115,7 +115,7 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
         return {"ok": False, "skipped": "notifications_disabled"}
 
     status = str(task.get("status") or "").lower()
-    if status != "awaiting_cursor_claim":
+    if status not in {"awaiting_cursor_claim", "awaiting_codex_claim"}:
         return {"ok": False, "skipped": f"status_not_awaiting:{status}"}
 
     prev = (previous_status or "").lower()
@@ -133,9 +133,14 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
             return {"ok": False, "skipped": "not_cursor_task"}
 
     corr = str(task.get("correlation_id") or "").strip()
-    hint = f"procede cursor {corr}" if corr else "procede cursor"
+    if status == "awaiting_codex_claim" or str(task.get("assignee") or "").lower() == "codex":
+        hint = f"MCP codex_owner_order correlación {corr}" if corr else "codex_owner_order"
+        title = "Codex OPS en espera"
+    else:
+        hint = f"procede cursor {corr}" if corr else "procede cursor"
+        title = "Cursor OPS en espera"
     body = (
-        "🖱️ RalfIA · Cursor OPS en espera\n"
+        f"🖱️ RalfIA · {title}\n"
         f"{_format_task_line(task)}\n"
         f"Modelo: composer-2.5-fast\n"
         f"Owner: responde *{hint}* y luego *confirmar co_…*\n"

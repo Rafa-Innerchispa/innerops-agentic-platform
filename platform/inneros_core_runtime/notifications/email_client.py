@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import imaplib
 import os
 import re
 import smtplib
+import time
 from datetime import datetime, timedelta, timezone
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.utils import formataddr
+from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
 from typing import Any
 
@@ -136,6 +138,14 @@ def _fallback_idempotency_key(*, from_address: str, to_addr: str, subject: str, 
     return "email:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _reserve_delivery(
     *,
     key: str,
@@ -152,7 +162,7 @@ def _reserve_delivery(
     existing = collection.find_one({"_id": key})
     if existing:
         status = existing.get("status")
-        expiry = existing.get("expires_at")
+        expiry = _as_utc(existing.get("expires_at"))
         if status in {"reserved", "sent"} and expiry and expiry > now:
             return False, existing
 
@@ -208,6 +218,178 @@ def _mark_delivery(key: str, *, status: str, error: str = "") -> None:
     db[OUTBOUND_LEDGER_COLLECTION].update_one({"_id": key}, update)
 
 
+def _mark_delivery_success(
+    key: str,
+    *,
+    from_address: str,
+    to_addr: str,
+    subject: str,
+    message_id: str,
+    smtp_accepted_at: datetime,
+    sent_folder: str | None,
+    append_status: str,
+    body_hash: str,
+    append_error: str | None = None,
+    imap_uid: str | None = None,
+) -> None:
+    db = mongo_store.get_db()
+    now = datetime.now(timezone.utc)
+    set_payload: dict[str, Any] = {
+        "status": "sent",
+        "from_address": from_address,
+        "to_addr": _normalise_recipient(to_addr),
+        "subject": subject[:200],
+        "message_id": message_id,
+        "smtp_accepted_at": smtp_accepted_at,
+        "sent_at": smtp_accepted_at,
+        "sent_folder": sent_folder,
+        "append_status": append_status,
+        "body_hash": body_hash,
+        "updated_at": now,
+    }
+    if imap_uid:
+        set_payload["imap_uid"] = imap_uid
+    if append_error:
+        set_payload["append_error"] = append_error[:2000]
+    else:
+        set_payload["append_error"] = None
+
+    update: dict[str, Any] = {
+        "$set": set_payload,
+        "$unset": {"last_error": ""},
+    }
+    db[OUTBOUND_LEDGER_COLLECTION].update_one({"_id": key}, update)
+
+
+def discover_sent_folder(imap_client: imaplib.IMAP4 | imaplib.IMAP4_SSL) -> str:
+    """Descubre dinámicamente la carpeta con flag SPECIAL-USE \\Sent o fallback."""
+    try:
+        status, folder_list = imap_client.list()
+        if status == "OK" and folder_list:
+            listed_names: list[str] = []
+            for folder_entry in folder_list:
+                if not folder_entry:
+                    continue
+                if isinstance(folder_entry, bytes):
+                    folder_str = folder_entry.decode("utf-8", errors="replace")
+                else:
+                    folder_str = str(folder_entry)
+
+                # RFC 3501 LIST response: (\flags) "delim" "name" o (\flags) NIL name
+                match = re.search(
+                    r'\((?P<flags>[^\)]*)\)\s+(?:"[^"]*"|NIL|\S+)\s+(?:"(?P<qname>[^"]*)"|(?P<rawname>.+))$',
+                    folder_str.strip(),
+                )
+                if match:
+                    flags = match.group("flags") or ""
+                    folder_name = match.group("qname") if match.group("qname") is not None else (match.group("rawname") or "")
+                    folder_name = folder_name.strip()
+                    if "\\sent" in flags.lower():
+                        return folder_name
+                    if folder_name:
+                        listed_names.append(folder_name)
+                else:
+                    parts = folder_str.split('"')
+                    if len(parts) >= 3:
+                        name = parts[-2].strip()
+                        listed_names.append(name)
+                        if "\\sent" in folder_str.lower():
+                            return name
+
+            fallback_candidates = [
+                "Sent",
+                "Sent Items",
+                "Sent Messages",
+                "INBOX.Sent",
+                "INBOX/Sent",
+                "Elementos enviados",
+                "Enviados",
+            ]
+            for cand in fallback_candidates:
+                for ln in listed_names:
+                    if ln.strip().lower() == cand.lower():
+                        return ln
+    except Exception:
+        pass
+    return "Sent"
+
+
+def append_to_sent_folder(
+    *,
+    account: dict[str, Any],
+    raw_msg_bytes: bytes,
+    timeout: int = 30,
+) -> dict[str, Any]:
+    """Guarda copia RFC822 en la carpeta \\Sent vía IMAP (con sanitización)."""
+    address = (account.get("address") or account.get("imap_user") or "").strip()
+    imap_host = (account.get("imap_host") or os.getenv("IMAP_HOST") or "").strip()
+    if not imap_host:
+        imap_host = f"mail.{address.split('@')[-1]}" if "@" in address else ""
+    imap_port = int(account.get("imap_port") or os.getenv("IMAP_PORT") or 993)
+    user = (account.get("imap_user") or address).strip()
+    password = (account.get("imap_password") or account.get("smtp_password") or "").strip()
+
+    if not imap_host or not user or not password:
+        return {
+            "ok": False,
+            "append_status": "failed",
+            "sent_folder": None,
+            "error": f"Credenciales o host IMAP no disponibles para {address}",
+        }
+
+    client = None
+    try:
+        if imap_port == 993:
+            client = imaplib.IMAP4_SSL(imap_host, imap_port, timeout=timeout)
+        else:
+            client = imaplib.IMAP4(imap_host, imap_port, timeout=timeout)
+
+        client.login(user, password)
+        sent_folder = discover_sent_folder(client)
+
+        target_folder = f'"{sent_folder}"' if (" " in sent_folder and not sent_folder.startswith('"')) else sent_folder
+        status, response = client.append(
+            target_folder,
+            r"\Seen",
+            imaplib.Time2Internaldate(time.time()),
+            raw_msg_bytes,
+        )
+
+        try:
+            client.logout()
+        except Exception:
+            pass
+
+        if status == "OK":
+            resp_str = " ".join(str(r) for r in (response or []))
+            return {
+                "ok": True,
+                "append_status": "appended",
+                "sent_folder": sent_folder,
+                "imap_response": resp_str,
+                "error": None,
+            }
+        else:
+            return {
+                "ok": False,
+                "append_status": "failed",
+                "sent_folder": sent_folder,
+                "error": f"IMAP APPEND returned status {status}: {response}",
+            }
+    except Exception as exc:
+        if client:
+            try:
+                client.logout()
+            except Exception:
+                pass
+        return {
+            "ok": False,
+            "append_status": "failed",
+            "sent_folder": None,
+            "error": str(exc),
+        }
+
+
 def send_email(
     *,
     to_addr: str,
@@ -220,7 +402,7 @@ def send_email(
     dedupe_window_seconds: int = DEFAULT_DEDUPE_WINDOW_SECONDS,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Envía usando email_accounts con idempotencia durable en Mongo.
+    """Envía usando email_accounts con idempotencia durable en Mongo y persistencia IMAP Sent.
 
     Un envío exitoso o una reserva activa bloquean reintentos equivalentes dentro
     de la ventana. Los intentos fallidos quedan reintentables. Si el caller no
@@ -285,6 +467,9 @@ def send_email(
             "to": to_addr,
             "subject": subject,
             "from_account": address,
+            "message_id": ledger.get("message_id"),
+            "sent_folder": ledger.get("sent_folder"),
+            "append_status": ledger.get("append_status"),
         }
 
     from_name = (acc.get("from_name") or acc.get("label") or "PC Doctor").strip()
@@ -293,6 +478,9 @@ def send_email(
     msg["Subject"] = subject[:200]
     msg["From"] = formataddr((from_name, address))
     msg["To"] = to_addr
+    msg["Date"] = formatdate(localtime=False, usegmt=True)
+    domain = address.split("@")[-1] if "@" in address else "pcdoctor.com.ec"
+    msg["Message-ID"] = make_msgid(domain=domain)
     msg.attach(MIMEText(body, "plain", "utf-8"))
 
     if attachment_path:
@@ -301,6 +489,9 @@ def send_email(
             part = MIMEApplication(path.read_bytes(), Name=attachment_name or path.name)
             part["Content-Disposition"] = f'attachment; filename="{attachment_name or path.name}"'
             msg.attach(part)
+
+    raw_bytes = msg.as_bytes()
+    body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
 
     try:
         if use_ssl:
@@ -311,8 +502,25 @@ def send_email(
             if use_tls:
                 server.starttls()
             server.login(user, password)
-            server.sendmail(address, [to_addr], msg.as_string())
-        _mark_delivery(key, status="sent")
+            server.sendmail(address, [to_addr], raw_bytes)
+
+        smtp_accepted_at = datetime.now(timezone.utc)
+
+        # Persistir copia en Sent vía IMAP
+        imap_res = append_to_sent_folder(account=acc, raw_msg_bytes=raw_bytes)
+
+        _mark_delivery_success(
+            key=key,
+            from_address=address,
+            to_addr=to_addr,
+            subject=subject,
+            message_id=str(msg["Message-ID"]),
+            smtp_accepted_at=smtp_accepted_at,
+            sent_folder=imap_res.get("sent_folder"),
+            append_status=imap_res.get("append_status", "failed"),
+            body_hash=body_hash,
+            append_error=imap_res.get("error"),
+        )
         return {
             "ok": True,
             "deduplicated": False,
@@ -321,8 +529,13 @@ def send_email(
             "subject": subject,
             "from": msg["From"],
             "from_account": address,
+            "message_id": str(msg["Message-ID"]),
             "attachment": attachment_path,
             "smtp_host": smtp_host,
+            "smtp_accepted": True,
+            "sent_folder": imap_res.get("sent_folder"),
+            "append_status": imap_res.get("append_status"),
+            "body_hash": body_hash,
             "source": "email_accounts",
         }
     except Exception as exc:
@@ -334,3 +547,62 @@ def send_email(
             "smtp_host": smtp_host,
             "idempotency_key": key,
         }
+
+
+def query_sent_emails(
+    *,
+    from_identity: str | None = None,
+    to: str | None = None,
+    subject: str | None = None,
+    execution_id: str | None = None,
+    message_id: str | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Consulta registros de envíos de correo y evidencia de auditoría IMAP."""
+    db = mongo_store.get_db()
+    query: dict[str, Any] = {"status": "sent"}
+
+    allowed = send_allowlist()
+    if from_identity:
+        norm_from = _normalise_recipient(from_identity)
+        if norm_from not in allowed:
+            return {"ok": False, "error": "from_identity_not_allowlisted", "from_identity": from_identity}
+        query["from_address"] = norm_from
+    else:
+        query["from_address"] = {"$in": list(allowed)}
+
+    if to:
+        query["to_addr"] = _normalise_recipient(to)
+    if subject:
+        query["subject"] = {"$regex": re.escape(subject.strip()), "$options": "i"}
+    if execution_id:
+        query["_id"] = execution_id.strip()
+    if message_id:
+        query["message_id"] = message_id.strip()
+
+    cursor = db[OUTBOUND_LEDGER_COLLECTION].find(query).sort([("sent_at", -1), ("created_at", -1)]).limit(max(1, min(limit, 100)))
+    records: list[dict[str, Any]] = []
+    for doc in cursor:
+        sent_time = doc.get("smtp_accepted_at") or doc.get("sent_at")
+        sent_iso = sent_time.isoformat() if isinstance(sent_time, datetime) else (str(sent_time) if sent_time else None)
+        created_time = doc.get("created_at")
+        created_iso = created_time.isoformat() if isinstance(created_time, datetime) else (str(created_time) if created_time else None)
+
+        records.append(
+            {
+                "execution_id": str(doc.get("_id") or ""),
+                "from_identity": doc.get("from_address") or doc.get("from_account"),
+                "to": doc.get("to_addr"),
+                "subject": doc.get("subject"),
+                "message_id": doc.get("message_id"),
+                "smtp_accepted_at": sent_iso,
+                "sent_folder": doc.get("sent_folder"),
+                "append_status": doc.get("append_status") or ("appended" if doc.get("sent_folder") else "legacy_untracked"),
+                "imap_uid": doc.get("imap_uid"),
+                "body_hash": doc.get("body_hash"),
+                "append_error": doc.get("append_error"),
+                "created_at": created_iso,
+                "status": doc.get("status"),
+            }
+        )
+    return {"ok": True, "count": len(records), "records": records}

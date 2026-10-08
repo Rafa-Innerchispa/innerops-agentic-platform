@@ -41,6 +41,7 @@ MUTATION_POLICY = {
         "rtsp_options",
         "home_assistant_registry_read",
         "unifi_inventory_read_when_authorized",
+        "gwn_cloud_inventory_read_when_authorized",
         "dmx_status_read",
     ],
     "forbidden": [
@@ -150,13 +151,39 @@ PROVIDERS: tuple[Provider, ...] = (
     Provider(
         "grandstream_gwn",
         "Grandstream GWN Cloud & Multi-Tenant",
-        SUPPORT_PARTIAL,
+        SUPPORT_READY,
         ("router", "ap", "switch", "gateway"),
         ("gwn_cloud_api", "https"),
         ("multi_tenant_inventory", "site_management", "client_segmentation", "health"),
         ("AG-60",),
         "provider_account_ref_configured",
-        notes=("cloud_inventory_when_vault_configured: partial", "live_mutations: not_in_fabric"),
+        notes=(
+            "gwn_cloud_api_client: inneros_core_runtime.grandstream_gwn_client",
+            "live_inventory_when_credentials_configured: yes",
+            "live_mutations: approval_gated_via_grandstream_gwn_ssid_update",
+        ),
+    ),
+    Provider(
+        "ruijie_reyee",
+        "Ruijie / Reyee (Ruijie Cloud)",
+        SUPPORT_PARTIAL,
+        ("router", "ap", "switch", "gateway", "antenna"),
+        ("ruijie_cloud_api", "https"),
+        (
+            "multi_site_inventory",
+            "ap_switch_gateway_list",
+            "online_clients",
+            "switch_ports",
+            "gateway_ports",
+            "local_probe",
+        ),
+        ("AG-60",),
+        "ruijie_cloud_appid_secret_and_account_required",
+        notes=(
+            "client: inneros_core_runtime.ruijie_reyee_client",
+            "reyee_devices_use_ruijie_cloud",
+            "bellini_local_example: 192.168.3.172 Easy-Smart Switch",
+        ),
     ),
     Provider(
         "unifi",
@@ -669,6 +696,15 @@ def _fingerprint(host: str, open_ports: list[int], raw: dict[str, Any]) -> dict[
             "protocols": ["https", "http", "gwn_cloud_api"],
             "confidence": 0.90,
         }
+    if "ruijie" in banner or "reyee" in banner or "easy-smart" in banner or "sw-login.css" in banner:
+        return {
+            "vendor": "Ruijie",
+            "model": "Ruijie / Reyee Easy-Smart or AP",
+            "device_type": "switch" if "switch" in banner else "access_point",
+            "provider_ids": ["ruijie_reyee", "generic_network"],
+            "protocols": ["http", "https", "ruijie_cloud_api"],
+            "confidence": 0.88,
+        }
     if 4370 in ports or "zkteco" in banner or "zksoftware" in banner or "zkbio" in banner:
         return {
             "vendor": "ZKTeco",
@@ -1014,6 +1050,23 @@ def device_fabric_inventory(
 
     if client_id == "bellini" or site_id in ("bellini", "bellini_i_ii", "bellini-i-ii"):
         mongo_devices = _get_mongo_assets(client_id="bellini", site_id="bellini-i-ii")
+        cloud_live: dict[str, Any] | None = None
+        if live:
+            try:
+                from inneros_core_runtime import grandstream_gwn_client as gwn
+
+                creds, _err = gwn.load_gwn_credentials()
+                tenant_rows = _get_mongo_tenants(client_id="bellini")
+                tenant_row = tenant_rows[0] if tenant_rows else None
+                nid = gwn.resolve_network_id(
+                    client_id="bellini",
+                    site_id="bellini-i-ii",
+                    tenant_row=tenant_row,
+                )
+                if creds and nid:
+                    cloud_live = gwn.fetch_network_snapshot(network_id=int(nid), creds=creds)
+            except Exception as exc:
+                cloud_live = {"ok": False, "error": str(exc)[:200]}
         return {
             "ok": True,
             "client_id": "bellini",
@@ -1027,6 +1080,7 @@ def device_fabric_inventory(
             "mutation_policy": MUTATION_POLICY,
             "mutations_attempted": [],
             "source": "gwn_cloud_and_local_fabric",
+            "cloud_live": cloud_live,
             "generated_at": _now(),
         }
 

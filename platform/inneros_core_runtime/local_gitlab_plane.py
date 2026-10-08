@@ -877,6 +877,48 @@ def comment_issue(
     }
 
 
+def comment_merge_request(
+    project_id_or_path: str,
+    mr_iid: int,
+    body: str,
+    *,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Comentario acotado en MR (sin quick-actions)."""
+    try:
+        iid = int(mr_iid)
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "mr_iid_invalid"}
+    if iid <= 0:
+        return {"ok": False, "error": "mr_iid_invalid"}
+    clean_body = str(body or "").strip()
+    if not clean_body:
+        return {"ok": False, "error": "comment_body_required"}
+    if len(clean_body) > 8000:
+        return {"ok": False, "error": "comment_body_too_long", "max_chars": 8000}
+    if any(line.lstrip().startswith("/") for line in clean_body.splitlines()):
+        return {"ok": False, "error": "quick_actions_not_allowed_in_comment_mr"}
+    encoded = project_api_path(project_id_or_path)
+    path = f"/projects/{encoded}/merge_requests/{iid}/notes"
+    if dry_run:
+        return {"ok": True, "dry_run": True, "would_post": path, "comment_preview": _redact(clean_body)[:500]}
+    res = _request("POST", path, payload={"body": clean_body})
+    _audit("comment_merge_request", res, {"project": project_id_or_path, "mr_iid": iid})
+    if not res.get("ok"):
+        return {key: value for key, value in res.items() if key != "data"}
+    data = res.get("data") if isinstance(res.get("data"), dict) else {}
+    return {
+        "ok": True,
+        "dry_run": False,
+        "note": {
+            "id": data.get("id"),
+            "author": (data.get("author") or {}).get("username") if isinstance(data.get("author"), dict) else None,
+            "body": _bounded(str(data.get("body") or "")),
+            "created_at": data.get("created_at"),
+        },
+    }
+
+
 def claim_issue(
     project_id_or_path: str,
     issue_iid: int,

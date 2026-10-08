@@ -400,6 +400,8 @@ def create_ops_task(
         preferred_model = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
     if not lane and provider_norm == "cursor":
         lane = "cursor_interactive"
+    elif not lane and provider_norm == "codex":
+        lane = "codex_interactive"
     elif not lane and provider_norm in INTERACTIVE_IDE_PROVIDERS:
         lane = "interactive_ide"
     elif not lane:

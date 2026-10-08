@@ -210,7 +210,17 @@ class OpsTaskWorkflow:
                 start_to_close_timeout=timedelta(seconds=30),
                 retry_policy=STANDARD_RETRY_POLICY,
             )
-            if blocked_status == "awaiting_cursor_claim" or binding_res.get("error") == "cursor_claim_required":
+            handoff_errors = {
+                "cursor_claim_required",
+                "codex_claim_required",
+                "interactive_handoff_pending",
+            }
+            handoff_statuses = {
+                "awaiting_cursor_claim",
+                "awaiting_codex_claim",
+                "waiting_for_binding",
+            }
+            if blocked_status in handoff_statuses or binding_res.get("error") in handoff_errors:
                 return await self._run_cursor_interactive_path(envelope_dict, binding_res, val_res)
             return {"status": blocked_status, "execution_binding": binding_res, "validated": val_res}
 
