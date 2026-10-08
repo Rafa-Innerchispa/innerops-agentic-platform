@@ -79,3 +79,24 @@ def test_infralens_is_registered_in_canonical_runtime_registry() -> None:
     assert project["repo"] == "Rafa-Innerchispa/infralens-ocr-amd"
     assert project["write_scope"] == "worktree_branch_only"
     assert project["paths"]["amd"].endswith("/workspaces/infralens-ocr-amd")
+
+def test_repo_hydration_failure_is_not_replaced_by_temporal_stub() -> None:
+    envelope = {
+        "task_id": "ops_hydrate_fail",
+        "assignee": "dev_swarm",
+        "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+        "base_ref": "main",
+        "task_class": "verification",
+    }
+
+    from unittest.mock import patch
+    from temporalio.exceptions import ApplicationError
+    from inneros_core_runtime import local_execution_plane as lep
+
+    with patch.object(lep, "create_worktree", return_value={"ok": False, "error": "repo_not_allowlisted"}):
+        try:
+            asyncio.run(ta.activity_hydrate_worktree(envelope))
+        except ApplicationError as exc:
+            assert "Worktree hydration failed" in str(exc)
+        else:
+            raise AssertionError("repo hydration failure must fail closed")
