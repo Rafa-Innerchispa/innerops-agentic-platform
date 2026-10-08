@@ -9,6 +9,30 @@ from inneros_core_runtime import temporal_activities as ta
 
 
 class ExecutionBindingTests(unittest.TestCase):
+    def test_antigravity_internal_lane_blocked(self) -> None:
+        binding = eb.resolve_execution_binding(
+            {
+                "task_id": "ops_ag",
+                "preferred_provider": "antigravity",
+                "execution_lane": "internal",
+            }
+        )
+        self.assertFalse(binding["allowed"])
+        self.assertEqual(binding["error"], "interactive_provider_requires_ide_runner")
+
+    def test_antigravity_handoff_awaiting_claim(self) -> None:
+        binding = eb.resolve_execution_binding(
+            {
+                "task_id": "ops_ag2",
+                "preferred_provider": "antigravity",
+                "execution_lane": "antigravity_interactive",
+                "do_not_auto_dispatch": True,
+            }
+        )
+        self.assertFalse(binding["allowed"])
+        self.assertEqual(binding["status"], "awaiting_antigravity_claim")
+        self.assertEqual(binding["error"], "antigravity_claim_required")
+
     def test_codex_internal_lane_blocked(self) -> None:
         binding = eb.resolve_execution_binding(
             {

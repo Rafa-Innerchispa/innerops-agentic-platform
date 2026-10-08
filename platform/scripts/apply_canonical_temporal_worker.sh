@@ -4,9 +4,19 @@ set -euo pipefail
 PLATFORM="${INNEROS_PLATFORM_ROOT:-/home/rlopez/inneros/inneros_core/platform}"
 DROPIN_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/inneros-temporal-worker.service.d"
 mkdir -p "$DROPIN_DIR"
-QUEUES="${TEMPORAL_WORKER_QUEUES:-inneros-general-ops,inneros-amd-gpu-ops}"
-if [[ "$(hostname -s 2>/dev/null || hostname)" == *intel* ]] || [[ "${INNEROS_NODE_ROLE:-}" == "intel" ]]; then
+_host="$(hostname -s 2>/dev/null || hostname)"
+_role="${INNEROS_NODE_ROLE:-}"
+_is_intel=0
+if [[ "$_role" == "intel" ]] || [[ "$_host" == *intel* ]] || [[ "$_host" == *ver-10* ]]; then
+  _is_intel=1
+fi
+if [[ "$_role" == "amd" ]] || [[ "$_host" == *amd* ]]; then
+  _is_intel=0
+fi
+if [[ "$_is_intel" == 1 ]]; then
   QUEUES="${TEMPORAL_WORKER_QUEUES:-inneros-general-ops,inneros-intel-ops}"
+else
+  QUEUES="${TEMPORAL_WORKER_QUEUES:-inneros-general-ops,inneros-amd-gpu-ops}"
 fi
 cat >"$DROPIN_DIR/canonical-platform.conf" <<EOF
 [Service]

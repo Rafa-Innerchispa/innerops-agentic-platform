@@ -546,6 +546,161 @@ def codex_owner_order(
     )
 
 
+def _interactive_ops_mcp(provider: str):
+    """Factory de herramientas MCP simétricas (Antigravity, Gemini, …)."""
+    prov = provider.strip().lower()
+
+    def list_claimable(limit: int = 10, correlation_id: str = "") -> dict[str, Any]:
+        from inneros_core_runtime import interactive_ops_runner as ior
+
+        return ior.list_claimable_ops_tasks(provider=prov, limit=limit, correlation_id=correlation_id or None)
+
+    def claim(
+        task_id: str = "",
+        correlation_id: str = "",
+        owner_approved: bool = False,
+        owner_actor: str = "RAFAEL",
+    ) -> dict[str, Any]:
+        from inneros_core_runtime import interactive_ops_runner as ior
+
+        return ior.claim_ops_task(
+            prov,
+            task_id=task_id or None,
+            correlation_id=correlation_id or None,
+            owner_approved=owner_approved,
+            owner_actor=owner_actor,
+        )
+
+    def complete(
+        task_id: str,
+        claim_token: str,
+        status: str = "completed",
+        commit_sha: str = "",
+        evidence_json: str = "",
+    ) -> dict[str, Any]:
+        import json
+        from inneros_core_runtime import interactive_ops_runner as ior
+
+        evidence: dict[str, Any] = json.loads(evidence_json) if evidence_json.strip() else {}
+        return ior.complete_ops_task(
+            prov,
+            task_id,
+            claim_token=claim_token,
+            status=status,
+            evidence=evidence or None,
+            commit_sha=commit_sha or None,
+        )
+
+    def owner_order(
+        correlation_id: str = "",
+        task_id: str = "",
+        owner_approved: bool = True,
+        owner_actor: str = "RAFAEL",
+    ) -> dict[str, Any]:
+        from inneros_core_runtime.interactive_ops_orchestrator import owner_order_execute
+
+        return owner_order_execute(
+            prov,
+            correlation_id=correlation_id or None,
+            task_id=task_id or None,
+            owner_actor=owner_actor,
+            channel="mcp",
+            owner_approved=owner_approved,
+        )
+
+    return list_claimable, claim, complete, owner_order
+
+
+_ag_list, _ag_claim, _ag_complete, _ag_owner = _interactive_ops_mcp("antigravity")
+_gem_list, _gem_claim, _gem_complete, _gem_owner = _interactive_ops_mcp("gemini")
+
+
+@mcp.tool
+def antigravity_list_claimable_ops_tasks(limit: int = 10, correlation_id: str = "") -> dict[str, Any]:
+    """Ops tasks en espera de claim Antigravity (modelo fijado ANTIGRAVITY_OPS_PINNED_MODEL)."""
+    return _ag_list(limit=limit, correlation_id=correlation_id)
+
+
+@mcp.tool
+def antigravity_claim_ops_task(
+    task_id: str = "",
+    correlation_id: str = "",
+    owner_approved: bool = False,
+    owner_actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    return _ag_claim(task_id=task_id, correlation_id=correlation_id, owner_approved=owner_approved, owner_actor=owner_actor)
+
+
+@mcp.tool
+def antigravity_complete_ops_task(
+    task_id: str,
+    claim_token: str,
+    status: str = "completed",
+    commit_sha: str = "",
+    evidence_json: str = "",
+) -> dict[str, Any]:
+    return _ag_complete(
+        task_id=task_id,
+        claim_token=claim_token,
+        status=status,
+        commit_sha=commit_sha,
+        evidence_json=evidence_json,
+    )
+
+
+@mcp.tool
+def antigravity_owner_order(
+    correlation_id: str = "",
+    task_id: str = "",
+    owner_approved: bool = True,
+    owner_actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    return _ag_owner(correlation_id=correlation_id, task_id=task_id, owner_approved=owner_approved, owner_actor=owner_actor)
+
+
+@mcp.tool
+def gemini_list_claimable_ops_tasks(limit: int = 10, correlation_id: str = "") -> dict[str, Any]:
+    """Ops tasks en espera de claim Gemini CLI / IDE."""
+    return _gem_list(limit=limit, correlation_id=correlation_id)
+
+
+@mcp.tool
+def gemini_claim_ops_task(
+    task_id: str = "",
+    correlation_id: str = "",
+    owner_approved: bool = False,
+    owner_actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    return _gem_claim(task_id=task_id, correlation_id=correlation_id, owner_approved=owner_approved, owner_actor=owner_actor)
+
+
+@mcp.tool
+def gemini_complete_ops_task(
+    task_id: str,
+    claim_token: str,
+    status: str = "completed",
+    commit_sha: str = "",
+    evidence_json: str = "",
+) -> dict[str, Any]:
+    return _gem_complete(
+        task_id=task_id,
+        claim_token=claim_token,
+        status=status,
+        commit_sha=commit_sha,
+        evidence_json=evidence_json,
+    )
+
+
+@mcp.tool
+def gemini_owner_order(
+    correlation_id: str = "",
+    task_id: str = "",
+    owner_approved: bool = True,
+    owner_actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    return _gem_owner(correlation_id=correlation_id, task_id=task_id, owner_approved=owner_approved, owner_actor=owner_actor)
+
+
 @mcp.tool
 def identify_agent_session(
     agent: str,

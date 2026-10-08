@@ -90,7 +90,7 @@ def apply_create_ops_defaults(
             do_not_auto_dispatch = bool(spec.get("do_not_auto_dispatch_default"))
     elif prov in _DEFAULT_IDE:
         if not lane:
-            lane = f"{prov}_interactive" if prov in {"cursor", "codex"} else "interactive_ide"
+            lane = f"{prov}_interactive"
         if do_not_auto_dispatch is None:
             do_not_auto_dispatch = True
     elif prov in internal_providers() and not lane:
@@ -101,4 +101,11 @@ def apply_create_ops_defaults(
 # Bootstrap conocidos
 register_interactive_provider("cursor", default_lane="cursor_interactive", pinned_model_env="CURSOR_OPS_PINNED_MODEL")
 register_interactive_provider("codex", default_lane="codex_interactive", pinned_model_env="CODEX_OPS_PINNED_MODEL")
+register_interactive_provider(
+    "antigravity",
+    default_lane="antigravity_interactive",
+    pinned_model_env="ANTIGRAVITY_OPS_PINNED_MODEL",
+)
+register_interactive_provider("gemini", default_lane="gemini_interactive", pinned_model_env="GEMINI_OPS_PINNED_MODEL")
+register_interactive_provider("chatgpt", default_lane="chatgpt_interactive", pinned_model_env="CHATGPT_OPS_PINNED_MODEL")
 _load_env_extra()

@@ -345,6 +345,9 @@ def create_ops_task(
     preferred_provider: str | None = None,
     preferred_model: str | None = None,
     idempotency_key: str | None = None,
+    objective: str | None = None,
+    verify_tests: list[str] | None = None,
+    required_objective_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     assignee_l = (assignee or "").strip().lower()
     from inneros_core_runtime import local_model_router
@@ -498,6 +501,14 @@ def create_ops_task(
         "preferred_model": effective_model,
         "idempotency_key": (idempotency_key or "").strip() or None,
     }
+    if (objective or "").strip():
+        doc["objective"] = objective.strip()
+    if verify_tests:
+        doc["verify_tests"] = [str(x).strip() for x in verify_tests if str(x).strip()]
+    if required_objective_paths:
+        doc["required_objective_paths"] = [
+            str(x).strip() for x in required_objective_paths if str(x).strip()
+        ]
     # PyMongo mutates the inserted mapping by adding ``_id``. Keep the public
     # tool response JSON-safe so MCP can return structuredContent reliably.
     db[OPS_TASKS_COL].insert_one(dict(doc))

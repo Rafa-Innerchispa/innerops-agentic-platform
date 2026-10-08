@@ -215,9 +215,14 @@ class OpsTaskWorkflow:
                 "codex_claim_required",
                 "interactive_handoff_pending",
             }
+            handoff_errors |= {f"{p}_claim_required" for p in ("antigravity", "gemini", "chatgpt")}
             handoff_statuses = {
                 "awaiting_cursor_claim",
                 "awaiting_codex_claim",
+                "awaiting_antigravity_claim",
+                "awaiting_gemini_claim",
+                "awaiting_chatgpt_claim",
+                "awaiting_ide_claim",
                 "waiting_for_binding",
             }
             if blocked_status in handoff_statuses or binding_res.get("error") in handoff_errors:
