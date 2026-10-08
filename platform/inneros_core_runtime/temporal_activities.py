@@ -147,12 +147,44 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             "execution_binding": binding,
         }
 
+    if agent_result.get("ok") is False:
+        bounded = agent_result.get("bounded_executor") or {}
+        command_audit = bounded.get("command_audit") or {}
+        tests = agent_result.get("test_results") or {}
+        reason = (
+            command_audit.get("error")
+            or tests.get("reason")
+            or agent_result.get("error")
+            or agent_result.get("response")
+            or "agent_execution_failed"
+        )
+        return {
+            "passed": False,
+            "error": f"Completion prohibited: executor reported failure ({reason})",
+            "agent_ok": False,
+            "command_audit": command_audit,
+            "test_results": tests,
+        }
+
     lane = str(envelope_dict.get("execution_lane") or "").lower()
     if lane in {"local_dev_swarm", "dev_swarm", "internal"}:
         tests = agent_result.get("test_results") or {}
         exit_code = tests.get("exit_code")
-        if exit_code is not None and int(exit_code) == 0 and tests.get("ok", True):
-            return {"passed": True, "mode": "dev_swarm_pytest_pass", "test_results": tests}
+        objective_files = int(agent_result.get("objective_files_count") or 0)
+        objective_paths = list(agent_result.get("objective_paths") or [])
+        mutating_class = task_class in {"coding", "platform"}
+        if (
+            exit_code is not None
+            and int(exit_code) == 0
+            and tests.get("ok", True)
+            and (not mutating_class or (objective_files > 0 and objective_paths))
+        ):
+            return {
+                "passed": True,
+                "mode": "dev_swarm_pytest_pass",
+                "test_results": tests,
+                "objective_files_count": objective_files,
+            }
 
     if agent_result.get("completion_channel") in {"cursor_interactive", "codex_interactive"}:
         sha = str(agent_result.get("commit_sha") or "").strip()
@@ -252,6 +284,18 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             return {
                 "passed": False,
                 "error": f"Completion prohibited: Required evidence missing for task {envelope_dict.get('task_id')}",
+            }
+
+    if task_class == "platform":
+        objective_files = int(agent_result.get("objective_files_count") or 0)
+        objective_paths = list(agent_result.get("objective_paths") or [])
+        if objective_files <= 0 or not objective_paths:
+            return {
+                "passed": False,
+                "error": "Completion prohibited: platform mutation requires objective file evidence",
+                "objective_files_count": objective_files,
+                "objective_paths": objective_paths,
+                "test_results": test_results,
             }
 
     return {
