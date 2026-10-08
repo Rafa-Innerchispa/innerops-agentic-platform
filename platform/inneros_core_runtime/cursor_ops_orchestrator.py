@@ -98,7 +98,7 @@ def owner_order_execute(
         f"{claim.get('task_id')}: {claim.get('title', '')[:80]}\n"
         f"Modelo: {claim.get('pinned_model')}\n"
         f"Claim: {claim.get('claim_token', '')[:8]}…\n"
-        "Sesión Cursor ejecutando encargo."
+        "Claim listo: abre/ejecuta en sesión Cursor (aún no marca completed hasta evidencia+gate)."
     )
 
     return {

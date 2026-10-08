@@ -132,6 +132,26 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             "execution_binding": binding,
         }
 
+    if agent_result.get("completion_channel") == "cursor_interactive":
+        sha = str(agent_result.get("commit_sha") or "").strip()
+        objective_files = int(agent_result.get("objective_files_count") or 0)
+        objective_paths = list(agent_result.get("objective_paths") or [])
+        tests = agent_result.get("test_results") or {}
+        exit_code = tests.get("exit_code")
+        if sha and objective_files > 0 and objective_paths:
+            return {"passed": True, "mode": "cursor_interactive_sha_and_paths", "commit_sha": sha}
+        if exit_code is not None and int(exit_code) == 0 and tests.get("ok", True):
+            return {"passed": True, "mode": "cursor_interactive_tests", "test_results": tests}
+        return {
+            "passed": False,
+            "error": (
+                "Cursor completion prohibited: require commit_sha + objective_paths "
+                "or test_results.exit_code=0"
+            ),
+            "commit_sha": sha,
+            "objective_files_count": objective_files,
+        }
+
     if agent_result.get("candidate_only") and agent_result.get("requires_bounded_executor"):
         return {
             "passed": False,

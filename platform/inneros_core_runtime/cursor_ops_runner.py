@@ -40,6 +40,78 @@ def _host() -> str:
     return socket.gethostname()
 
 
+def _lease_valid(task: dict[str, Any]) -> bool:
+    lease = str(task.get("lease_until") or "").strip()
+    if not lease:
+        return True
+    return lease >= _now()
+
+
+def _validate_pinned_model(*, task: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    expected = CURSOR_PINNED_MODEL.strip()
+    if not expected:
+        return {"ok": False, "error": "CURSOR_OPS_PINNED_MODEL_unset"}
+    for field in ("preferred_model", "effective_model"):
+        val = str((task or {}).get(field) or "").strip()
+        if val and val != expected:
+            return {"ok": False, "error": "model_not_pinned", "expected": expected, "got": val}
+    return None
+
+
+def _validate_completion_evidence(status: str, evidence: dict[str, Any] | None) -> str | None:
+    normalized = (status or "").strip().lower()
+    if normalized != "completed":
+        return None
+    ev = dict(evidence or {})
+    sha = str(ev.get("commit_sha") or ev.get("sha") or "").strip()
+    if sha:
+        return None
+    files = int(ev.get("objective_files_count") or 0)
+    paths = list(ev.get("objective_paths") or [])
+    if files > 0 and paths:
+        return None
+    tests = ev.get("test_results") or {}
+    exit_code = tests.get("exit_code")
+    if exit_code is not None and int(exit_code) == 0 and tests.get("ok", True):
+        return None
+    return (
+        "evidence_required_for_completed: commit_sha, objective_paths+count, "
+        "or test_results.exit_code=0"
+    )
+
+
+def _evidence_to_agent_result(evidence: dict[str, Any], *, status: str) -> dict[str, Any]:
+    ev = dict(evidence or {})
+    tests = ev.get("test_results") or {}
+    return {
+        "files_count": int(ev.get("objective_files_count") or 0),
+        "objective_files_count": int(ev.get("objective_files_count") or 0),
+        "objective_paths": list(ev.get("objective_paths") or []),
+        "code_diff": str(ev.get("code_diff") or ""),
+        "test_results": tests,
+        "commit_sha": ev.get("commit_sha") or ev.get("sha"),
+        "cursor_completion_status": status,
+        "completion_channel": "cursor_interactive",
+        "response": ev.get("notes") or ev.get("summary") or "",
+    }
+
+
+def _release_claim(db, tid: str, *, reason: str) -> None:
+    now = _now()
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": tid},
+        {
+            "$set": {
+                "status": "awaiting_cursor_claim",
+                "updated_at": now,
+                "claim_error": reason[:500],
+            },
+            "$unset": {"claim_token": "", "claimed_at": "", "lease_until": ""},
+            "$inc": {"revision": 1},
+        },
+    )
+
+
 def list_claimable_ops_tasks(*, limit: int = 10, correlation_id: str | None = None) -> dict[str, Any]:
     db = mongo_store.get_db()
     filt: dict[str, Any] = {
@@ -218,7 +290,13 @@ def claim_ops_task(
     if not claimed:
         return {"ok": False, "error": "claim_conflict", "task_id": tid}
 
+    model_err = _validate_pinned_model(task=claimed)
+    if model_err:
+        _release_claim(db, tid, reason=str(model_err.get("error")))
+        return {**model_err, "task_id": tid}
+
     worktree_path = ""
+    worktree_error: dict[str, Any] | None = None
     repo = str(claimed.get("repo") or "").strip()
     if repo:
         from inneros_core_runtime import local_execution_plane as lep
@@ -235,6 +313,37 @@ def claim_ops_task(
         )
         if wt.get("ok"):
             worktree_path = str(wt.get("worktree") or "")
+        else:
+            worktree_error = wt
+        if not worktree_path:
+            _release_claim(db, tid, reason="worktree_create_failed")
+            return {
+                "ok": False,
+                "error": "worktree_required",
+                "task_id": tid,
+                "repo": repo,
+                "details": worktree_error or {"error": "empty_worktree_path"},
+            }
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": token},
+            {"$set": {"worktree": worktree_path, "updated_at": _now()}},
+        )
+
+    from inneros_core_runtime import durable_coordination_spine
+
+    handoff_payload = {
+        "claim_token": token,
+        "status": "claimed",
+        "claim_host": _host(),
+        "worktree": worktree_path,
+        "preferred_model": CURSOR_PINNED_MODEL,
+        "effective_model": CURSOR_PINNED_MODEL,
+        "owner_approved": True,
+        "owner_authorized_at": claimed.get("owner_authorized_at"),
+    }
+    temporal_handoff = durable_coordination_spine.signal_task_workflow(
+        tid, "cursor_claim_handoff", handoff_payload
+    )
 
     _publish_task_event(
         "task.claimed",
@@ -272,6 +381,7 @@ def claim_ops_task(
         "checklist": claimed.get("checklist") or [],
         "correlation_id": claimed.get("correlation_id"),
         "execution_binding": binding,
+        "temporal_handoff": temporal_handoff,
         "session": classified.get("interactive_session"),
     }
 
@@ -293,6 +403,13 @@ def complete_ops_task(
     if not task:
         return {"ok": False, "error": "claim_token_mismatch_or_task_missing", "task_id": tid}
 
+    if not _lease_valid(task):
+        return {"ok": False, "error": "lease_expired", "task_id": tid, "lease_until": task.get("lease_until")}
+
+    model_err = _validate_pinned_model(task=task)
+    if model_err:
+        return {**model_err, "task_id": tid}
+
     normalized = (status or "completed").strip().lower()
     if normalized not in {"completed", "failed", "blocked"}:
         return {"ok": False, "error": "invalid_status", "allowed": ["completed", "failed", "blocked"]}
@@ -305,18 +422,62 @@ def complete_ops_task(
     ev.setdefault("effective_model", task.get("effective_model") or CURSOR_PINNED_MODEL)
     ev.setdefault("host", _host())
 
+    ev_err = _validate_completion_evidence(normalized, ev)
+    if ev_err:
+        return {"ok": False, "error": ev_err, "task_id": tid}
+
+    agent_result = _evidence_to_agent_result(ev, status=normalized)
+    if normalized in {"failed", "blocked"}:
+        agent_result["blocked"] = True
+
+    from inneros_core_runtime import durable_coordination_spine
+
+    signal_payload = {
+        "submitted": True,
+        "status": normalized,
+        "agent_result": agent_result,
+        "evidence": ev,
+        "claim_token": tok,
+        "actor": "cursor",
+        "at": now,
+    }
+    temporal = durable_coordination_spine.signal_task_workflow(
+        tid, "cursor_execution_complete", signal_payload
+    )
+    if not temporal.get("ok"):
+        return {
+            "ok": False,
+            "error": "temporal_completion_signal_failed",
+            "task_id": tid,
+            "details": temporal,
+            "hint": "El workflow Temporal debe estar vivo (handoff Cursor). No se escribió completed en Mongo.",
+        }
+
     db[OPS_TASKS_COL].update_one(
         {"task_id": tid, "claim_token": tok},
         {
             "$set": {
-                "status": normalized,
+                "status": "verification",
                 "updated_at": now,
-                "completed_at": now if normalized == "completed" else None,
-                "evidence": ev,
+                "completion_submitted_at": now,
+                "candidate_evidence": ev,
+                "candidate_agent_result": agent_result,
             },
             "$inc": {"revision": 1},
         },
     )
-    event = "task.completed" if normalized == "completed" else "task.failed"
-    _publish_task_event(event, {**task, "status": normalized}, actor="cursor", status=normalized, payload=ev)
-    return {"ok": True, "task_id": tid, "status": normalized, "evidence": ev}
+    _publish_task_event(
+        "task.verification",
+        {**task, "status": "verification"},
+        actor="cursor",
+        status="verification",
+        payload={"evidence": ev, "temporal": temporal},
+    )
+    return {
+        "ok": True,
+        "task_id": tid,
+        "status": "verification",
+        "evidence": ev,
+        "temporal": temporal,
+        "message": "Evidencia enviada a Temporal; estado final tras gate de verificación.",
+    }

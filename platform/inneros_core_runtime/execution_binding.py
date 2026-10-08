@@ -47,6 +47,13 @@ def merge_task_dispatch_fields(task: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
+def _cursor_claim_active(env: dict[str, Any], provider: str) -> bool:
+    if provider != "cursor":
+        return False
+    status = str(env.get("status") or "").lower()
+    return status in {"claimed", "running", "verification"} and bool(str(env.get("claim_token") or "").strip())
+
+
 def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
     """Decide whether Temporal may run the internal bounded local path."""
     env = merge_task_dispatch_fields(envelope_dict)
@@ -58,6 +65,7 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
     do_not_auto = bool(env.get("do_not_auto_dispatch"))
     model_preflight = bool(env.get("model_preflight_required"))
     preferred_model = env.get("preferred_model")
+    effective_model = env.get("effective_model") or preferred_model
     model_missing = preferred_model is None or str(preferred_model).strip() == ""
 
     base = {
@@ -68,6 +76,43 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         "model_preflight_required": model_preflight,
         "preferred_model": preferred_model,
     }
+
+    if _cursor_claim_active(env, provider):
+        pinned_ok = str(effective_model or preferred_model or "").strip() == CURSOR_PINNED_MODEL
+        if model_preflight and not pinned_ok:
+            return {
+                **base,
+                "ok": False,
+                "allowed": False,
+                "runner": CURSOR_INTERACTIVE_RUNNER,
+                "status": "blocked",
+                "error": "cursor_model_not_accredited",
+                "message": f"Modelo acreditado requerido: {CURSOR_PINNED_MODEL}.",
+            }
+        return {
+            **base,
+            "ok": True,
+            "allowed": False,
+            "runner": CURSOR_INTERACTIVE_RUNNER,
+            "status": str(env.get("status") or "claimed"),
+            "error": None,
+            "interactive_execution": True,
+            "message": (
+                "Claim Cursor activo: ejecución en sesión IDE; "
+                "cierre con cursor_complete_ops_task + evidencia (Temporal gate)."
+            ),
+        }
+
+    if model_preflight and model_missing:
+        return {
+            **base,
+            "ok": False,
+            "allowed": False,
+            "runner": BLOCKED_RUNNER,
+            "status": "waiting_for_model_binding",
+            "error": "preferred_model_missing",
+            "message": "model_preflight_required pero preferred_model no está fijado en el contrato.",
+        }
 
     owner_approved = bool(env.get("owner_approved") or env.get("owner_authorized_at"))
     if provider == "cursor" and (do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}):
@@ -97,17 +142,6 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
                 "Auto-dispatch bloqueado: requiere ejecutor interactivo (Cursor/owner). "
                 "Temporal no debe usar el carril internal genérico."
             ),
-        }
-
-    if model_preflight and model_missing:
-        return {
-            **base,
-            "ok": False,
-            "allowed": False,
-            "runner": BLOCKED_RUNNER,
-            "status": "waiting_for_model_binding",
-            "error": "preferred_model_missing",
-            "message": "model_preflight_required pero preferred_model no está fijado en el contrato.",
         }
 
     if provider in INTERACTIVE_IDE_PROVIDERS:
