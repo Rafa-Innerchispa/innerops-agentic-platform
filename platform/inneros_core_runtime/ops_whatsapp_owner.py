@@ -96,7 +96,7 @@ def handle_owner_reply(
         ops_pending.clear_pending(tid)
         return {
             "ok": bool(out.get("ok")),
-            "text": f"❌ Tarea {tid} rechazada/cancelada.",
+            "text": f"❌ Acción cancelada · {tid}",
             "task_id": tid,
             "action": "deny",
         }
@@ -139,6 +139,19 @@ def handle_owner_reply(
     if not task:
         return {"ok": False, "text": f"No encontré la tarea {tid}.", "task_id": tid, "action": "auth"}
 
+    terminal = {"completed", "failed", "blocked", "partial", "cancelled", "superseded"}
+    status_now = str(task.get("status") or "").lower()
+    if status_now in terminal:
+        return {
+            "ok": False,
+            "text": (
+                f"⚠️ `{tid}` ya está *{status_now}* (acción cerrada).\n"
+                "No se puede confirmar de nuevo: pide una tarea nueva desde el canary/ops."
+            ),
+            "task_id": tid,
+            "action": "auth_closed",
+        }
+
     provider = eb.normalize_provider(task.get("preferred_provider") or task.get("assignee"))
     binding = eb.resolve_execution_binding(task)
     if binding.get("allowed") and provider in {"dev_swarm", "dev-swarm", "local"}:
@@ -173,17 +186,17 @@ def handle_owner_reply(
             "details": out,
         }
 
-    auto = _maybe_auto_complete_verification(provider, task, claim)
+    # WhatsApp: confirmar la acción del owner; no auto-cerrar canary (evita failed inmediato en Temporal).
+    auto = None
     lines = [
-        f"✅ Autorizado · {provider} · {tid}",
+        f"✅ Acción confirmada · {provider.upper()} · `{tid}`",
         f"Modelo: {claim.get('pinned_model') or 'env'}",
+        f"Estado: {str(claim.get('execution_binding', {}).get('status') or task.get('status') or 'en curso')}",
     ]
     if claim.get("worktree"):
         lines.append(f"Worktree: …{str(claim.get('worktree'))[-48:]}")
-    if auto and auto.get("ok"):
-        lines.append("Cierre canary verification enviado (Temporal gate).")
-    elif provider in {"cursor", "codex", "antigravity", "gemini"}:
-        lines.append("Siguiente: ejecuta en el IDE y cierra con evidencia (o espera auto si canary).")
+    if provider in {"cursor", "codex", "antigravity", "gemini"}:
+        lines.append("La tarea quedó lista para ejecutar en el carril IDE (Temporal sigue abierto).")
     try:
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 

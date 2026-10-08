@@ -103,7 +103,7 @@ def notify_ops_owner_authorization_request(
         f"{tid}\n"
         f"{objective[:120]}\n"
         f"{spends}\n"
-        f"Toca *Sí* o *No* en la encuesta ↓"
+        f"Elige *Sí* o *No* en el menú de abajo ↓"
     )
     key = _dedupe_key("owner_auth", tid)
     if not _can_send("owner_auth", tid, force=force):

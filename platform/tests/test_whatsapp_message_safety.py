@@ -83,7 +83,7 @@ class TestWhatsappMessageSafety(unittest.TestCase):
         payload["data"]["message"] = {
             "pollUpdateMessage": {
                 "pollCreationMessageKey": {"id": "POLL123"},
-                "vote": {"selectedOptions": ["Sí, autorizar"]},
+                "vote": {"selectedOptions": ["Sí, confirmar acción"]},
             }
         }
         pending = {"task_id": "ops_abc123456789", "status": "pending"}

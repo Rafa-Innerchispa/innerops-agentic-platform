@@ -134,9 +134,14 @@ def _poll_option_to_ops_verb(option_name: str) -> str | None:
     if not raw:
         return None
     lower = raw.casefold().replace("✅", "").replace("❌", "").strip()
-    if lower.startswith("no") or "rechazar" in lower:
+    if lower.startswith("no") or "rechazar" in lower or "cancelar" in lower:
         return "NO"
-    if lower.startswith("sí") or lower.startswith("si") or "autorizar" in lower:
+    if (
+        lower.startswith("sí")
+        or lower.startswith("si")
+        or "autorizar" in lower
+        or "confirmar" in lower
+    ):
         return "SI"
     return None
 
