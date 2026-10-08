@@ -45,6 +45,22 @@ class ExecutionBindingTests(unittest.TestCase):
         self.assertFalse(binding["allowed"])
         self.assertEqual(binding["error"], "preferred_model_missing")
 
+    def test_owner_summary_explains_codex_not_internal(self) -> None:
+        env = {
+            "task_id": "ops_x",
+            "title": "Fix bridge",
+            "preferred_provider": "codex",
+            "execution_lane": "internal",
+            "correlation_id": "corr-1",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+        }
+        binding = eb.resolve_execution_binding(env)
+        summary = eb.owner_execution_summary(env, binding)
+        self.assertFalse(binding["allowed"])
+        self.assertIn("IDE", summary["why_not_internal"])
+        self.assertTrue(summary["requires_owner_authorization"])
+        self.assertIn("Dev Swarm", summary["internal_alternative"])
+
     def test_internal_dev_swarm_allowed(self) -> None:
         binding = eb.resolve_execution_binding(
             {

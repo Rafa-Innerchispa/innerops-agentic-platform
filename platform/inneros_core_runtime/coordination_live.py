@@ -404,6 +404,8 @@ def create_ops_task(
         lane = "interactive_ide"
     elif not lane:
         lane = "internal"
+    if do_not_auto_dispatch is None and provider_norm in INTERACTIVE_IDE_PROVIDERS:
+        do_not_auto_dispatch = True
     tid = (
         f"ops_{hashlib.sha256(idempotency_key.encode()).hexdigest()[:12]}"
         if idempotency_key
@@ -485,12 +487,41 @@ def create_ops_task(
         )
     except Exception:
         pass
+    from inneros_core_runtime.execution_binding import owner_execution_summary, resolve_execution_binding
+
+    binding_preview = resolve_execution_binding(doc)
+    owner_summary = owner_execution_summary(doc, binding_preview)
+    doc["execution_binding_preview"] = binding_preview
+    doc["owner_execution_summary"] = owner_summary
+    try:
+        mongo_store.get_db()[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {
+                "$set": {
+                    "execution_binding_preview": binding_preview,
+                    "owner_execution_summary": owner_summary,
+                }
+            },
+        )
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_owner_authorization_request
+
+        notify_ops_owner_authorization_request(doc, binding=binding_preview, source_agent=from_agent)
+    except Exception:
+        pass
+
     _publish_task_event(
         "task.created",
         doc,
         actor=from_agent,
         status="queued",
-        payload={"workflow_id": workflow_id, "run_id": started.get("run_id")},
+        payload={
+            "workflow_id": workflow_id,
+            "run_id": started.get("run_id"),
+            "execution_binding": binding_preview,
+        },
     )
     bump_revision(reason=f"create_ops_task: {tid}", source=from_agent)
     return {
@@ -499,6 +530,8 @@ def create_ops_task(
         "workflow_id": workflow_id,
         "run_id": started.get("run_id"),
         "authority": "temporal",
+        "execution_binding_preview": binding_preview,
+        "owner_execution_summary": owner_summary,
         "task": doc,
     }
 

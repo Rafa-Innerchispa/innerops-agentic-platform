@@ -14,6 +14,8 @@ from raphiia_openai.notifications.settings import NOTIFY_COOLDOWN_SEC
 NOTIFY_OPS_TASKS = os.getenv("NOTIFY_OPS_TASKS", "1") == "1"
 TERMINAL_OPS = frozenset({"completed", "failed", "blocked", "partial", "cancelled", "superseded"})
 NOTIFY_CURSOR_CLAIM = os.getenv("NOTIFY_CURSOR_AWAITING_CLAIM", "1") == "1"
+NOTIFY_OPS_CREATE_AUTH = os.getenv("NOTIFY_OPS_CREATE_AUTHORIZATION", "1") == "1"
+NOTIFY_OPS_INTERNAL_BRIEF = os.getenv("NOTIFY_OPS_INTERNAL_CREATE", "0") == "1"
 NOTIFY_VERIFICATION = os.getenv("NOTIFY_OPS_VERIFICATION", "1") == "1"
 
 _STATE: dict[str, Any] = {"cooldowns": {}, "sent": []}
@@ -51,6 +53,62 @@ def _format_task_line(task: dict[str, Any]) -> str:
     return f"{tid}\n{title}\nOwner: {owner} · Assignee: {assignee}{repo_line}"
 
 
+def owner_auth_notified(task_id: str) -> bool:
+    return str(task_id) in set(_STATE.get("sent", []))
+
+
+def notify_ops_owner_authorization_request(
+    task: dict[str, Any],
+    *,
+    binding: dict[str, Any] | None = None,
+    source_agent: str = "",
+) -> dict[str, Any]:
+    """WhatsApp al crear ops task: motivo externo vs interno y cómo autorizar."""
+    if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
+        return {"ok": False, "skipped": "notifications_disabled"}
+
+    from inneros_core_runtime.execution_binding import owner_execution_summary, resolve_execution_binding
+
+    binding = binding or resolve_execution_binding(task)
+    summary = owner_execution_summary(task, binding)
+    if summary.get("allowed_internal_runner") and not summary.get("requires_owner_authorization"):
+        if not NOTIFY_OPS_INTERNAL_BRIEF:
+            return {"ok": False, "skipped": "internal_runner_no_owner_gate"}
+    if summary.get("allowed_internal_runner") and not summary.get("requires_owner_authorization"):
+        icon = "⚙️"
+        headline = "OPS interna (Dev Swarm/local)"
+    else:
+        icon = "🛂"
+        headline = "OPS · autorización requerida"
+
+    from_agent = (source_agent or task.get("from_agent") or "?").strip()
+    model_line = f"\nModelo: {summary['preferred_model']}" if summary.get("preferred_model") else ""
+    body = (
+        f"{icon} RalfIA · {headline}\n"
+        f"Solicitado por: {from_agent}\n"
+        f"{_format_task_line(task)}\n"
+        f"Agente: {summary.get('provider')} · Carril: {summary.get('execution_lane')}{model_line}\n\n"
+        f"*Por qué no runner interno:*\n{summary.get('why_not_internal')}\n\n"
+        f"{summary.get('internal_alternative')}\n\n"
+        f"*Tu acción:*\n{summary.get('owner_action_hint')}\n"
+        f"{ralfia_time.format_log()}"
+    )
+    tid = str(task.get("task_id") or "")
+    key = _dedupe_key("owner_auth", tid)
+    if not _can_send("owner_auth", tid):
+        return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid}
+
+    result = send_alert_whatsapp(body, prefix_node=True)
+    if result.get("ok"):
+        _mark_sent("owner_auth", tid)
+    return {
+        "ok": bool(result.get("ok")),
+        "result": result,
+        "task_id": tid,
+        "summary": summary,
+    }
+
+
 def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str | None = None) -> dict[str, Any]:
     """Avisa al owner por WhatsApp cuando una ops task espera claim Cursor (sin runner interno)."""
     if not NOTIFY_OPS_TASKS or not NOTIFY_CURSOR_CLAIM:
@@ -63,6 +121,10 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
     prev = (previous_status or "").lower()
     if prev == status:
         return {"ok": False, "skipped": "no_status_change"}
+
+    tid = str(task.get("task_id") or "")
+    if owner_auth_notified(tid):
+        return {"ok": False, "skipped": "already_notified_on_create", "task_id": tid}
 
     provider = str(task.get("preferred_provider") or task.get("assignee") or "").lower()
     if provider and provider not in {"cursor", "codex"} and "cursor" not in provider:

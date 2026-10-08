@@ -172,3 +172,87 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         "error": "execution_binding_unresolved",
         "message": f"No hay runner confirmado para provider={provider} lane={lane or 'unset'}.",
     }
+
+
+_ERROR_ES: dict[str, str] = {
+    "cursor_claim_required": "Requiere sesión Cursor activa y autorización owner (claim); no se usa runner interno.",
+    "do_not_auto_dispatch": "Auto-dispatch desactivado: debe ejecutar un agente interactivo o el owner.",
+    "preferred_model_missing": "Falta fijar preferred_model con model_preflight_required.",
+    "interactive_provider_requires_ide_runner": (
+        "El proveedor es un IDE/agente externo; el carril internal no puede ejecutarlo en su lugar."
+    ),
+    "interactive_handoff_pending": "Esperando handoff en sesión IDE del proveedor asignado.",
+    "execution_binding_unresolved": "No hay runner confirmado para la combinación provider + lane.",
+}
+
+
+def preview_internal_dev_swarm_route(envelope_dict: dict[str, Any]) -> dict[str, Any]:
+    """Si la tarea tuviera provider dev_swarm + lane local, ¿sería internal permitido?"""
+    env = merge_task_dispatch_fields(envelope_dict)
+    if not str(env.get("repo") or "").strip():
+        return {"ok": False, "feasible": False, "reason": "sin repo no hay contrato Dev Swarm acotado"}
+    alt = {
+        **env,
+        "preferred_provider": "dev_swarm",
+        "assignee": "dev_swarm",
+        "assigned_to": "dev_swarm",
+        "execution_lane": "local_dev_swarm",
+        "do_not_auto_dispatch": False,
+        "dispatch_mode": "",
+    }
+    binding = resolve_execution_binding(alt)
+    feasible = bool(binding.get("allowed"))
+    return {
+        "ok": True,
+        "feasible": feasible,
+        "binding": binding,
+        "reason": "Dev Swarm local acotado en repo" if feasible else str(binding.get("message") or ""),
+    }
+
+
+def owner_execution_summary(
+    envelope_dict: dict[str, Any],
+    binding: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Texto owner: por qué no interno, alternativa interna, siguiente acción WhatsApp."""
+    env = merge_task_dispatch_fields(envelope_dict)
+    binding = binding or resolve_execution_binding(env)
+    provider = str(binding.get("provider_normalized") or normalize_provider(env.get("preferred_provider")) or "?")
+    lane = str(binding.get("execution_lane") or env.get("execution_lane") or "—")
+    err = str(binding.get("error") or "")
+    why = _ERROR_ES.get(err) or str(binding.get("message") or "Revisar contrato de ejecución.")
+    internal = preview_internal_dev_swarm_route(env)
+    corr = str(env.get("correlation_id") or env.get("task_id") or "").strip()
+    model = str(binding.get("preferred_model") or env.get("preferred_model") or binding.get("preferred_model_default") or "")
+
+    if provider == "cursor":
+        action = f"procede cursor {corr}".strip() if corr else "procede cursor"
+        action_detail = f"Responde *{action}* y luego *confirmar co_…* (o MCP cursor_owner_order)."
+    elif provider == "codex":
+        action = "solicitud agente Codex vía WhatsApp/MCP (confirmar cj_… tras preview)"
+        action_detail = action
+    else:
+        action = "autoriza vía MCP o ajusta assignee/lane en la ops task"
+        action_detail = action
+
+    internal_line = (
+        "Alternativa interna (Dev Swarm): sí, mismo repo con provider=dev_swarm y lane=local_dev_swarm."
+        if internal.get("feasible")
+        else f"Alternativa interna: no recomendada ({internal.get('reason', 'n/a')})."
+    )
+
+    return {
+        "provider": provider,
+        "execution_lane": lane,
+        "runner": binding.get("runner"),
+        "allowed_internal_runner": bool(binding.get("allowed")),
+        "expected_status": binding.get("status"),
+        "error_code": err or None,
+        "why_not_internal": why,
+        "internal_alternative": internal_line,
+        "owner_action_hint": action_detail,
+        "preferred_model": model or None,
+        "requires_owner_authorization": not bool(binding.get("allowed"))
+        or provider in INTERACTIVE_IDE_PROVIDERS
+        or bool(binding.get("do_not_auto_dispatch")),
+    }
