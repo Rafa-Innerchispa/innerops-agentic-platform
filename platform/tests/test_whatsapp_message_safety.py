@@ -76,6 +76,26 @@ class TestWhatsappMessageSafety(unittest.TestCase):
         }
         self.assertEqual(whatsapp_evolution_parse.extract_message(payload), "confirmar ABC123")
 
+    def test_poll_vote_maps_to_ops_auth_command(self):
+        from unittest.mock import patch
+
+        payload = fixture_payload("")
+        payload["data"]["message"] = {
+            "pollUpdateMessage": {
+                "pollCreationMessageKey": {"id": "POLL123"},
+                "vote": {"selectedOptions": ["Sí, autorizar"]},
+            }
+        }
+        pending = {"task_id": "ops_abc123456789", "status": "pending"}
+        with patch(
+            "inneros_core_runtime.whatsapp_ops_auth_pending.find_by_poll_message_id",
+            return_value=pending,
+        ):
+            self.assertEqual(
+                whatsapp_evolution_parse.extract_message(payload),
+                "SI ops_abc123456789",
+            )
+
     def test_untrusted_interactive_id_is_not_executable(self):
         payload = fixture_payload("")
         payload["data"]["message"] = {

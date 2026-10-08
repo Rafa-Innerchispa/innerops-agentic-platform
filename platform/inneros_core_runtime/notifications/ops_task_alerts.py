@@ -25,7 +25,9 @@ def _dedupe_key(kind: str, payload: str) -> str:
     return hashlib.sha256(f"{kind}:{payload}".encode()).hexdigest()[:16]
 
 
-def _can_send(kind: str, key: str) -> bool:
+def _can_send(kind: str, key: str, *, force: bool = False) -> bool:
+    if force:
+        return True
     now = time.time()
     cd = _STATE.setdefault("cooldowns", {})
     last = float(cd.get(f"{kind}:{key}", 0))
@@ -66,6 +68,7 @@ def notify_ops_owner_authorization_request(
     *,
     binding: dict[str, Any] | None = None,
     source_agent: str = "",
+    force: bool = False,
 ) -> dict[str, Any]:
     """WhatsApp al crear ops task: motivo externo vs interno y cómo autorizar."""
     if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
@@ -95,33 +98,46 @@ def notify_ops_owner_authorization_request(
         if summary.get("requires_owner_authorization") and not summary.get("allowed_internal_runner")
         else "Carril *interno* (no gasta Cursor/Codex/Antigravity)."
     )
-    short = (
-        f"{icon} *{provider.upper()}* · {title_short(task)}\n"
-        f"ID: {tid}\n"
-        f"{objective[:160]}\n"
+    poll_title = (
+        f"{icon} {provider.upper()} · {title_short(task)[:72]}\n"
+        f"{tid}\n"
+        f"{objective[:120]}\n"
         f"{spends}\n"
-        f"Toca un botón ↓"
+        f"Toca *Sí* o *No* en la encuesta ↓"
     )
-    body = short
     key = _dedupe_key("owner_auth", tid)
-    if not _can_send("owner_auth", tid):
+    if not _can_send("owner_auth", tid, force=force):
         return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid}
 
-    from raphiia_openai.notifications.evolution_client import send_whatsapp_interactive
+    import os
 
-    buttons = [
-        {"id": f"ops.auth.yes.{tid}", "label": "✅ Sí, autorizar"},
-        {"id": f"ops.auth.no.{tid}", "label": "❌ No"},
-    ]
-    result = send_whatsapp_interactive(
-        short,
-        buttons,
-        fallback_text=f"{short}\n\nSi no ves botones: responde SI {tid} o NO {tid}",
-        footer="RalfIA · ops",
+    from raphiia_openai.notifications.evolution_client import (
+        OPS_AUTH_POLL_NO,
+        OPS_AUTH_POLL_YES,
+        send_alert_whatsapp_poll,
     )
+    from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+    owner_phone = (
+        os.getenv("RALFIA_ALERTS_TO") or os.getenv("NOTIFY_WHATSAPP_TO") or ""
+    ).strip()
+    result = send_alert_whatsapp_poll(
+        poll_title,
+        [OPS_AUTH_POLL_YES, OPS_AUTH_POLL_NO],
+        number=owner_phone or None,
+        selectable_count=1,
+    )
+    poll_message_id = str(result.get("poll_message_id") or "").strip()
+    if result.get("ok") and owner_phone:
+        ops_pending.register_pending(
+            phone=owner_phone,
+            task_id=tid,
+            provider=provider,
+            poll_message_id=poll_message_id or None,
+        )
     if not result.get("ok"):
         result = send_alert_whatsapp(
-            f"{short}\n\nResponde: SI {tid}  o  NO {tid}",
+            f"{poll_title}\n\nResponde: SI {tid}  o  NO {tid}",
             prefix_node=True,
         )
     if result.get("ok"):
@@ -131,6 +147,8 @@ def notify_ops_owner_authorization_request(
         "result": result,
         "task_id": tid,
         "summary": summary,
+        "delivery_mode": "poll",
+        "poll_message_id": poll_message_id,
     }
 
 

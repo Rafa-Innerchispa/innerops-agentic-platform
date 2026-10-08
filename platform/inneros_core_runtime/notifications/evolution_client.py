@@ -398,6 +398,121 @@ def send_whatsapp_interactive(
     return result
 
 
+# Opciones fijas para encuestas de autorización ops (Evolution sendPoll).
+OPS_AUTH_POLL_YES = "Sí, autorizar"
+OPS_AUTH_POLL_NO = "No, rechazar"
+
+
+def send_whatsapp_poll(
+    name: str,
+    values: list[str],
+    number: str | None = None,
+    *,
+    selectable_count: int = 1,
+    instance: str | None = None,
+    node: str | None = None,
+) -> dict[str, Any]:
+    """Encuesta WhatsApp (compatible con cuentas personales; selectableCount=1 = una opción)."""
+    blocked = _amd_send_blocked(node, kind="message")
+    if blocked:
+        return blocked
+    dest = (number or NOTIFY_WHATSAPP_TO or "").strip()
+    base, default_inst = _node_config(node)
+    inst = instance or default_inst
+    target, normalized = _normalize_destination(dest)
+    if not target or not EVOLUTION_API_KEY or not inst:
+        return {"ok": False, "status": "error", "message": "destino o Evolution no configurado"}
+    opts = [str(v).strip()[:120] for v in values if str(v).strip()][:12]
+    if len(opts) < 2:
+        return {"ok": False, "status": "error", "message": "poll requiere al menos 2 opciones"}
+    title = (name or "Confirmación").strip()[:500]
+    url = f"{base}/message/sendPoll/{inst}"
+    try:
+        r = httpx.post(
+            url,
+            headers=_headers(),
+            json={
+                "number": target,
+                "name": title,
+                "values": opts,
+                "selectableCount": max(1, min(int(selectable_count or 1), len(opts))),
+                "delay": 800,
+            },
+            timeout=25.0,
+        )
+        ok = r.status_code in (200, 201)
+        try:
+            body = r.json()
+        except Exception:
+            body = {"raw": r.text[:300]}
+        result = {
+            "ok": ok,
+            "status": "sent" if ok else "error",
+            "interactive": "poll",
+            "http_status": r.status_code,
+            "response": body,
+            "number": normalized or target,
+            "node": str(node or EVOLUTION_DEFAULT_NODE or "primary"),
+            "instance": inst,
+        }
+        try:
+            from raphiia_openai import whatsapp_message_ledger
+
+            result["ledger"] = whatsapp_message_ledger.record_outbound(
+                text=title[:900],
+                target=normalized or target,
+                node=result["node"],
+                instance=inst,
+                response=body,
+                ok=ok,
+            )
+            result["poll_message_id"] = whatsapp_message_ledger._response_message_id(body)
+        except Exception:
+            result["ledger"] = {"ok": False, "error": "ledger_unavailable"}
+        return result
+    except Exception as exc:
+        return {"ok": False, "status": "error", "message": str(exc)}
+
+
+def send_alert_whatsapp_poll(
+    name: str,
+    values: list[str],
+    number: str | None = None,
+    *,
+    selectable_count: int = 1,
+) -> dict[str, Any]:
+    """Encuesta operativa con la misma política de nodo que send_alert_whatsapp."""
+    alerts_via = (os.getenv("RALFIA_ALERTS_VIA_NODE") or "primary").strip().lower()
+    dest = (number or os.getenv("RALFIA_ALERTS_TO") or NOTIFY_WHATSAPP_TO or "").strip()
+    if alerts_via in ("primary", "intel", "4", ".4"):
+        result = send_whatsapp_poll(
+            name, values, number=dest, selectable_count=selectable_count, node="primary"
+        )
+        if result.get("ok"):
+            result["via_node"] = "primary"
+            return result
+        if WHATSAPP_AMD_SEND_ENABLED:
+            second = send_whatsapp_poll(
+                name, values, number=dest, selectable_count=selectable_count, node="amd"
+            )
+            second["failover_from"] = "primary"
+            if second.get("ok"):
+                second["via_node"] = "amd"
+            return second
+        return result
+    local = local_node()
+    remote = "primary" if local == "amd" else "amd"
+    first = send_whatsapp_poll(name, values, number=dest, selectable_count=selectable_count, node=local)
+    if first.get("ok"):
+        first["via_node"] = local
+        return first
+    second = send_whatsapp_poll(name, values, number=dest, selectable_count=selectable_count, node=remote)
+    second["failover_from"] = local
+    if second.get("ok"):
+        second["via_node"] = remote
+    return second
+
+
 def send_whatsapp_status(
     content: str = "",
     *,

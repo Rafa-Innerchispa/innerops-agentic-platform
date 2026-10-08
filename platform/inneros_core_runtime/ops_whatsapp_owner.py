@@ -10,6 +10,7 @@ from typing import Any
 AUTH_RE = re.compile(r"^(?:SI|SÍ|AUTORIZO|OK)\s+(?:ops[_\s-]*)?([a-f0-9]{8,12})\s*$", re.I)
 DENY_RE = re.compile(r"^(?:NO|RECHAZO|CANCELAR)\s+(?:ops[_\s-]*)?([a-f0-9]{8,12})\s*$", re.I)
 BUTTON_AUTH_RE = re.compile(r"^ops\.auth\.(yes|no)\.(ops_[a-f0-9]{12})$", re.I)
+NUMERIC_AUTH_RE = re.compile(r"^[12]$")
 
 
 def _resolve_task_id(fragment: str) -> str | None:
@@ -68,17 +69,31 @@ def _maybe_auto_complete_verification(provider: str, task: dict[str, Any], claim
     )
 
 
-def handle_owner_reply(message: str, *, owner_actor: str = "RAFAEL") -> dict[str, Any] | None:
+def handle_owner_reply(
+    message: str,
+    *,
+    owner_actor: str = "RAFAEL",
+    phone: str | None = None,
+) -> dict[str, Any] | None:
     text = (message or "").strip()
     btn = BUTTON_AUTH_RE.match(text)
     if btn:
         text = f"{'SI' if btn.group(1).lower() == 'yes' else 'NO'} {btn.group(2)}"
+    if NUMERIC_AUTH_RE.match(text) and phone:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+        pending = ops_pending.latest_pending(phone)
+        if pending:
+            tid = str(pending.get("task_id") or "")
+            text = f"{'SI' if text == '1' else 'NO'} {tid}"
     deny = DENY_RE.match(text)
     if deny:
         tid = _resolve_task_id(deny.group(1)) or deny.group(1)
         from inneros_core_runtime import durable_coordination_spine
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
         out = durable_coordination_spine.signal_task_workflow(tid, "cancel", "owner_rejected_whatsapp")
+        ops_pending.clear_pending(tid)
         return {
             "ok": bool(out.get("ok")),
             "text": f"❌ Tarea {tid} rechazada/cancelada.",
@@ -128,6 +143,12 @@ def handle_owner_reply(message: str, *, owner_actor: str = "RAFAEL") -> dict[str
     binding = eb.resolve_execution_binding(task)
     if binding.get("allowed") and provider in {"dev_swarm", "dev-swarm", "local"}:
         ior.authorize_ops_task(provider, tid, owner_actor=owner_actor, channel="whatsapp")
+        try:
+            from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+            ops_pending.clear_pending(tid)
+        except Exception:
+            pass
         return {
             "ok": True,
             "text": f"✅ {tid} autorizada (carril interno). Temporal ejecuta sin IDE.",
@@ -163,6 +184,12 @@ def handle_owner_reply(message: str, *, owner_actor: str = "RAFAEL") -> dict[str
         lines.append("Cierre canary verification enviado (Temporal gate).")
     elif provider in {"cursor", "codex", "antigravity", "gemini"}:
         lines.append("Siguiente: ejecuta en el IDE y cierra con evidencia (o espera auto si canary).")
+    try:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+        ops_pending.clear_pending(tid)
+    except Exception:
+        pass
     try:
         from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_transition
 

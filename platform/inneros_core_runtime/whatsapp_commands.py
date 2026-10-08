@@ -423,7 +423,7 @@ def handle_inbound_command(
 
     sender_norm = _normalize_phone(sender)
     identity = whatsapp_identity.resolve_identity(sender, chat_id=conversation_id, is_group=is_group)
-    ops_owner = ops_wa_owner.handle_owner_reply(message)
+    ops_owner = ops_wa_owner.handle_owner_reply(message, phone=sender_norm)
     if ops_owner is not None:
         if not whatsapp_identity.is_owner(identity) or not whatsapp_identity.has_scope(
             identity, "whatsapp:agent_jobs"

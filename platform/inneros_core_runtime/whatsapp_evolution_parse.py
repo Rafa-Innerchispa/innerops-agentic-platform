@@ -128,6 +128,90 @@ def extract_group_name(payload: dict[str, Any]) -> str:
     return ""
 
 
+def _poll_option_to_ops_verb(option_name: str) -> str | None:
+    """Mapea texto de opción de encuesta ops → SI / NO."""
+    raw = (option_name or "").strip()
+    if not raw:
+        return None
+    lower = raw.casefold().replace("✅", "").replace("❌", "").strip()
+    if lower.startswith("no") or "rechazar" in lower:
+        return "NO"
+    if lower.startswith("sí") or lower.startswith("si") or "autorizar" in lower:
+        return "SI"
+    return None
+
+
+def extract_poll_ops_auth_command(payload: dict[str, Any]) -> str:
+    """Voto en encuesta Sí/No de autorización ops → `SI ops_xxx` / `NO ops_xxx`."""
+    from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+    data = evolution_data(payload)
+    message = data.get("message") if isinstance(data, dict) else None
+    if not isinstance(message, dict):
+        message = {}
+
+    poll_id = ""
+    selected_names: list[str] = []
+
+    poll_update = message.get("pollUpdateMessage")
+    if isinstance(poll_update, dict):
+        key = poll_update.get("pollCreationMessageKey") or {}
+        if isinstance(key, dict) and key.get("id"):
+            poll_id = str(key["id"]).strip()
+        vote = poll_update.get("vote") or {}
+        if isinstance(vote, dict):
+            for item in vote.get("selectedOptions") or []:
+                if isinstance(item, str) and item.strip():
+                    selected_names.append(item.strip())
+
+    poll_updates = data.get("pollUpdates")
+    if not isinstance(poll_updates, list):
+        poll_updates = payload.get("pollUpdates") if isinstance(payload.get("pollUpdates"), list) else []
+    if isinstance(poll_updates, list) and poll_updates:
+        sender = extract_sender(payload)
+        sender_digits = "".join(c for c in sender if c.isdigit())
+        for entry in poll_updates:
+            if not isinstance(entry, dict):
+                continue
+            name = str(entry.get("name") or "").strip()
+            voters = entry.get("voters") or []
+            if not name or not isinstance(voters, list):
+                continue
+            for voter in voters:
+                voter_s = str(voter or "")
+                voter_digits = "".join(c for c in voter_s if c.isdigit())
+                if sender_digits and voter_digits and (
+                    sender_digits.endswith(voter_digits) or voter_digits.endswith(sender_digits)
+                ):
+                    selected_names.append(name)
+                    break
+
+    if not selected_names:
+        return ""
+
+    verb = None
+    for name in selected_names:
+        verb = _poll_option_to_ops_verb(name)
+        if verb:
+            break
+    if not verb:
+        return ""
+
+    task_id = ""
+    if poll_id:
+        doc = ops_pending.find_by_poll_message_id(poll_id)
+        if doc:
+            task_id = str(doc.get("task_id") or "")
+    if not task_id:
+        phone = extract_sender(payload)
+        latest = ops_pending.latest_pending(phone)
+        if latest:
+            task_id = str(latest.get("task_id") or "")
+    if not task_id:
+        return ""
+    return f"{verb} {task_id}"
+
+
 def extract_interactive_action(payload: dict[str, Any]) -> str:
     """Convierte únicamente action IDs internos allowlisted a comandos canónicos."""
     data = evolution_data(payload)
@@ -222,6 +306,9 @@ def strip_leading_agent_prefix(text: str) -> str:
 
 
 def extract_message(payload: dict[str, Any]) -> str:
+    poll_action = extract_poll_ops_auth_command(payload)
+    if poll_action:
+        return poll_action
     interactive_action = extract_interactive_action(payload)
     if interactive_action:
         return interactive_action

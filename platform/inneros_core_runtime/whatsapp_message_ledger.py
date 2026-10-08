@@ -146,7 +146,10 @@ def classify_inbound(payload: dict[str, Any]) -> dict[str, Any]:
     key = data.get("key") or {} if isinstance(data, dict) else {}
     message_id = str(key.get("id") or payload.get("event_id") or "")[:160]
     text = evo.extract_message(payload)
-    fingerprint = text_fingerprint(text)
+    poll_cmd = evo.extract_poll_ops_auth_command(payload)
+    if poll_cmd and not text:
+        text = poll_cmd
+    fingerprint = text_fingerprint(text) if text else text_fingerprint(poll_cmd or "poll_vote")
     author = evo.extract_sender(payload)
     account = str(payload.get("sender") or payload.get("destination") or payload.get("instance") or "")
     result = {
