@@ -8,9 +8,13 @@ on:
       - "platform/inneros_core_runtime/coordination_live.py"
       - "platform/inneros_core_runtime/temporal_activities.py"
       - "platform/inneros_core_runtime/temporal_bounded_executor.py"
+      - "platform/inneros_core_runtime/local_execution_plane.py"
+      - "platform/inneros_core_runtime/project_runtime_registry.py"
+      - "var/project_runtime_registry/registry.json"
       - "platform/tests/test_p0_lane_a_scope_contract.py"
       - "platform/tests/test_coordination_recovery_p0.py"
       - "platform/tests/test_temporal_bounded_executor.py"
+      - "platform/tests/test_infralens_runtime_recovery.py"
       - "platform/tests/test_mcp_diagnostics_small_profile.py"
       - "scripts/audit_p0_mcp_small_public_oauth.py"
       - ".github/workflows/p0-small-client-ci-canaries.yml"
@@ -47,6 +51,9 @@ jobs:
             inneros_core_runtime/coordination_live.py \
             inneros_core_runtime/temporal_activities.py \
             inneros_core_runtime/temporal_bounded_executor.py \
+            inneros_core_runtime/local_execution_plane.py \
+            inneros_core_runtime/project_runtime_registry.py \
+            tests/test_infralens_runtime_recovery.py \
             tests/test_p0_lane_a_scope_contract.py \
             tests/test_coordination_recovery_p0.py \
             tests/test_temporal_bounded_executor.py
@@ -55,7 +62,7 @@ jobs:
           PYTHONPATH: .
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
-          python -m pytest tests/test_p0_lane_a_scope_contract.py tests/test_coordination_recovery_p0.py tests/test_temporal_bounded_executor.py -v --tb=short
+          python -m pytest tests/test_p0_lane_a_scope_contract.py tests/test_coordination_recovery_p0.py tests/test_temporal_bounded_executor.py tests/test_infralens_runtime_recovery.py -v --tb=short
       - name: Canary 2 — MCP short profile + diagnostics contract
         env:
           PYTHONPATH: .
