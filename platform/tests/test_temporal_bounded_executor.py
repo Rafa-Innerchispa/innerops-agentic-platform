@@ -26,7 +26,7 @@ class TemporalBoundedExecutorTests(unittest.TestCase):
             "task_id": "ops_bridge_canary",
             "correlation_id": "corr-bridge",
             "repo": "Rafa-Innerchispa/innerops-agentic-platform",
-            "task_class": "coding",
+            "task_class": "verification",
             "assignee": "dev_swarm",
             "base_ref": "main",
         }
