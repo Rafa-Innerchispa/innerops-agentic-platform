@@ -423,6 +423,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             "dev_swarm_executor_status",
             "dev_swarm_executor_tick",
             "manage_coordination_lock",
+            "cursor_owner_order",
         ],
     },
     "daily_memory": {

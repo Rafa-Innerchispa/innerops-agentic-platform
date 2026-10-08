@@ -32,7 +32,7 @@ HOST_APPROVALS_COL = "ralfia_host_approvals"
 
 REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NESTED_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent)/[A-Za-z0-9._/-]+$")
+BRANCH_PATTERN = re.compile(r"^(codex|chatgpt|cursor|antigravity|gemini|local-agent|dev-swarm)/[A-Za-z0-9._/-]+$")
 PROTECTED_BRANCHES = {"main", "master", "production", "prod", "develop"}
 OWNER_APPROVED_GITHUB_OWNERS = {"Rafa-Innerchispa", "rafagye"}
 OWNER_APPROVED_NESTED_REPOS = {
@@ -624,6 +624,15 @@ def _registry_repo_profiles() -> dict[str, dict[str, Any]]:
                     safe = canonical
             except Exception:
                 pass
+        contrib = _gitlab_contributor_repo_config(repo)
+        if contrib:
+            profiles[repo] = {
+                **contrib,
+                "source_path": str(contrib.get("source_path") or safe),
+                "project_id": entry.get("project_id"),
+                "registry_backed": True,
+            }
+            continue
         detected_profile = "node-tests" if (safe / "package.json").exists() else "python-tests"
         registered_profile = str(entry.get("allowed_commands_profile") or "").strip()
         known_profile = str(known.get("profile") or "").strip()
@@ -671,7 +680,28 @@ def _repo_config(repo: str) -> dict[str, Any]:
     conf.setdefault("package_roots", [])
     conf.setdefault("source_path", str(root / "repos" / _slug(repo)))
     conf.setdefault("worktrees_path", str(root / "worktrees" / _slug(repo)))
-    return conf
+    return _merge_contributor_repo_config(repo, conf)
+
+
+def _merge_contributor_repo_config(repo: str, conf: dict[str, Any]) -> dict[str, Any]:
+    contrib = _gitlab_contributor_repo_config(repo)
+    if not contrib:
+        return conf
+    merged = dict(conf)
+    for key in (
+        "profile",
+        "allowed_paths",
+        "package_roots",
+        "source_path",
+        "worktrees_path",
+        "contributor_ops",
+        "contributor_upstream",
+        "contributor_write_repo",
+        "owner_approved_auto",
+    ):
+        if key in contrib:
+            merged[key] = contrib[key]
+    return merged
 
 
 def _gitlab_contributor_repo_config(repo: str) -> dict[str, Any] | None:
@@ -1229,10 +1259,19 @@ def create_worktree(
         result = _run(add_cmd, source, timeout_seconds=120)
         if not result.get("ok") and "already exists" in (result.get("stderr") or ""):
             result = _run(["git", "worktree", "add", str(worktree), work_branch], source, timeout_seconds=120)
+        stderr = str(result.get("stderr") or "")
+        reused_external: Path | None = None
+        ext_match = re.search(r"already used by worktree at '([^']+)'", stderr)
+        if ext_match:
+            candidate = Path(ext_match.group(1)).expanduser().resolve()
+            if candidate.exists() and (candidate / ".git").exists():
+                reused_external = candidate
+                worktree = candidate
         status = _run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30) if worktree.exists() else {"ok": False, "error": "worktree_path_missing"}
         exists = worktree.exists() and (worktree / ".git").exists()
+        ok = bool(exists and status.get("ok") and (result.get("ok") or reused_external is not None))
         return {
-            "ok": bool(result.get("ok") and exists and status.get("ok")),
+            "ok": ok,
             "repo": repo,
             "base_branch": base_branch,
             "work_branch": work_branch,
@@ -1240,6 +1279,7 @@ def create_worktree(
             "result": result,
             "status": status,
             "verified_exists": exists,
+            "reused_external_worktree": str(reused_external) if reused_external else None,
         }
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
@@ -1923,7 +1963,54 @@ def dev_swarm_launch_task(
             "fetch_once": False,
         }
         if not prepared["ok"]:
-            return {"ok": False, "stage": "source_repo_required", "plan": plan, "prepared": prepared}
+            hydrated = prepare_repo(
+                repo,
+                base_branch,
+                actor,
+                task_id,
+                correlation_id,
+                idempotency_key,
+                remote_url=remote_url,
+            )
+            if not hydrated.get("ok"):
+                return {
+                    "ok": False,
+                    "stage": "prepare_repo",
+                    "plan": plan,
+                    "prepared": prepared,
+                    "hydrated": hydrated,
+                }
+            for remote_name in ("origin", "upstream"):
+                configured = configure_remote(
+                    repo,
+                    "",
+                    actor,
+                    task_id,
+                    correlation_id,
+                    idempotency_key,
+                    remote_name,
+                    dry_run=False,
+                )
+                if not configured.get("ok") and configured.get("error") != "remote_not_in_repo_policy":
+                    return {
+                        "ok": False,
+                        "stage": "configure_remote",
+                        "remote": remote_name,
+                        "plan": plan,
+                        "hydrated": hydrated,
+                        "configured": configured,
+                    }
+            source = Path(str(conf.get("source_path") or "")).expanduser().resolve()
+            prepared = {
+                "ok": source.exists() and (source / ".git").exists(),
+                "repo": repo,
+                "source_path": str(source),
+                "checkout_or_pull": False,
+                "fetch_once": False,
+                "hydrated": hydrated,
+            }
+            if not prepared["ok"]:
+                return {"ok": False, "stage": "source_repo_required", "plan": plan, "prepared": prepared}
         preflight_binding = _bind_existing_ops_task_for_dev_swarm(
             repo=repo,
             objective=objective_text,
@@ -2200,11 +2287,52 @@ def prepare_repo(
                         "source_path": str(source),
                         "repo": repo,
                     }
-        clone_url = (remote_url or "").strip()
+        policy = _remote_policy(repo)
+        clone_url = (remote_url or "").strip() or policy.get("origin") or ""
         if not clone_url:
             clone_url = f"https://github.com/{repo}.git"
-        clone = _run(["git", "clone", "--branch", base_ref, clone_url, str(source)], source.parent, timeout_seconds=600)
-        return {"ok": clone["ok"], "repo": repo, "source_path": str(source), "clone": clone}
+        from inneros_core_runtime import gitlab_contributor_policy as gcp
+
+        is_contributor = gcp.is_contributor_policy_repo(repo) or repo in gcp.LOGICAL_REPO_ALIASES
+        if is_contributor:
+            clone = _run(
+                [
+                    "git",
+                    "clone",
+                    "--no-tags",
+                    "--depth",
+                    "1",
+                    "--filter=blob:none",
+                    "--branch",
+                    base_ref,
+                    clone_url,
+                    str(source),
+                ],
+                source.parent,
+                timeout_seconds=1800,
+            )
+        else:
+            clone = _run(["git", "clone", "--branch", base_ref, clone_url, str(source)], source.parent, timeout_seconds=600)
+        if not clone.get("ok"):
+            return {"ok": False, "repo": repo, "source_path": str(source), "clone": clone}
+        remotes_after: dict[str, Any] = {}
+        upstream_url = (policy.get("upstream") or "").strip()
+        if is_contributor and upstream_url:
+            has_upstream = _run(["git", "remote", "get-url", "upstream"], source, timeout_seconds=15)
+            if not has_upstream.get("ok"):
+                add_upstream = _run(["git", "remote", "add", "upstream", upstream_url], source, timeout_seconds=30)
+                remotes_after["upstream"] = add_upstream
+            else:
+                remotes_after["upstream"] = {"ok": True, "idempotent": True}
+        return {
+            "ok": True,
+            "repo": repo,
+            "source_path": str(source),
+            "clone": clone,
+            "contributor_shallow": is_contributor,
+            "remote_policy": policy,
+            "remotes_after": remotes_after,
+        }
     except Exception as exc:
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 

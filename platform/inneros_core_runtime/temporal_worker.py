@@ -19,6 +19,7 @@ from temporalio.worker import Worker
 from inneros_core_runtime.temporal_workflows import OpsTaskWorkflow
 from inneros_core_runtime.temporal_activities import (
     activity_validate_envelope,
+    activity_resolve_execution_binding,
     activity_hydrate_worktree,
     activity_execute_agent_graph,
     activity_sync_mongo_mirror,
@@ -63,6 +64,7 @@ async def main():
             workflows=[OpsTaskWorkflow],
             activities=[
                 activity_validate_envelope,
+                activity_resolve_execution_binding,
                 activity_hydrate_worktree,
                 activity_execute_agent_graph,
                 activity_sync_mongo_mirror,

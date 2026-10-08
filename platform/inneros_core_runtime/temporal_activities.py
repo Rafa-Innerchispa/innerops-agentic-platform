@@ -63,12 +63,36 @@ async def activity_validate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str,
 
 
 @activity.defn
+async def activity_resolve_execution_binding(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
+    _safe_heartbeat("resolving_execution_binding")
+    from inneros_core_runtime import execution_binding
+
+    binding = execution_binding.resolve_execution_binding(envelope_dict)
+    return binding
+
+
+@activity.defn
 async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("hydrating_worktree")
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
+    repo = str(envelope_dict.get("repo") or envelope_dict.get("related_project") or "").strip()
+    if repo:
+        from inneros_core_runtime import local_execution_plane as lep
+
+        wt = lep.create_worktree(
+            repo=repo,
+            base_branch=str(envelope_dict.get("base_ref") or "main"),
+            work_branch=str(envelope_dict.get("work_branch") or f"dev-swarm/{envelope.task_id.replace('ops_', '')}"),
+            actor=str(envelope_dict.get("assignee") or "dev_swarm"),
+            task_id=envelope.task_id,
+            correlation_id=str(envelope_dict.get("correlation_id") or envelope.task_id),
+            idempotency_key=f"temporal-hydrate-{envelope.task_id}",
+        )
+        if wt.get("ok") and wt.get("worktree"):
+            return {"ok": True, "worktree": str(wt.get("worktree")), "source": "local_execution_plane"}
     worktree_path = WORKTREE_BASE / f"temporal-{envelope.task_id}"
     worktree_path.mkdir(parents=True, exist_ok=True)
-    return {"ok": True, "worktree": str(worktree_path)}
+    return {"ok": True, "worktree": str(worktree_path), "source": "temporal_stub"}
 
 
 @activity.defn
@@ -115,6 +139,41 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     test_exit_code = test_results.get("exit_code", 0)
     test_ok = test_results.get("ok", True)
 
+    if agent_result.get("blocked"):
+        binding = agent_result.get("execution_binding") or {}
+        return {
+            "passed": False,
+            "error": binding.get("message") or agent_result.get("response") or "execution_binding_blocked",
+            "execution_binding": binding,
+        }
+
+    lane = str(envelope_dict.get("execution_lane") or "").lower()
+    if lane in {"local_dev_swarm", "dev_swarm", "internal"}:
+        tests = agent_result.get("test_results") or {}
+        exit_code = tests.get("exit_code")
+        if exit_code is not None and int(exit_code) == 0 and tests.get("ok", True):
+            return {"passed": True, "mode": "dev_swarm_pytest_pass", "test_results": tests}
+
+    if agent_result.get("completion_channel") in {"cursor_interactive", "codex_interactive"}:
+        sha = str(agent_result.get("commit_sha") or "").strip()
+        objective_files = int(agent_result.get("objective_files_count") or 0)
+        objective_paths = list(agent_result.get("objective_paths") or [])
+        tests = agent_result.get("test_results") or {}
+        exit_code = tests.get("exit_code")
+        if sha and objective_files > 0 and objective_paths:
+            return {"passed": True, "mode": "cursor_interactive_sha_and_paths", "commit_sha": sha}
+        if exit_code is not None and int(exit_code) == 0 and tests.get("ok", True):
+            return {"passed": True, "mode": "cursor_interactive_tests", "test_results": tests}
+        return {
+            "passed": False,
+            "error": (
+                "Cursor completion prohibited: require commit_sha + objective_paths "
+                "or test_results.exit_code=0"
+            ),
+            "commit_sha": sha,
+            "objective_files_count": objective_files,
+        }
+
     if agent_result.get("candidate_only") and agent_result.get("requires_bounded_executor"):
         return {
             "passed": False,
@@ -145,11 +204,44 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
                 "error": f"Completion prohibited: Unit tests failed with exit_code={test_exit_code}",
                 "test_results": test_results
             }
-        if files_count == 0 and not code_diff:
+        objective_files = int(agent_result.get("objective_files_count") or 0)
+        objective_paths = list(agent_result.get("objective_paths") or [])
+        if any(str(path).endswith("/") for path in objective_paths):
+            return {
+                "passed": False,
+                "error": "Completion prohibited: objective_paths must list concrete files, not directories",
+                "objective_paths": objective_paths,
+            }
+        if any("__pycache__" in str(path) for path in objective_paths):
+            return {
+                "passed": False,
+                "error": "Completion prohibited: generated cache paths cannot count as objective fulfillment",
+                "objective_paths": objective_paths,
+            }
+        missing_required = list(agent_result.get("missing_required_objective_paths") or [])
+        if missing_required:
+            return {
+                "passed": False,
+                "error": "Completion prohibited: required objective paths missing on disk",
+                "missing_required_objective_paths": missing_required,
+            }
+        if objective_files == 0:
+            bridge_paths = agent_result.get("bridge_artifact_paths") or []
+            return {
+                "passed": False,
+                "error": (
+                    "Completion prohibited: diff is empty or only Temporal bridge artifacts "
+                    "(sync_bridge_artifacts is not task objective fulfillment)"
+                ),
+                "files_count": files_count,
+                "objective_files_count": objective_files,
+                "bridge_artifact_paths": bridge_paths,
+            }
+        if files_count == 0 and not code_diff and objective_files == 0:
             return {
                 "passed": False,
                 "error": "Completion prohibited: Coding task requires non-empty diff and files_count > 0",
-                "files_count": files_count
+                "files_count": files_count,
             }
 
     # 2. Ops / Network / Read-Only Validation Gate
@@ -176,6 +268,28 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
     worktree = worktree_info.get("worktree", "")
     _safe_heartbeat("running_agent_execution")
+
+    from inneros_core_runtime import execution_binding
+
+    binding = execution_binding.resolve_execution_binding(envelope_dict)
+    if not binding.get("allowed"):
+        return {
+            "ok": False,
+            "blocked": True,
+            "execution_binding": binding,
+            "files_count": 0,
+            "objective_files_count": 0,
+            "objective_paths": [],
+            "code_diff": "",
+            "response": binding.get("message") or binding.get("error") or "execution_binding_blocked",
+            "test_results": {
+                "exit_code": None,
+                "ok": False,
+                "reason": binding.get("error") or "execution_binding_blocked",
+            },
+            "candidate_only": False,
+            "requires_bounded_executor": False,
+        }
 
     # If mock/canary test execution:
     if envelope_dict.get("canary_test_type") == "failed_test":
@@ -219,10 +333,23 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "evidence": {"artifact": str(artifact), "persisted": artifact.is_file()},
         }
 
-    # Local models produce a candidate only; bounded execution supplies evidence.
+    if binding.get("runner") != execution_binding.INTERNAL_BOUNDED_RUNNER:
+        raise ApplicationError(
+            binding.get("message") or "execution_runner_not_internal_bounded",
+            type="EXECUTION_BINDING_BLOCKED",
+            non_retryable=True,
+        )
+
+    prompt_body = envelope.objective or envelope.title
+    if envelope.checklist:
+        prompt_body = f"{prompt_body}\n\nChecklist:\n" + "\n".join(f"- {item}" for item in envelope.checklist[:40])
+    model_kw: dict[str, Any] = {}
+    if envelope.preferred_model:
+        model_kw["model"] = envelope.preferred_model
     res = local_model_router.run_local_model(
         task_type=envelope.task_class or "coding",
-        prompt=f"Task {envelope.task_id}: {envelope.objective or envelope.title}",
+        prompt=f"Task {envelope.task_id}: {prompt_body}",
+        **model_kw,
     )
     candidate = {
         "ok": bool(res.get("ok")),
@@ -256,18 +383,45 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
             "updated_at": now,
             "evidence": evidence,
             "workflow_id": f"ops_task:{task_id}",
+            "task_id": task_id,
+            "title": envelope_dict.get("title"),
+            "assignee": envelope_dict.get("assignee") or envelope_dict.get("assigned_to"),
+            "assigned_to": envelope_dict.get("assignee") or envelope_dict.get("assigned_to"),
+            "owner": envelope_dict.get("owner") or envelope_dict.get("assignee"),
+            "preferred_provider": envelope_dict.get("preferred_provider"),
+            "preferred_model": envelope_dict.get("preferred_model"),
+            "execution_lane": envelope_dict.get("execution_lane"),
+            "repo": envelope_dict.get("repo"),
+            "work_branch": envelope_dict.get("work_branch"),
+            "base_ref": envelope_dict.get("base_ref"),
+            "objective": envelope_dict.get("objective"),
+            "checklist": envelope_dict.get("checklist") or [],
+            "correlation_id": envelope_dict.get("correlation_id"),
+            "project_id": envelope_dict.get("project_id"),
         }
         correlation_id = str(envelope_dict.get("correlation_id") or "").strip()
         if correlation_id:
             mirror_fields["correlation_id"] = correlation_id
+        existing = col.find_one({"task_id": task_id}, {"status": 1})
+        previous_status = str((existing or {}).get("status") or "")
         col.update_one(
             {"task_id": task_id},
             {
-                "$set": mirror_fields,
+                "$set": {k: v for k, v in mirror_fields.items() if v is not None},
                 "$inc": {"revision": 1},
             },
             upsert=True,
         )
+        if status == "awaiting_cursor_claim":
+            try:
+                from inneros_core_runtime.notifications.ops_task_alerts import notify_cursor_awaiting_claim
+
+                notify_cursor_awaiting_claim(
+                    {**mirror_fields, "task_id": task_id},
+                    previous_status=previous_status,
+                )
+            except Exception:
+                logger.debug("cursor awaiting claim notify skipped", exc_info=True)
         return {"ok": True, "mirrored": True}
     except Exception as e:
         logger.exception("Mongo projection update failed")

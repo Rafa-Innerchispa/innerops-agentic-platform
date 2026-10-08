@@ -125,6 +125,8 @@ def ingest_agent_message(
         idempotency_key=idempotency_key,
         related_project=project,
     )
+    if payload_n.get("do_not_auto_dispatch") is True:
+        return message
     if not message.get("ok") or not should_create_task(
         title=title,
         body=body_n,
@@ -160,8 +162,19 @@ def ingest_agent_message(
             payload=payload_n,
         ),
         preferred_provider=str(payload_n.get("preferred_provider") or "").strip() or None,
-        preferred_model=str(payload_n.get("preferred_model") or "").strip() or None,
+        preferred_model=payload_n.get("preferred_model")
+        if "preferred_model" in payload_n
+        else (str(payload_n.get("preferred_model") or "").strip() or None),
         idempotency_key=str(payload_n.get("idempotency_key") or idempotency_key or "").strip() or None,
+        objective=str(body_n or "")[:8000] or None,
+        dispatch_mode=str(payload_n.get("dispatch_mode") or "").strip() or None,
+        do_not_auto_dispatch=bool(payload_n.get("do_not_auto_dispatch"))
+        if payload_n.get("do_not_auto_dispatch") is not None
+        else None,
+        model_preflight_required=bool(payload_n.get("model_preflight_required"))
+        if payload_n.get("model_preflight_required") is not None
+        else None,
+        payload=payload_n,
     )
     if task.get("ok"):
         now = ralfia_time.now_utc_iso()

@@ -1230,6 +1230,26 @@ def run_home_ops_cycle(trigger: str = "mcp") -> dict[str, Any]:
         out.setdefault("trigger", trigger or "mcp")
         out["entrypoint"] = "homeassistant_client.alarm_intelbras_ops"
         return out
+    try:
+        from inneros_core_runtime import grandstream_gwn_network_ops as gwn_ops
+
+        if gwn_ops.is_grandstream_gwn_request(trigger):
+            out = gwn_ops.grandstream_gwn_network_ops(trigger)
+            out.setdefault("trigger", trigger or "mcp")
+            out["entrypoint"] = "grandstream_gwn_network_ops.grandstream_gwn_network_ops"
+            return out
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime import ruijie_reyee_network_ops as rj_ops
+
+        if rj_ops.is_ruijie_reyee_request(trigger):
+            out = rj_ops.ruijie_reyee_network_ops(trigger)
+            out.setdefault("trigger", trigger or "mcp")
+            out["entrypoint"] = "ruijie_reyee_network_ops.ruijie_reyee_network_ops"
+            return out
+    except Exception:
+        pass
     if _is_unifi_request(trigger):
         out = unifi_network_ops(trigger)
         out.setdefault("trigger", trigger or "mcp")

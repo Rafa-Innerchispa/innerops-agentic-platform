@@ -135,6 +135,11 @@ def route_tools(
                     "invoke_via": "capability_invoke",
                     "note": "List send identities without secrets.",
                 },
+                {
+                    "capability_id": "email.sent.query.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Query sent email delivery and IMAP audit ledger without secrets.",
+                },
             ]
         )
     if profile_name in {"funding", "coordination"} or any(

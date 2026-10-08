@@ -107,6 +107,7 @@ def _ensure_indexes() -> None:
         ([("contifico_id", 1)], {"sparse": True, "name": "ix_ledger_contifico"}),
         ([("mail_id", 1)], {"sparse": True, "name": "ix_ledger_mail"}),
         ([("year", 1), ("month", 1), ("tipo_documento", 1)], {"name": "ix_ledger_period_tipo"}),
+        ([("contifico_entity_id", 1), ("fecha_iso", -1)], {"name": "ix_ledger_entity_fecha"}),
         ([("persona_ruc", 1)], {"sparse": True, "name": "ix_ledger_ruc"}),
         ([("sri_access_key", 1)], {"sparse": True, "name": "ix_ledger_sri_key"}),
         ([("ralfia_number", 1)], {"sparse": True, "name": "ix_ledger_ralfia_number"}),
@@ -119,10 +120,13 @@ def _ensure_indexes() -> None:
             pass
 
 
-def _persona_lookup(persona_id: str | None) -> dict[str, str]:
+def _persona_lookup(persona_id: str | None, *, entity_id: str | None = None) -> dict[str, str]:
     if not persona_id:
         return {}
-    p = _db()[CONTIFICO_PERSONAS_COL].find_one({"persona_id": str(persona_id)})
+    filt: dict[str, Any] = {"persona_id": str(persona_id)}
+    if entity_id:
+        filt["contifico_entity_id"] = entity_id
+    p = _db()[CONTIFICO_PERSONAS_COL].find_one(filt) or _db()[CONTIFICO_PERSONAS_COL].find_one({"persona_id": str(persona_id)})
     if not p:
         return {}
     return {
@@ -145,11 +149,12 @@ def _upsert_ledger(doc: dict[str, Any]) -> dict[str, Any]:
 
 def ledger_from_contifico(row: dict[str, Any]) -> dict[str, Any]:
     """Mapea contifico_documents → ralfia_ledger_documents."""
+    entity_id = str(row.get("contifico_entity_id") or row.get("entity_id") or "pcdoctor")
     cid = str(row.get("contifico_id") or "")
     tipo = str(row.get("tipo_documento") or "DOC").upper()
     documento = str(row.get("documento") or "")
     fecha_iso, year, month = _parse_date_iso(row.get("fecha_iso") or row.get("fecha_emision"))
-    persona = _persona_lookup(row.get("persona_id"))
+    persona = _persona_lookup(row.get("persona_id"), entity_id=entity_id)
     total = row.get("total_num")
     if total is None:
         total = _parse_float(row.get("total"))
@@ -161,7 +166,11 @@ def ledger_from_contifico(row: dict[str, Any]) -> dict[str, Any]:
         iva = _parse_float(row.get("iva"))
 
     return {
-        "ledger_id": f"contifico:{cid}",
+        "ledger_id": f"contifico:{entity_id}:{cid}",
+        "contifico_entity_id": entity_id,
+        "issuer_ruc": row.get("issuer_ruc"),
+        "issuer_trade_name": row.get("issuer_trade_name"),
+        "issuer_legal_name": row.get("issuer_legal_name"),
         "source": "contifico",
         "contifico_id": cid,
         "mail_id": None,
@@ -253,11 +262,14 @@ def ledger_from_email_capture(capture: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def sync_contifico_to_ledger(*, limit: int = 5000) -> dict[str, Any]:
+def sync_contifico_to_ledger(*, limit: int = 5000, entity_id: str | None = None) -> dict[str, Any]:
     """Importa contifico_documents → ralfia_ledger_documents."""
     _ensure_indexes()
     db = _db()
-    rows = list(db[CONTIFICO_DOCS_COL].find({}).sort("fecha_emision", -1).limit(max(1, min(limit, 20000))))
+    filt: dict[str, Any] = {}
+    if entity_id:
+        filt["contifico_entity_id"] = entity_id
+    rows = list(db[CONTIFICO_DOCS_COL].find(filt).sort("fecha_emision", -1).limit(max(1, min(limit, 20000))))
     synced = 0
     for row in rows:
         doc = ledger_from_contifico(row)

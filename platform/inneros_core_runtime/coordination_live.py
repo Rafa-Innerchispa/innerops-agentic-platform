@@ -385,8 +385,36 @@ def create_ops_task(
     source_message_id: str | None = None,
     conversation_ref: str | None = None,
     related_project: str | None = None,
+    objective: str | None = None,
+    dispatch_mode: str | None = None,
+    do_not_auto_dispatch: bool | None = None,
+    model_preflight_required: bool | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
+    from inneros_core_runtime import agent_provider_registry as apr
+    from inneros_core_runtime.execution_binding import INTERACTIVE_IDE_PROVIDERS, normalize_provider
+
+    provider_norm = normalize_provider(preferred_provider or assignee)
+    lane, provider_norm, do_not_auto_dispatch = apr.apply_create_ops_defaults(
+        assignee,
+        execution_lane=execution_lane,
+        preferred_provider=provider_norm,
+        do_not_auto_dispatch=do_not_auto_dispatch,
+    )
+    lane = (lane or "").strip().lower()
+    if provider_norm == "cursor" and not preferred_model:
+        preferred_model = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
+    if not lane and provider_norm == "cursor":
+        lane = "cursor_interactive"
+    elif not lane and provider_norm == "codex":
+        lane = "codex_interactive"
+    elif not lane and provider_norm in INTERACTIVE_IDE_PROVIDERS:
+        lane = "interactive_ide"
+    elif not lane:
+        lane = "internal"
+    if do_not_auto_dispatch is None and provider_norm in INTERACTIVE_IDE_PROVIDERS:
+        do_not_auto_dispatch = True
     tid = (
         f"ops_{hashlib.sha256(idempotency_key.encode()).hexdigest()[:12]}"
         if idempotency_key
@@ -412,7 +440,7 @@ def create_ops_task(
         "base_ref": base_ref or "main",
         "work_branch": work_branch,
         "task_class": task_class or "coding",
-        "execution_lane": execution_lane or "internal",
+        "execution_lane": lane,
         "provider_transport": provider_transport or "mcp",
         "runtime_profile": runtime_profile or "python-tests",
         "execution_policy": execution_policy or "local_first",
@@ -427,6 +455,26 @@ def create_ops_task(
         "evidence": {},
         "revision": 1,
     }
+    if objective:
+        doc["objective"] = str(objective)[:8000]
+    if dispatch_mode:
+        doc["dispatch_mode"] = dispatch_mode
+    if do_not_auto_dispatch is not None:
+        doc["do_not_auto_dispatch"] = bool(do_not_auto_dispatch)
+    if model_preflight_required is not None:
+        doc["model_preflight_required"] = bool(model_preflight_required)
+    if payload:
+        doc["payload"] = dict(payload)
+        for key in (
+            "dispatch_mode",
+            "do_not_auto_dispatch",
+            "model_preflight_required",
+            "automatic_model_fallback_allowed",
+            "contract_revision",
+            "assignment_override",
+        ):
+            if key in payload and key not in doc:
+                doc[key] = payload[key]
 
     from inneros_core_runtime import durable_coordination_spine
 
@@ -440,12 +488,49 @@ def create_ops_task(
             "details": started,
         }
     doc["run_id"] = started.get("run_id")
+    try:
+        mongo_store.get_db()[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {"$set": doc},
+            upsert=True,
+        )
+    except Exception:
+        pass
+    from inneros_core_runtime.execution_binding import owner_execution_summary, resolve_execution_binding
+
+    binding_preview = resolve_execution_binding(doc)
+    owner_summary = owner_execution_summary(doc, binding_preview)
+    doc["execution_binding_preview"] = binding_preview
+    doc["owner_execution_summary"] = owner_summary
+    try:
+        mongo_store.get_db()[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {
+                "$set": {
+                    "execution_binding_preview": binding_preview,
+                    "owner_execution_summary": owner_summary,
+                }
+            },
+        )
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_owner_authorization_request
+
+        notify_ops_owner_authorization_request(doc, binding=binding_preview, source_agent=from_agent)
+    except Exception:
+        pass
+
     _publish_task_event(
         "task.created",
         doc,
         actor=from_agent,
         status="queued",
-        payload={"workflow_id": workflow_id, "run_id": started.get("run_id")},
+        payload={
+            "workflow_id": workflow_id,
+            "run_id": started.get("run_id"),
+            "execution_binding": binding_preview,
+        },
     )
     bump_revision(reason=f"create_ops_task: {tid}", source=from_agent)
     return {
@@ -454,6 +539,8 @@ def create_ops_task(
         "workflow_id": workflow_id,
         "run_id": started.get("run_id"),
         "authority": "temporal",
+        "execution_binding_preview": binding_preview,
+        "owner_execution_summary": owner_summary,
         "task": doc,
     }
 

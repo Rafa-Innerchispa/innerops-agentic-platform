@@ -187,6 +187,26 @@ def run_self_heal_cycle(*, auto_repair: bool = False, max_repairs: int = 3) -> d
         if sid not in _HEALABLE:
             repairs.append({"service_id": sid, "node": node, "skipped": True, "reason": "not_healable"})
             continue
+        if sid == "evolution" and auto_repair:
+            try:
+                from inneros_core_runtime import evolution_session_guardian as esg
+
+                allowed, reason = esg.evolution_restart_allowed(node=node)
+                if not allowed:
+                    pairing = esg.run_guardian_cycle(request_qr=True, email_owner=True)
+                    repairs.append(
+                        {
+                            "service_id": sid,
+                            "node": node,
+                            "skipped": True,
+                            "reason": reason,
+                            "pairing_cycle": pairing,
+                        }
+                    )
+                    continue
+            except Exception as exc:
+                repairs.append({"service_id": sid, "node": node, "skipped": True, "reason": f"evolution_guardian:{exc}"})
+                continue
         result = ag41.peer_ops_action(sid, node=node, action="restart", dry_run=not auto_repair)
         repairs.append({"service_id": sid, "node": node, "result": result})
         if auto_repair and result.get("ok"):
