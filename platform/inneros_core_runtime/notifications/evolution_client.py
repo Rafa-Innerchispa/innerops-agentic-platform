@@ -399,8 +399,11 @@ def send_whatsapp_interactive(
 
 
 # Opciones fijas para encuestas de autorización ops (Evolution sendPoll).
-OPS_AUTH_POLL_YES = "Sí, confirmar acción"
-OPS_AUTH_POLL_NO = "No, cancelar"
+OPS_AUTH_BUTTON_YES = "Confirmar"
+OPS_AUTH_BUTTON_NO = "Cancelar"
+# Legacy poll labels (solo si NOTIFY_OPS_AUTH_UI=poll)
+OPS_AUTH_POLL_YES = "Confirmar acción"
+OPS_AUTH_POLL_NO = "Cancelar"
 
 
 def send_whatsapp_poll(

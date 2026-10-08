@@ -7,8 +7,14 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-AUTH_RE = re.compile(r"^(?:SI|SÍ|AUTORIZO|OK)\s+(?:ops[_\s-]*)?([a-f0-9]{8,12})\s*$", re.I)
-DENY_RE = re.compile(r"^(?:NO|RECHAZO|CANCELAR)\s+(?:ops[_\s-]*)?([a-f0-9]{8,12})\s*$", re.I)
+AUTH_RE = re.compile(
+    r"^(?:SI|SÍ|AUTORIZO|OK|CONFIRMAR)\s+(?:ops[_\s-]*)?([a-f0-9]{6,12})\s*$",
+    re.I,
+)
+DENY_RE = re.compile(
+    r"^(?:NO|RECHAZO|CANCELAR)\s+(?:ops[_\s-]*)?([a-f0-9]{6,12})\s*$",
+    re.I,
+)
 BUTTON_AUTH_RE = re.compile(r"^ops\.auth\.(yes|no)\.(ops_[a-f0-9]{12})$", re.I)
 NUMERIC_AUTH_RE = re.compile(r"^[12]$")
 

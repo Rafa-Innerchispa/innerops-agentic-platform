@@ -139,8 +139,10 @@ def _poll_option_to_ops_verb(option_name: str) -> str | None:
     if (
         lower.startswith("sí")
         or lower.startswith("si")
+        or lower == "confirmar"
         or "autorizar" in lower
         or "confirmar" in lower
+        or "confirmar acción" in lower
     ):
         return "SI"
     return None

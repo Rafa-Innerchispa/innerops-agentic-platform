@@ -308,6 +308,14 @@ def ingest_inbound_event(payload: dict[str, Any]) -> dict[str, Any]:
 
     node = _detect_node(payload)
     instance = str(payload.get("instance") or payload.get("whatsappInstance") or payload.get("id") or "")
+    try:
+        from inneros_core_runtime import whatsapp_ops_auth_inbound as ops_auth_inbound
+
+        fast = ops_auth_inbound.try_process_owner_ops_auth(payload, node=node)
+        if fast is not None:
+            return fast
+    except Exception:
+        pass
     db = mongo_store.get_db()
     message_id = _message_id(payload)
     existing = db[INBOUND_COL].find_one({"trace.message_id": message_id}, {"raw": 0})
