@@ -172,3 +172,49 @@ class TerminalEvidenceGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_do_not_auto_dispatch_still_materializes_ops_task():
+    from unittest.mock import patch
+    from inneros_core_runtime import coordination_ingest as ci
+
+    fake_message = {
+        "ok": True,
+        "message_id": "msg_cursor_wait",
+        "correlation_id": "cursor-wait-test",
+    }
+    fake_task = {
+        "ok": True,
+        "task_id": "ops_cursor_wait",
+        "workflow_id": "ops_task:ops_cursor_wait",
+        "status": "awaiting_cursor_claim",
+    }
+
+    with (
+        patch("raphiia_openai.memory.agent_messages.create_agent_message", return_value=fake_message),
+        patch.object(ci.coordination_live, "create_ops_task", return_value=fake_task) as create_task,
+        patch.object(ci.mongo_store, "get_db"),
+    ):
+        out = ci.ingest_agent_message(
+            from_agent="CHATGPT",
+            target_agent="cursor",
+            title="P0 owner interactive task",
+            body="Execute bounded task.",
+            priority="p0",
+            correlation_id="cursor-wait-test",
+            message_type="task",
+            payload={
+                "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+                "execution_lane": "cursor_interactive",
+                "preferred_provider": "cursor",
+                "do_not_auto_dispatch": True,
+            },
+            idempotency_key="cursor-wait-test",
+        )
+
+    assert create_task.called
+    kwargs = create_task.call_args.kwargs
+    assert kwargs["do_not_auto_dispatch"] is True
+    assert out["task_id"] == "ops_cursor_wait"
+    assert out["workflow_id"] == "ops_task:ops_cursor_wait"
+    assert out["normalization"]["task_id"] == "ops_cursor_wait"
