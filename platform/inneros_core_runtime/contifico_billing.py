@@ -167,12 +167,14 @@ def _connection_status_one(entity_id: str) -> dict[str, Any]:
         "api_key_env": ent.api_key_env,
     }
     if not key:
+        standby = entities.entity_is_standby(ent)
         return {
             **base,
             "ok": False,
             "configured": False,
             "connected": False,
-            "message": f"{ent.api_key_env} missing",
+            "standby": standby,
+            "message": "stand-by sin API (migración manual)" if standby else f"{ent.api_key_env} missing",
         }
     probe = _request(
         "GET",
@@ -456,6 +458,147 @@ def _audit(action: str, request: dict[str, Any], response: dict[str, Any]) -> No
     )
 
 
+
+def _entity_standby_block(entity_id: str | None) -> dict[str, Any] | None:
+    ent = _entity(entity_id)
+    if entities.entity_is_standby(ent):
+        return {
+            "ok": False,
+            "entity_id": ent.entity_id,
+            "status": "entity_standby",
+            "error": "contifico_entity_standby",
+            "message": "Entidad en stand-by (sin API). Solo PC Doctor activo para facturación.",
+        }
+    return None
+
+
+def _resolve_pos_body_token(entity_id: str | None = None) -> str:
+    ent = _entity(entity_id)
+    explicit = entities.entity_pos_token(ent)
+    if explicit:
+        return explicit
+    company = (CONTIFICO_COMPANY_TOKEN or os.getenv("CONTIFICO_COMPANY_TOKEN") or "").strip()
+    if company:
+        return company
+    listed = list_pos_emission_points(entity_id=ent.entity_id)
+    if listed.get("ok"):
+        for pref in ("001", "001"):
+            pass
+        for row in listed.get("points") or []:
+            if str(row.get("establecimiento")) == "001" and str(row.get("punto_emision")) == "001":
+                break
+        key = _api_key_for(ent)
+        if key:
+            url = f"{CONTIFICO_API_V2_BASE.rstrip('/')}/pos/"
+            with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
+                resp = client.get(url, headers={"Authorization": key, "Accept": "application/json"})
+            if resp.is_success:
+                for row in resp.json().get("results") or []:
+                    if str(row.get("establecimiento")) == "001" and str(row.get("punto_emision")) == "001":
+                        return str(row.get("token") or "")
+                rows = resp.json().get("results") or []
+                if rows:
+                    return str(rows[0].get("token") or "")
+    return ""
+
+
+def _customer_block(persona_id: str, entity_id: str | None = None) -> dict[str, Any] | None:
+    got = customer_get(persona_id, entity_id=entity_id)
+    if not got.get("ok"):
+        return got
+    c = got.get("customer") or {}
+    return {
+        "ruc": str(c.get("ruc") or ""),
+        "cedula": str(c.get("cedula") or ""),
+        "razon_social": str(c.get("razon_social") or ""),
+        "telefonos": str(c.get("telefonos") or ""),
+        "direccion": str(c.get("direccion") or ""),
+        "tipo": "J" if len(str(c.get("ruc") or "")) == 13 else "N",
+        "email": str(c.get("email") or ""),
+        "es_extranjero": False,
+    }
+
+
+def _next_document_number(tipo: str, entity_id: str | None = None) -> str:
+    td = (tipo or "COT").upper()
+    out = _request("GET", "/documento/", params={"result_page": 1, "result_size": 50}, entity_id=entity_id)
+    best = 0
+    if out.get("ok") and isinstance(out.get("data"), list):
+        for row in out["data"]:
+            if str(row.get("tipo_documento") or "").upper() != td:
+                continue
+            num = str(row.get("documento") or "")
+            digits = "".join(ch for ch in num if ch.isdigit())
+            if digits:
+                best = max(best, int(digits))
+    return str(best + 1 if best else int(datetime.now(ZoneInfo("America/Guayaquil")).strftime("%Y%m") + "000001"))
+
+
+def _build_v1_document_payload(
+    *,
+    tipo_documento: str,
+    persona_id: str,
+    lines: list[dict[str, Any]],
+    descripcion: str,
+    calc: dict[str, Any],
+    entity_id: str | None,
+    electronico: bool,
+    documento: str | None = None,
+) -> dict[str, Any]:
+    pos = _resolve_pos_body_token(entity_id)
+    if not pos:
+        raise ValueError("contifico_pos_token_missing")
+    cliente = _customer_block(persona_id, entity_id=entity_id)
+    if not isinstance(cliente, dict) or cliente.get("error"):
+        raise ValueError("contifico_customer_unavailable")
+    doc_num = (documento or "").strip() or _next_document_number(tipo_documento, entity_id=entity_id)
+    subtotal = calc["subtotal"]
+    iva = calc["iva"]
+    total = calc["total"]
+    detalles = []
+    for line in calc["lines"]:
+        detalles.append(
+            {
+                "producto_id": line.get("producto_id") or None,
+                "producto_nombre": line.get("producto_nombre") or "Servicio",
+                "cantidad": line.get("cantidad"),
+                "precio": line.get("precio"),
+                "porcentaje_iva": line.get("porcentaje_iva"),
+                "porcentaje_descuento": line.get("porcentaje_descuento") or "0.0",
+                "base_gravable": line.get("base_gravable"),
+                "base_cero": line.get("base_cero") or "0.0",
+                "base_no_gravable": line.get("base_no_gravable") or "0.0",
+                "valor_ice": line.get("valor_ice") or "0.0",
+            }
+        )
+    payload: dict[str, Any] = {
+        "pos": pos,
+        "documento": doc_num,
+        "tipo_documento": tipo_documento,
+        "tipo_registro": "CLI",
+        "fecha_emision": _today_ec(),
+        "estado": "P",
+        "descripcion": descripcion[:500],
+        "cliente": cliente,
+        "subtotal_0": "0.0",
+        "subtotal_12": f"{subtotal:.2f}",
+        "iva": f"{iva:.2f}",
+        "ice": "0.0",
+        "servicio": "0.0",
+        "total": f"{total:.2f}",
+        "electronico": electronico,
+        "detalles": detalles,
+    }
+    return payload
+
+
+def _write_document_v1(payload: dict[str, Any], *, entity_id: str | None = None) -> dict[str, Any]:
+    out = _request("POST", "/documento/", json_body=payload, api_base=CONTIFICO_API_BASE, entity_id=entity_id)
+    if out.get("ok"):
+        out["write_api"] = "v1_body_pos"
+    return out
+
+
 def invoice_draft(
     *,
     persona_id: str,
@@ -501,25 +644,29 @@ def invoice_draft(
                 "document_type": cached.get("document_type"),
                 "entity_id": _entity(entity_id).entity_id,
             }
-    pos = _pos_token(entity_id)
+    blocked = _entity_standby_block(entity_id)
+    if blocked:
+        return blocked
     ent = _entity(entity_id)
-    out = _request(
-        "POST",
-        "/documento/",
-        json_body=payload,
-        api_base=CONTIFICO_API_V2_BASE if pos else CONTIFICO_API_BASE,
-        pos_token=pos or None,
-        entity_id=ent.entity_id,
-    )
+    try:
+        v1_payload = _build_v1_document_payload(
+            tipo_documento="COT",
+            persona_id=pid,
+            lines=lines,
+            descripcion=(descripcion or "Borrador InnerOS MCP"),
+            calc=calc,
+            entity_id=entity_id,
+            electronico=False,
+        )
+    except ValueError as exc:
+        return {"ok": False, "entity_id": ent.entity_id, "error": str(exc)}
+    out = _write_document_v1(v1_payload, entity_id=entity_id)
     _audit("invoice.draft", {"persona_id": pid, "lines": len(lines), "entity_id": ent.entity_id}, out)
     if not out.get("ok"):
-        err = out.get("error")
-        if isinstance(err, dict) and "Pos" in err:
-            out["remediation"] = (
-                f"Configure {ent.pos_token_env} or enable API write for entity {ent.entity_id} in Contifico."
-            )
         out["entity_id"] = ent.entity_id
+        out["remediation"] = "Verifique CONTIFICO_PCDOCTOR_POS_TOKEN o CONTIFICO_COMPANY_TOKEN (UUID POS) y permiso de escritura API."
         return out
+    payload = v1_payload
     data = out.get("data") or {}
     doc_id = data.get("id")
     if idempotency_key and doc_id:
@@ -595,16 +742,23 @@ def invoice_create(
                 "document_id": cached.get("contifico_document_id"),
                 "entity_id": _entity(entity_id).entity_id,
             }
+    blocked = _entity_standby_block(entity_id)
+    if blocked:
+        return blocked
     ent = _entity(entity_id)
-    pos = _pos_token(entity_id)
-    out = _request(
-        "POST",
-        "/documento/",
-        json_body=payload,
-        api_base=CONTIFICO_API_V2_BASE if pos else CONTIFICO_API_BASE,
-        pos_token=pos or None,
-        entity_id=ent.entity_id,
-    )
+    try:
+        v1_payload = _build_v1_document_payload(
+            tipo_documento="FAC",
+            persona_id=str(persona_id or "").strip(),
+            lines=lines,
+            descripcion="Factura InnerOS MCP",
+            calc=calc,
+            entity_id=entity_id,
+            electronico=True,
+        )
+    except ValueError as exc:
+        return {"ok": False, "entity_id": ent.entity_id, "error": str(exc)}
+    out = _write_document_v1(v1_payload, entity_id=entity_id)
     _audit("invoice.create", {"persona_id": persona_id, "approved_by": approved_by, "entity_id": ent.entity_id}, out)
     if not out.get("ok"):
         return out

@@ -318,6 +318,9 @@ def sync_all_entities_accounting(
     results: list[dict[str, Any]] = []
     for eid in ids:
         ent = entities.resolve_entity(eid)
+        if entities.entity_is_standby(ent):
+            results.append({"entity_id": ent.entity_id, "ok": True, "skipped": True, "standby": True, "note": "sin API; migración manual"})
+            continue
         if not entities.entity_api_key(ent):
             results.append({"entity_id": ent.entity_id, "ok": False, "skipped": True, "error": f"{ent.api_key_env} missing"})
             continue

@@ -65,3 +65,14 @@ Colecciones etiquetadas con `contifico_entity_id`, `issuer_ruc`, `issuer_trade_n
 **Validación RUC:** si `connected_company_ruc` ≠ RUC de la entidad, la sync se omite (`api_key_ruc_mismatch`). Cada empresa Contifico/Siigo tiene su propia API key ([guía API](https://contifico.portaldeclientes.siigo.ec/basedeconocimiento/consultar-guia-de-uso-api/)).
 
 Ledger unificado: `ralfia_ledger_documents` con `ledger_id` = `contifico:{entity_id}:{contifico_id}`.
+
+## Escritura API v1 (facturación PC Doctor)
+
+Contífico exige el **token POS en el cuerpo JSON** (`"pos": "UUID"`), no solo header `Pos` v2.
+
+- `CONTIFICO_PCDOCTOR_POS_TOKEN` o `CONTIFICO_COMPANY_TOKEN` (UUID del POS, p. ej. punto 001-001).
+- COT/FAC vía MCP usan **API v1** `/documento/` con totales `subtotal_0`, `subtotal_12`, `documento` (secuencia).
+
+## Domotika / RUP personal — stand-by
+
+`CONTIFICO_DOMOTIKA_STANDBY=1` → sin API; no sync ni facturación. Migración futura: export manual / CSV / cierre de cuenta.

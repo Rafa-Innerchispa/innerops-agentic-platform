@@ -63,20 +63,35 @@ for _ent in (PCDOCTOR, DOMOTIKA):
 DEFAULT_ENTITY_ID = os.getenv("CONTIFICO_DEFAULT_ENTITY", PCDOCTOR.entity_id).strip().lower() or PCDOCTOR.entity_id
 
 
-def list_entities() -> list[ContificoEntity]:
-    return [PCDOCTOR, DOMOTIKA]
+def entity_is_standby(entity: ContificoEntity) -> bool:
+    if entity.entity_id == DOMOTIKA.entity_id:
+        return os.getenv("CONTIFICO_DOMOTIKA_STANDBY", "0").strip().lower() in ("1", "true", "yes")
+    return False
 
 
-def resolve_entity(entity_id: str | None = None) -> ContificoEntity:
+def list_entities(*, include_standby: bool = True) -> list[ContificoEntity]:
+    ents = [PCDOCTOR, DOMOTIKA]
+    if include_standby:
+        return ents
+    return [e for e in ents if not entity_is_standby(e)]
+
+
+
+
+def resolve_entity(entity_id: str | None = None, *, allow_standby: bool = True) -> ContificoEntity:
     raw = (entity_id or DEFAULT_ENTITY_ID or PCDOCTOR.entity_id).strip().lower()
     ent = _BY_ID.get(raw)
     if not ent:
         known = sorted({e.entity_id for e in list_entities()} | set(DOMOTIKA.aliases))
         raise ValueError(f"unknown_contifico_entity:{raw}; known={known}")
+    if not allow_standby and entity_is_standby(ent):
+        raise ValueError(f"contifico_entity_standby:{ent.entity_id}")
     return ent
 
 
 def entity_api_key(entity: ContificoEntity) -> str:
+    if entity_is_standby(entity):
+        return ""
     explicit = (os.getenv(entity.api_key_env) or "").strip()
     if explicit:
         return explicit
