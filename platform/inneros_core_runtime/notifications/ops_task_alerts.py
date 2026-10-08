@@ -83,17 +83,29 @@ def notify_ops_owner_authorization_request(
 
     from_agent = (source_agent or task.get("from_agent") or "?").strip()
     model_line = f"\nModelo: {summary['preferred_model']}" if summary.get("preferred_model") else ""
+    tid = str(task.get("task_id") or "")
+    objective = str(task.get("objective") or task.get("title") or "")[:280]
+    provider = str(summary.get("provider") or "?")
+    spends = (
+        "Esta tarea *gasta créditos* del agente IDE al ejecutar."
+        if summary.get("requires_owner_authorization") and not summary.get("allowed_internal_runner")
+        else "Carril *interno* (no gasta Cursor/Codex/Antigravity)."
+    )
     body = (
         f"{icon} RalfIA · {headline}\n"
+        f"ID: `{tid}`\n"
         f"Solicitado por: {from_agent}\n"
         f"{_format_task_line(task)}\n"
-        f"Agente: {summary.get('provider')} · Carril: {summary.get('execution_lane')}{model_line}\n\n"
-        f"*Por qué no runner interno:*\n{summary.get('why_not_internal')}\n\n"
-        f"{summary.get('internal_alternative')}\n\n"
-        f"*Tu acción:*\n{summary.get('owner_action_hint')}\n"
+        f"Qué hará:\n{objective}\n\n"
+        f"Agente: {provider} · Carril: {summary.get('execution_lane')}{model_line}\n"
+        f"{spends}\n\n"
+        f"*¿Autorizas?* Responde solo:\n"
+        f"• *SI {tid}*  → autoriza y encola claim\n"
+        f"• *NO {tid}*  → rechaza/cancela\n\n"
+        f"(Alternativa Cursor: procede cursor … → confirmar co_…)\n"
+        f"Tienes días; no caduca en minutos.\n"
         f"{ralfia_time.format_log()}"
     )
-    tid = str(task.get("task_id") or "")
     key = _dedupe_key("owner_auth", tid)
     if not _can_send("owner_auth", tid):
         return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid}
@@ -158,9 +170,7 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
     else:
         hint = f"procede cursor {corr}" if corr else "procede cursor"
         title = "Cursor OPS en espera"
-        extra = "Owner: responde *{hint}* y luego *confirmar co_…* (gasta créditos Cursor al ejecutar).".format(
-            hint=hint
-        )
+        extra = f"Owner: responde *{hint}* y luego *confirmar co_…* (gasta créditos Cursor al ejecutar)."
     body = (
         f"🖱️ RalfIA · {title}\n"
         f"{_format_task_line(task)}\n"

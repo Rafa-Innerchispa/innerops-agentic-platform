@@ -30,18 +30,16 @@ def _build_status_report(*, correlation_id: str | None = None) -> str:
         filt["correlation_id"] = correlation_id
     tasks = list(db["ralfia_ops_tasks"].find(filt, {"_id": 0, "task_id": 1, "status": 1, "title": 1}).sort("updated_at", -1).limit(8))
     lines = [
-        "CHECKPOINT Cursor · inneros ops routing",
-        f"Correlación: {correlation_id or '(todas)'}",
-        "Modelo Cursor: composer-2.5-fast (pin)",
-        "Host: ralfiia-amd · worker Temporal: inneros_core/platform (canonical)",
-        "Rama: cursor/core-autonomy-model-pin-20261008 · SHA be3fbd22 · PR #128",
+        "CHECKPOINT · Golden flow ops (4 carriles + WhatsApp SI/NO)",
+        f"Correlación consulta: {correlation_id or '(todas)'}",
+        "GitHub main: PR #128 mergeado + chore gitignore + WhatsApp SI ops_xxx (ecf577da+)",
+        "Runtime: ralfiia-amd ↔ ralfiia-intel espejo (MCP + Temporal + Notion timer)",
+        "Agentes IDE: Cursor, Codex, Antigravity, Gemini (MCP claim/complete simétrico)",
+        "Owner WhatsApp: SI ops_xxx / NO ops_xxx (autoriza+claim; canary verification auto-cierra)",
+        "Script canary: platform/scripts/ops_quad_lane_canary.py",
+        "Golden correlación activa: golden-flow-quad-20261008",
         "",
-        "E2E verificados:",
-        "• Cursor ops_096993ac0911 → completed (gate cursor_interactive)",
-        "• Interno ops_744b5a2c85f6 → completed (dev_swarm pytest)",
-        "",
-        "CHANGES_REQUIRED msg_7ec7764273fb1e5a: corregido (c955ec09+).",
-        "Integración agentes: agent_provider_registry + Codex ops runner.",
+        "Pendiente opinión Notion: ¿falta E2E Antigravity real con LLM o basta canary read-only?",
         "",
         "Ops recientes:",
     ]

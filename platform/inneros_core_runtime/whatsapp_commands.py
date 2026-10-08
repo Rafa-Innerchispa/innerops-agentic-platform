@@ -445,6 +445,18 @@ def handle_inbound_command(
         if reply and result.get("text") and sender and not is_group:
             result["auto_reply"] = send_whatsapp(result["text"], number=_normalize_phone(sender), node=node)
         return {**result, "command": "agent_job"}
+    from inneros_core_runtime import ops_whatsapp_owner as ops_wa_owner
+
+    ops_owner = ops_wa_owner.handle_owner_reply(message)
+    if ops_owner is not None:
+        if not whatsapp_identity.is_owner(identity) or not whatsapp_identity.has_scope(
+            identity, "whatsapp:agent_jobs"
+        ):
+            return {"ok": False, "command": "ops_owner_auth", "error": "unauthorized_sender"}
+        if reply and ops_owner.get("text") and sender and not is_group:
+            ops_owner["auto_reply"] = send_whatsapp(ops_owner["text"], number=_normalize_phone(sender), node=node)
+        return {**ops_owner, "command": "ops_owner_auth"}
+
     from inneros_core_runtime import cursor_whatsapp_jobs as cursor_wa
 
     cursor_confirm = re.fullmatch(r"confirmar\s+(co_[a-f0-9]+)\s*$", (message or "").strip(), re.I)
