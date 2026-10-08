@@ -392,10 +392,17 @@ def create_ops_task(
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
+    from inneros_core_runtime import agent_provider_registry as apr
     from inneros_core_runtime.execution_binding import INTERACTIVE_IDE_PROVIDERS, normalize_provider
 
     provider_norm = normalize_provider(preferred_provider or assignee)
-    lane = (execution_lane or "").strip().lower()
+    lane, provider_norm, do_not_auto_dispatch = apr.apply_create_ops_defaults(
+        assignee,
+        execution_lane=execution_lane,
+        preferred_provider=provider_norm,
+        do_not_auto_dispatch=do_not_auto_dispatch,
+    )
+    lane = (lane or "").strip().lower()
     if provider_norm == "cursor" and not preferred_model:
         preferred_model = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
     if not lane and provider_norm == "cursor":

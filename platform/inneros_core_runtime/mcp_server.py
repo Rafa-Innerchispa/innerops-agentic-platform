@@ -500,6 +500,35 @@ def codex_complete_ops_task(
 
 
 @mcp.tool
+def register_interactive_agent_provider(
+    provider: str,
+    default_lane: str = "",
+    pinned_model_env: str = "",
+) -> dict[str, Any]:
+    """Registra un agente IDE nuevo (integración automática routing + defaults ops)."""
+    from inneros_core_runtime import agent_provider_registry as apr
+
+    return apr.register_interactive_provider(
+        provider,
+        default_lane=default_lane or None,
+        pinned_model_env=pinned_model_env or None,
+    )
+
+
+@mcp.tool
+def notion_coordination_autopilot_tick(
+    correlation_id: str = "inneros-core-autonomy-model-pin-20261008",
+    auto_ack: bool = True,
+) -> dict[str, Any]:
+    """Lee Notion→Cursor, responde checkpoints y ACK explícito."""
+    from inneros_core_runtime import notion_coordination_autopilot as nca
+
+    out = nca.process_notion_inbox_for_cursor(auto_ack=auto_ack, correlation_id=correlation_id or None)
+    out["outbox_sync"] = nca.sync_notion_outbox_ack()
+    return out
+
+
+@mcp.tool
 def codex_owner_order(
     correlation_id: str = "",
     task_id: str = "",

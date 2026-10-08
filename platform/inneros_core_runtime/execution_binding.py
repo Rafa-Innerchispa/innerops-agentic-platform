@@ -4,7 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
+def _interactive_ide_providers() -> frozenset[str]:
+    from inneros_core_runtime import agent_provider_registry as apr
+
+    return apr.interactive_providers()
+
+
+# Compat: usar agent_provider_registry.interactive_providers() en runtime
 INTERACTIVE_IDE_PROVIDERS = frozenset({"cursor", "codex", "antigravity", "gemini", "chatgpt"})
+
+
+def _ide_providers() -> frozenset[str]:
+    try:
+        return _interactive_ide_providers()
+    except Exception:
+        return INTERACTIVE_IDE_PROVIDERS
 INTERNAL_BOUNDED_RUNNER = "internal_bounded_local"
 INTERACTIVE_IDE_RUNNER = "interactive_ide_handoff"
 CURSOR_INTERACTIVE_RUNNER = "cursor_interactive"
@@ -170,7 +184,7 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
             ),
         }
 
-    if provider in INTERACTIVE_IDE_PROVIDERS:
+    if provider in _ide_providers():
         if lane in {"", "internal", "mcp"}:
             return {
                 **base,
@@ -323,6 +337,6 @@ def owner_execution_summary(
         "owner_action_hint": action_detail,
         "preferred_model": model or None,
         "requires_owner_authorization": not bool(binding.get("allowed"))
-        or provider in INTERACTIVE_IDE_PROVIDERS
+        or provider in _ide_providers()
         or bool(binding.get("do_not_auto_dispatch")),
     }

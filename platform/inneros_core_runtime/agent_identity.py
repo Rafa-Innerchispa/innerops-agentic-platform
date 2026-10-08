@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 
@@ -68,6 +69,8 @@ def canonical_mailbox(value: str, *, default: str = "chatgpt") -> str:
     base = normalized.split("_", 1)[0]
     if base in CANONICAL_MAILBOXES:
         return base
+    if os.getenv("AGENT_AUTO_REGISTER_MAILBOX", "1") == "1" and re.fullmatch(r"[a-z][a-z0-9_-]{1,48}", normalized):
+        return normalized
     return _slug(default, default="chatgpt")
 
 
