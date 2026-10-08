@@ -55,10 +55,11 @@ def find_by_poll_message_id(poll_message_id: str) -> dict[str, Any] | None:
     pid = str(poll_message_id or "").strip()
     if not pid:
         return None
-    return mongo_store.get_db()[COL].find_one(
-        {"poll_message_id": pid, "status": "pending"},
-        sort=[("updated_at", -1)],
-    )
+    db = mongo_store.get_db()
+    pending = db[COL].find_one({"poll_message_id": pid, "status": "pending"}, sort=[("updated_at", -1)])
+    if pending:
+        return pending
+    return db[COL].find_one({"poll_message_id": pid}, sort=[("updated_at", -1)])
 
 
 def pending_for_phone(phone: str, *, limit: int = 5) -> list[dict[str, Any]]:
