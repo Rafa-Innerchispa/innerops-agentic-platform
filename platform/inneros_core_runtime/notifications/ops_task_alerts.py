@@ -13,6 +13,7 @@ from raphiia_openai.notifications.settings import NOTIFY_COOLDOWN_SEC
 
 NOTIFY_OPS_TASKS = os.getenv("NOTIFY_OPS_TASKS", "1") == "1"
 TERMINAL_OPS = frozenset({"completed", "failed", "blocked", "partial", "cancelled", "superseded"})
+NOTIFY_CURSOR_CLAIM = os.getenv("NOTIFY_CURSOR_AWAITING_CLAIM", "1") == "1"
 NOTIFY_VERIFICATION = os.getenv("NOTIFY_OPS_VERIFICATION", "1") == "1"
 
 _STATE: dict[str, Any] = {"cooldowns": {}, "sent": []}
@@ -48,6 +49,44 @@ def _format_task_line(task: dict[str, Any]) -> str:
     repo = str(task.get("related_project") or task.get("repo") or "")
     repo_line = f"\nRepo: {repo}" if repo else ""
     return f"{tid}\n{title}\nOwner: {owner} · Assignee: {assignee}{repo_line}"
+
+
+def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str | None = None) -> dict[str, Any]:
+    """Avisa al owner por WhatsApp cuando una ops task espera claim Cursor (sin runner interno)."""
+    if not NOTIFY_OPS_TASKS or not NOTIFY_CURSOR_CLAIM:
+        return {"ok": False, "skipped": "notifications_disabled"}
+
+    status = str(task.get("status") or "").lower()
+    if status != "awaiting_cursor_claim":
+        return {"ok": False, "skipped": f"status_not_awaiting:{status}"}
+
+    prev = (previous_status or "").lower()
+    if prev == status:
+        return {"ok": False, "skipped": "no_status_change"}
+
+    provider = str(task.get("preferred_provider") or task.get("assignee") or "").lower()
+    if provider and provider not in {"cursor", "codex"} and "cursor" not in provider:
+        assignee = str(task.get("assignee") or "").lower()
+        if assignee != "cursor":
+            return {"ok": False, "skipped": "not_cursor_task"}
+
+    corr = str(task.get("correlation_id") or "").strip()
+    hint = f"procede cursor {corr}" if corr else "procede cursor"
+    body = (
+        "🖱️ RalfIA · Cursor OPS en espera\n"
+        f"{_format_task_line(task)}\n"
+        f"Modelo: composer-2.5-fast\n"
+        f"Owner: responde *{hint}* y luego *confirmar co_…*\n"
+        f"{ralfia_time.format_log()}"
+    )
+    key = _dedupe_key("cursor_claim", f"{task.get('task_id')}:awaiting_cursor_claim")
+    if not _can_send("cursor_claim", key):
+        return {"ok": False, "skipped": "cooldown_or_dedupe"}
+
+    result = send_alert_whatsapp(body, prefix_node=True)
+    if result.get("ok"):
+        _mark_sent("cursor_claim", key)
+    return {"ok": bool(result.get("ok")), "result": result, "task_id": task.get("task_id"), "status": status}
 
 
 def notify_ops_transition(

@@ -445,6 +445,25 @@ def handle_inbound_command(
         if reply and result.get("text") and sender and not is_group:
             result["auto_reply"] = send_whatsapp(result["text"], number=_normalize_phone(sender), node=node)
         return {**result, "command": "agent_job"}
+    from inneros_core_runtime import cursor_whatsapp_jobs as cursor_wa
+
+    cursor_confirm = re.fullmatch(r"confirmar\s+(co_[a-f0-9]+)\s*$", (message or "").strip(), re.I)
+    cursor_cancel = re.fullmatch(r"cancelar\s+(co_[a-f0-9]+)\s*$", (message or "").strip(), re.I)
+    cursor_request = cursor_wa.REQUEST_RE.match((message or "").strip())
+    if cursor_confirm or cursor_cancel or cursor_request:
+        if not whatsapp_identity.is_owner(identity) or not whatsapp_identity.has_scope(
+            identity, "whatsapp:agent_jobs"
+        ):
+            return {"ok": False, "command": "cursor_ops_job", "error": "unauthorized_sender"}
+        if cursor_confirm:
+            result = cursor_wa.confirm_job(sender, cursor_confirm.group(1))
+        elif cursor_cancel:
+            result = cursor_wa.cancel_job(sender, cursor_cancel.group(1))
+        else:
+            result = cursor_wa.request_order(sender, message, chat_id=conversation_id)
+        if reply and result.get("text") and sender and not is_group:
+            result["auto_reply"] = send_whatsapp(result["text"], number=_normalize_phone(sender), node=node)
+        return {**result, "command": "cursor_ops_job"}
     disk_move_confirm = re.fullmatch(r"confirmar\s+(dm_[a-f0-9]+)", text_lower)
     disk_move_cancel = re.fullmatch(r"cancelar\s+(dm_[a-f0-9]+)", text_lower)
     disk_move_confirm2 = re.fullmatch(r"confirmar\s+movimiento\s+(dm_[a-f0-9]+)", text_lower)

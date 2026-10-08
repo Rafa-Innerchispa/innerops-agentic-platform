@@ -360,6 +360,8 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
         correlation_id = str(envelope_dict.get("correlation_id") or "").strip()
         if correlation_id:
             mirror_fields["correlation_id"] = correlation_id
+        existing = col.find_one({"task_id": task_id}, {"status": 1})
+        previous_status = str((existing or {}).get("status") or "")
         col.update_one(
             {"task_id": task_id},
             {
@@ -368,6 +370,16 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
             },
             upsert=True,
         )
+        if status == "awaiting_cursor_claim":
+            try:
+                from inneros_core_runtime.notifications.ops_task_alerts import notify_cursor_awaiting_claim
+
+                notify_cursor_awaiting_claim(
+                    {**mirror_fields, "task_id": task_id},
+                    previous_status=previous_status,
+                )
+            except Exception:
+                logger.debug("cursor awaiting claim notify skipped", exc_info=True)
         return {"ok": True, "mirrored": True}
     except Exception as e:
         logger.exception("Mongo projection update failed")

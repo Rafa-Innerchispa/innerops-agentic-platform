@@ -440,6 +440,27 @@ def cursor_complete_ops_task(
 
 
 @mcp.tool
+def cursor_owner_order(
+    correlation_id: str = "",
+    task_id: str = "",
+    owner_approved: bool = True,
+    owner_actor: str = "RAFAEL",
+    deliver_cursor_inbox: bool = True,
+) -> dict[str, Any]:
+    """Una sola orden owner: autoriza + claim Cursor (Composer fijado) + inbox + WhatsApp."""
+    from inneros_core_runtime.cursor_ops_orchestrator import owner_order_execute
+
+    return owner_order_execute(
+        correlation_id=correlation_id or None,
+        task_id=task_id or None,
+        owner_actor=owner_actor,
+        channel="mcp",
+        owner_approved=owner_approved,
+        deliver_cursor_inbox=deliver_cursor_inbox,
+    )
+
+
+@mcp.tool
 def identify_agent_session(
     agent: str,
     account: str = "",
