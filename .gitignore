@@ -2,3 +2,12 @@
 .canary/
 __pycache__/
 *.pyc
+
+# Runtime / LEP (no versionar clones ni evidencia efímera)
+var/local_execution/
+var/evidence/
+var/gitlab_contributorops/
+var/inneros_autopilot/
+worktrees/
+workspaces/*
+!workspaces/innerops-agentic-platform/

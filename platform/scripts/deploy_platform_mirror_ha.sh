@@ -64,8 +64,12 @@ EOF
 
 install_notion_autopilot_timer() {
   local target="$1"
-  local ssh_target="$target"
-  [[ "$target" == "localhost" ]] && ssh_target="127.0.0.1"
+  local run_remote
+  if [[ "$target" == "localhost" ]] || [[ "$target" == "$(local_host)" ]]; then
+    run_remote() { bash -s <<<"$1"; }
+  else
+    run_remote() { ssh -o BatchMode=yes "$target" "bash -s" <<<"$1"; }
+  fi
   local timer_cmd
   timer_cmd=$(cat <<EOF
 set -euo pipefail
@@ -74,15 +78,14 @@ U=\${XDG_CONFIG_HOME:-\$HOME/.config}/systemd/user
 mkdir -p "\$U"
 S="\$U/inneros-notion-coordination-autopilot.service"
 T="\$U/inneros-notion-coordination-autopilot.timer"
-if [[ ! -f "\$S" ]]; then
-  printf '%s\n' '[Unit]' 'Description=InnerOS Notion coordination autopilot tick' '' '[Service]' 'Type=oneshot' "WorkingDirectory=\${PLATFORM}" "Environment=PYTHONPATH=\${PLATFORM}" "ExecStart=\${PLATFORM}/venv/bin/python3 \${PLATFORM}/scripts/notion_coordination_autopilot_tick.py" '' '[Install]' 'WantedBy=default.target' > "\$S"
-  printf '%s\n' '[Unit]' 'Description=Notion coordination autopilot every 3 minutes' '' '[Timer]' 'OnBootSec=2min' 'OnUnitActiveSec=3min' 'Persistent=true' '' '[Install]' 'WantedBy=timers.target' > "\$T"
-fi
+printf '%s\n' '[Unit]' 'Description=InnerOS Notion coordination autopilot tick' '' '[Service]' 'Type=oneshot' "WorkingDirectory=\${PLATFORM}" "Environment=PYTHONPATH=\${PLATFORM}" "ExecStart=\${PLATFORM}/venv/bin/python3 \${PLATFORM}/scripts/notion_coordination_autopilot_tick.py" '' '[Install]' 'WantedBy=default.target' > "\$S"
+printf '%s\n' '[Unit]' 'Description=Notion coordination autopilot every 3 minutes' '' '[Timer]' 'OnBootSec=2min' 'OnUnitActiveSec=3min' 'Persistent=true' '' '[Install]' 'WantedBy=timers.target' > "\$T"
 systemctl --user daemon-reload
 systemctl --user enable --now inneros-notion-coordination-autopilot.timer
+systemctl --user is-active inneros-notion-coordination-autopilot.timer
 EOF
 )
-  ssh -o BatchMode=yes "$ssh_target" bash -lc "$timer_cmd" 2>/dev/null || true
+  run_remote "$timer_cmd"
 }
 
 ME="$(local_host)"
@@ -95,12 +98,7 @@ sync_to_peer "$PEER"
 activate_node "localhost"
 activate_node "$PEER"
 
-for node in "${PEERS[@]}"; do
-  if [[ "$node" == "$PEER" ]]; then
-    install_notion_autopilot_timer "$PEER"
-  else
-    install_notion_autopilot_timer "localhost"
-  fi
-done
+install_notion_autopilot_timer "localhost"
+install_notion_autopilot_timer "$PEER"
 
 echo "OK mirror HA: código sincronizado y servicios canonical en AMD + Intel."
