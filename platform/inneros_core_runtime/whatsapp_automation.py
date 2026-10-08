@@ -326,6 +326,8 @@ def ingest_inbound_event(payload: dict[str, Any]) -> dict[str, Any]:
         }
     sender = _extract_sender(payload)
     raw_message = _extract_message(payload)
+    if not (raw_message or "").strip():
+        raw_message = evo.extract_poll_ops_auth_command(payload) or ""
     message = raw_message
     conversation_id = _conversation_id(payload, sender)
     is_group = _is_group(sender, conversation_id)

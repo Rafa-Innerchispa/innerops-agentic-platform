@@ -90,6 +90,7 @@ PORTAL_SERVICES_JSON = os.getenv(
     "/home/rlopez/projects/innerspark-swarm-os-cursor-local/portal/services.json",
 )
 OPS_PANEL_PUBLIC_URL = os.getenv("OPS_PANEL_PUBLIC_URL", f"http://{RALFIA_LAN_IP}:2002")
+PORTAL_LEGACY_URL = os.getenv("PORTAL_LEGACY_URL", f"http://{RALFIA_LAN_IP}:8800")
 
 SWARM_API_BASE = os.getenv("SWARM_API_BASE", "http://127.0.0.1:8100").rstrip("/")
 
