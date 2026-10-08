@@ -201,7 +201,8 @@ def claim_ops_task(
     pin = pinned_model(prov)
     token = secrets.token_hex(8)
     now = _now()
-    lane = str(apr.provider_spec(prov) or {}).get("default_lane") or f"{prov}_interactive"
+    spec = apr.provider_spec(prov) or {}
+    lane = str(spec.get("default_lane") or "") or f"{prov}_interactive"
     claimed = db[OPS_TASKS_COL].find_one_and_update(
         {"task_id": tid, "$or": [{"status": {"$in": sorted(CLAIM_STATUSES)}}, {"status": "running", "assignee": prov, "claim_token": {"$exists": False}}]},
         {
