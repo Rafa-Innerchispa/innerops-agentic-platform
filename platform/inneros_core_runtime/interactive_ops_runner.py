@@ -38,10 +38,10 @@ CLAIM_STATUSES = frozenset(
 
 _DEFAULT_PINNED: dict[str, tuple[str, str]] = {
     "cursor": ("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast"),
-    "codex": ("CODEX_OPS_PINNED_MODEL", "gpt-5.6-sol"),
-    "antigravity": ("ANTIGRAVITY_OPS_PINNED_MODEL", "gemini-2.5-pro"),
-    "gemini": ("GEMINI_OPS_PINNED_MODEL", "gemini-2.5-pro"),
-    "chatgpt": ("CHATGPT_OPS_PINNED_MODEL", "gpt-5.6-sol"),
+    "codex": ("CODEX_OPS_PINNED_MODEL", "gpt-5.6-terra"),
+    "antigravity": ("ANTIGRAVITY_OPS_PINNED_MODEL", "gemini-3.7-flash-medium"),
+    "gemini": ("GEMINI_OPS_PINNED_MODEL", "gemini-3.7-flash-medium"),
+    "chatgpt": ("CHATGPT_OPS_PINNED_MODEL", "gpt-5.6-terra"),
 }
 
 
