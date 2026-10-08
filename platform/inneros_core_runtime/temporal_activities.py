@@ -90,6 +90,12 @@ async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, 
         )
         if wt.get("ok") and wt.get("worktree"):
             return {"ok": True, "worktree": str(wt.get("worktree")), "source": "local_execution_plane"}
+        raise ApplicationError(
+            f"Worktree hydration failed for {repo}: {wt.get('error') or wt}",
+            type="WORKTREE_HYDRATION_FAILED",
+            non_retryable=True,
+        )
+
     worktree_path = WORKTREE_BASE / f"temporal-{envelope.task_id}"
     worktree_path.mkdir(parents=True, exist_ok=True)
     return {"ok": True, "worktree": str(worktree_path), "source": "temporal_stub"}
