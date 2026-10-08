@@ -396,7 +396,11 @@ def create_ops_task(
 
     provider_norm = normalize_provider(preferred_provider or assignee)
     lane = (execution_lane or "").strip().lower()
-    if not lane and provider_norm in INTERACTIVE_IDE_PROVIDERS:
+    if provider_norm == "cursor" and not preferred_model:
+        preferred_model = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
+    if not lane and provider_norm == "cursor":
+        lane = "cursor_interactive"
+    elif not lane and provider_norm in INTERACTIVE_IDE_PROVIDERS:
         lane = "interactive_ide"
     elif not lane:
         lane = "internal"
@@ -473,6 +477,14 @@ def create_ops_task(
             "details": started,
         }
     doc["run_id"] = started.get("run_id")
+    try:
+        mongo_store.get_db()[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {"$set": doc},
+            upsert=True,
+        )
+    except Exception:
+        pass
     _publish_task_event(
         "task.created",
         doc,

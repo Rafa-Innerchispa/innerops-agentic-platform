@@ -30,7 +30,7 @@ class ExecutionBindingTests(unittest.TestCase):
             }
         )
         self.assertFalse(binding["allowed"])
-        self.assertEqual(binding["status"], "waiting_for_binding")
+        self.assertEqual(binding["status"], "awaiting_cursor_claim")
 
     def test_model_preflight_missing_blocks(self) -> None:
         binding = eb.resolve_execution_binding(

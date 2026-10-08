@@ -75,6 +75,10 @@ mcp = FastMCP(
 mcp.add_middleware(ToolCallIsolationMiddleware())
 if MCP_API_KEY:
     mcp.add_middleware(ApiKeyMiddleware(MCP_API_KEY))
+if os.getenv("MCP_TOOL_PROFILE", "").strip().lower() == "chatgpt_compact":
+    from inneros_core_runtime.mcp_compact_refresh import CompactProfileRefreshMiddleware
+
+    mcp.add_middleware(CompactProfileRefreshMiddleware())
 
 def _normalized_http_path(path: str) -> str:
     value = (path or "").strip()
@@ -158,6 +162,10 @@ class McpSmallOAuthDiscoveryMiddleware:
 
         auth_ctx = am.resolve_bearer_auth_context(headers)
         authenticated = bool(auth_ctx.get("ok"))
+        if not authenticated and MCP_API_KEY:
+            api_key = headers.get("x-api-key") or ""
+            if api_key and api_key == MCP_API_KEY:
+                authenticated = True
 
         if not authenticated and method in {"GET", "HEAD", "POST"}:
             challenge = _compact_mcp_oauth_challenge()
@@ -371,6 +379,64 @@ def poll_agent_inbox(agent: str, limit: int = 20, auto_ack: bool = False) -> dic
     from raphiia_openai.memory import agent_messages as _am
 
     return _am.poll_agent_inbox(agent=agent, limit=limit, auto_ack=auto_ack)
+
+
+@mcp.tool
+def cursor_list_claimable_ops_tasks(limit: int = 10, correlation_id: str = "") -> dict[str, Any]:
+    """Lista ops tasks en espera de claim por Cursor (sin gastar créditos en otros runners)."""
+    from inneros_core_runtime import cursor_ops_runner as cor
+
+    return cor.list_claimable_ops_tasks(limit=limit, correlation_id=correlation_id or None)
+
+
+@mcp.tool
+def cursor_authorize_ops_task(task_id: str, owner_actor: str = "RAFAEL", channel: str = "mcp") -> dict[str, Any]:
+    """Autorización owner antes de que Cursor claim (WhatsApp/voz puede llamar esto)."""
+    from inneros_core_runtime import cursor_ops_runner as cor
+
+    return cor.authorize_ops_task_for_cursor(task_id, owner_actor=owner_actor, channel=channel)
+
+
+@mcp.tool
+def cursor_claim_ops_task(
+    task_id: str = "",
+    correlation_id: str = "",
+    owner_approved: bool = False,
+    owner_actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    """Claim exclusivo para sesión Cursor activa; modelo fijado Composer (CURSOR_OPS_PINNED_MODEL)."""
+    from inneros_core_runtime import cursor_ops_runner as cor
+
+    return cor.claim_ops_task(
+        task_id=task_id or None,
+        correlation_id=correlation_id or None,
+        owner_approved=owner_approved,
+        owner_actor=owner_actor,
+    )
+
+
+@mcp.tool
+def cursor_complete_ops_task(
+    task_id: str,
+    claim_token: str,
+    status: str = "completed",
+    commit_sha: str = "",
+    evidence_json: str = "",
+) -> dict[str, Any]:
+    """Cierra una tarea claimada por Cursor con evidencia (SHA, archivos, notas)."""
+    import json
+    from inneros_core_runtime import cursor_ops_runner as cor
+
+    evidence: dict[str, Any] = {}
+    if evidence_json.strip():
+        evidence = json.loads(evidence_json)
+    return cor.complete_ops_task(
+        task_id,
+        claim_token=claim_token,
+        status=status,
+        evidence=evidence or None,
+        commit_sha=commit_sha or None,
+    )
 
 
 @mcp.tool
@@ -7300,16 +7366,18 @@ async def mcp_ready_http(_request: Request) -> JSONResponse:
 
 @mcp.custom_route("/version", methods=["GET"])
 async def mcp_version_http(_request: Request) -> JSONResponse:
+    from inneros_core_runtime.mcp_compact_refresh import compact_refresh_metadata
+
     ver = mcp_diagnostics.mcp_version()
-    return JSONResponse(
-        {
-            "ok": True,
-            "server_version": MCP_SERVER_VERSION,
-            "catalog_version": ver.get("catalog_version"),
-            "tool_count": ver.get("runtime_tool_count"),
-            "manifest_hash": ver.get("manifest_hash"),
-        }
-    )
+    payload = {
+        "ok": True,
+        "server_version": MCP_SERVER_VERSION,
+        "catalog_version": ver.get("catalog_version"),
+        "tool_count": ver.get("runtime_tool_count"),
+        "manifest_hash": ver.get("manifest_hash"),
+    }
+    payload.update(compact_refresh_metadata())
+    return JSONResponse(payload)
 
 
 @mcp.custom_route("/capabilities", methods=["GET"])
@@ -8032,6 +8100,8 @@ def bellini_governed_action(
 
 def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
     """Restrict tools advertised and callable by this MCP process to one profile."""
+    import asyncio
+
     from fastmcp.server.transforms import Visibility
     from raphiia_openai import mcp_profiles
 
@@ -8039,13 +8109,36 @@ def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
     if not profile.get("ok"):
         raise RuntimeError(f"unknown MCP tool profile: {profile_name}")
     names = set(profile["tools"])
+
+    async def _registered_tool_names() -> set[str]:
+        listed = await mcp.list_tools()
+        return {tool.name for tool in listed}
+
+    registered = asyncio.run(_registered_tool_names())
+    missing = sorted(names - registered)
+    if missing:
+        raise RuntimeError(
+            f"MCP profile {profile_name} references tools that are not registered in this process: {missing}. "
+            "Restart after deploying mcp_server.py or fix the profile allowlist."
+        )
+
     mcp.add_transform(Visibility(False, components={"tool"}, match_all=True))
     mcp.add_transform(Visibility(True, components={"tool"}, names=names))
+    from inneros_core_runtime.mcp_compact_refresh import record_compact_surface
+
+    record_compact_surface(
+        profile_pin=str(profile.get("profile_pin") or profile["catalog_pin"]),
+        profiles_version=str(profile["profiles_version"]),
+        tool_count=len(names),
+    )
     return {
         "profile": profile_name,
         "tool_count": len(names),
+        "registered_tool_count": len(registered),
+        "surface_complete": True,
         "catalog_pin": profile["catalog_pin"],
         "profiles_version": profile["profiles_version"],
+        "profile_pin": profile.get("profile_pin"),
     }
 
 

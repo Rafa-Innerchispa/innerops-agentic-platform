@@ -7,7 +7,9 @@ from typing import Any
 INTERACTIVE_IDE_PROVIDERS = frozenset({"cursor", "codex", "antigravity", "gemini", "chatgpt"})
 INTERNAL_BOUNDED_RUNNER = "internal_bounded_local"
 INTERACTIVE_IDE_RUNNER = "interactive_ide_handoff"
+CURSOR_INTERACTIVE_RUNNER = "cursor_interactive"
 BLOCKED_RUNNER = "blocked"
+CURSOR_PINNED_MODEL = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
 
 _DISPATCH_KEYS = (
     "dispatch_mode",
@@ -67,6 +69,22 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         "preferred_model": preferred_model,
     }
 
+    owner_approved = bool(env.get("owner_approved") or env.get("owner_authorized_at"))
+    if provider == "cursor" and (do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}):
+        return {
+            **base,
+            "ok": False,
+            "allowed": False,
+            "runner": CURSOR_INTERACTIVE_RUNNER,
+            "status": "awaiting_cursor_claim",
+            "error": "cursor_claim_required",
+            "message": (
+                "Temporal detenido. Usa cursor_claim_ops_task (owner_approved) en sesión Cursor; "
+                f"modelo fijado {CURSOR_PINNED_MODEL}."
+            ),
+            "preferred_model_default": CURSOR_PINNED_MODEL,
+        }
+
     if do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}:
         return {
             **base,
@@ -105,6 +123,17 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
                     f"preferred_provider={provider} no puede ejecutarse por carril internal/local genérico. "
                     "Use sesión IDE o runner explícito."
                 ),
+            }
+        if provider == "cursor" and lane in {"interactive_ide", "owner_handoff", "cursor_session", "cursor_interactive", "external_ide"}:
+            return {
+                **base,
+                "ok": False,
+                "allowed": False,
+                "runner": CURSOR_INTERACTIVE_RUNNER,
+                "status": "awaiting_cursor_claim",
+                "error": "cursor_claim_required",
+                "message": f"Esperando cursor_claim_ops_task en sesión activa (modelo {CURSOR_PINNED_MODEL}).",
+                "preferred_model_default": CURSOR_PINNED_MODEL,
             }
         if lane in {"interactive_ide", "owner_handoff", "cursor_session", "external_ide"}:
             return {
