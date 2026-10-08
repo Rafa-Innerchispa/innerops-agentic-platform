@@ -162,11 +162,44 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
                 "error": f"Completion prohibited: Unit tests failed with exit_code={test_exit_code}",
                 "test_results": test_results
             }
-        if files_count == 0 and not code_diff:
+        objective_files = int(agent_result.get("objective_files_count") or 0)
+        objective_paths = list(agent_result.get("objective_paths") or [])
+        if any(str(path).endswith("/") for path in objective_paths):
+            return {
+                "passed": False,
+                "error": "Completion prohibited: objective_paths must list concrete files, not directories",
+                "objective_paths": objective_paths,
+            }
+        if any("__pycache__" in str(path) for path in objective_paths):
+            return {
+                "passed": False,
+                "error": "Completion prohibited: generated cache paths cannot count as objective fulfillment",
+                "objective_paths": objective_paths,
+            }
+        missing_required = list(agent_result.get("missing_required_objective_paths") or [])
+        if missing_required:
+            return {
+                "passed": False,
+                "error": "Completion prohibited: required objective paths missing on disk",
+                "missing_required_objective_paths": missing_required,
+            }
+        if objective_files == 0:
+            bridge_paths = agent_result.get("bridge_artifact_paths") or []
+            return {
+                "passed": False,
+                "error": (
+                    "Completion prohibited: diff is empty or only Temporal bridge artifacts "
+                    "(sync_bridge_artifacts is not task objective fulfillment)"
+                ),
+                "files_count": files_count,
+                "objective_files_count": objective_files,
+                "bridge_artifact_paths": bridge_paths,
+            }
+        if files_count == 0 and not code_diff and objective_files == 0:
             return {
                 "passed": False,
                 "error": "Completion prohibited: Coding task requires non-empty diff and files_count > 0",
-                "files_count": files_count
+                "files_count": files_count,
             }
 
     # 2. Ops / Network / Read-Only Validation Gate
