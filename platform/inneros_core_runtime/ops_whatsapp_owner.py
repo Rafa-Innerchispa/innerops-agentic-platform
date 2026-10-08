@@ -7,8 +7,31 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-AUTH_RE = re.compile(r"^(?:SI|SÍ|AUTORIZO|OK)\s+(ops_[a-f0-9]+)\s*$", re.I)
-DENY_RE = re.compile(r"^(?:NO|RECHAZO|CANCELAR)\s+(ops_[a-f0-9]+)\s*$", re.I)
+AUTH_RE = re.compile(r"^(?:SI|SÍ|AUTORIZO|OK)\s+(?:ops[_\s-]*)?([a-f0-9]{8,12})\s*$", re.I)
+DENY_RE = re.compile(r"^(?:NO|RECHAZO|CANCELAR)\s+(?:ops[_\s-]*)?([a-f0-9]{8,12})\s*$", re.I)
+BUTTON_AUTH_RE = re.compile(r"^ops\.auth\.(yes|no)\.(ops_[a-f0-9]{12})$", re.I)
+
+
+def _resolve_task_id(fragment: str) -> str | None:
+    frag = (fragment or "").strip().lower()
+    if frag.startswith("ops_"):
+        return frag
+    from raphiia_openai import mongo_store
+    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+
+    db = mongo_store.get_db()
+    exact = f"ops_{frag}" if not frag.startswith("ops_") else frag
+    if db[OPS_TASKS_COL].find_one({"task_id": exact}, {"task_id": 1}):
+        return exact
+    matches = list(
+        db[OPS_TASKS_COL]
+        .find({"task_id": {"$regex": f"{re.escape(frag)}$"}}, {"task_id": 1})
+        .sort("updated_at", -1)
+        .limit(5)
+    )
+    if len(matches) == 1:
+        return str(matches[0]["task_id"])
+    return None
 
 
 def _git_head(path: str) -> str:
@@ -47,9 +70,12 @@ def _maybe_auto_complete_verification(provider: str, task: dict[str, Any], claim
 
 def handle_owner_reply(message: str, *, owner_actor: str = "RAFAEL") -> dict[str, Any] | None:
     text = (message or "").strip()
+    btn = BUTTON_AUTH_RE.match(text)
+    if btn:
+        text = f"{'SI' if btn.group(1).lower() == 'yes' else 'NO'} {btn.group(2)}"
     deny = DENY_RE.match(text)
     if deny:
-        tid = deny.group(1)
+        tid = _resolve_task_id(deny.group(1)) or deny.group(1)
         from inneros_core_runtime import durable_coordination_spine
 
         out = durable_coordination_spine.signal_task_workflow(tid, "cancel", "owner_rejected_whatsapp")
@@ -62,9 +88,32 @@ def handle_owner_reply(message: str, *, owner_actor: str = "RAFAEL") -> dict[str
 
     auth = AUTH_RE.match(text)
     if not auth:
-        return None
+        if re.fullmatch(r"^(?:SI|SÍ|OK)$", text, re.I):
+            from raphiia_openai import mongo_store
+            from inneros_core_runtime.coordination_live import OPS_TASKS_COL
 
-    tid = auth.group(1)
+            pending = list(
+                mongo_store.get_db()[OPS_TASKS_COL]
+                .find(
+                    {
+                        "status": {
+                            "$regex": "^awaiting_",
+                        },
+                        "owner_authorized_at": {"$exists": False},
+                    },
+                    {"task_id": 1},
+                )
+                .sort("updated_at", -1)
+                .limit(2)
+            )
+            if len(pending) == 1:
+                tid = str(pending[0]["task_id"])
+                text = f"SI {tid}"
+                auth = AUTH_RE.match(text)
+        if not auth:
+            return None
+
+    tid = _resolve_task_id(auth.group(1)) or auth.group(1)
     from raphiia_openai import mongo_store
     from inneros_core_runtime.coordination_live import OPS_TASKS_COL
     from inneros_core_runtime import execution_binding as eb
@@ -114,6 +163,13 @@ def handle_owner_reply(message: str, *, owner_actor: str = "RAFAEL") -> dict[str
         lines.append("Cierre canary verification enviado (Temporal gate).")
     elif provider in {"cursor", "codex", "antigravity", "gemini"}:
         lines.append("Siguiente: ejecuta en el IDE y cierra con evidencia (o espera auto si canary).")
+    try:
+        from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_transition
+
+        task2 = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
+        notify_ops_transition(task2, previous_status=str(task.get("status") or ""), actor=owner_actor)
+    except Exception:
+        pass
     return {
         "ok": True,
         "text": "\n".join(lines),

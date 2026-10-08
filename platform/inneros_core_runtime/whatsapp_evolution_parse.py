@@ -177,6 +177,10 @@ def extract_interactive_action(payload: dict[str, Any]) -> str:
         }
         if candidate.strip() in menu_actions:
             return menu_actions[candidate.strip()]
+        ops_auth = re.fullmatch(r"ops\.auth\.(yes|no)\.(ops_[a-f0-9]{12})", candidate.strip())
+        if ops_auth:
+            verb = "SI" if ops_auth.group(1) == "yes" else "NO"
+            return f"{verb} {ops_auth.group(2)}"
     return ""
 
 

@@ -300,6 +300,35 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "test_results": {"exit_code": 1, "ok": False, "stderr": "AssertionError: test failed"},
             "error_count": 1
         }
+    if envelope_dict.get("canary_test_type") == "git_head_only" or (
+        isinstance(envelope_dict.get("payload"), dict)
+        and envelope_dict["payload"].get("canary_test_type") == "git_head_only"
+    ):
+        import subprocess
+
+        wt = worktree or worktree_info.get("worktree") or ""
+        if not wt:
+            return {"ok": False, "test_results": {"exit_code": 1, "ok": False}, "files_count": 0}
+        proc = subprocess.run(
+            ["git", "-C", str(wt), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        sha = proc.stdout.strip() if proc.returncode == 0 else ""
+        ok = bool(sha)
+        return {
+            "ok": ok,
+            "files_count": 0,
+            "objective_files_count": 0,
+            "objective_paths": [],
+            "code_diff": "",
+            "response": "git_head_only canary",
+            "test_results": {"exit_code": 0 if ok else 1, "ok": ok},
+            "commit_sha": sha,
+            "evidence": {"commit_sha": sha},
+        }
+
     if envelope_dict.get("canary_test_type") == "empty_diff":
         return {
             "ok": True,

@@ -43,6 +43,10 @@ def _mark_sent(kind: str, key: str) -> None:
     _STATE["sent"] = sent[-200:]
 
 
+def title_short(task: dict[str, Any]) -> str:
+    return str(task.get("title") or "ops task")[:80]
+
+
 def _format_task_line(task: dict[str, Any]) -> str:
     tid = str(task.get("task_id") or "?")
     title = str(task.get("title") or "")[:90]
@@ -91,26 +95,35 @@ def notify_ops_owner_authorization_request(
         if summary.get("requires_owner_authorization") and not summary.get("allowed_internal_runner")
         else "Carril *interno* (no gasta Cursor/Codex/Antigravity)."
     )
-    body = (
-        f"{icon} RalfIA · {headline}\n"
-        f"ID: `{tid}`\n"
-        f"Solicitado por: {from_agent}\n"
-        f"{_format_task_line(task)}\n"
-        f"Qué hará:\n{objective}\n\n"
-        f"Agente: {provider} · Carril: {summary.get('execution_lane')}{model_line}\n"
-        f"{spends}\n\n"
-        f"*¿Autorizas?* Responde solo:\n"
-        f"• *SI {tid}*  → autoriza y encola claim\n"
-        f"• *NO {tid}*  → rechaza/cancela\n\n"
-        f"(Alternativa Cursor: procede cursor … → confirmar co_…)\n"
-        f"Tienes días; no caduca en minutos.\n"
-        f"{ralfia_time.format_log()}"
+    short = (
+        f"{icon} *{provider.upper()}* · {title_short(task)}\n"
+        f"ID: {tid}\n"
+        f"{objective[:160]}\n"
+        f"{spends}\n"
+        f"Toca un botón ↓"
     )
+    body = short
     key = _dedupe_key("owner_auth", tid)
     if not _can_send("owner_auth", tid):
         return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid}
 
-    result = send_alert_whatsapp(body, prefix_node=True)
+    from raphiia_openai.notifications.evolution_client import send_whatsapp_interactive
+
+    buttons = [
+        {"id": f"ops.auth.yes.{tid}", "label": "✅ Sí, autorizar"},
+        {"id": f"ops.auth.no.{tid}", "label": "❌ No"},
+    ]
+    result = send_whatsapp_interactive(
+        short,
+        buttons,
+        fallback_text=f"{short}\n\nSi no ves botones: responde SI {tid} o NO {tid}",
+        footer="RalfIA · ops",
+    )
+    if not result.get("ok"):
+        result = send_alert_whatsapp(
+            f"{short}\n\nResponde: SI {tid}  o  NO {tid}",
+            prefix_node=True,
+        )
     if result.get("ok"):
         _mark_sent("owner_auth", tid)
     return {

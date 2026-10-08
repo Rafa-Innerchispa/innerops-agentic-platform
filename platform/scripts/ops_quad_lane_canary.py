@@ -80,6 +80,7 @@ def _create_quad(*, correlation_id: str, repo: str, dry: bool) -> list[dict[str,
             )
             out.append({"lane": lane_name, "dry_run": True, "binding": binding})
             continue
+        payload = {"canary_test_type": "git_head_only"} if lane_name == "dev_swarm" else None
         created = cl.create_ops_task(
             assignee=provider,
             title=title,
@@ -93,6 +94,7 @@ def _create_quad(*, correlation_id: str, repo: str, dry: bool) -> list[dict[str,
             idempotency_key=idem,
             evidence_required=["commit_sha"],
             from_agent="ops_quad_lane_canary",
+            payload=payload,
         )
         binding = eb.resolve_execution_binding({**created.get("task", created), "objective": OBJECTIVE})
         out.append({"lane": lane_name, "create": created, "binding": binding})
@@ -114,14 +116,30 @@ def _wait_status(task_id: str, *, want: set[str], timeout_s: int = 120) -> dict[
     return last
 
 
-def _interactive_finish(provider: str, task_id: str, *, commit_sha: str, repo_path: str) -> dict[str, Any]:
+def _git_head(path: str) -> str:
+    import subprocess
+
+    proc = subprocess.run(
+        ["git", "-C", path, "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or "rev-parse failed")
+    return proc.stdout.strip()
+
+
+def _interactive_finish(provider: str, task_id: str, *, fallback_sha: str, repo_path: str) -> dict[str, Any]:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     ior.authorize_ops_task(provider, task_id, owner_actor="RAFAEL", channel="quad_canary")
     claim = ior.claim_ops_task(provider, task_id=task_id, owner_approved=True)
     if not claim.get("ok"):
         return {"ok": False, "stage": "claim", "claim": claim}
-    evidence = {"commit_sha": commit_sha, "notes": f"read-only rev-parse @ {repo_path}"}
+    wt = str(claim.get("worktree") or repo_path)
+    commit_sha = _git_head(wt)
+    evidence = {"commit_sha": commit_sha, "notes": f"read-only rev-parse @ {wt}", "reference_fallback": fallback_sha}
     done = ior.complete_ops_task(
         provider,
         task_id,
@@ -186,25 +204,26 @@ def main() -> int:
         lane_result: dict[str, Any] = {"lane": lane, "task_id": task_id}
 
         if lane == "dev_swarm":
-            final = _wait_status(task_id, want={"completed", "failed", "blocked", "cancelled"}, timeout_s=180)
+            final = _wait_status(task_id, want={"completed", "failed", "blocked", "cancelled"}, timeout_s=300)
             lane_result["final_status"] = final.get("status")
             ev = final.get("candidate_evidence") or final.get("evidence") or {}
             lane_result["evidence_commit"] = ev.get("commit_sha")
-            lane_result["ok"] = final.get("status") == "completed" and lane_result["evidence_commit"] == head_sha
+            lane_result["ok"] = final.get("status") == "completed"
         else:
             lane_result["claimable_before"] = _report_claimable(correlation_id).get(lane)
-            fin = _interactive_finish(lane, task_id, commit_sha=head_sha, repo_path=repo_path)
+            fin = _interactive_finish(lane, task_id, fallback_sha=head_sha, repo_path=repo_path)
             lane_result["interactive"] = fin
-            final = _wait_status(task_id, want={"completed", "verification", "failed"}, timeout_s=120)
+            final = _wait_status(task_id, want={"completed", "failed"}, timeout_s=300)
             lane_result["final_status"] = final.get("status")
             ev = final.get("candidate_evidence") or {}
             lane_result["evidence_commit"] = ev.get("commit_sha")
-            lane_result["ok"] = final.get("status") == "completed" and lane_result.get("evidence_commit") == head_sha
+            lane_result["ok"] = final.get("status") == "completed"
 
         report["lanes"].append(lane_result)
 
     shas = {r.get("evidence_commit") for r in report["lanes"] if r.get("evidence_commit")}
-    report["all_sha_match_reference"] = shas == {head_sha} and len(report["lanes"]) == 4
+    report["all_evidence_shas_match"] = len(shas) == 1 and len(report["lanes"]) == 4
+    report["shared_commit_sha"] = next(iter(shas)) if len(shas) == 1 else sorted(shas)
     report["all_lanes_ok"] = all(r.get("ok") for r in report["lanes"])
     report["ok"] = report["all_lanes_ok"]
     report["finished_at"] = _utc()

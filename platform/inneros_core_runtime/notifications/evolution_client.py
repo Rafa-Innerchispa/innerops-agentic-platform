@@ -323,6 +323,7 @@ def send_whatsapp_interactive(
         label = str(item.get("label") or "").strip()[:24]
         if not label or not re.fullmatch(
             r"(?:maint\.(?:confirm|cancel)\.[A-Za-z0-9_-]{4,100}|"
+            r"ops\.auth\.(?:yes|no)\.ops_[a-f0-9]{12}|"
             r"menu\.(?:status|email|more|services|notifications|custom))",
             action_id,
         ):
