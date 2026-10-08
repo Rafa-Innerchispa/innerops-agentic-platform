@@ -109,13 +109,25 @@ def notify_ops_owner_authorization_request(
     }
 
 
+_AWAITING_CLAIM_STATUSES = frozenset(
+    {
+        "awaiting_cursor_claim",
+        "awaiting_codex_claim",
+        "awaiting_antigravity_claim",
+        "awaiting_gemini_claim",
+        "awaiting_chatgpt_claim",
+        "awaiting_ide_claim",
+    }
+)
+
+
 def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str | None = None) -> dict[str, Any]:
-    """Avisa al owner por WhatsApp cuando una ops task espera claim Cursor (sin runner interno)."""
+    """Avisa al owner por WhatsApp cuando una ops task IDE espera claim (sin runner interno)."""
     if not NOTIFY_OPS_TASKS or not NOTIFY_CURSOR_CLAIM:
         return {"ok": False, "skipped": "notifications_disabled"}
 
     status = str(task.get("status") or "").lower()
-    if status not in {"awaiting_cursor_claim", "awaiting_codex_claim"}:
+    if status not in _AWAITING_CLAIM_STATUSES:
         return {"ok": False, "skipped": f"status_not_awaiting:{status}"}
 
     prev = (previous_status or "").lower()
@@ -126,27 +138,38 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
     if owner_auth_notified(tid):
         return {"ok": False, "skipped": "already_notified_on_create", "task_id": tid}
 
-    provider = str(task.get("preferred_provider") or task.get("assignee") or "").lower()
-    if provider and provider not in {"cursor", "codex"} and "cursor" not in provider:
-        assignee = str(task.get("assignee") or "").lower()
-        if assignee != "cursor":
-            return {"ok": False, "skipped": "not_cursor_task"}
-
+    provider = str(task.get("preferred_provider") or task.get("assignee") or "cursor").lower()
     corr = str(task.get("correlation_id") or "").strip()
-    if status == "awaiting_codex_claim" or str(task.get("assignee") or "").lower() == "codex":
+    from inneros_core_runtime import interactive_ops_runner as ior
+
+    model = ior.pinned_model(provider) or "env"
+    if provider == "codex" or status == "awaiting_codex_claim":
         hint = f"MCP codex_owner_order correlación {corr}" if corr else "codex_owner_order"
         title = "Codex OPS en espera"
+        extra = "Owner: autoriza vía MCP/WhatsApp (gasta créditos Codex al ejecutar)."
+    elif provider == "antigravity" or status == "awaiting_antigravity_claim":
+        hint = f"MCP antigravity_owner_order correlación {corr}" if corr else "antigravity_owner_order"
+        title = "Antigravity OPS en espera"
+        extra = "Owner: autoriza vía MCP (gasta créditos Antigravity/Gemini al ejecutar)."
+    elif provider == "gemini" or status == "awaiting_gemini_claim":
+        hint = f"MCP gemini_owner_order correlación {corr}" if corr else "gemini_owner_order"
+        title = "Gemini OPS en espera"
+        extra = "Owner: autoriza vía MCP (gasta créditos Gemini al ejecutar)."
     else:
         hint = f"procede cursor {corr}" if corr else "procede cursor"
         title = "Cursor OPS en espera"
+        extra = "Owner: responde *{hint}* y luego *confirmar co_…* (gasta créditos Cursor al ejecutar).".format(
+            hint=hint
+        )
     body = (
         f"🖱️ RalfIA · {title}\n"
         f"{_format_task_line(task)}\n"
-        f"Modelo: composer-2.5-fast\n"
-        f"Owner: responde *{hint}* y luego *confirmar co_…*\n"
+        f"Agente: {provider} · Modelo: {model}\n"
+        f"{extra}\n"
+        f"Puedes autorizar cuando quieras; la tarea espera (Temporal ~7 días).\n"
         f"{ralfia_time.format_log()}"
     )
-    key = _dedupe_key("cursor_claim", f"{task.get('task_id')}:awaiting_cursor_claim")
+    key = _dedupe_key("cursor_claim", f"{task.get('task_id')}:{status}")
     if not _can_send("cursor_claim", key):
         return {"ok": False, "skipped": "cooldown_or_dedupe"}
 
