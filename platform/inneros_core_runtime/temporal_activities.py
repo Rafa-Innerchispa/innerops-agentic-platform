@@ -135,9 +135,33 @@ async def activity_publish_nats_event(event_type: str, envelope_dict: Dict[str, 
         ) from exc
 
 
+def _hydrate_gate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Workflow signals may omit fields present only in Mongo; gate needs task_class."""
+    out = dict(envelope_dict or {})
+    tid = str(out.get("task_id") or "").strip()
+    if not tid or (out.get("task_class") and out.get("evidence_required") is not None):
+        return out
+    try:
+        from raphiia_openai import mongo_store
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+
+        row = mongo_store.get_db()[OPS_TASKS_COL].find_one(
+            {"task_id": tid},
+            {"_id": 0, "task_class": 1, "evidence_required": 1, "execution_lane": 1},
+        )
+        if isinstance(row, dict):
+            for key, val in row.items():
+                if val is not None and out.get(key) in (None, "", []):
+                    out[key] = val
+    except Exception:
+        pass
+    return out
+
+
 @activity.defn
 async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent_result: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("validating_completion_gate")
+    envelope_dict = _hydrate_gate_envelope(envelope_dict)
     task_class = (envelope_dict.get("task_class") or "coding").lower()
     files_count = agent_result.get("files_count", 0)
     code_diff = agent_result.get("code_diff", "")
@@ -147,14 +171,15 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     evidence_required = list(envelope_dict.get("evidence_required") or [])
     commit_sha = str(agent_result.get("commit_sha") or "").strip()
 
-    if task_class == "verification" and commit_sha:
-        if not evidence_required or "commit_sha" in evidence_required:
-            return {
-                "passed": True,
-                "mode": "verification_readonly_commit_sha",
-                "commit_sha": commit_sha,
-                "task_class": task_class,
-            }
+    if commit_sha and (
+        task_class == "verification" or "commit_sha" in evidence_required
+    ):
+        return {
+            "passed": True,
+            "mode": "verification_readonly_commit_sha",
+            "commit_sha": commit_sha,
+            "task_class": task_class,
+        }
 
     if agent_result.get("blocked"):
         binding = agent_result.get("execution_binding") or {}
@@ -203,7 +228,13 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
                 "objective_files_count": objective_files,
             }
 
-    if agent_result.get("completion_channel") in {"cursor_interactive", "codex_interactive"}:
+    interactive_channels = {
+        "cursor_interactive",
+        "codex_interactive",
+        "antigravity_interactive",
+        "gemini_interactive",
+    }
+    if agent_result.get("completion_channel") in interactive_channels:
         sha = str(agent_result.get("commit_sha") or "").strip()
         objective_files = int(agent_result.get("objective_files_count") or 0)
         objective_paths = list(agent_result.get("objective_paths") or [])
@@ -296,11 +327,17 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     # 2. Ops / Network / Read-Only Validation Gate
     evidence_req = envelope_dict.get("evidence_required") or []
     if evidence_req:
-        evidence = agent_result.get("evidence") or {}
-        if not evidence and not agent_result.get("ok"):
+        nested = agent_result.get("evidence") or {}
+        missing = [
+            key
+            for key in evidence_req
+            if not str(agent_result.get(key) or nested.get(key) or "").strip()
+        ]
+        if missing and agent_result.get("ok") is False:
             return {
                 "passed": False,
                 "error": f"Completion prohibited: Required evidence missing for task {envelope_dict.get('task_id')}",
+                "missing": missing,
             }
 
     if task_class == "platform":
