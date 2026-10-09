@@ -156,6 +156,10 @@ def live_home_snapshot(site_id: str = "home_pcdoctor_lab") -> dict[str, Any]:
     snap["gateway_findings"] = gateway_impact(snap.get("devices") or [])
     # Covers USB, serial, NIC and Tailscale only on THIS executor host.
     snap["collector_host"] = host_observation()
+    from inneros_core_runtime.unifi_readonly import read_unifi_site
+    snap["unifi_controller"] = read_unifi_site(site_id=site_id)
+    if not snap["unifi_controller"].get("ok"):
+        snap["gaps"].append("unifi_local_api:" + str(snap["unifi_controller"].get("error") or "unavailable"))
     snap["remote_pi01_usb_verified"] = False
     snap["read_only"] = True
     return snap
