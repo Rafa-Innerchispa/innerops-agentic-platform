@@ -37,3 +37,61 @@ Cadencia inicial recomendada: cada 60-120 s; reducir después de medir carga/rui
 ## Política
 Solo lectura a dispositivos: no reinicios, cambios Wi-Fi, firmware, VLAN, DHCP ni PoE sin aprobación.
 Modelos locales para interpretar evidencia, nunca para inventarla. No afirmar `ONLINE` solo por presencia en registro HA.
+
+
+## Arquitectura extensible universal (9 octubre 2026)
+
+El monitor no está ligado a marcas: `protocol_catalog.py` registra familias y fuentes,
+`communication_observer.py` interpreta estados vivos de HA con degradación explícita,
+`physical_bus_observer.py` enumera NIC, USB, tty/serial, Bluetooth y estado Tailscale
+solo **en el host donde corre**, `unifi_readonly.py` utiliza la API oficial GET-only
+y `communication_history.py` registra eventos históricos y correlacionados.
+
+- **IP/Ethernet:** ICMP/TCP, carrier, cambios y errores en NIC; detección por HTTP,
+  HTTPS, RTSP, servicios Dahua/Hikvision y MQTT/Modbus TCP solo como indicios.
+- **UniFi:** API local GET /integration/v1/sites, devices, clients, device details,
+  uplink, PoE, puerto y canal (si versión/clave de API lo permiten). Se requiere
+  `UNIFI_LOCAL_API_KEY` y, si hace falta, `UNIFI_LOCAL_CA_BUNDLE`. Nunca desactivar
+  verificación TLS sin autorización. Fuente: https://developer.ui.com/network/
+- **CCTV / porteros:** Dahua, Hikvision, Imou, EZVIZ, Axis y fabricantes futuros.
+  ONVIF/RTSP/HTTP solo detectan disponibilidad de servicio, no garantizan video ni
+  autenticación del dispositivo. Imou no dispone aún de adaptador nativo validado.
+- **IoT inalámbrico:** Zigbee/ZHA/Zigbee2MQTT, Matter, Thread, Z-Wave, BLE, RF 315/433/868/915,
+  LoRa y gateways. Un sensor sin heartbeat o protocolo sin ACK no puede declararse
+  desconectado solo porque su estado no cambie. Registrar disponibilidad del gateway
+  y las señales de calidad del proveedor cuando existan.
+- **Buses e industria:** RS232/422/485, Modbus RTU/TCP, USB HID/CDC, UART,
+  CAN, CANopen, KNX, BACnet, DMX, DALI, OSDP, Wiegand, GPIO, I2C, SPI. La presencia
+  de un adaptador no implica que su bus ni los dispositivos detrás estén comunicándose.
+  Implementar colectores específicos para cada protocolo/caso.
+- **Energía:** Pi01 (192.168.1.97) conectado a Xmart vía USB HID 0665:5161,
+  datos publicados a HA por integración solar. AG-32 es propietario del dominio
+  domótico/energético; AG-60 supervisa LAN/USB y frescura de las fuentes. El USB del
+  inversor solo se verifica ejecutando colector **en Pi01**, no en AMD remoto.
+- **Tailscale:** lectura de backend/status del nodo local, no configuración de rutas
+  ni DNS del teléfono remoto sin agente y permisos en ese dispositivo.
+- **Marcas futuras:** si no existe adaptador validado, el equipo entra en inventario
+  como `UNKNOWN` y se informa `collector_missing`, nunca `ONLINE` inventado.
+
+### Cadencias propuestas (sin habilitar en producción)
+
+- **90 s**: servicio `inneros-ag60-communications.timer` para HA/UniFi, estado
+  de host, eventos y cuatro IP críticas (.1/.4/.5/.97).
+- **15 min**: `inneros-ag60-lan-discovery.timer`, barrido acotado solo a
+  `192.168.1.0/24`; no explora otras redes ni intenta autenticaciones.
+- **Edge host Pi01**: publicar telemetría USB HID y estado del servicio solar
+  desde el Raspberry Pi; un sondeo TCP desde AMD no reemplaza esta lectura.
+
+### Verificación real obligatoria antes de habilitar
+
+1. Ejecutar `python3 -m pytest -q platform/tests/test_ag60_*.py` en rama desplegable.
+2. Corregir divergencia del checkout local respecto a GitHub y confirmar versión
+   de `inneros_core_runtime`; no desplegar worktree de pruebas como si fuera producción.
+3. Confirmar API UniFi, su CA y permisos solo lectura, y almacenar token en vault.
+4. Comprobar al menos una muestra real de Pi01 USB y del portero Dahua.
+5. Ejecutar piloto sin `--save`; luego habilitar Mongo con índices y retención.
+6. Activar y observar los timers; correlacionar eventos en ventana de 24 h antes de
+   considerar AG-60 operativo.
+
+**Estado:** implementación candidata en PR #133; no equivale a monitor desplegado,
+ni a cobertura RF completa o compatibilidad nativa con todas las marcas.
