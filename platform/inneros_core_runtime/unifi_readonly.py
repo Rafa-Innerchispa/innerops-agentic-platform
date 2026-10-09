@@ -33,7 +33,7 @@ def _controller_host(host: str, site_id: str) -> str:
 
 def _get_json(host: str, path: str, key: str, *,
               timeout: float = 4.0, ca_bundle: str | None = None) -> dict[str, Any]:
-    if not re.fullmatch(r"/v1/[a-zA-Z0-9/_-]+", path):
+    if not re.fullmatch(r"/v1/[a-zA-Z0-9/_-]+(?:\\?(?:offset|limit)=\\d+(?:&(?:offset|limit)=\\d+)*)?", path):
         raise ValueError("read_only_api_path_denied")
     verify: bool | str = ca_bundle if ca_bundle else True
     url = "https://" + host + "/integration" + path
