@@ -60,9 +60,20 @@ Autorización ops sin UI de “encuesta”: botones **Confirmar/Cancelar** + tex
 | Nacional | `0962546650` |
 | E.164 | `593962546650` |
 | Instancia Evolution | `Innerchispa` |
-| Base URL | `http://192.168.1.5:8082` (Tailscale `100.72.153.124:8082`) |
+| Base URL (LAN) | `http://192.168.1.5:8082` |
 
-Emparejar tras cambio de chip: `GET /instance/connect/Innerchispa?number=593962546650` (código de enlace) o manager en `:8082/manager`. Alertas ops al owner siguen en `NOTIFY_WHATSAPP_TO` (línea personal Intel); AMD es segunda línea operativa (`WHATSAPP_AMD_SEND_ENABLED`).
+**Política de red:** servicios Evolution/MCP/Swarm usan **IP LAN** (`192.168.1.4` / `.5`). Tailscale (`RALFIA_TS_*`) solo acceso remoto (SSH laptop), no URLs en runtime.
+
+Activación / manager (misma **API key global** en ambos nodos, header `apikey`):
+
+| Nodo | LAN | Manager | Instancia |
+|------|-----|---------|-----------|
+| Intel primary | `192.168.1.4` | `http://192.168.1.4:8082/manager` | `RalphiIA-pcdoctor` |
+| AMD Innerchispa | `192.168.1.5` | `http://192.168.1.5:8082/manager` | `Innerchispa` |
+
+Kit en shell: `scripts/evolution_activation_kit.sh` (lee `EVOLUTION_API_KEY` del `.env`).
+
+Emparejar chip AMD: `GET http://192.168.1.5:8082/instance/connect/Innerchispa?number=593962546650`. Alertas ops al owner siguen en `NOTIFY_WHATSAPP_TO` (línea personal Intel); AMD es segunda línea operativa (`WHATSAPP_AMD_SEND_ENABLED`).
 
 ## Correos — cuentas IMAP
 
