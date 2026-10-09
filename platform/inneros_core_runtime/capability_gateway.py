@@ -516,6 +516,33 @@ def network_guardian_scan_handler(parameters: Dict[str, Any], context: Dict[str,
 
 register_capability(NETWORK_GUARDIAN_SCAN_MANIFEST, network_guardian_scan_handler)
 
+
+COMMUNICATION_COVERAGE_MANIFEST: Dict[str, Any] = {
+    "capability_id": "network.communication.coverage.v1",
+    "version": "1.0.0",
+    "title": "AG-60 all-protocol home communication inventory",
+    "domain": "network",
+    "risk_class": "low",
+    "mode": "read_only",
+    "description": "Read HA registry and fresh connectivity states across IP and bridged non-IP devices, with transport hints and solar source freshness. Missing collectors are UNKNOWN.",
+    "keywords": ["zigbee", "zwave", "thread", "matter", "ble", "rs232", "usb", "rf", "solar", "wifi", "unifi", "network", "coverage", "inventory"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {"site_id": {"type": "string"}},
+        "required": ["site_id"],
+    },
+    "required_scopes": ["ralfia:read"],
+}
+
+
+def communication_coverage_handler(parameters: Dict[str, Any],
+                                   context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.communication_observer import live_home_snapshot
+    return live_home_snapshot(site_id=str(parameters.get("site_id") or ""))
+
+
+register_capability(COMMUNICATION_COVERAGE_MANIFEST, communication_coverage_handler)
+
 register_capability(NETWORK_DEVICE_QUERY_MANIFEST, network_device_query_handler)
 register_capability(COORDINATION_MESSAGING_LIST_MANIFEST, coordination_messaging_list_handler)
 register_capability(EMAIL_SEND_MANIFEST, email_send_handler)
