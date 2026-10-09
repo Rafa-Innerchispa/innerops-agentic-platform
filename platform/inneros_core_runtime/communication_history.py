@@ -153,6 +153,21 @@ def compare_snapshots(previous: dict[str, Any], current: dict[str, Any]) -> list
                                    "interface": nic.get("interface"), "counter": field,
                                    "delta": delta, "site_id": current.get("site_id"),
                                    "observed_at": ts, "cause": "UNDETERMINED"})
+    # ICMP/TCP reachability of known LAN nodes is independent of Home Assistant.
+    previous_hosts = {h.get("label"): h for h in previous.get("critical_hosts", []) if h.get("label")}
+    for host in current.get("critical_hosts", []):
+        old = previous_hosts.get(host.get("label"))
+        if not old:
+            continue
+        previous_health = old.get("health")
+        new_health = host.get("health")
+        if previous_health != new_health and previous_health and new_health:
+            events.append({"type": "CRITICAL_HOST_REACHABILITY_CHANGED",
+                           "severity": "warning" if new_health != "ONLINE" else "info",
+                           "host": host.get("label"), "ip": host.get("ip"),
+                           "prior": previous_health, "current": new_health,
+                           "site_id": current.get("site_id"), "observed_at": ts,
+                           "physical_outage_proven": False})
     return events
 
 
