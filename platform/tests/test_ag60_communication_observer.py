@@ -1,10 +1,21 @@
 """AG-60 vendor-neutral collector tests. No live LAN required."""
 from datetime import datetime, timedelta, timezone
 
-from inneros_core_runtime.protocol_catalog import inventory_protocol_coverage
-from inneros_core_runtime.communication_observer import (
-    edge_source_heartbeats, normalize_snapshot,
-)
+import importlib.util
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1] / "inneros_core_runtime"
+catalog_spec = importlib.util.spec_from_file_location("inneros_core_runtime.protocol_catalog", ROOT / "protocol_catalog.py")
+catalog_module = importlib.util.module_from_spec(catalog_spec)
+sys.modules[catalog_spec.name] = catalog_module
+catalog_spec.loader.exec_module(catalog_module)
+observer_spec = importlib.util.spec_from_file_location("candidate_ag60_communication_observer", ROOT / "communication_observer.py")
+observer_module = importlib.util.module_from_spec(observer_spec)
+observer_spec.loader.exec_module(observer_module)
+inventory_protocol_coverage = catalog_module.inventory_protocol_coverage
+edge_source_heartbeats = observer_module.edge_source_heartbeats
+normalize_snapshot = observer_module.normalize_snapshot
 
 
 NOW = datetime(2026, 10, 9, 17, 0, tzinfo=timezone.utc)
