@@ -866,7 +866,7 @@ def _home_assistant_inventory() -> tuple[list[dict[str, Any]], dict[str, Any], l
     blockers: list[dict[str, Any]] = []
     delegated: dict[str, Any] = {}
     try:
-        from raphiia_openai import homeassistant_client as ha
+        from inneros_core_runtime import homeassistant_client as ha
 
         raw_devices = ha.list_devices(limit=2000)
         raw_entities = ha.list_entity_registry(limit=2000)
