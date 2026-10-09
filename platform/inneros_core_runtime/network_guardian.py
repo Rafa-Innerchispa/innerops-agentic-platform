@@ -133,7 +133,29 @@ def persist_snapshot(snapshot: dict[str, Any], *, mongo_uri: str | None = None) 
                 db.network_device_state.update_one(
                     {"site_id": snapshot["site_id"], "ip": ip},
                     {"$set": {"site_id": snapshot["site_id"], **record}}, upsert=True)
-            # Absence on one scan is insufficient to mark an existing device offline.
+            # Require two successive missed checks for a previously responsive host.
+            # A single missed ping/TCP is not sufficient to prove a network outage.
+            responsive_ips = {record["ip"] for record in snapshot["responsive"]}
+            for ip, prev in existing.items():
+                if ip in responsive_ips:
+                    db.network_device_state.update_one(
+                        {"site_id": snapshot["site_id"], "ip": ip},
+                        {"$set": {"missed_checks": 0}})
+                    continue
+                misses = int(prev.get("missed_checks") or 0) + 1
+                db.network_device_state.update_one(
+                    {"site_id": snapshot["site_id"], "ip": ip},
+                    {"$set": {"missed_checks": misses}})
+                if prev.get("health") == "ONLINE" and misses >= 2:
+                    event = {"site_id": snapshot["site_id"], "ip": ip,
+                             "previous_state": "ONLINE", "new_state": "UNKNOWN",
+                             "observed_at": snapshot["observed_at"],
+                             "reason": "no_icmp_or_tcp_response_twice"}
+                    events.append(event)
+                    db.network_device_state.update_one(
+                        {"site_id": snapshot["site_id"], "ip": ip},
+                        {"$set": {"health": "UNKNOWN", "reachable": None,
+                                  "last_failed_at": snapshot["observed_at"]}})
             db.network_device_samples.insert_one(snapshot)
             if events:
                 db.network_device_events.insert_many(events)
