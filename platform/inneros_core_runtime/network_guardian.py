@@ -67,7 +67,7 @@ def tcp_probe(host: str, ports: tuple[int, ...], timeout: float = 0.3) -> list[i
     return open_ports
 
 
-def probe_host(host: str, site_id: str, ports: tuple[int, ...] = (80, 443, 554, 22),
+def probe_host(host: str, site_id: str, ports: tuple[int, ...] = (80, 443, 554, 22, 8000, 37777, 1883, 502),
                timeout: float = 0.3) -> dict[str, Any]:
     net = authorized_network(site_id)
     ip = ipaddress.ip_address(host)
@@ -77,8 +77,17 @@ def probe_host(host: str, site_id: str, ports: tuple[int, ...] = (80, 443, 554, 
     opened = tcp_probe(host, ports, timeout)
     reached = ping["status"] == "REACHABLE" or bool(opened)
     # An unresponsive host may block ICMP and TCP; classify UNKNOWN, not OFFLINE.
+    candidate_ports = {
+        554: "RTSP_camera_or_recorder",
+        8000: "possible_Hikvision_or_other_device_service",
+        37777: "possible_Dahua_rpc_service",
+        1883: "possible_MQTT_broker",
+        502: "possible_Modbus_TCP",
+        9009: "possible_telemetry_or_alarm_service",
+    }
     return {"ip": host, "site_id": site_id, "health": "ONLINE" if reached else "UNKNOWN",
             "reachable": True if reached else None, "icmp": ping, "tcp_open": opened,
+            "service_hints": [candidate_ports[p] for p in opened if p in candidate_ports],
             "observed_at": utcnow(), "evidence_source": "local_icmp_tcp",
             "verified": reached}
 
