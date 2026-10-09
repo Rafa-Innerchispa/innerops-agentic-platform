@@ -1262,7 +1262,7 @@ def device_fabric_health(site_id: str = "") -> dict[str, Any]:
     }
 
 
-def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
+def device_fabric_get(device_ref: str = "", site_id: str = "") -> dict[str, Any]:
     """Consulta un dispositivo específico por IP, MAC, serial, asset_id o provider."""
     ref = (device_ref or "").strip()
     if not ref:
@@ -1304,7 +1304,25 @@ def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
         except Exception:
             pass
 
-    return {"ok": False, "error": "unknown_reference", "device_ref": ref}
+    if site_id in ("", "home_pcdoctor_lab"):
+        rows, _delegated, blockers = _home_assistant_inventory()
+        ref_lower = ref.casefold()
+        for record in rows:
+            identifiers = (
+                record.get("asset_id"),
+                record.get("provider_device_id"),
+                record.get("mac"),
+                record.get("ip"),
+                record.get("name"),
+            )
+            if any(str(val).casefold() == ref_lower for val in identifiers if val):
+                return {
+                    "ok": True, "kind": "device", "site_id": "home_pcdoctor_lab",
+                    "device": record, "provenance": "home_assistant_registry_plus_verified_state",
+                    "blockers": blockers, "mutation_policy": MUTATION_POLICY,
+                    "generated_at": _now(),
+                }
+    return {"ok": False, "error": "unknown_reference", "device_ref": ref, "site_id": site_id or None}
 
 
 def run_device_fabric_agent(message: str = "", *, dry_run: bool = True) -> dict[str, Any]:
