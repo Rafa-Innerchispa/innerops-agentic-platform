@@ -137,7 +137,7 @@ def edge_source_heartbeats(states: list[dict[str, Any]],
 def live_home_snapshot(site_id: str = "home_pcdoctor_lab") -> dict[str, Any]:
     if site_id != "home_pcdoctor_lab":
         return {"ok": False, "error": "ha_site_not_mapped"}
-    from raphiia_openai import homeassistant_client as ha
+    from inneros_core_runtime import homeassistant_client as ha
     from inneros_core_runtime.device_fabric import device_fabric_providers
     try:
         dev = ha.list_devices(limit=2000)
