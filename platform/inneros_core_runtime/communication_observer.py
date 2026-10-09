@@ -42,7 +42,10 @@ def _reading(entity: dict[str, Any], state: dict[str, Any], now: datetime,
         verdict = "STALE"
     elif state_text in UP_VALUES or (domain == "device_tracker" and state_text == "home"):
         verdict = "ONLINE"
-    elif state_text in DOWN_VALUES or (domain == "device_tracker" and state_text == "not_home"):
+    elif domain == "device_tracker" and state_text == "not_home":
+        # Away/presence is not proof of device failure.
+        verdict = "NOT_PRESENT"
+    elif state_text in DOWN_VALUES:
         verdict = "OFFLINE"
     elif domain == "binary_sensor" and attrs.get("device_class") == "connectivity" and state_text in {"on", "off"}:
         verdict = "ONLINE" if state_text == "on" else "OFFLINE"
@@ -92,9 +95,44 @@ def normalize_snapshot(
             default=None,
         )
     catalog["live_telemetry_verified"] = bool(states)
+    catalog["solar_edge_sources"] = edge_source_heartbeats(states, now)
     catalog["observed_at"] = now.isoformat()
     return catalog
 
+
+
+
+SOLAR_EDGE_ENTITIES = (
+    "sensor.inneros_pi01_solar_status",
+    "sensor.inneros_pi01_solar_output_power",
+    "sensor.inneros_pi01_solar_battery_voltage",
+    "sensor.inneros_pi01_solar_mode",
+    "binary_sensor.inneros_pi01_solar_grid_present",
+)
+
+
+def edge_source_heartbeats(states: list[dict[str, Any]],
+                           now: datetime | None = None,
+                           freshness_seconds: int = 900) -> list[dict[str, Any]]:
+    """Monitor freshness of source telemetry, not inverter/panel functional health."""
+    current = now or datetime.now(timezone.utc)
+    indexed = {str(s.get("entity_id")): s for s in states}
+    heartbeats = []
+    for entity_id in SOLAR_EDGE_ENTITIES:
+        row = indexed.get(entity_id)
+        when = _date((row or {}).get("last_updated") or (row or {}).get("last_changed"))
+        age = (current - when).total_seconds() if when else None
+        online = (row is not None and age is not None and -60 <= age <= freshness_seconds
+                  and str(row.get("state") or "").lower() not in {"unknown", "unavailable", ""})
+        heartbeats.append({
+            "entity_id": entity_id,
+            "source": "home_assistant_solar_pi01",
+            "telemetry_fresh": bool(online),
+            "status": "FRESH" if online else "UNKNOWN_OR_STALE",
+            "last_updated": (row or {}).get("last_updated"),
+            "physical_usb_link_verified": False,
+        })
+    return heartbeats
 
 def live_home_snapshot(site_id: str = "home_pcdoctor_lab") -> dict[str, Any]:
     if site_id != "home_pcdoctor_lab":
