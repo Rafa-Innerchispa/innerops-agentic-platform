@@ -2,7 +2,9 @@
 
 Desde **Evolution API 2.4.0+** hace falta activación **community (gratuita)** por instalación. Sin activar, la API responde **`503 LICENSE_REQUIRED`** (WhatsApp/MCP no envían).
 
-Imagen fija en producción: **`evoapicloud/evolution-api:2.4.0-rc2`**.
+Producción operativa hoy: **`evoapicloud/evolution-api:v2.3.7`** (sin licencia). Tras activar licencia en **cada** nodo, subir a **`2.4.0-rc2`**.
+
+**Manager vacío en 2.4:** si la licencia está `inactive`, el manager no carga instancias aunque sigan en Postgres — no es que se hayan borrado.
 
 ## Qué productos cubre el registro
 

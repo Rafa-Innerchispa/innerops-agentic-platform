@@ -2,7 +2,7 @@
 # Actualiza Evolution API (Docker) en Intel .4 y/o AMD .5 — sin perder volúmenes.
 set -euo pipefail
 
-TARGET_IMAGE="${EVOLUTION_IMAGE:-evoapicloud/evolution-api:2.4.0-rc2}"
+TARGET_IMAGE="${EVOLUTION_IMAGE:-evoapicloud/evolution-api:v2.3.7}"
 NODE="${1:-both}" # primary | amd | both
 
 log() { echo "[upgrade-evolution] $*"; }
