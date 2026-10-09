@@ -1,7 +1,13 @@
 """AG-60 bounded scanner safety and evidence contract."""
 from unittest import mock
 import pytest
-from inneros_core_runtime import network_guardian
+import importlib.util
+from pathlib import Path
+
+PATH = Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "network_guardian.py"
+SPEC = importlib.util.spec_from_file_location("candidate_ag60_network_guardian", PATH)
+network_guardian = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(network_guardian)
 
 
 def test_unknown_site_rejected():
