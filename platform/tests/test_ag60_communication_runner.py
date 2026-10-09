@@ -3,12 +3,18 @@ import importlib.util
 from pathlib import Path
 from unittest.mock import patch
 
-SPEC = importlib.util.spec_from_file_location(
-    "ag60_runner_candidate",
-    Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "communication_runner.py",
-)
-runner = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(runner)
+import sys
+
+SOURCE = Path(__file__).resolve().parents[1] / "inneros_core_runtime"
+for module_name in ("protocol_catalog", "physical_bus_observer", "communication_history",
+                    "network_guardian", "unifi_readonly", "communication_observer",
+                    "communication_runner"):
+    qualified = "inneros_core_runtime." + module_name
+    spec = importlib.util.spec_from_file_location(qualified, SOURCE / (module_name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[qualified] = module
+    spec.loader.exec_module(module)
+runner = sys.modules["inneros_core_runtime.communication_runner"]
 
 
 def test_empty_ha_does_not_stop_critical_hosts_or_usb():
