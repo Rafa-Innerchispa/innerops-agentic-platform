@@ -10,7 +10,7 @@ import ipaddress
 import os
 import re
 from typing import Any, Callable
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, parse_qs
 import httpx
 
 
@@ -33,8 +33,12 @@ def _controller_host(host: str, site_id: str) -> str:
 
 def _get_json(host: str, path: str, key: str, *,
               timeout: float = 4.0, ca_bundle: str | None = None) -> dict[str, Any]:
-    if not re.fullmatch(r"/v1/[a-zA-Z0-9/_-]+(?:\\?(?:offset|limit)=\\d+(?:&(?:offset|limit)=\\d+)*)?", path):
+    parts = urlsplit(path)
+    query = parse_qs(parts.query, keep_blank_values=True)
+    if parts.scheme or parts.netloc or parts.fragment or not re.fullmatch(r"/v1/[a-zA-Z0-9/_-]+", parts.path):
         raise ValueError("read_only_api_path_denied")
+    if any(k not in {"offset", "limit"} or len(v) != 1 or not v[0].isdigit() for k, v in query.items()):
+        raise ValueError("read_only_api_query_denied")
     verify: bool | str = ca_bundle if ca_bundle else True
     url = "https://" + host + "/integration" + path
     with httpx.Client(timeout=timeout, verify=verify, follow_redirects=False) as client:
