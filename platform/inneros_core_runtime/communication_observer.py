@@ -147,12 +147,15 @@ def live_home_snapshot(site_id: str = "home_pcdoctor_lab") -> dict[str, Any]:
         return {"ok": False, "error": type(exc).__name__}
     if not dev.get("ok") or not ent.get("ok"):
         return {"ok": False, "error": "ha_registry_unavailable"}
-    if not state.get("ok"):
-        # No live telemetry: preserve identities but do not mark devices online.
-        snap = normalize_snapshot(dev.get("devices") or [], ent.get("entities") or [], [],
-                                  device_fabric_providers().get("providers") or [])
-        snap["gaps"] = ["ha_state_api_unavailable"]
-        return snap
-    return normalize_snapshot(dev.get("devices") or [], ent.get("entities") or [],
-                              state.get("data") or [],
-                              device_fabric_providers().get("providers") or [])
+    from inneros_core_runtime.physical_bus_observer import gateway_impact, host_observation
+
+    live_states = state.get("data") or [] if state.get("ok") else []
+    snap = normalize_snapshot(dev.get("devices") or [], ent.get("entities") or [],
+                              live_states, device_fabric_providers().get("providers") or [])
+    snap["gaps"] = [] if state.get("ok") else ["ha_state_api_unavailable"]
+    snap["gateway_findings"] = gateway_impact(snap.get("devices") or [])
+    # Covers USB, serial, NIC and Tailscale only on THIS executor host.
+    snap["collector_host"] = host_observation()
+    snap["remote_pi01_usb_verified"] = False
+    snap["read_only"] = True
+    return snap
