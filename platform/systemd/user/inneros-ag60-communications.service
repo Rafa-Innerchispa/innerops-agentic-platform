@@ -1,0 +1,13 @@
+[Unit]
+Description=InnerOS AG-60 Home Communications Observer (read-only)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+ExecStart=/usr/bin/python3 -m inneros_core_runtime.communication_runner --site home_pcdoctor_lab --save
+TimeoutStartSec=90
+NoNewPrivileges=true
+PrivateTmp=true
