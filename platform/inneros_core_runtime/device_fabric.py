@@ -914,16 +914,30 @@ def _home_assistant_inventory() -> tuple[list[dict[str, Any]], dict[str, Any], l
                 if not observed:
                     continue
                 label = str(entity.get("original_name") or "").strip().lower()
-                if label != "state" or not str(entity.get("platform") or "").lower() in {"unifi", ""}:
+                if label != "state" or not (
+                    str(entity.get("platform") or "").lower() == "unifi"
+                    or "ubiquiti" in str(dev.get("manufacturer") or "").lower()
+                ):
                     continue
+                observed_text = observed.get("last_updated") or observed.get("last_changed")
+                try:
+                    observed_dt = datetime.fromisoformat(str(observed_text).replace("Z", "+00:00"))
+                    if observed_dt.tzinfo is None:
+                        observed_dt = None
+                except (TypeError, ValueError):
+                    observed_dt = None
+                age = (datetime.now(timezone.utc) - observed_dt).total_seconds() if observed_dt else None
                 status = str(observed.get("state") or "").strip().lower()
-                if status in {"connected", "online"}:
+                if age is None or age > 600 or age < -60:
+                    verified = {"status": "STALE", "reachable": None, "verified": False}
+                elif status in {"connected", "online"}:
                     verified = {"status": "ONLINE", "reachable": True, "verified": True}
                 elif status in {"disconnected", "unavailable", "isolated", "heartbeat_missed", "adoption_failed", "inform_error"}:
                     verified = {"status": "OFFLINE", "reachable": False, "verified": True}
                 else:
                     verified = {"status": "UNKNOWN", "reachable": None, "verified": False}
-                verified["observed_at"] = observed.get("last_updated") or observed.get("last_changed")
+                verified["observed_at"] = observed_text
+                verified["age_seconds"] = round(age, 2) if age is not None else None
                 verified["source"] = "home_assistant_unifi_state"
                 break
             record = canonical_device_record(
@@ -940,6 +954,26 @@ def _home_assistant_inventory() -> tuple[list[dict[str, Any]], dict[str, Any], l
                 health=verified,
             )
             record["provider_device_id"] = device_id
+            record["via_device_id"] = dev.get("via_device_id")
+            # Stable HA-native identity, even if a device is renamed or a MAC appears.
+            if device_id:
+                record["asset_id"] = _hash_id("home_pcdoctor_lab", "pcdoctor_lab", "ha:" + device_id)
+            candidate_ips = []
+            for conn in dev.get("connections") or []:
+                if isinstance(conn, (list, tuple)) and len(conn) >= 2 and str(conn[0]).lower() in {"ip", "ip_address"}:
+                    candidate_ips.append(str(conn[1]))
+            for entity in rows:
+                current = states_by_id.get(str(entity.get("entity_id") or ""), {})
+                attrs = current.get("attributes") or {}
+                candidate_ips.extend(str(attrs.get(k) or "") for k in ("ip", "ip_address"))
+            for candidate in candidate_ips:
+                try:
+                    address = ipaddress.ip_address(candidate)
+                    if _within_site(str(address), "home_pcdoctor_lab"):
+                        record["ip"] = str(address)
+                        break
+                except ValueError:
+                    pass
             record["last_seen"] = verified.get("observed_at") if verified and verified.get("reachable") is True else None
             record["evidence"] = [{"source": "home_assistant_unifi_state", "observed_at": verified.get("observed_at"), "status": verified.get("status")}] if verified else []
             inventory.append(record)
