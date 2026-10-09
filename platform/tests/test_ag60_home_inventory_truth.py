@@ -37,9 +37,9 @@ def test_ha_inventory_differentiates_ap_state_and_nvr_unknown():
         {"entity_id": "sensor.cuarto_state", "state": "unavailable",
          "last_updated": "2026-10-09T15:00:01Z"},
     ]}
-    with patch("raphiia_openai.homeassistant_client.list_devices", return_value=_devices()), patch(
-        "raphiia_openai.homeassistant_client.list_entity_registry", return_value=registry
-    ), patch("raphiia_openai.homeassistant_client._request", return_value=states):
+    with patch("inneros_core_runtime.homeassistant_client.list_devices", return_value=_devices()), patch(
+        "inneros_core_runtime.homeassistant_client.list_entity_registry", return_value=registry
+    ), patch("inneros_core_runtime.homeassistant_client._request", return_value=states):
         rows, _, blockers = device_fabric._home_assistant_inventory()
     assert blockers == []
     devices = {r["name"]: r for r in rows}
@@ -52,9 +52,9 @@ def test_ha_inventory_differentiates_ap_state_and_nvr_unknown():
 
 
 def test_missing_state_api_fails_closed():
-    with patch("raphiia_openai.homeassistant_client.list_devices", return_value=_devices()), patch(
-        "raphiia_openai.homeassistant_client.list_entity_registry", return_value={"ok": True, "entities": []}
-    ), patch("raphiia_openai.homeassistant_client._request", return_value={"ok": False}):
+    with patch("inneros_core_runtime.homeassistant_client.list_devices", return_value=_devices()), patch(
+        "inneros_core_runtime.homeassistant_client.list_entity_registry", return_value={"ok": True, "entities": []}
+    ), patch("inneros_core_runtime.homeassistant_client._request", return_value={"ok": False}):
         rows, _, blockers = device_fabric._home_assistant_inventory()
     assert blockers
     assert all(r["health"]["status"] == "UNKNOWN" for r in rows)
