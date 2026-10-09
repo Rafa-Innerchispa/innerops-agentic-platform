@@ -2,11 +2,13 @@
 from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 import importlib.util
+import sys
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "device_fabric.py"
 SPEC = importlib.util.spec_from_file_location("candidate_ag60_device_fabric", MODULE_PATH)
 device_fabric = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = device_fabric
 SPEC.loader.exec_module(device_fabric)
 
 
