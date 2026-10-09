@@ -94,7 +94,7 @@ def normalize_snapshot(
             (str(r["observed_at"]) for r in observations if r.get("observed_at")),
             default=None,
         )
-    catalog["live_telemetry_verified"] = bool(states)
+    catalog["live_telemetry_verified"] = any(row["verified"] for row in catalog["devices"])
     catalog["solar_edge_sources"] = edge_source_heartbeats(states, now)
     catalog["observed_at"] = now.isoformat()
     return catalog
