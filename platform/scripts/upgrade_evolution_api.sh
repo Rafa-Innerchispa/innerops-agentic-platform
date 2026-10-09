@@ -2,7 +2,7 @@
 # Actualiza Evolution API (Docker) en Intel .4 y/o AMD .5 — sin perder volúmenes.
 set -euo pipefail
 
-TARGET_IMAGE="${EVOLUTION_IMAGE:-evoapicloud/evolution-api:latest}"
+TARGET_IMAGE="${EVOLUTION_IMAGE:-evoapicloud/evolution-api:2.4.0-rc2}"
 NODE="${1:-both}" # primary | amd | both
 
 log() { echo "[upgrade-evolution] $*"; }
@@ -44,5 +44,4 @@ case "$NODE" in
   *) echo "Uso: $0 [primary|amd|both]"; exit 2 ;;
 esac
 
-log "Listo. Nota: evoapicloud/evolution-api:latest hoy = 2.3.x sin licencia."
-log "2.4.x (RC) exige activación Evolution Foundation — no usar en prod sin registrar."
+log "Listo. Imagen por defecto: 2.4.0-rc2 — activar licencia en cada nodo (docs/EVOLUTION_LICENSE.md)."

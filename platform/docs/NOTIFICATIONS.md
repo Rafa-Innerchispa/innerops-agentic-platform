@@ -47,8 +47,7 @@ Los agentes y operadores pueden ejecutar (sin shell libre por WhatsApp):
 /home/rlopez/inneros/inneros_core/platform/scripts/upgrade_evolution_api.sh both
 ```
 
-- Recrea contenedores Docker con `evoapicloud/evolution-api:latest` (hoy **2.3.7**, sin licencia).
-- **No** subir a `2.4.x` en producción sin activar licencia Evolution Foundation (503 `LICENSE_REQUIRED`).
+- Recrea contenedores con `evoapicloud/evolution-api:2.4.0-rc2` (requiere licencia community — ver `docs/EVOLUTION_LICENSE.md`).
 - WhatsApp: `recupera Evolution en .4` / `.5` solo **reinicia** el contenedor (catálogo tipado).
 
 Autorización ops sin UI de “encuesta”: botones **Confirmar/Cancelar** + texto `CONFIRMAR <código>` / `CANCELAR <código>`.
