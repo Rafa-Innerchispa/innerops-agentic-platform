@@ -64,6 +64,95 @@ def compare_snapshots(previous: dict[str, Any], current: dict[str, Any]) -> list
                            "site_id": current.get("site_id"), "observed_at": ts,
                            "entity_id": item.get("entity_id"),
                            "power_failure_confirmed": False, "usb_failure_confirmed": False})
+    # Controller telemetry: link, PoE, AP state, radio channel and client roaming.
+    old_ctrl = previous.get("unifi_controller") or {}
+    new_ctrl = current.get("unifi_controller") or {}
+    if old_ctrl.get("ok") and new_ctrl.get("ok"):
+        old_devices = {str(d.get("id")): d for d in old_ctrl.get("devices", []) if d.get("id")}
+        for device in new_ctrl.get("devices", []):
+            prior = old_devices.get(str(device.get("id")))
+            if not prior:
+                continue
+            old_state = str(prior.get("state") or "").upper()
+            state = str(device.get("state") or "").upper()
+            if old_state != state and old_state and state:
+                events.append({"type": "UNIFI_DEVICE_STATE_CHANGED", "severity": "warning",
+                               "device": device.get("name"), "prior": old_state, "current": state,
+                               "site_id": current.get("site_id"), "observed_at": ts})
+            if prior.get("uplink_device_id") != device.get("uplink_device_id"):
+                events.append({"type": "UNIFI_UPLINK_CHANGED", "severity": "warning",
+                               "device": device.get("name"),
+                               "from_device": prior.get("uplink_device_id"),
+                               "to_device": device.get("uplink_device_id"),
+                               "site_id": current.get("site_id"), "observed_at": ts})
+            previous_ports = {str(p.get("idx")): p for p in prior.get("ports", []) if p.get("idx") is not None}
+            for port in device.get("ports", []):
+                before = previous_ports.get(str(port.get("idx")))
+                if not before:
+                    continue
+                if before.get("state") != port.get("state"):
+                    events.append({"type": "UNIFI_PORT_STATE_CHANGED", "severity": "warning",
+                                   "device": device.get("name"), "port": port.get("idx"),
+                                   "prior": before.get("state"), "current": port.get("state"),
+                                   "site_id": current.get("site_id"), "observed_at": ts})
+                poe_prev = (before.get("poe") or {}).get("state")
+                poe_new = (port.get("poe") or {}).get("state")
+                if poe_prev != poe_new and poe_prev is not None and poe_new is not None:
+                    events.append({"type": "POE_STATE_CHANGED", "severity": "warning",
+                                   "device": device.get("name"), "port": port.get("idx"),
+                                   "prior": poe_prev, "current": poe_new,
+                                   "site_id": current.get("site_id"), "observed_at": ts})
+            previous_radios = {str(r.get("frequencyGHz")): r for r in prior.get("radios", [])}
+            for radio in device.get("radios", []):
+                before = previous_radios.get(str(radio.get("frequencyGHz")))
+                if before and (before.get("channel"), before.get("channelWidthMHz")) != (
+                    radio.get("channel"), radio.get("channelWidthMHz")
+                ):
+                    events.append({"type": "WIFI_RADIO_CHANNEL_CHANGED", "severity": "info",
+                                   "device": device.get("name"),
+                                   "frequency_ghz": radio.get("frequencyGHz"),
+                                   "prior": {"channel": before.get("channel"), "width_mhz": before.get("channelWidthMHz")},
+                                   "current": {"channel": radio.get("channel"), "width_mhz": radio.get("channelWidthMHz")},
+                                   "site_id": current.get("site_id"), "observed_at": ts})
+        old_clients = {str(c.get("mac") or "").lower(): c for c in old_ctrl.get("clients", []) if c.get("mac")}
+        for client in new_ctrl.get("clients", []):
+            former = old_clients.get(str(client.get("mac") or "").lower())
+            if former and former.get("upstream_device_id") and client.get("upstream_device_id") and (
+                former["upstream_device_id"] != client["upstream_device_id"]
+            ):
+                events.append({"type": "WIRELESS_CLIENT_ROAM", "severity": "info",
+                               "client_mac": client.get("mac"),
+                               "prior_ap": former.get("upstream_device_id"),
+                               "new_ap": client.get("upstream_device_id"),
+                               "site_id": current.get("site_id"), "observed_at": ts})
+    elif old_ctrl.get("ok") and not new_ctrl.get("ok"):
+        events.append({"type": "UNIFI_CONTROLLER_TELEMETRY_LOST", "severity": "warning",
+                       "site_id": current.get("site_id"), "observed_at": ts,
+                       "device_failure_confirmed": False})
+    if old_bus.get("host") and old_bus.get("host") == bus.get("host"):
+        old_ts = (old_bus.get("tailscale") or {}).get("backend_state")
+        new_ts = (bus.get("tailscale") or {}).get("backend_state")
+        if old_ts and new_ts and old_ts != new_ts:
+            events.append({"type": "TAILSCALE_BACKEND_CHANGED", "severity": "warning",
+                           "host": bus.get("host"), "prior": old_ts, "current": new_ts,
+                           "site_id": current.get("site_id"), "observed_at": ts})
+        previous_int = {i.get("interface"): i for i in old_bus.get("interfaces", [])}
+        for nic in bus.get("interfaces", []):
+            prior = previous_int.get(nic.get("interface"))
+            if not prior:
+                continue
+            for field in ("rx_errors", "tx_errors", "rx_dropped", "tx_dropped"):
+                try:
+                    delta = int((nic.get("errors") or {}).get(field) or 0) - int(
+                        (prior.get("errors") or {}).get(field) or 0)
+                except (ValueError, TypeError):
+                    continue
+                if delta > 0:
+                    events.append({"type": "NETWORK_INTERFACE_ERRORS_INCREASED",
+                                   "severity": "warning", "host": bus.get("host"),
+                                   "interface": nic.get("interface"), "counter": field,
+                                   "delta": delta, "site_id": current.get("site_id"),
+                                   "observed_at": ts, "cause": "UNDETERMINED"})
     return events
 
 
@@ -84,6 +173,8 @@ def write_history(snapshot: dict[str, Any], mongo_uri: str | None = None) -> dic
                 "devices": snapshot.get("devices", []),
                 "solar_edge_sources": snapshot.get("solar_edge_sources", []),
                 "collector_host": snapshot.get("collector_host", {}),
+                "unifi_controller": snapshot.get("unifi_controller", {}),
+                "critical_hosts": snapshot.get("critical_hosts", []),
                 "gateway_findings": snapshot.get("gateway_findings", []),
                 "gaps": snapshot.get("gaps", []),
             }
