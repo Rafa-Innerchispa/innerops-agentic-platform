@@ -496,7 +496,10 @@ NETWORK_GUARDIAN_SCAN_MANIFEST: Dict[str, Any] = {
 
 
 def network_guardian_scan_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-    from inneros_core_runtime.network_guardian import scan_site, persist_snapshot
+    from inneros_core_runtime.network_guardian import scan_site
+    if parameters.get("save"):
+        return {"ok": False, "error": "persistence_requires_local_monitored_service",
+                "read_only": True}
     site_id = str(parameters.get("site_id") or "")
     if not site_id:
         return {"ok": False, "error": "site_id_required"}
@@ -509,8 +512,6 @@ def network_guardian_scan_handler(parameters: Dict[str, Any], context: Dict[str,
     except (ValueError, TypeError) as exc:
         return {"ok": False, "error": str(exc)}
     out: Dict[str, Any] = {"ok": True, "snapshot": snapshot, "read_only": True}
-    if bool(parameters.get("save", False)):
-        out["persistence"] = persist_snapshot(snapshot)
     return out
 
 
