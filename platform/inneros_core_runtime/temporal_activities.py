@@ -144,6 +144,17 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     test_results = agent_result.get("test_results") or {}
     test_exit_code = test_results.get("exit_code", 0)
     test_ok = test_results.get("ok", True)
+    evidence_required = list(envelope_dict.get("evidence_required") or [])
+    commit_sha = str(agent_result.get("commit_sha") or "").strip()
+
+    if task_class == "verification" and commit_sha:
+        if not evidence_required or "commit_sha" in evidence_required:
+            return {
+                "passed": True,
+                "mode": "verification_readonly_commit_sha",
+                "commit_sha": commit_sha,
+                "task_class": task_class,
+            }
 
     if agent_result.get("blocked"):
         binding = agent_result.get("execution_binding") or {}
