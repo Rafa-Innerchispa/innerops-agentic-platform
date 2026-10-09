@@ -16,6 +16,7 @@ EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "RalphiIA-pcdoctor")
 # Segundo número — nodo AMD (.5), chip distinto
 EVOLUTION_AMD_BASE_URL = os.getenv("EVOLUTION_AMD_BASE_URL", "http://192.168.1.5:8082").rstrip("/")
 EVOLUTION_AMD_INSTANCE = os.getenv("EVOLUTION_AMD_INSTANCE", "Innerchispa")
+EVOLUTION_AMD_LINE_E164 = os.getenv("EVOLUTION_AMD_LINE_E164", "593962546650")
 EVOLUTION_DEFAULT_NODE = os.getenv("EVOLUTION_DEFAULT_NODE", "primary")  # primary | amd
 NOTIFY_WHATSAPP_TO = os.getenv("NOTIFY_WHATSAPP_TO", os.getenv("HACKATHON_WHATSAPP_TO", "593988959606"))
 

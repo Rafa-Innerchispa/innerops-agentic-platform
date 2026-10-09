@@ -39,6 +39,31 @@ systemctl --user enable --now ralfia-notify.timer
 
 AG-25 también lanza notify cada ~6 min (cada 3 ciclos de 120s).
 
+## Actualizar Evolution API (Intel .4 + AMD .5)
+
+Los agentes y operadores pueden ejecutar (sin shell libre por WhatsApp):
+
+```bash
+/home/rlopez/inneros/inneros_core/platform/scripts/upgrade_evolution_api.sh both
+```
+
+- Recrea contenedores Docker con `evoapicloud/evolution-api:latest` (hoy **2.3.7**, sin licencia).
+- **No** subir a `2.4.x` en producción sin activar licencia Evolution Foundation (503 `LICENSE_REQUIRED`).
+- WhatsApp: `recupera Evolution en .4` / `.5` solo **reinicia** el contenedor (catálogo tipado).
+
+Autorización ops sin UI de “encuesta”: botones **Confirmar/Cancelar** + texto `CONFIRMAR <código>` / `CANCELAR <código>`.
+
+### Línea AMD Innerchispa (.5)
+
+| Campo | Valor |
+|-------|--------|
+| Nacional | `0962546650` |
+| E.164 | `593962546650` |
+| Instancia Evolution | `Innerchispa` |
+| Base URL | `http://192.168.1.5:8082` (Tailscale `100.72.153.124:8082`) |
+
+Emparejar tras cambio de chip: `GET /instance/connect/Innerchispa?number=593962546650` (código de enlace) o manager en `:8082/manager`. Alertas ops al owner siguen en `NOTIFY_WHATSAPP_TO` (línea personal Intel); AMD es segunda línea operativa (`WHATSAPP_AMD_SEND_ENABLED`).
+
 ## Correos — cuentas IMAP
 
 Las cuentas viven en Mongo `email_accounts` (gestión Swarm UI o API `:8100/api/v1/email/accounts`).
