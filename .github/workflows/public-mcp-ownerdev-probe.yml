@@ -1,0 +1,74 @@
+name: Public MCP OwnerDev Probe
+
+on:
+  push:
+    branches:
+      - chatgpt/public-mcp-ownerdev-probe-20261010
+    paths:
+      - ".github/workflows/public-mcp-ownerdev-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      MCP_URL: https://mcp.pcdoctor.ai/router/mcp
+      MCP_API_KEY: ${{ secrets.MCP_API_KEY }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check secret presence without disclosure
+        shell: bash
+        run: |
+          set -eu
+          if [ -z "${MCP_API_KEY:-}" ]; then
+            echo "MCP_API_KEY_SECRET_PRESENT=false"
+            exit 21
+          fi
+          echo "MCP_API_KEY_SECRET_PRESENT=true"
+      - name: Install minimal MCP client
+        run: python -m pip install --quiet "mcp>=2,<3"
+      - name: Probe authenticated owner_dev projection read-only
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          import os
+          from mcp import ClientSession
+          from mcp.client.streamable_http import streamablehttp_client
+
+          async def main():
+              headers = {
+                  "X-API-Key": os.environ["MCP_API_KEY"],
+                  "X-MCP-Profile": "owner_dev",
+              }
+              async with streamablehttp_client(os.environ["MCP_URL"], headers=headers) as (read_stream, write_stream, _):
+                  async with ClientSession(read_stream, write_stream) as session:
+                      await session.initialize()
+                      tools = await session.list_tools()
+                      names = sorted(tool.name for tool in tools.tools)
+                      wanted = {
+                          "local_fs_policy",
+                          "local_fs_read_file",
+                          "local_fs_write_file",
+                          "peer_ops_status",
+                          "peer_ops_action",
+                      }
+                      result = {
+                          "ok": True,
+                          "tool_count": len(names),
+                          "wanted": {name: name in names for name in sorted(wanted)},
+                          "profile_header": "owner_dev",
+                      }
+                      print(json.dumps(result, sort_keys=True))
+                      missing = sorted(name for name in wanted if name not in names)
+                      if missing:
+                          raise SystemExit("missing_required_tools:" + ",".join(missing))
+
+          asyncio.run(main())
+          PY
