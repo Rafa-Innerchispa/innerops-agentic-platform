@@ -5,6 +5,14 @@ import json
 
 from inneros_core_runtime.agents import pool_agent_runners as pool
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolate_agent_run_audit(monkeypatch):
+    """CI has no owner host directories; never write actual coordination logs in tests."""
+    monkeypatch.setattr(pool, "record_agent_run", lambda *_args, **_kwargs: None)
+
 
 def _request(action="status", service_id="mcp", node="amd"):
     return json.dumps({
