@@ -125,8 +125,6 @@ def ingest_agent_message(
         idempotency_key=idempotency_key,
         related_project=project,
     )
-    if payload_n.get("do_not_auto_dispatch") is True:
-        return message
     if not message.get("ok") or not should_create_task(
         title=title,
         body=body_n,

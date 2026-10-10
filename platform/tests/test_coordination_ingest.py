@@ -101,74 +101,96 @@ class CoordinationIngestTests(unittest.TestCase):
 
 
 class HeartbeatTests(unittest.TestCase):
-    def test_heartbeat_rejects_wrong_owner(self) -> None:
-        collection = MagicMock()
-        collection.find_one.return_value = {"task_id": "ops_1", "status": "in_progress", "owner": "gemini"}
-        with patch("raphiia_openai.mongo_store.get_db", return_value={"ralfia_ops_tasks": collection}):
-            result = coordination_live.heartbeat_ops_task("ops_1", "codex")
-        self.assertEqual(result["error"], "ownership_conflict")
-        collection.update_one.assert_not_called()
-
-    def test_heartbeat_updates_active_task(self) -> None:
-        collection = MagicMock()
-        collection.find_one.return_value = {"task_id": "ops_1", "status": "in_progress", "owner": "codex"}
-        collection.update_one.return_value = SimpleNamespace(modified_count=1)
-        with patch("raphiia_openai.mongo_store.get_db", return_value={"ralfia_ops_tasks": collection}):
-            result = coordination_live.heartbeat_ops_task("ops_1", "codex", next_action="verify")
+    def test_heartbeat_signals_temporal(self) -> None:
+        with patch(
+            "inneros_core_runtime.durable_coordination_spine.signal_task_workflow",
+            return_value={"ok": True, "task_id": "ops_1", "signal": "heartbeat"},
+        ) as signal:
+            result = coordination_live.heartbeat_ops_task(
+                "ops_1",
+                "codex",
+                phase="verification",
+                next_action="verify",
+            )
         self.assertTrue(result["ok"])
-        self.assertEqual(result["owner"], "codex")
+        self.assertEqual(result["authority"], "temporal")
+        signal.assert_called_once()
+        args = signal.call_args.args
+        self.assertEqual(args[0], "ops_1")
+        self.assertEqual(args[1], "heartbeat")
+        self.assertEqual(args[2]["actor"], "codex")
+        self.assertEqual(args[2]["phase"], "verification")
+        self.assertEqual(args[2]["next_action"], "verify")
 
 
 class TerminalEvidenceGateTests(unittest.TestCase):
-    def test_repo_task_completion_requires_remote_commit_sha(self) -> None:
-        collection = MagicMock()
-        collection.find_one.return_value = {
-            "task_id": "ops_repo",
-            "status": "verification",
-            "owner": "codex",
-            "revision": 4,
-            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
-            "work_branch": "codex/repair",
-        }
-        with patch("raphiia_openai.mongo_store.get_db", return_value={"ralfia_ops_tasks": collection}):
-            result = coordination_live.update_ops_task_state(
-                "ops_repo",
-                "completed",
-                actor="codex",
-                evidence={"summary": "PASS but no SHA"},
-                force_handoff=True,
-                allow_legacy_direct=True,
-            )
+    def test_direct_completion_is_temporal_owned(self) -> None:
+        result = coordination_live.update_ops_task_state(
+            "ops_repo",
+            "completed",
+            actor="codex",
+            evidence={"remote_commit_sha": "a" * 40},
+            force_handoff=True,
+        )
         self.assertFalse(result["ok"])
-        self.assertEqual(result["error"], "remote_commit_sha_required")
-        collection.update_one.assert_not_called()
+        self.assertEqual(result["error"], "temporal_owns_task_lifecycle")
+        self.assertEqual(result["authority"], "temporal")
 
-    def test_repo_task_completion_accepts_40_char_sha(self) -> None:
-        collection = MagicMock()
-        collection.find_one.return_value = {
-            "task_id": "ops_repo",
-            "status": "verification",
-            "owner": "codex",
-            "revision": 4,
-            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
-            "work_branch": "codex/repair",
-        }
-        collection.update_one.return_value = SimpleNamespace(modified_count=1)
-        with (
-            patch("raphiia_openai.mongo_store.get_db", return_value={"ralfia_ops_tasks": collection}),
-            patch("raphiia_openai.coordination_live.bump_revision", return_value={"ok": True}),
-        ):
-            result = coordination_live.update_ops_task_state(
-                "ops_repo",
-                "completed",
-                actor="codex",
-                evidence={"result": "PASS", "remote_commit_sha": "a" * 40},
-                force_handoff=True,
-                allow_legacy_direct=True,
-            )
-        self.assertTrue(result["ok"])
-        collection.update_one.assert_called_once()
+    def test_complete_ops_task_is_fail_closed(self) -> None:
+        result = coordination_live.complete_ops_task(
+            "ops_repo",
+            actor="codex",
+            evidence={"remote_commit_sha": "a" * 40},
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "direct_completion_forbidden")
+        self.assertEqual(result["authority"], "temporal")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_do_not_auto_dispatch_still_materializes_ops_task():
+    from unittest.mock import patch
+    from inneros_core_runtime import coordination_ingest as ci
+
+    fake_message = {
+        "ok": True,
+        "message_id": "msg_cursor_wait",
+        "correlation_id": "cursor-wait-test",
+    }
+    fake_task = {
+        "ok": True,
+        "task_id": "ops_cursor_wait",
+        "workflow_id": "ops_task:ops_cursor_wait",
+        "status": "awaiting_cursor_claim",
+    }
+
+    with (
+        patch("raphiia_openai.memory.agent_messages.create_agent_message", return_value=fake_message),
+        patch.object(ci.coordination_live, "create_ops_task", return_value=fake_task) as create_task,
+        patch.object(ci.mongo_store, "get_db"),
+    ):
+        out = ci.ingest_agent_message(
+            from_agent="CHATGPT",
+            target_agent="cursor",
+            title="P0 owner interactive task",
+            body="Execute bounded task.",
+            priority="p0",
+            correlation_id="cursor-wait-test",
+            message_type="task",
+            payload={
+                "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+                "execution_lane": "cursor_interactive",
+                "preferred_provider": "cursor",
+                "do_not_auto_dispatch": True,
+            },
+            idempotency_key="cursor-wait-test",
+        )
+
+    assert create_task.called
+    kwargs = create_task.call_args.kwargs
+    assert kwargs["do_not_auto_dispatch"] is True
+    assert out["normalization"]["task_id"] == "ops_cursor_wait"
+    assert out["normalization"]["workflow_id"] == "ops_task:ops_cursor_wait"
