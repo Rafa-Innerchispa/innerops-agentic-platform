@@ -39,6 +39,8 @@ _DISPATCH_KEYS = (
     "owner_authorized_at",
     "requested_agent",
     "task_kind",
+    "peer_action",
+    "service_id",
     "node",
     "payload",
 )
@@ -151,26 +153,44 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
     task_kind = str(env.get("task_kind") or "").strip().lower()
     if lane == "peer_ops" or task_kind == "peer_ops":
         requested_agent = str(env.get("requested_agent") or "").strip().upper().replace("_", "-")
+        peer_action = str(env.get("peer_action") or "").strip().lower()
+        service_id = str(env.get("service_id") or "").strip().lower()
+        node = str(env.get("node") or "").strip().lower()
+
+        def blocked(error: str, message: str, status: str = "waiting_for_binding") -> dict[str, Any]:
+            return {
+                **base, "ok": False, "allowed": False,
+                "runner": BLOCKED_RUNNER, "status": status,
+                "error": error, "message": message,
+            }
+
+        if lane != "peer_ops" or task_kind != "peer_ops":
+            return blocked("peer_ops_lane_mismatch", "peer_ops exige task_kind y execution_lane coincidentes.")
         if requested_agent != "AG-41":
-            return {
-                **base,
-                "ok": False,
-                "allowed": False,
-                "runner": BLOCKED_RUNNER,
-                "status": "waiting_for_binding",
-                "error": "peer_ops_target_invalid",
-                "message": "peer_ops requiere el ejecutor registrado AG-41.",
-            }
+            return blocked("peer_ops_target_invalid", "peer_ops requiere el ejecutor registrado AG-41.")
+        if do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}:
+            return blocked("do_not_auto_dispatch", "peer_ops no puede ejecutar cuando auto-dispatch esta desactivado.")
         if not owner_approved:
-            return {
-                **base,
-                "ok": False,
-                "allowed": False,
-                "runner": BLOCKED_RUNNER,
-                "status": "waiting_for_owner_approval",
-                "error": "peer_ops_owner_approval_required",
-                "message": "peer_ops requiere autorización explícita del owner.",
-            }
+            return blocked(
+                "peer_ops_owner_approval_required",
+                "peer_ops requiere autorizacion explicita del owner.",
+                "waiting_for_owner_approval",
+            )
+        # The A2A runner historically returned a status snapshot for every
+        # message. Do not interpret snapshot delivery as completing a host
+        # mutation. Until a governed host approval and typed mutation executor
+        # are independently certified, peer_ops admits status-only requests.
+        if peer_action != "status":
+            return blocked(
+                "peer_ops_mutation_not_accredited",
+                "peer_ops solo admite status de lectura; mutaciones requieren ejecutor host acreditado.",
+            )
+        if node not in {"amd", "primary", "intel"}:
+            return blocked("peer_ops_node_not_allowlisted", "Nodo no autorizado para peer_ops.")
+        if not service_id or len(service_id) > 64 or any(
+            ch not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for ch in service_id
+        ):
+            return blocked("peer_ops_service_id_required", "Se requiere un service_id tipado y valido.")
         return {
             **base,
             "ok": True,
@@ -179,8 +199,11 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
             "status": "ready",
             "error": None,
             "target_agent": "AG-41",
-            "node": str(env.get("node") or "").strip().lower() or None,
-            "message": "owner-authorized peer_ops routed to AG-41 over bounded A2A",
+            "peer_action": peer_action,
+            "service_id": service_id,
+            "node": node,
+            "read_only": True,
+            "message": "owner-authorized read-only peer_ops status routed to AG-41",
         }
     if provider == "codex" and (do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}):
         codex_model = str(

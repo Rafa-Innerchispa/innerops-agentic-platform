@@ -74,6 +74,12 @@ async def activity_resolve_execution_binding(envelope_dict: Dict[str, Any]) -> D
 @activity.defn
 async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("hydrating_worktree")
+    from inneros_core_runtime import execution_binding as _binding
+    peer_binding = _binding.resolve_execution_binding(envelope_dict)
+    if peer_binding.get("allowed") and peer_binding.get("runner") == _binding.PEER_OPS_RUNNER:
+        # Observing a host is not a coding task. Do not create or mutate any
+        # Git worktree on its behalf.
+        return {"ok": True, "worktree": "", "source": "peer_ops_read_only"}
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
     repo = str(envelope_dict.get("repo") or envelope_dict.get("related_project") or "").strip()
     if repo:
@@ -223,6 +229,44 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
         }
 
     lane = str(envelope_dict.get("execution_lane") or "").lower()
+    if lane == "peer_ops":
+        from inneros_core_runtime import execution_binding as _binding
+
+        expected = _binding.resolve_execution_binding(envelope_dict)
+        result = agent_result.get("peer_ops_result") or {}
+        observed = result.get("peer_status") if isinstance(result.get("peer_status"), dict) else {}
+        verified = (
+            expected.get("allowed") is True
+            and expected.get("runner") == _binding.PEER_OPS_RUNNER
+            and expected.get("peer_action") == "status"
+            and agent_result.get("ok") is True
+            and result.get("ok") is True
+            and result.get("protocol") == "peer_ops.v1"
+            and result.get("action") == "status"
+            and result.get("service_id") == expected.get("service_id")
+            and result.get("node") == expected.get("node")
+            and result.get("read_only") is True
+            and result.get("verified") is True
+            and observed.get("ok") is True
+            and isinstance(observed.get("healthy"), bool)
+            and str(observed.get("health") or "").strip() != ""
+            and str(observed.get("system_state") or "").strip().lower() not in {"", "unknown"}
+        )
+        if not verified:
+            return {
+                "passed": False,
+                "error": "Completion prohibited: peer_ops verified read-only host status required",
+                "execution_binding": expected,
+            }
+        return {
+            "passed": True,
+            "mode": "peer_ops_verified_readonly_status",
+            "target_agent": "AG-41",
+            "node": expected["node"],
+            "service_id": expected["service_id"],
+            "host_status": observed,
+        }
+
     if lane in {"local_dev_swarm", "dev_swarm", "internal"}:
         tests = agent_result.get("test_results") or {}
         exit_code = tests.get("exit_code")
@@ -404,46 +448,61 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
         }
 
     if binding.get("runner") == execution_binding.PEER_OPS_RUNNER:
+        import json
         from inneros_core_runtime import a2a_controller
 
         target_agent = str(binding.get("target_agent") or "AG-41")
-        prompt_body = envelope.objective or envelope.title
-        if envelope.checklist:
-            prompt_body = f"{prompt_body}\n\nChecklist:\n" + "\n".join(
-                f"- {item}" for item in envelope.checklist[:40]
-            )
+        request = json.dumps({
+            "protocol": "peer_ops.v1",
+            "action": binding["peer_action"],
+            "node": binding["node"],
+            "service_id": binding["service_id"],
+        }, sort_keys=True)
         timeout_policy = envelope_dict.get("timeout_policy") or {}
         timeout_seconds = int(timeout_policy.get("agent_seconds") or timeout_policy.get("execute_seconds") or 120)
         result = a2a_controller._invoke_agent_bounded(
             target_agent,
-            prompt_body,
+            request,
             max(1, min(timeout_seconds, 300)),
         )
-        ok = bool(result.get("ok"))
-        nested_evidence = dict(result.get("evidence") or {}) if isinstance(result.get("evidence"), dict) else {}
-        for key, value in result.items():
-            if key not in {"ok", "error", "evidence"} and value is not None:
-                nested_evidence.setdefault(key, value)
-        nested_evidence.update({
-            "transport": "a2a",
+        peer_status = result.get("peer_status") if isinstance(result.get("peer_status"), dict) else {}
+        verified = (
+            result.get("ok") is True
+            and result.get("protocol") == "peer_ops.v1"
+            and result.get("action") == "status"
+            and result.get("node") == binding["node"]
+            and result.get("service_id") == binding["service_id"]
+            and result.get("read_only") is True
+            and result.get("verified") is True
+            and peer_status.get("ok") is True
+            and isinstance(peer_status.get("healthy"), bool)
+            and str(peer_status.get("health") or "").strip() != ""
+            and str(peer_status.get("system_state") or "").strip().lower() not in {"", "unknown"}
+        )
+        evidence = {
+            "peer_ops_protocol": "peer_ops.v1",
+            "peer_ops_action": "status",
+            "peer_ops_verified": verified,
             "target_agent": target_agent,
-            "node": binding.get("node"),
-        })
+            "node": binding["node"],
+            "service_id": binding["service_id"],
+            "host_status": peer_status,
+        }
         return {
-            "ok": ok,
-            "blocked": not ok,
+            "ok": verified,
+            "blocked": not verified,
             "execution_binding": binding,
             "files_count": 0,
             "objective_files_count": 0,
             "objective_paths": [],
             "code_diff": "",
-            "response": result.get("response") or result.get("message") or result.get("error") or "",
+            "response": "peer_ops status verified" if verified else str(result.get("error") or "peer_ops_evidence_unverified"),
             "test_results": {
-                "exit_code": 0 if ok else 1,
-                "ok": ok,
-                "reason": None if ok else (result.get("error") or "peer_ops_failed"),
+                "exit_code": None,
+                "ok": verified,
+                "reason": None if verified else str(result.get("error") or "peer_ops_evidence_unverified"),
             },
-            "evidence": nested_evidence,
+            "evidence": evidence,
             "peer_ops_result": result,
             "candidate_only": False,
             "requires_bounded_executor": False,
