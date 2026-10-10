@@ -181,6 +181,20 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             "task_class": task_class,
         }
 
+    # Enforce evidence requirements before any fast-path success gate.
+    if evidence_required:
+        nested = agent_result.get("evidence") or {}
+        missing_evidence = [
+            key for key in evidence_required
+            if not str(agent_result.get(key) or nested.get(key) or "").strip()
+        ]
+        if missing_evidence:
+            return {
+                "passed": False,
+                "error": "Completion prohibited: required evidence missing",
+                "missing": missing_evidence,
+            }
+
     if agent_result.get("blocked"):
         binding = agent_result.get("execution_binding") or {}
         return {
