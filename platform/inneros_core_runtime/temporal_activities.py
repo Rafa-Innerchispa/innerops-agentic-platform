@@ -403,6 +403,52 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "requires_bounded_executor": False,
         }
 
+    if binding.get("runner") == execution_binding.PEER_OPS_RUNNER:
+        from inneros_core_runtime import a2a_controller
+
+        target_agent = str(binding.get("target_agent") or "AG-41")
+        prompt_body = envelope.objective or envelope.title
+        if envelope.checklist:
+            prompt_body = f"{prompt_body}\n\nChecklist:\n" + "\n".join(
+                f"- {item}" for item in envelope.checklist[:40]
+            )
+        timeout_policy = envelope_dict.get("timeout_policy") or {}
+        timeout_seconds = int(timeout_policy.get("agent_seconds") or timeout_policy.get("execute_seconds") or 120)
+        result = a2a_controller._invoke_agent_bounded(
+            target_agent,
+            prompt_body,
+            max(1, min(timeout_seconds, 300)),
+        )
+        ok = bool(result.get("ok"))
+        nested_evidence = dict(result.get("evidence") or {}) if isinstance(result.get("evidence"), dict) else {}
+        for key, value in result.items():
+            if key not in {"ok", "error", "evidence"} and value is not None:
+                nested_evidence.setdefault(key, value)
+        nested_evidence.update({
+            "transport": "a2a",
+            "target_agent": target_agent,
+            "node": binding.get("node"),
+        })
+        return {
+            "ok": ok,
+            "blocked": not ok,
+            "execution_binding": binding,
+            "files_count": 0,
+            "objective_files_count": 0,
+            "objective_paths": [],
+            "code_diff": "",
+            "response": result.get("response") or result.get("message") or result.get("error") or "",
+            "test_results": {
+                "exit_code": 0 if ok else 1,
+                "ok": ok,
+                "reason": None if ok else (result.get("error") or "peer_ops_failed"),
+            },
+            "evidence": nested_evidence,
+            "peer_ops_result": result,
+            "candidate_only": False,
+            "requires_bounded_executor": False,
+        }
+
     # If mock/canary test execution:
     if envelope_dict.get("canary_test_type") == "failed_test":
         return {

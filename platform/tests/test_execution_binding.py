@@ -92,6 +92,7 @@ class ExecutionBindingTests(unittest.TestCase):
                 "preferred_provider": "dev_swarm",
                 "execution_lane": "local_dev_swarm",
                 "preferred_model": "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ",
+                "repo": "Rafa-Innerchispa/innerops-agentic-platform",
             }
         )
         self.assertTrue(binding["allowed"])
