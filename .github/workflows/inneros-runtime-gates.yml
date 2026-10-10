@@ -1,0 +1,104 @@
+name: InnerOS P0 Runtime Safety Gates
+
+on:
+  pull_request:
+    paths:
+      - "platform/inneros_core_runtime/execution_binding.py"
+      - "platform/inneros_core_runtime/temporal_activities.py"
+      - "platform/inneros_core_runtime/temporal_workflows.py"
+      - "platform/inneros_core_runtime/agents/pool_agent_runners.py"
+      - "platform/inneros_core_runtime/a2a_controller.py"
+      - "platform/tests/test_global_coordination_guards.py"
+      - "platform/tests/test_execution_binding.py"
+      - "platform/tests/test_peer_ops_runner_contract.py"
+      - "platform/tests/test_runtime_routing_and_a2a_lease_regressions.py"
+      - ".github/workflows/inneros-runtime-gates.yml"
+  push:
+    branches: [main]
+    paths:
+      - "platform/inneros_core_runtime/execution_binding.py"
+      - "platform/inneros_core_runtime/temporal_activities.py"
+      - "platform/inneros_core_runtime/temporal_workflows.py"
+      - "platform/inneros_core_runtime/agents/pool_agent_runners.py"
+      - "platform/inneros_core_runtime/a2a_controller.py"
+      - "platform/tests/test_global_coordination_guards.py"
+      - "platform/tests/test_execution_binding.py"
+      - "platform/tests/test_peer_ops_runner_contract.py"
+      - "platform/tests/test_runtime_routing_and_a2a_lease_regressions.py"
+      - ".github/workflows/inneros-runtime-gates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  critical-runtime-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install isolated runtime test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r platform/requirements.txt pytest
+      - name: Compile critical runtime contracts
+        run: |
+          python -m compileall -q \
+            platform/inneros_core_runtime/execution_binding.py \
+            platform/inneros_core_runtime/temporal_activities.py \
+            platform/inneros_core_runtime/agents/pool_agent_runners.py \
+            platform/tests/test_global_coordination_guards.py \
+            platform/tests/test_peer_ops_runner_contract.py
+      - name: Peer Ops and Temporal evidence regression suite
+        env:
+          PYTHONPATH: platform
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python -m pytest -q \
+            platform/tests/test_global_coordination_guards.py \
+            platform/tests/test_execution_binding.py \
+            platform/tests/test_peer_ops_runner_contract.py \
+            platform/tests/test_runtime_routing_and_a2a_lease_regressions.py \
+            platform/tests/test_a2a_bridge.py \
+            platform/tests/test_temporal_bounded_executor.py
+      - name: Produce CI-only provenance manifest
+        env:
+          INNEROS_COMMIT: ${{ github.sha }}
+          INNEROS_RUN_ID: ${{ github.run_id }}
+          INNEROS_EVENT: ${{ github.event_name }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          output = {
+              "schema_version": "inneros-ci-candidate-v1",
+              "git_sha": os.environ["INNEROS_COMMIT"],
+              "github_run_id": os.environ["INNEROS_RUN_ID"],
+              "event": os.environ["INNEROS_EVENT"],
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "status": "CI_ONLY",
+              "production_deployed": False,
+              "last_known_good_certified": False,
+              "host_evidence_required": True,
+              "note": "CI success must never be presented as a production release.",
+          }
+          folder = Path(".inneros-ci")
+          folder.mkdir(exist_ok=True)
+          (folder / "runtime_candidate.json").write_text(
+              json.dumps(output, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Preserve candidate manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: inneros-ci-candidate
+          path: .inneros-ci/runtime_candidate.json
+          retention-days: 30
