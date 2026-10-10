@@ -7,6 +7,8 @@ import socket
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from pymongo.errors import DuplicateKeyError
+
 from raphiia_openai import mongo_store, ralfia_time, whatsapp_identity, whatsapp_service_ops
 from raphiia_openai.notifications.evolution_client import send_whatsapp
 from raphiia_openai.notifications.settings import NOTIFY_WHATSAPP_TO, WHATSAPP_AMD_SEND_ENABLED
@@ -32,25 +34,44 @@ def monitor_id() -> str:
 
 
 def acquire_lease(holder: str | None = None) -> bool:
-    holder = holder or monitor_id()
-    db = mongo_store.get_db()
-    now = _now()
-    current = db[LEASE_COLLECTION].find_one({"_id": "dual-node-leader"})
-    if current and current.get("holder") != holder and str(current.get("expires_at") or "") > now:
-        return False
-    db[LEASE_COLLECTION].update_one(
-        {"_id": "dual-node-leader"},
-        {
-            "$set": {
-                "holder": holder,
-                "heartbeat_at": now,
-                "expires_at": (_now_dt() + timedelta(seconds=LEASE_SECONDS)).isoformat(),
-            }
-        },
-        upsert=True,
-    )
-    return True
+    """Acquire/renew one Mongo-backed leader lease atomically.
 
+    A read-followed-by-unconditional-write can elect two leaders under
+    concurrent AMD/Intel monitor ticks. Mongo's conditional update and unique
+    _id insertion prevent two simultaneous owners. When Mongo is unavailable
+    we fail closed: neither node may claim coordination leadership.
+    """
+    holder = holder or monitor_id()
+    collection = mongo_store.get_db()[LEASE_COLLECTION]
+    now_dt = _now_dt()
+    now = now_dt.isoformat()
+    patch = {
+        "holder": holder,
+        "heartbeat_at": now,
+        "expires_at": (now_dt + timedelta(seconds=LEASE_SECONDS)).isoformat(),
+    }
+    # Do not upsert on a conditional filter: if another holder owns the lease,
+    # an upsert can violate the unique _id and masquerade as a leadership win.
+    result = collection.update_one(
+        {
+            "_id": "dual-node-leader",
+            "$or": [
+                {"holder": holder},
+                {"expires_at": {"$lte": now}},
+                {"expires_at": {"$exists": False}},
+            ],
+        },
+        {"$set": patch},
+        upsert=False,
+    )
+    if result.matched_count:
+        return True
+    try:
+        collection.insert_one({"_id": "dual-node-leader", **patch})
+        return True
+    except DuplicateKeyError:
+        # Existing unexpired leader or a concurrent node won the first insert.
+        return False
 
 def _probe_snapshot() -> dict[str, dict[str, Any]]:
     output: dict[str, dict[str, Any]] = {}

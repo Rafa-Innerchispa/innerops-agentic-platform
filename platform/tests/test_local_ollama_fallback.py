@@ -5,7 +5,11 @@ import sys
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from inneros_core_runtime import local_model_router as router
+CANDIDATE = Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "local_model_router.py"
+SPEC = importlib.util.spec_from_file_location("candidate_ha_local_model_router_legacy", CANDIDATE)
+assert SPEC and SPEC.loader
+router = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(router)
 
 @pytest.fixture
 def harness(monkeypatch):

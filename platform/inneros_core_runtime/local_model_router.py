@@ -7,6 +7,7 @@ Local-first policy:
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -14,6 +15,7 @@ import socket
 import subprocess
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
@@ -423,10 +425,20 @@ def _intel_ollama_fallback(
     temperature: float,
     fallback_reason: str,
     preferred_model: str | None = None,
+    require_exact_model: bool = False,
 ) -> dict[str, Any]:
     """Single fallback hop: AMD vLLM failure → Intel/local Ollama (no cloud escalation)."""
     ollama_url = _ollama_url_for_provider("local-intel-4")
     model = _pick_installed_ollama_model(ollama_url, preferred=preferred_model)
+    if require_exact_model and preferred_model and model != preferred_model:
+        return {
+            "ok": False,
+            "error": "intel_ollama_exact_model_unavailable",
+            "external_needed": False,
+            "fallback_reason": fallback_reason,
+            "requested_model": preferred_model,
+            "endpoint": ollama_url,
+        }
     if not model:
         return {
             "ok": False,
@@ -483,10 +495,109 @@ def _intel_ollama_fallback(
         "selected_model": model,
         "selected_node": "intel",
         "provider_id": "local-intel-4",
+        "quality_degraded": bool(preferred_model and model != preferred_model),
         "external_needed": False,
         "fallback_silent": False,
         "fallback_reason": fallback_reason,
         "endpoint": f"{ollama_url.rstrip('/')}/api/chat",
+        "routing_log": log,
+    }
+
+
+def _local_private_endpoint(url: str) -> bool:
+    """Host failover is LAN/local-only; never resolve arbitrary cloud endpoints."""
+    try:
+        parsed = urlsplit(str(url or ""))
+        if parsed.scheme != "http" or parsed.username or parsed.password:
+            return False
+        hostname = parsed.hostname or ""
+        if hostname.lower() == "localhost":
+            return True
+        address = ipaddress.ip_address(hostname)
+        return bool(
+            address.is_private
+            or address.is_loopback
+            or address in ipaddress.ip_network("100.64.0.0/10")
+        )
+    except ValueError:
+        return False
+
+
+def _amd_vllm_fallback(
+    *,
+    task_type: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+    fallback_reason: str,
+    preferred_model: str | None = None,
+    require_exact_model: bool = False,
+) -> dict[str, Any]:
+    """Single local hop: unavailable Intel Ollama -> AMD vLLM, with evidence.
+
+    A different model is accepted only when not explicitly pinned. This is a
+    degraded-capability inference path, not a service/Temporal failover.
+    """
+    endpoint = _vllm_url_for_provider("local-amd-5").rstrip("/")
+    if not _local_private_endpoint(endpoint):
+        return {"ok": False, "error": "fallback_endpoint_not_local", "external_needed": False}
+    models_resp = _http_json(f"{endpoint}/v1/models", timeout=5)
+    if not models_resp.get("ok"):
+        return {
+            "ok": False, "error": "amd_vllm_unreachable",
+            "fallback_reason": fallback_reason, "external_needed": False,
+        }
+    entries = (models_resp.get("data") or {}).get("data") or []
+    candidates = [
+        str(item.get("id") or "").strip()
+        for item in entries if isinstance(item, dict)
+    ]
+    candidates = sorted({
+        name for name in candidates
+        if name and not any(mark in name.lower() for mark in ("embedding", "rerank"))
+    })
+    if preferred_model in candidates:
+        selected_model = preferred_model
+    elif require_exact_model:
+        return {
+            "ok": False, "error": "amd_vllm_exact_model_unavailable",
+            "requested_model": preferred_model,
+            "fallback_reason": fallback_reason, "external_needed": False,
+        }
+    else:
+        preferred_coders = [name for name in candidates if "coder" in name.lower()]
+        selected_model = (
+            preferred_coders[0] if task_type in {"coding", "heavy_reasoning"} and preferred_coders
+            else (candidates[0] if candidates else None)
+        )
+    if not selected_model:
+        return {"ok": False, "error": "amd_vllm_no_text_models", "external_needed": False}
+    response = _vllm_chat(
+        model=selected_model, prompt=prompt, system_prompt=system_prompt,
+        max_tokens=max_tokens, temperature=temperature, endpoint=endpoint,
+    )
+    if not response.get("ok") or not str(response.get("response") or "").strip():
+        return {
+            "ok": False,
+            "error": "amd_vllm_generation_failed" if not response.get("ok") else "amd_vllm_empty_response",
+            "fallback_reason": fallback_reason,
+            "external_needed": False,
+        }
+    log = _log_route(
+        title=task_type, body=prompt, task_type=task_type,
+        runtime="local_vllm", model=selected_model, local_ok=True,
+        external_needed=False, approval_required=False,
+        reason=f"amd_vllm_fallback:{fallback_reason}",
+        decision="executed_local_amd_vllm",
+    )
+    return {
+        **response,
+        "ok": True, "runtime": "local_vllm", "task_type": task_type,
+        "selected_model": selected_model, "selected_node": "amd",
+        "provider_id": "local-amd-5", "fallback_reason": fallback_reason,
+        "fallback_silent": False, "external_needed": False,
+        "quality_degraded": bool(preferred_model and selected_model != preferred_model),
         "routing_log": log,
     }
 
@@ -919,6 +1030,23 @@ def run_local_model(
     backend = classification.get("recommended_backend")
     ollama_url = _ollama_url_for_provider(provider_id)
     vllm_url = _vllm_url_for_provider(provider_id)
+    explicitly_pinned = bool(model)
+    system_prompt = {
+        "summary": "Resume de forma clara y breve.",
+        "classification": "Devuelve una clasificacion concisa.",
+        "extraction": "Extrae datos clave en formato compacto.",
+        "reformat": "Reescribe y ordena el texto sin agregar relleno.",
+        "draft": "Escribe un borrador interno util y breve.",
+        "technical_report": "Genera un informe tecnico estructurado y util.",
+        "quote": "Genera un borrador de cotizacion corto y util.",
+        "quote_intro": "Redacta introduccion comercial breve para cotizacion; no informe tecnico completo.",
+        "routing": "Decide ruta operativa con criterio pragmatico.",
+        "daily_brief": "Genera un daily brief breve, claro y accionable.",
+        "notes": "Redacta notas limpias y utiles.",
+    "operational": "Analiza operacion tecnica con foco en datos y pendientes.",
+    "coding": "Ayuda con codigo de forma precisa y directa. Si requiere editar repos, usa Local Execution Plane/dispatcher con rama, tests y evidencia; no finjas cambios no ejecutados.",
+        "heavy_reasoning": "Razona con rigor sobre arquitectura y codigo. Devuelve resultados estructurados y evita inventar dependencias o rutas.",
+    }.get(classification["task_type"], "Responde de forma breve y util.")
     health = local_model_health()
     provider_health = _http_ok(f"{vllm_url}/v1/models") if backend == "vllm" and provider_id == "local-amd-5" else _http_ok(f"{ollama_url}/api/tags")
     if backend == "vllm" and provider_id == "local-amd-5" and not provider_health.get("ok"):
@@ -934,6 +1062,7 @@ def run_local_model(
             temperature=temperature,
             fallback_reason=fallback_reason,
             preferred_model=selected,
+            require_exact_model=explicitly_pinned,
         )
         if fb.get("ok"):
             return fb
@@ -951,6 +1080,22 @@ def run_local_model(
             "fallback_reason": fallback_reason,
             "external_needed": False,
         }
+    if backend == "ollama" and provider_id == "local-intel-4" and not provider_health.get("ok"):
+        fb = _amd_vllm_fallback(
+            task_type=classification["task_type"], prompt=prompt,
+            system_prompt=system_prompt, max_tokens=max_tokens,
+            temperature=temperature, fallback_reason="intel_ollama_unreachable",
+            preferred_model=selected, require_exact_model=explicitly_pinned,
+        )
+        if fb.get("ok"):
+            return fb
+        return {
+            "ok": False, "error": "local_inference_failover_unavailable",
+            "primary_node": "intel", "fallback_node": "amd",
+            "fallback_error": fb.get("error"),
+            "selected_model": selected, "fallback_silent": False,
+            "external_needed": False,
+        }
     if not (health.get("ok") or provider_health.get("ok")):
         return {
             "ok": False,
@@ -960,22 +1105,6 @@ def run_local_model(
             "recommended_model": selected,
         }
 
-    system_prompt = {
-        "summary": "Resume de forma clara y breve.",
-        "classification": "Devuelve una clasificacion concisa.",
-        "extraction": "Extrae datos clave en formato compacto.",
-        "reformat": "Reescribe y ordena el texto sin agregar relleno.",
-        "draft": "Escribe un borrador interno util y breve.",
-        "technical_report": "Genera un informe tecnico estructurado y util.",
-        "quote": "Genera un borrador de cotizacion corto y util.",
-        "quote_intro": "Redacta introduccion comercial breve para cotizacion; no informe tecnico completo.",
-        "routing": "Decide ruta operativa con criterio pragmatico.",
-        "daily_brief": "Genera un daily brief breve, claro y accionable.",
-        "notes": "Redacta notas limpias y utiles.",
-    "operational": "Analiza operacion tecnica con foco en datos y pendientes.",
-    "coding": "Ayuda con codigo de forma precisa y directa. Si requiere editar repos, usa Local Execution Plane/dispatcher con rama, tests y evidencia; no finjas cambios no ejecutados.",
-        "heavy_reasoning": "Razona con rigor sobre arquitectura y codigo. Devuelve resultados estructurados y evita inventar dependencias o rutas.",
-    }.get(classification["task_type"], "Responde de forma breve y util.")
 
     if backend == "vllm" and provider_id == "local-amd-5":
         result = _vllm_chat(
@@ -995,6 +1124,7 @@ def run_local_model(
                 temperature=temperature,
                 fallback_reason="amd_vllm_generation_failed",
                 preferred_model=selected,
+                require_exact_model=explicitly_pinned,
             )
             if fb.get("ok"):
                 return fb
@@ -1059,6 +1189,15 @@ def run_local_model(
 
     result = _http_json(f"{ollama_url}/api/chat", method="POST", body=payload, timeout=180)
     if not result.get("ok"):
+        if backend == "ollama" and provider_id == "local-intel-4":
+            fb = _amd_vllm_fallback(
+                task_type=classification["task_type"], prompt=prompt,
+                system_prompt=system_prompt, max_tokens=max_tokens,
+                temperature=temperature, fallback_reason="intel_ollama_generation_failed",
+                preferred_model=selected, require_exact_model=explicitly_pinned,
+            )
+            if fb.get("ok"):
+                return fb
         _log_route(
             title=classification["task_type"],
             body=prompt,
@@ -1076,12 +1215,22 @@ def run_local_model(
             "error": result.get("error"),
             "model": selected,
             "endpoint": f"{ollama_url}/api/chat",
-            "payload": payload,
+            "fallback_silent": False,
+            "external_needed": False,
         }
 
     data = result.get("data", {})
     content = data.get("message", {}).get("content", "")
     if not str(content).strip():
+        if backend == "ollama" and provider_id == "local-intel-4":
+            fb = _amd_vllm_fallback(
+                task_type=classification["task_type"], prompt=prompt,
+                system_prompt=system_prompt, max_tokens=max_tokens,
+                temperature=temperature, fallback_reason="intel_ollama_empty_response",
+                preferred_model=selected, require_exact_model=explicitly_pinned,
+            )
+            if fb.get("ok"):
+                return fb
         return {
             "ok": False,
             "error": "local_ollama_empty_response",
