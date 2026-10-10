@@ -22,6 +22,7 @@ def _ide_providers() -> frozenset[str]:
 INTERNAL_BOUNDED_RUNNER = "internal_bounded_local"
 INTERACTIVE_IDE_RUNNER = "interactive_ide_handoff"
 CURSOR_INTERACTIVE_RUNNER = "cursor_interactive"
+PEER_OPS_RUNNER = "peer_ops_a2a"
 BLOCKED_RUNNER = "blocked"
 CURSOR_PINNED_MODEL = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
 
@@ -34,6 +35,11 @@ _DISPATCH_KEYS = (
     "contract_revision",
     "assignment_override",
     "source_message_id",
+    "owner_approved",
+    "owner_authorized_at",
+    "requested_agent",
+    "task_kind",
+    "node",
     "payload",
 )
 
@@ -141,6 +147,41 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         }
 
     owner_approved = bool(env.get("owner_approved") or env.get("owner_authorized_at"))
+
+    task_kind = str(env.get("task_kind") or "").strip().lower()
+    if lane == "peer_ops" or task_kind == "peer_ops":
+        requested_agent = str(env.get("requested_agent") or "").strip().upper().replace("_", "-")
+        if requested_agent != "AG-41":
+            return {
+                **base,
+                "ok": False,
+                "allowed": False,
+                "runner": BLOCKED_RUNNER,
+                "status": "waiting_for_binding",
+                "error": "peer_ops_target_invalid",
+                "message": "peer_ops requiere el ejecutor registrado AG-41.",
+            }
+        if not owner_approved:
+            return {
+                **base,
+                "ok": False,
+                "allowed": False,
+                "runner": BLOCKED_RUNNER,
+                "status": "waiting_for_owner_approval",
+                "error": "peer_ops_owner_approval_required",
+                "message": "peer_ops requiere autorización explícita del owner.",
+            }
+        return {
+            **base,
+            "ok": True,
+            "allowed": True,
+            "runner": PEER_OPS_RUNNER,
+            "status": "ready",
+            "error": None,
+            "target_agent": "AG-41",
+            "node": str(env.get("node") or "").strip().lower() or None,
+            "message": "owner-authorized peer_ops routed to AG-41 over bounded A2A",
+        }
     if provider == "codex" and (do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}):
         codex_model = str(
             __import__("os").getenv("CODEX_OPS_PINNED_MODEL", __import__("os").getenv("CODEX_WHATSAPP_MODEL", "gpt-5.6-sol"))
