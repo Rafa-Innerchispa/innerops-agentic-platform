@@ -153,3 +153,64 @@ def test_deploy_capability_delegates_to_bounded_handler(monkeypatch):
     assert out["ok"] is True
     assert out["result"]["ok"] is True
     assert out["result"]["dry_run"] is True
+
+def test_gateway_catalogues_service_action_and_cursor_owner_order():
+    service = cg.capability_search(query="service restart approval", max_results=30)
+    service_ids = {item["capability_id"] for item in service["capabilities"]}
+    assert "peer.service.action.v1" in service_ids
+
+    cursor = cg.capability_search(query="cursor owner claim", max_results=30)
+    cursor_ids = {item["capability_id"] for item in cursor["capabilities"]}
+    assert "coordination.cursor.owner_order.v1" in cursor_ids
+
+
+def test_service_action_requires_valid_host_approval(monkeypatch):
+    from inneros_core_runtime import capability_gateway_peer as cgp
+    from inneros_core_runtime import local_execution_plane as lep
+    from raphiia_openai.agents import ag41_peer_ops_executor as ag41
+
+    monkeypatch.setattr(
+        lep,
+        "validate_host_approval",
+        lambda **kw: {"ok": True, "approval_id": kw["approval_id"]},
+    )
+    monkeypatch.setattr(
+        ag41,
+        "peer_ops_action",
+        lambda **kw: {"ok": True, "service_id": kw["service_id"], "action": kw["action"], "node": kw["node"]},
+    )
+    out = cgp._service_action_with_approval(
+        service_id="mcp",
+        node="amd",
+        action="restart",
+        approval_id="hostap_test",
+    )
+    assert out["ok"] is True
+    assert out["service_id"] == "mcp"
+    assert out["approval"]["ok"] is True
+
+
+def test_cursor_owner_order_capability_delegates_to_canonical_orchestrator(monkeypatch):
+    from inneros_core_runtime import cursor_ops_orchestrator as co
+
+    monkeypatch.setattr(
+        co,
+        "owner_order_execute",
+        lambda **kw: {
+            "ok": True,
+            "stage": "claimed",
+            "claim": {"task_id": kw.get("task_id"), "owner_actor": kw.get("owner_actor")},
+        },
+    )
+    out = cg.capability_invoke(
+        "coordination.cursor.owner_order.v1",
+        {
+            "task_id": "ops_123456abcdef",
+            "owner_actor": "RAFAEL",
+            "owner_approved": True,
+        },
+        idempotency_key="test-cursor-owner-order-cap",
+    )
+    assert out["ok"] is True
+    assert out["result"]["ok"] is True
+    assert out["result"]["claim"]["task_id"] == "ops_123456abcdef"
