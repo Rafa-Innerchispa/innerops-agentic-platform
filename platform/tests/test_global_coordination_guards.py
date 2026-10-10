@@ -1,8 +1,18 @@
 """Regressions for repo-less Temporal tasks and strict evidence gates."""
 from __future__ import annotations
 import asyncio
-from inneros_core_runtime import execution_binding as eb
-from inneros_core_runtime import temporal_activities as ta
+import importlib.util
+from pathlib import Path
+
+def candidate(name):
+    path = Path(__file__).resolve().parents[1] / "inneros_core_runtime" / (name + ".py")
+    spec = importlib.util.spec_from_file_location("candidate_coord_" + name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+eb = candidate("execution_binding")
+ta = candidate("temporal_activities")
 
 def test_repoless_internal_cannot_claim_executor():
     value = eb.resolve_execution_binding({"assignee":"inneros_orchestrator","execution_lane":"internal","task_class":"coding"})
