@@ -1273,7 +1273,18 @@ def create_worktree(
                 "status": status,
                 "verified_exists": (worktree / ".git").exists(),
             }
-        add_cmd = ["git", "worktree", "add", "-b", work_branch, str(worktree), base_branch]
+        # The source checkout can be detached or its local main can diverge
+        # after a governed bootstrap. Use the verified remote tracking ref for
+        # protected bases rather than silently branching from stale local main.
+        effective_base = base_branch
+        if base_branch in {"main", "master"}:
+            remote_ref = f"refs/remotes/origin/{base_branch}"
+            remote_check = _run(["git", "rev-parse", "--verify", remote_ref], source, timeout_seconds=20)
+            if not remote_check.get("ok"):
+                return {"ok": False, "error": "remote_base_ref_missing",
+                        "base_branch": base_branch, "remote_ref": remote_ref}
+            effective_base = remote_ref
+        add_cmd = ["git", "worktree", "add", "-b", work_branch, str(worktree), effective_base]
         result = _run(add_cmd, source, timeout_seconds=120)
         if not result.get("ok") and "already exists" in (result.get("stderr") or ""):
             result = _run(["git", "worktree", "add", str(worktree), work_branch], source, timeout_seconds=120)
