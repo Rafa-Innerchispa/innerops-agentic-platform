@@ -46,6 +46,72 @@ def register_peer_capabilities() -> int:
     from raphiia_openai.agents import ag41_peer_ops_executor as ag41
 
     specs: list[tuple[dict[str, Any], Callable[..., dict[str, Any]]]] = [
+
+        (
+            {
+                "capability_id": "host.approval.issue.v1",
+                "version": "1.0.0",
+                "title": "Issue bounded host approval",
+                "domain": "peer_ops",
+                "risk_class": "medium",
+                "mode": "mutation",
+                "description": "Issue a short-lived approval scoped to one registered repo/project/node host action.",
+                "keywords": ["host", "approval", "owner", "mutation", "deploy"],
+                "parameters_schema": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string"},
+                        "repo": {"type": "string"},
+                        "project_id": {"type": "string"},
+                        "node": {"type": "string"},
+                        "actor": {"type": "string"},
+                        "task_id": {"type": "string"},
+                        "correlation_id": {"type": "string"},
+                        "ttl_minutes": {"type": "integer"},
+                        "reason": {"type": "string"},
+                        "dry_run": {"type": "boolean"},
+                    },
+                    "required": ["action", "actor", "task_id", "correlation_id"],
+                },
+                "required_scopes": ["ralfia:agents"],
+            },
+            _handler(
+                lambda **kw: __import__(
+                    "inneros_core_runtime.local_execution_plane",
+                    fromlist=["issue_host_approval"],
+                ).issue_host_approval(**kw)
+            ),
+        ),
+        (
+            {
+                "capability_id": "peer.infralens.presentation.deploy.v1",
+                "version": "1.0.0",
+                "title": "Deploy InfraLens judge presentation",
+                "domain": "peer_ops",
+                "risk_class": "high",
+                "mode": "mutation",
+                "description": "Deploy only the registered InfraLens MC2 presentation compose on AMD with immutable final-512 verification and automatic rollback.",
+                "keywords": ["infralens", "docker", "compose", "deploy", "rollback", "amd", "judge"],
+                "parameters_schema": {
+                    "type": "object",
+                    "properties": {
+                        "node": {"type": "string"},
+                        "source_path": {"type": "string"},
+                        "expected_sha": {"type": "string"},
+                        "approval_id": {"type": "string"},
+                        "dry_run": {"type": "boolean"},
+                    },
+                    "required": ["source_path", "expected_sha", "approval_id"],
+                },
+                "required_scopes": ["ralfia:agents"],
+            },
+            _handler(
+                lambda **kw: __import__(
+                    "inneros_core_runtime.infralens_hostops",
+                    fromlist=["deploy"],
+                ).deploy(**kw)
+            ),
+        ),
         (
             _manifest(
                 "peer.route_check.v1",
