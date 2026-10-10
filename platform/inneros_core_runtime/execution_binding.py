@@ -281,7 +281,7 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         valid_repo_ref = (
             len(repo_ref.split("/")) == 2
             and all(part and not part.startswith(".") for part in repo_ref.split("/"))
-            and all(c.isalnum() or c in "._-" for c in repo_ref)
+            and all(c.isalnum() or c in "._-/" for c in repo_ref)
         )
         if not valid_repo_ref and lane != "canary":
             return {
