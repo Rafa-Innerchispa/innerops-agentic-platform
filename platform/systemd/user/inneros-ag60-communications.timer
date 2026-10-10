@@ -1,0 +1,12 @@
+[Unit]
+Description=AG-60 Home Communications Poller
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=90s
+AccuracySec=15s
+Persistent=true
+Unit=inneros-ag60-communications.service
+
+[Install]
+WantedBy=timers.target

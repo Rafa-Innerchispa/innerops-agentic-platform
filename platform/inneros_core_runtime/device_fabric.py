@@ -787,10 +787,10 @@ def canonical_device_record(
         "transport": transport,
         "confidence": confidence,
         "mutation_policy": MUTATION_POLICY["mode"],
-        "health": health or {"status": "ONLINE", "reachable": True},
+        "health": health if health is not None else {"status": "UNKNOWN", "reachable": None, "verified": False},
         "evidence": evidence or [],
         "management_ports": management_ports or [],
-        "last_seen": _now(),
+        "last_seen": _now() if health and health.get("reachable") is True else None,
         "source": "ag60_device_fabric",
     }
 
@@ -862,35 +862,121 @@ def _probe_host(host: str, site_id: str, timeout: float = 0.45) -> dict[str, Any
 
 
 def _home_assistant_inventory() -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+    """Import identities from HA; report health only from fresh state evidence."""
     blockers: list[dict[str, Any]] = []
     delegated: dict[str, Any] = {}
     try:
-        from raphiia_openai import homeassistant_client as ha
+        from inneros_core_runtime import homeassistant_client as ha
+
         raw_devices = ha.list_devices(limit=2000)
         raw_entities = ha.list_entity_registry(limit=2000)
-        devices = raw_devices.get("devices") or [] if raw_devices.get("ok") else []
-        entities = raw_entities.get("entities") or [] if raw_entities.get("ok") else []
-        
+        if not raw_devices.get("ok"):
+            return [], {}, [{"provider_id": "home_assistant", "error": "device_registry_unavailable"}]
+        devices = raw_devices.get("devices") or []
+        entities = (raw_entities.get("entities") or []) if raw_entities.get("ok") else []
         entities_by_device: dict[str, list[dict[str, Any]]] = {}
         for entity in entities:
             if entity.get("device_id"):
                 entities_by_device.setdefault(str(entity["device_id"]), []).append(entity)
 
+        # HA device registry is not a health/availability source.
+        # The state API gives observed state and last_updated; missing state is UNKNOWN.
+        states_by_id: dict[str, dict[str, Any]] = {}
+        try:
+            response = ha._request("GET", "/api/states")
+            if response.get("ok"):
+                for item in response.get("data") or []:
+                    if isinstance(item, dict) and item.get("entity_id"):
+                        states_by_id[str(item["entity_id"])] = item
+            else:
+                blockers.append({"provider_id": "home_assistant", "error": "state_api_unavailable"})
+        except Exception as exc:
+            blockers.append({"provider_id": "home_assistant", "error": "state_api_unavailable", "detail": str(exc)[:160]})
+
         inventory: list[dict[str, Any]] = []
         for dev in devices:
-            inventory.append(
-                canonical_device_record(
-                    tenant_id="innerchispa",
-                    client_id="pcdoctor_lab",
-                    site_id="home_pcdoctor_lab",
-                    name=dev.get("name_by_user") or dev.get("name") or "HA Device",
-                    manufacturer=dev.get("manufacturer") or "generic",
-                    model=dev.get("model") or "HA Integration",
-                    device_type="iot",
-                    provider_ids=["home_assistant"],
-                    capabilities=["home_assistant_registry", "read_only_identity"],
-                )
+            device_id = str(dev.get("id") or "")
+            name = dev.get("name_by_user") or dev.get("name") or "HA Device"
+            mac = ""
+            for conn in dev.get("connections") or []:
+                if isinstance(conn, (list, tuple)) and len(conn) >= 2 and str(conn[0]).lower() in {"mac", "mac_address"}:
+                    mac = str(conn[1]).strip()
+                    break
+            rows = entities_by_device.get(device_id, [])
+            state_rows = [
+                (entity, states_by_id.get(str(entity.get("entity_id") or "")))
+                for entity in rows
+            ]
+            # A UniFi AP "State" entity has an explicit connected/disconnected status.
+            # Other entities may only confirm the integration exists, not device reachability.
+            verified: dict[str, Any] | None = None
+            for entity, observed in state_rows:
+                if not observed:
+                    continue
+                label = str(entity.get("original_name") or "").strip().lower()
+                if label != "state" or not (
+                    str(entity.get("platform") or "").lower() == "unifi"
+                    or "ubiquiti" in str(dev.get("manufacturer") or "").lower()
+                ):
+                    continue
+                observed_text = observed.get("last_updated") or observed.get("last_changed")
+                try:
+                    observed_dt = datetime.fromisoformat(str(observed_text).replace("Z", "+00:00"))
+                    if observed_dt.tzinfo is None:
+                        observed_dt = None
+                except (TypeError, ValueError):
+                    observed_dt = None
+                age = (datetime.now(timezone.utc) - observed_dt).total_seconds() if observed_dt else None
+                status = str(observed.get("state") or "").strip().lower()
+                if age is None or age > 600 or age < -60:
+                    verified = {"status": "STALE", "reachable": None, "verified": False}
+                elif status in {"connected", "online"}:
+                    verified = {"status": "ONLINE", "reachable": True, "verified": True}
+                elif status in {"disconnected", "unavailable", "isolated", "heartbeat_missed", "adoption_failed", "inform_error"}:
+                    verified = {"status": "OFFLINE", "reachable": False, "verified": True}
+                else:
+                    verified = {"status": "UNKNOWN", "reachable": None, "verified": False}
+                verified["observed_at"] = observed_text
+                verified["age_seconds"] = round(age, 2) if age is not None else None
+                verified["source"] = "home_assistant_unifi_state"
+                break
+            record = canonical_device_record(
+                tenant_id="innerchispa",
+                client_id="pcdoctor_lab",
+                site_id="home_pcdoctor_lab",
+                name=name,
+                mac=mac,
+                manufacturer=dev.get("manufacturer") or "generic",
+                model=dev.get("model") or "HA Integration",
+                device_type="access_point" if str(dev.get("manufacturer") or "").lower().startswith("ubiquiti") and str(dev.get("model") or "").upper().startswith(("U7", "U6", "UAP")) else "iot",
+                provider_ids=["home_assistant"],
+                capabilities=["home_assistant_registry", "read_only_identity"],
+                health=verified,
             )
+            record["provider_device_id"] = device_id
+            record["via_device_id"] = dev.get("via_device_id")
+            # Stable HA-native identity, even if a device is renamed or a MAC appears.
+            if device_id:
+                record["asset_id"] = _hash_id("home_pcdoctor_lab", "pcdoctor_lab", "ha:" + device_id)
+            candidate_ips = []
+            for conn in dev.get("connections") or []:
+                if isinstance(conn, (list, tuple)) and len(conn) >= 2 and str(conn[0]).lower() in {"ip", "ip_address"}:
+                    candidate_ips.append(str(conn[1]))
+            for entity in rows:
+                current = states_by_id.get(str(entity.get("entity_id") or ""), {})
+                attrs = current.get("attributes") or {}
+                candidate_ips.extend(str(attrs.get(k) or "") for k in ("ip", "ip_address"))
+            for candidate in candidate_ips:
+                try:
+                    address = ipaddress.ip_address(candidate)
+                    if _within_site(str(address), "home_pcdoctor_lab"):
+                        record["ip"] = str(address)
+                        break
+                except ValueError:
+                    pass
+            record["last_seen"] = verified.get("observed_at") if verified and verified.get("reachable") is True else None
+            record["evidence"] = [{"source": "home_assistant_unifi_state", "observed_at": verified.get("observed_at"), "status": verified.get("status")}] if verified else []
+            inventory.append(record)
         return dedupe_devices(inventory), delegated, blockers
     except Exception as exc:
         return [], {}, [{"provider_id": "home_assistant", "support_state": SUPPORT_TRANSPORT_UNAVAILABLE, "error": str(exc)[:160]}]
@@ -1176,7 +1262,7 @@ def device_fabric_health(site_id: str = "") -> dict[str, Any]:
     }
 
 
-def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
+def device_fabric_get(device_ref: str = "", site_id: str = "") -> dict[str, Any]:
     """Consulta un dispositivo específico por IP, MAC, serial, asset_id o provider."""
     ref = (device_ref or "").strip()
     if not ref:
@@ -1218,7 +1304,25 @@ def device_fabric_get(device_ref: str = "") -> dict[str, Any]:
         except Exception:
             pass
 
-    return {"ok": False, "error": "unknown_reference", "device_ref": ref}
+    if site_id in ("", "home_pcdoctor_lab"):
+        rows, _delegated, blockers = _home_assistant_inventory()
+        ref_lower = ref.casefold()
+        for record in rows:
+            identifiers = (
+                record.get("asset_id"),
+                record.get("provider_device_id"),
+                record.get("mac"),
+                record.get("ip"),
+                record.get("name"),
+            )
+            if any(str(val).casefold() == ref_lower for val in identifiers if val):
+                return {
+                    "ok": True, "kind": "device", "site_id": "home_pcdoctor_lab",
+                    "device": record, "provenance": "home_assistant_registry_plus_verified_state",
+                    "blockers": blockers, "mutation_policy": MUTATION_POLICY,
+                    "generated_at": _now(),
+                }
+    return {"ok": False, "error": "unknown_reference", "device_ref": ref, "site_id": site_id or None}
 
 
 def run_device_fabric_agent(message: str = "", *, dry_run: bool = True) -> dict[str, Any]:

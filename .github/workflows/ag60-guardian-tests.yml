@@ -1,0 +1,40 @@
+name: AG-60 Protocol Guardian Tests
+on:
+  pull_request:
+    paths:
+      - 'platform/inneros_core_runtime/protocol_catalog.py'
+      - 'platform/inneros_core_runtime/communication_observer.py'
+      - 'platform/inneros_core_runtime/network_guardian.py'
+      - 'platform/inneros_core_runtime/unifi_readonly.py'
+      - 'platform/inneros_core_runtime/physical_bus_observer.py'
+      - 'platform/inneros_core_runtime/communication_history.py'
+      - 'platform/inneros_core_runtime/communication_runner.py'
+      - 'platform/inneros_core_runtime/device_fabric.py'
+      - 'platform/inneros_core_runtime/capability_gateway.py'
+      - 'platform/tests/test_ag60_*.py'
+      - '.github/workflows/ag60-guardian-tests.yml'
+  push:
+    branches:
+      - 'fix/ag60-home-truth-20261009'
+  workflow_dispatch:
+
+jobs:
+  ag60-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install isolated test dependencies
+        run: python -m pip install pytest httpx websockets python-dotenv
+      - name: Compile changed modules
+        run: |
+          python -m py_compile platform/inneros_core_runtime/protocol_catalog.py platform/inneros_core_runtime/communication_observer.py platform/inneros_core_runtime/network_guardian.py platform/inneros_core_runtime/device_fabric.py platform/inneros_core_runtime/capability_gateway.py platform/inneros_core_runtime/unifi_readonly.py platform/inneros_core_runtime/physical_bus_observer.py platform/inneros_core_runtime/communication_history.py platform/inneros_core_runtime/communication_runner.py
+      - name: Run AG-60 unit tests (offline, mocked)
+        env:
+          PYTHONPATH: platform
+        run: python -m pytest -q platform/tests/test_ag60_*.py

@@ -1,0 +1,12 @@
+[Unit]
+Description=AG-60 Home LAN periodic discovery
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=15min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=inneros-ag60-lan-discovery.service
+
+[Install]
+WantedBy=timers.target
