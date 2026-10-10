@@ -14,6 +14,8 @@ assert SPEC is not None and SPEC.loader is not None
 router = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(router)
 
+_REAL_LOG_ROUTE = router._log_route
+
 
 @pytest.fixture(autouse=True)
 def no_real_network_or_model_work(monkeypatch):
@@ -32,6 +34,7 @@ def classify(provider, backend):
         "recommended_model": "preferred-test-model",
         "recommended_provider": provider,
         "recommended_backend": backend,
+        "reason": "fixture_model_routing",
     }
 
 
@@ -137,3 +140,36 @@ def test_failed_audit_is_explicitly_degraded_not_hidden(monkeypatch):
     assert result["audit_degraded"] is True
     assert result["routing_log"]["terminal_evidence"] is False
     assert result["external_needed"] is False
+
+
+def test_intel_can_answer_statelessly_when_mongo_audit_is_down(monkeypatch):
+    monkeypatch.setattr(router, "IS_INTEL_NODE", True)
+    monkeypatch.setattr(router, "classify_task_runtime", lambda *_args, **_kw: classify("local-intel-4", "ollama"))
+    monkeypatch.setattr(router, "_http_ok", lambda *_args, **_kw: {"ok": True})
+    monkeypatch.setattr(router, "_http_json", lambda url, **_kw: {
+        "ok": True, "data": {"message": {"content": "Intel sin Mongo"}}
+    } if url.endswith("/api/chat") else {"ok": False})
+    monkeypatch.setattr(router, "_log_route", _REAL_LOG_ROUTE)
+    monkeypatch.setattr(router.mongo_store, "get_db", lambda: (_ for _ in ()).throw(ConnectionError("offline")))
+    result = router.run_local_model(task_type="summary", prompt="health degraded", model="qwen-small")
+    assert result["ok"] is True
+    assert result["response"] == "Intel sin Mongo"
+    assert result["audit_degraded"] is True
+    assert result["routing_log"]["terminal_evidence"] is False
+    assert result["selected_node"] == "intel"
+
+
+def test_intel_fallback_can_answer_when_mongo_audit_is_down(monkeypatch):
+    monkeypatch.setattr(router, "_pick_installed_ollama_model", lambda *_args, **_kw: "qwen-intel")
+    monkeypatch.setattr(router, "_ollama_chat", lambda **_kw: {
+        "ok": True, "data": {"message": {"content": "Intel recuperado sin Mongo"}}
+    })
+    monkeypatch.setattr(router, "_log_route", _REAL_LOG_ROUTE)
+    monkeypatch.setattr(router.mongo_store, "get_db", lambda: (_ for _ in ()).throw(ConnectionError("offline")))
+    result = router._intel_ollama_fallback(
+        task_type="summary", prompt="test", system_prompt="test",
+        max_tokens=32, temperature=0.2, fallback_reason="amd_down"
+    )
+    assert result["ok"] is True
+    assert result["audit_degraded"] is True
+    assert result["routing_log"]["terminal_evidence"] is False
