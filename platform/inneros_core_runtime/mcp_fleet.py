@@ -299,16 +299,16 @@ def get_mcp_urls_ordered(
             if not pr.get("ok"):
                 continue
         urls.append(_mcp_url(host))
-    if not urls:
-        urls = [_mcp_url(hosts.get("intel", INTEL_HOST)), _mcp_url(hosts.get("amd", AMD_HOST))]
+    # active_only is a health guarantee, not a preference. An empty healthy
+    # fleet must not be represented as a working Intel/AMD endpoint.
     return urls
 
 
 def resolve_mcp_url(tool_name: str | None = None) -> str:
     urls = get_mcp_urls_ordered(tool_name=tool_name, active_only=True)
-    if urls:
-        return urls[0]
-    return _mcp_url(INTEL_HOST)
+    # The caller must distinguish 'no live route' from the Intel primary URL.
+    # A fabricated fallback address silently turns an outage into false health.
+    return urls[0] if urls else ""
 
 
 def fleet_status(*, force_probe: bool = False) -> dict[str, Any]:
@@ -316,8 +316,25 @@ def fleet_status(*, force_probe: bool = False) -> dict[str, Any]:
     amd = probe_node("amd", force=force_probe)
     local = local_node_id()
     runtime = runtime_fingerprints()
+    healthy_nodes = [
+        node for node, status in (("intel", intel), ("amd", amd))
+        if status.get("ok") is True
+    ]
+    all_healthy = len(healthy_nodes) == 2
+    parity_ok = runtime.get("runtime_consistent") is True
     return {
-        "ok": bool(intel.get("ok") and amd.get("ok") and runtime.get("runtime_consistent")),
+        # Keep strict 'ok' for operators who expect full parity.
+        "ok": bool(all_healthy and parity_ok),
+        # Expose partial serviceability without pretending failover has been
+        # certified for writes, Temporal, Mongo or auth.
+        "serviceable": bool(healthy_nodes),
+        "availability": (
+            "down" if not healthy_nodes else
+            "healthy" if all_healthy and parity_ok else "degraded"
+        ),
+        "healthy_nodes": healthy_nodes,
+        "ha_inference_only": True,
+        "stateful_failover_certified": False,
         "logical_version": MCP_SERVER_VERSION,
         "catalog_version": tool_catalog.MCP_VERSION,
         "catalog_tool_count": len(tool_catalog.ALL_MCP_TOOL_NAMES),

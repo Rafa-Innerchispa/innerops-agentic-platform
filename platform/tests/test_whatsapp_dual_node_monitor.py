@@ -1,7 +1,15 @@
 import unittest
 from unittest.mock import patch
+from pymongo.errors import ConnectionFailure, DuplicateKeyError
+import importlib.util
+from pathlib import Path
 
-from raphiia_openai import whatsapp_dual_node_monitor as monitor
+# Load the candidate itself; the legacy alias may point to the live runtime.
+_MODULE_PATH = Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "whatsapp_dual_node_monitor.py"
+_SPEC = importlib.util.spec_from_file_location("candidate_whatsapp_dual_node_monitor", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+monitor = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(monitor)
 
 
 class Collection:
@@ -11,7 +19,40 @@ class Collection:
         key = query.get("_id")
         doc = self.docs.setdefault(key, {"_id": key})
         doc.update(update.get("$set", {}))
-    def insert_one(self, doc): self.docs[f"audit-{len(self.docs)}"] = dict(doc)
+    def insert_one(self, doc):
+        key = doc.get("_id", f"audit-{len(self.docs)}")
+        if key in self.docs:
+            raise DuplicateKeyError("duplicate _id")
+        self.docs[key] = dict(doc)
+    def find_one_and_update(self, query, update, upsert=False, return_document=None):
+        key = query["_id"]
+        old = self.docs.get(key)
+        if old is not None:
+            clauses = query.get("$or", [])
+            allowed = any(
+                ("holder" in clause and old.get("holder") == clause["holder"])
+                or (
+                    "expires_at" in clause
+                    and "$lte" in clause["expires_at"]
+                    and str(old.get("expires_at") or "") <= clause["expires_at"]["$lte"]
+                )
+                or (
+                    "expires_at" in clause
+                    and clause["expires_at"].get("$exists") is False
+                    and "expires_at" not in old
+                )
+                for clause in clauses
+            )
+            if not allowed:
+                if upsert:
+                    raise DuplicateKeyError("lease _id owned by another node")
+                return None
+            old.update(update.get("$set", {}))
+            return dict(old)
+        if not upsert: return None
+        doc = {"_id": key, **update.get("$set", {})}
+        self.docs[key] = doc
+        return dict(doc)
 
 
 class DB:
@@ -46,6 +87,29 @@ class TestDualNodeMonitor(unittest.TestCase):
         with patch.object(monitor.mongo_store, "get_db", return_value=self.db):
             self.assertTrue(monitor.acquire_lease("node-a"))
             self.assertFalse(monitor.acquire_lease("node-b"))
+
+    def test_lease_cannot_be_stolen_until_expiry(self):
+        with patch.object(monitor.mongo_store, "get_db", return_value=self.db):
+            self.assertTrue(monitor.acquire_lease("intel"))
+            self.assertFalse(monitor.acquire_lease("amd"))
+            self.assertTrue(monitor.acquire_lease("intel"))
+            doc = self.db[monitor.LEASE_COLLECTION].docs["dual-node-leader"]
+            doc["expires_at"] = "2020-01-01T00:00:00+00:00"
+            self.assertTrue(monitor.acquire_lease("amd"))
+            self.assertFalse(monitor.acquire_lease("intel"))
+
+    def test_lease_db_failure_never_promotes_both_nodes(self):
+        with patch.object(monitor.mongo_store, "get_db", side_effect=ConnectionFailure("offline")):
+            self.assertFalse(monitor.acquire_lease("intel"))
+            self.assertFalse(monitor.acquire_lease("amd"))
+
+    def test_lease_election_is_one_atomic_operation(self):
+        coll = self.db[monitor.LEASE_COLLECTION]
+        with patch.object(monitor.mongo_store, "get_db", return_value=self.db), patch.object(
+            coll, "find_one", side_effect=AssertionError("read-before-write forbidden")
+        ):
+            self.assertTrue(monitor.acquire_lease("intel"))
+            self.assertFalse(monitor.acquire_lease("amd"))
 
     def test_unreachable_node_emits_one_node_probe_not_service_storm(self):
         snapshot = {
