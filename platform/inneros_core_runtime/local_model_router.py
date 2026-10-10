@@ -354,8 +354,13 @@ def _ollama_ps() -> dict[str, Any]:
 
 
 def _ollama_url_for_provider(provider_id: str | None) -> str:
+    # Loopback-only Ollama instances must not be accessed through a LAN IP
+    # from their own host. Cross-node access requires an explicitly configured
+    # private, authenticated or access-controlled transport.
     if provider_id == "local-intel-4":
-        return "http://192.168.1.4:11434"
+        if IS_INTEL_NODE:
+            return _env_url("INNEROS_INTEL_OLLAMA_URL", "http://127.0.0.1:11434")
+        return _env_url("INNEROS_INTEL_OLLAMA_URL", "http://192.168.1.4:11434")
     return OLLAMA_URL
 
 
@@ -491,8 +496,172 @@ def _intel_ollama_fallback(
     }
 
 
+def _amd_vllm_fallback(
+    *,
+    task_type: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+    fallback_reason: str,
+) -> dict[str, Any]:
+    """Best-effort AMD inference when the preferred Intel Ollama fails.
+
+    Only a model actually reported by the vLLM server is selected; the
+    preferred Intel model name is never sent to an unrelated vLLM backend.
+    """
+    endpoint = _vllm_url_for_provider("local-amd-5").rstrip("/")
+    models = _http_json(f"{endpoint}/v1/models", timeout=4)
+    if not models.get("ok"):
+        return {"ok": False, "error": "amd_vllm_unavailable", "endpoint": endpoint, "external_needed": False}
+    entries = (models.get("data") or {}).get("data") or []
+    model = next(
+        (str(item.get("id")) for item in entries if isinstance(item, dict) and str(item.get("id") or "").strip()),
+        "",
+    )
+    if not model:
+        return {"ok": False, "error": "amd_vllm_no_served_models", "endpoint": endpoint, "external_needed": False}
+    answer = _vllm_chat(
+        model=model, prompt=prompt, system_prompt=system_prompt,
+        max_tokens=max_tokens, temperature=temperature, endpoint=endpoint,
+    )
+    if not answer.get("ok") or not str(answer.get("response") or "").strip():
+        return {
+            "ok": False,
+            "error": answer.get("error") or "amd_vllm_empty_response",
+            "endpoint": endpoint, "external_needed": False,
+        }
+    try:
+        audit = _log_route(
+            title=task_type, body=prompt, task_type=task_type, runtime="local_vllm",
+            model=model, local_ok=True, external_needed=False, approval_required=False,
+            reason=f"amd_vllm_fallback:{fallback_reason}", decision="executed_local_amd_vllm",
+        )
+    except Exception:
+        audit = {"ok": False, "error": "routing_audit_unavailable", "terminal_evidence": False}
+    return {
+        **answer,
+        "ok": True,
+        "runtime": "local_vllm",
+        "selected_model": model,
+        "selected_node": "amd",
+        "provider_id": "local-amd-5",
+        "external_needed": False,
+        "fallback_silent": False,
+        "fallback_reason": fallback_reason,
+        "routing_log": audit,
+        "audit_degraded": audit.get("ok") is False,
+    }
+
+
+def _amd_local_ollama_fallback(
+    *,
+    task_type: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+    fallback_reason: str,
+) -> dict[str, Any]:
+    """On AMD only: reserve the local Ollama server as a last inference hop."""
+    if not IS_AMD_NODE:
+        return {"ok": False, "error": "amd_local_ollama_requires_amd_node", "external_needed": False}
+    endpoint = _env_url("INNEROS_AMD_OLLAMA_URL", "http://127.0.0.1:11434")
+    model = _pick_installed_ollama_model(endpoint)
+    if not model:
+        return {"ok": False, "error": "amd_local_ollama_no_models", "external_needed": False}
+    answer = _ollama_chat(
+        ollama_url=endpoint, model=model, prompt=prompt,
+        system_prompt=system_prompt, max_tokens=max_tokens, temperature=temperature,
+    )
+    payload = answer.get("data") or {}
+    content = (payload.get("message") or {}).get("content", "")
+    if not answer.get("ok") or not str(content).strip():
+        return {"ok": False, "error": answer.get("error") or "amd_local_ollama_empty", "external_needed": False}
+    try:
+        audit = _log_route(
+            title=task_type, body=prompt, task_type=task_type, runtime="local_model",
+            model=model, local_ok=True, external_needed=False, approval_required=False,
+            reason=f"amd_ollama_fallback:{fallback_reason}", decision="executed_local_amd_ollama",
+        )
+    except Exception:
+        audit = {"ok": False, "error": "routing_audit_unavailable", "terminal_evidence": False}
+    return {
+        "ok": True, "runtime": "local_model", "response": content, "raw": payload,
+        "task_type": task_type, "selected_model": model, "selected_node": "amd",
+        "provider_id": "local-amd-5", "external_needed": False,
+        "fallback_silent": False, "fallback_reason": fallback_reason,
+        "endpoint": f"{endpoint}/api/chat", "routing_log": audit,
+        "audit_degraded": audit.get("ok") is False,
+    }
+
+
+def _safe_local_failover(
+    *,
+    preferred_provider: str | None,
+    task_type: str,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int | None,
+    temperature: float,
+    fallback_reason: str,
+    preferred_model: str | None = None,
+) -> dict[str, Any]:
+    """Two-way local inference failover. No external billing or hidden reroutes.
+
+    AMD-first tasks try Intel Ollama and then AMD local Ollama.
+    Intel-first tasks try AMD vLLM and then AMD local Ollama.
+    This is inference continuity, not stateful service or data-plane failover.
+    """
+    if preferred_provider == "local-amd-5":
+        candidates = [
+            lambda: _intel_ollama_fallback(
+                task_type=task_type, prompt=prompt, system_prompt=system_prompt,
+                max_tokens=max_tokens, temperature=temperature,
+                fallback_reason=fallback_reason, preferred_model=preferred_model,
+            ),
+            lambda: _amd_local_ollama_fallback(
+                task_type=task_type, prompt=prompt, system_prompt=system_prompt,
+                max_tokens=max_tokens, temperature=temperature, fallback_reason=fallback_reason,
+            ),
+        ]
+    else:
+        candidates = [
+            lambda: _amd_vllm_fallback(
+                task_type=task_type, prompt=prompt, system_prompt=system_prompt,
+                max_tokens=max_tokens, temperature=temperature, fallback_reason=fallback_reason,
+            ),
+            lambda: _amd_local_ollama_fallback(
+                task_type=task_type, prompt=prompt, system_prompt=system_prompt,
+                max_tokens=max_tokens, temperature=temperature, fallback_reason=fallback_reason,
+            ),
+        ]
+    failures: list[str] = []
+    for attempt in candidates:
+        try:
+            result = attempt()
+        except Exception:
+            result = {"ok": False, "error": "local_failover_attempt_failed"}
+        if result.get("ok") and str(result.get("response") or "").strip():
+            return result
+        failures.append(str(result.get("error") or "local_failover_unavailable"))
+    return {
+        "ok": False,
+        "error": "all_local_model_routes_unavailable",
+        "failures": failures,
+        "external_needed": False,
+        "fallback_silent": False,
+        "fallback_reason": fallback_reason,
+    }
+
+
 def _router_default(task_type: str) -> dict[str, Any] | None:
-    state_doc = mongo_store.get_coordination_state(ROUTER_KEY)
+    # During Mongo outage keep stateless inference available using local
+    # defaults; this never authorizes completion of a durable ops task.
+    try:
+        state_doc = mongo_store.get_coordination_state(ROUTER_KEY)
+    except Exception:
+        state_doc = {"ok": False}
     state = (state_doc.get("state") or {}) if state_doc.get("ok") else {}
     defaults = state.get("defaults") or {}
     if task_type == "heavy_reasoning":
@@ -921,34 +1090,35 @@ def run_local_model(
     vllm_url = _vllm_url_for_provider(provider_id)
     health = local_model_health()
     provider_health = _http_ok(f"{vllm_url}/v1/models") if backend == "vllm" and provider_id == "local-amd-5" else _http_ok(f"{ollama_url}/api/tags")
-    if backend == "vllm" and provider_id == "local-amd-5" and not provider_health.get("ok"):
-        fallback_reason = (
-            "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable"
-        )
-        system_prompt = "Ayuda con codigo de forma precisa y directa."
-        fb = _intel_ollama_fallback(
+    if (
+        provider_id in {"local-amd-5", "local-intel-4"}
+        and not provider_health.get("ok")
+    ):
+        unavailable = "amd_vllm_unreachable" if provider_id == "local-amd-5" else "intel_ollama_unreachable"
+        fb = _safe_local_failover(
+            preferred_provider=provider_id,
             task_type=classification["task_type"],
             prompt=prompt,
-            system_prompt=system_prompt,
+            system_prompt="Responde de forma precisa y directa, sin depender de servicios externos.",
             max_tokens=max_tokens,
             temperature=temperature,
-            fallback_reason=fallback_reason,
+            fallback_reason=unavailable,
             preferred_model=selected,
         )
         if fb.get("ok"):
             return fb
         return {
             "ok": False,
-            "error": fb.get("error") or fallback_reason,
-            "endpoint": vllm_url,
-            "health": health,
+            "error": "all_local_model_routes_unavailable",
+            "endpoint": vllm_url if provider_id == "local-amd-5" else ollama_url,
             "provider_health": provider_health,
             "recommended_model": selected,
             "selected_model": selected,
-            "selected_node": "amd",
+            "selected_node": "amd" if provider_id == "local-amd-5" else "intel",
             "provider_id": provider_id,
             "fallback_silent": False,
-            "fallback_reason": fallback_reason,
+            "fallback_reason": unavailable,
+            "failures": fb.get("failures", []),
             "external_needed": False,
         }
     if not (health.get("ok") or provider_health.get("ok")):
@@ -987,7 +1157,8 @@ def run_local_model(
             endpoint=vllm_url,
         )
         if not result.get("ok"):
-            fb = _intel_ollama_fallback(
+            fb = _safe_local_failover(
+                preferred_provider="local-amd-5",
                 task_type=classification["task_type"],
                 prompt=prompt,
                 system_prompt=system_prompt,
@@ -1059,6 +1230,18 @@ def run_local_model(
 
     result = _http_json(f"{ollama_url}/api/chat", method="POST", body=payload, timeout=180)
     if not result.get("ok"):
+        fb = _safe_local_failover(
+            preferred_provider=provider_id,
+            task_type=classification["task_type"],
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            fallback_reason="intel_ollama_generation_failed",
+            preferred_model=selected,
+        )
+        if fb.get("ok"):
+            return fb
         _log_route(
             title=classification["task_type"],
             body=prompt,

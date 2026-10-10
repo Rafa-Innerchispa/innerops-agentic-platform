@@ -7,6 +7,9 @@ import socket
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError, PyMongoError
+
 from raphiia_openai import mongo_store, ralfia_time, whatsapp_identity, whatsapp_service_ops
 from raphiia_openai.notifications.evolution_client import send_whatsapp
 from raphiia_openai.notifications.settings import NOTIFY_WHATSAPP_TO, WHATSAPP_AMD_SEND_ENABLED
@@ -32,25 +35,47 @@ def monitor_id() -> str:
 
 
 def acquire_lease(holder: str | None = None) -> bool:
-    holder = holder or monitor_id()
-    db = mongo_store.get_db()
-    now = _now()
-    current = db[LEASE_COLLECTION].find_one({"_id": "dual-node-leader"})
-    if current and current.get("holder") != holder and str(current.get("expires_at") or "") > now:
-        return False
-    db[LEASE_COLLECTION].update_one(
-        {"_id": "dual-node-leader"},
-        {
-            "$set": {
-                "holder": holder,
-                "heartbeat_at": now,
-                "expires_at": (_now_dt() + timedelta(seconds=LEASE_SECONDS)).isoformat(),
-            }
-        },
-        upsert=True,
-    )
-    return True
+    """Acquire/renew the notification leader atomically.
 
+    Mongo's unique _id and one conditional find_one_and_update form a single
+    compare-and-set. The historical find_one followed by unconditional upsert
+    allowed two nodes to both believe they owned the same lease. An unreachable
+    store is a blocked leader election, never an invitation to become leader.
+    """
+    holder = holder or monitor_id()
+    now = _now()
+    expires_at = (_now_dt() + timedelta(seconds=LEASE_SECONDS)).isoformat()
+    try:
+        doc = mongo_store.get_db()[LEASE_COLLECTION].find_one_and_update(
+            {
+                "_id": "dual-node-leader",
+                "$or": [
+                    {"holder": holder},
+                    {"expires_at": {"$lte": now}},
+                    {"expires_at": {"$exists": False}},
+                ],
+            },
+            {
+                "$set": {
+                    "holder": holder,
+                    "heartbeat_at": now,
+                    "expires_at": expires_at,
+                }
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+    except DuplicateKeyError:
+        # Another node has an unexpired claim. The attempted upsert collides
+        # with its unique _id; it must remain the sole leader.
+        return False
+    except (PyMongoError, OSError):
+        return False
+    return bool(
+        doc
+        and doc.get("holder") == holder
+        and doc.get("expires_at") == expires_at
+    )
 
 def _probe_snapshot() -> dict[str, dict[str, Any]]:
     output: dict[str, dict[str, Any]] = {}
