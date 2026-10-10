@@ -493,6 +493,7 @@ def _intel_ollama_fallback(
         "fallback_reason": fallback_reason,
         "endpoint": f"{ollama_url.rstrip('/')}/api/chat",
         "routing_log": log,
+        "audit_degraded": log.get("ok") is False,
     }
 
 
@@ -821,7 +822,13 @@ def _log_route(
     decision: str,
     source: str = "local_model_router",
 ) -> dict[str, Any]:
-    db = mongo_store.get_db()
+    """Audit the model selection while preserving *stateless inference*.
+
+    A Mongo outage must not turn a successful local model response into
+    an apparent inference outage. The return value explicitly distinguishes
+    an unpersisted inference from a durable task completion. Temporal and
+    completion gates still require independent evidence.
+    """
     doc = {
         "ts": _now_iso(),
         "ts_display": ralfia_time.format_log(),
@@ -837,25 +844,37 @@ def _log_route(
         "decision": decision,
         "source": source,
     }
-    db[COL_AI_ROUTING_LOG].insert_one(doc)
-    mongo_store.log_coordination(
-        agent="CODEX",
-        summary=f"AI route {runtime}: {task_type} -> {model or decision}",
-        event="ai_route",
-        project="ralfia-ai-routing",
-        tool_used=source,
-        metadata={
+    try:
+        db = mongo_store.get_db()
+        db[COL_AI_ROUTING_LOG].insert_one(doc)
+        mongo_store.log_coordination(
+            agent="CODEX",
+            summary=f"AI route {runtime}: {task_type} -> {model or decision}",
+            event="ai_route",
+            project="ralfia-ai-routing",
+            tool_used=source,
+            metadata={
+                "task_type": task_type,
+                "runtime": runtime,
+                "model": model,
+                "local_ok": local_ok,
+                "external_needed": external_needed,
+                "approval_required": approval_required,
+                "decision": decision,
+            },
+        )
+        return mongo_store._serialize(doc)
+    except Exception:
+        return {
+            "ok": False,
+            "error": "routing_audit_unavailable",
+            "terminal_evidence": False,
+            "ts": doc["ts"],
             "task_type": task_type,
             "runtime": runtime,
             "model": model,
-            "local_ok": local_ok,
-            "external_needed": external_needed,
-            "approval_required": approval_required,
             "decision": decision,
-        },
-    )
-    return mongo_store._serialize(doc)
-
+        }
 
 def list_local_models() -> dict[str, Any]:
     tags = _ollama_tags()
@@ -1212,6 +1231,7 @@ def run_local_model(
             "provider_id": provider_id,
             "fallback_silent": False,
             "routing_log": log,
+            "audit_degraded": log.get("ok") is False,
         }
 
     payload = {
@@ -1293,6 +1313,7 @@ def run_local_model(
         "response": content,
         "raw": data,
         "routing_log": log,
+        "audit_degraded": log.get("ok") is False,
         "selected_model": selected,
         "selected_node": "intel" if provider_id == "local-intel-4" else None,
         "provider_id": provider_id,
