@@ -192,6 +192,5 @@ def test_do_not_auto_dispatch_still_materializes_ops_task():
     assert create_task.called
     kwargs = create_task.call_args.kwargs
     assert kwargs["do_not_auto_dispatch"] is True
-    assert out["task_id"] == "ops_cursor_wait"
-    assert out["workflow_id"] == "ops_task:ops_cursor_wait"
     assert out["normalization"]["task_id"] == "ops_cursor_wait"
+    assert out["normalization"]["workflow_id"] == "ops_task:ops_cursor_wait"
