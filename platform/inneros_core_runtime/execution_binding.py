@@ -274,6 +274,30 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         "dev-swarm",
         "temporal",
     }:
+        # The internal bounded runner creates a governed Git worktree. Without
+        # a real owner/repo it cannot execute an infrastructure request, even
+        # when a local model generates convincing instructions.
+        repo_ref = str(env.get("repo") or env.get("related_project") or "").strip()
+        valid_repo_ref = (
+            len(repo_ref.split("/")) == 2
+            and all(part and not part.startswith(".") for part in repo_ref.split("/"))
+            and all(c.isalnum() or c in "._-/" for c in repo_ref)
+        )
+        if not valid_repo_ref and lane != "canary":
+            return {
+                **base,
+                "ok": False,
+                "allowed": False,
+                "runner": BLOCKED_RUNNER,
+                "status": "waiting_for_binding",
+                "error": "bounded_runner_requires_repo",
+                "message": (
+                    "No hay repositorio owner/repo registrado para el ejecutor "
+                    "interno. Una tarea de operaciones de host requiere un "
+                    "ejecutor autorizado y evidencia real; no se simulara "
+                    "un worktree ni se aceptara una respuesta del modelo."
+                ),
+            }
         return {
             **base,
             "ok": True,
