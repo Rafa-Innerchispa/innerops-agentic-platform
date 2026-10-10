@@ -26,63 +26,136 @@ def test_internal_with_registered_repo_remains_allowed():
     value = eb.resolve_execution_binding({"assignee":"dev_swarm","execution_lane":"internal","repo":"Rafa-Innerchispa/innerops-agentic-platform"})
     assert value["allowed"] is True
 
-def test_owner_authorized_peer_ops_routes_to_ag41():
-    value = eb.resolve_execution_binding({
+def peer_envelope(peer_action="status", **overrides):
+    env = {
+        "task_id":"ops_peer_test",
+        "title":"peer test",
+        "objective":"check mcp host status",
+        "task_class":"ops",
         "assignee":"inneros_orchestrator",
         "execution_lane":"peer_ops",
         "payload":{
             "task_kind":"peer_ops",
             "requested_agent":"AG-41",
             "owner_approved":True,
+            "peer_action":peer_action,
+            "service_id":"mcp",
             "node":"amd",
         },
-    })
+    }
+    env.update(overrides)
+    return env
+
+
+def real_status_response():
+    return {
+        "ok":True, "protocol":"peer_ops.v1", "action":"status",
+        "service_id":"mcp", "node":"amd", "read_only":True, "verified":True,
+        "peer_status":{
+            "ok":True, "healthy":True, "health":"up",
+            "system_state":"active", "telemetry":"local_systemd",
+        },
+    }
+
+
+def test_owner_authorized_readonly_peer_ops_routes_to_ag41():
+    value = eb.resolve_execution_binding(peer_envelope())
     assert value["allowed"] is True
     assert value["runner"] == eb.PEER_OPS_RUNNER
     assert value["target_agent"] == "AG-41"
     assert value["node"] == "amd"
+    assert value["peer_action"] == "status"
+    assert value["read_only"] is True
+
 
 def test_peer_ops_without_owner_approval_is_blocked():
-    value = eb.resolve_execution_binding({
-        "execution_lane":"peer_ops",
-        "payload":{"task_kind":"peer_ops","requested_agent":"AG-41"},
-    })
+    env = peer_envelope()
+    env["payload"].pop("owner_approved")
+    value = eb.resolve_execution_binding(env)
     assert value["allowed"] is False
     assert value["error"] == "peer_ops_owner_approval_required"
 
-def test_peer_ops_wrong_target_is_blocked():
-    value = eb.resolve_execution_binding({
-        "execution_lane":"peer_ops",
-        "payload":{"task_kind":"peer_ops","requested_agent":"AG-40","owner_approved":True},
-    })
-    assert value["allowed"] is False
-    assert value["error"] == "peer_ops_target_invalid"
 
-def test_peer_ops_activity_invokes_ag41(monkeypatch):
+def test_peer_ops_wrong_target_is_blocked():
+    env = peer_envelope()
+    env["payload"]["requested_agent"] = "AG-40"
+    assert eb.resolve_execution_binding(env)["error"] == "peer_ops_target_invalid"
+
+
+def test_peer_ops_wrong_lane_is_blocked():
+    env = peer_envelope(execution_lane="internal")
+    assert eb.resolve_execution_binding(env)["error"] == "peer_ops_lane_mismatch"
+
+
+def test_peer_ops_cannot_mutate_even_with_owner_approved():
+    env = peer_envelope(peer_action="restart")
+    assert eb.resolve_execution_binding(env)["error"] == "peer_ops_mutation_not_accredited"
+
+
+def test_peer_ops_missing_action_is_not_a_snapshot_fallback():
+    env = peer_envelope(peer_action="")
+    assert eb.resolve_execution_binding(env)["allowed"] is False
+
+
+def test_peer_ops_readonly_skips_worktree():
+    value = asyncio.run(ta.activity_hydrate_worktree(peer_envelope()))
+    assert value["ok"] is True
+    assert value["source"] == "peer_ops_read_only"
+    assert value["worktree"] == ""
+
+
+def test_peer_ops_verified_status_passes_strict_gate(monkeypatch):
+    import json
     from inneros_core_runtime import a2a_controller
     called = {}
     def fake_invoke(agent_id, message, timeout_seconds):
-        called.update(agent_id=agent_id, message=message, timeout_seconds=timeout_seconds)
-        return {"ok":True, "evidence":{"systemd_status":"active"}, "real_command_run_id":"run-1"}
+        called.update(agent_id=agent_id, request=json.loads(message), timeout=timeout_seconds)
+        return real_status_response()
     monkeypatch.setattr(a2a_controller, "_invoke_agent_bounded", fake_invoke)
-    envelope = {
-        "task_id":"ops_peer_test",
-        "title":"peer test",
-        "objective":"check host",
-        "task_class":"ops",
-        "execution_lane":"peer_ops",
-        "payload":{
-            "task_kind":"peer_ops",
-            "requested_agent":"AG-41",
-            "owner_approved":True,
-            "node":"amd",
-        },
-    }
-    value = asyncio.run(ta.activity_execute_agent_graph(envelope, {"worktree":""}))
+    env = peer_envelope()
+    value = asyncio.run(ta.activity_execute_agent_graph(env, {"worktree":""}))
+    gate = asyncio.run(ta.activity_validate_completion_gate(env, value))
     assert value["ok"] is True
     assert called["agent_id"] == "AG-41"
-    assert value["evidence"]["systemd_status"] == "active"
-    assert value["evidence"]["real_command_run_id"] == "run-1"
+    assert called["request"] == {
+        "protocol":"peer_ops.v1", "action":"status",
+        "node":"amd", "service_id":"mcp",
+    }
+    assert value["test_results"]["exit_code"] is None
+    assert gate["passed"] is True
+    assert gate["mode"] == "peer_ops_verified_readonly_status"
+
+
+def test_peer_ops_snapshot_cannot_claim_task_completed(monkeypatch):
+    from inneros_core_runtime import a2a_controller
+    def fake_snapshot(*_args):
+        return {"ok":True, "agent_id":"AG-41", "healthy":True, "action":"peer_ops_snapshot"}
+    monkeypatch.setattr(a2a_controller, "_invoke_agent_bounded", fake_snapshot)
+    env = peer_envelope()
+    value = asyncio.run(ta.activity_execute_agent_graph(env, {"worktree":""}))
+    gate = asyncio.run(ta.activity_validate_completion_gate(env, value))
+    assert value["ok"] is False
+    assert gate["passed"] is False
+
+
+def test_peer_ops_completion_gate_rejects_fabricated_test_success():
+    env = peer_envelope()
+    fake = {"ok":True, "test_results":{"ok":True, "exit_code":0}}
+    gate = asyncio.run(ta.activity_validate_completion_gate(env, fake))
+    assert gate["passed"] is False
+
+
+def test_peer_ops_status_requires_systemd_evidence(monkeypatch):
+    from inneros_core_runtime import a2a_controller
+    resp = real_status_response()
+    resp["peer_status"]["system_state"] = "unknown"
+    monkeypatch.setattr(a2a_controller, "_invoke_agent_bounded", lambda *_args: resp)
+    env = peer_envelope()
+    value = asyncio.run(ta.activity_execute_agent_graph(env, {"worktree":""}))
+    gate = asyncio.run(ta.activity_validate_completion_gate(env, value))
+    assert value["ok"] is False
+    assert gate["passed"] is False
+
 
 def test_missing_required_evidence_always_blocks():
     envelope = {"task_class":"ops","evidence_required":["real_command_run_id"],"execution_lane":"internal"}

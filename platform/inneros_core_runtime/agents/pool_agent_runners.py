@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Callable
 
 from raphiia_openai.agent_auto_log import record_agent_run
@@ -315,6 +316,57 @@ def run_ag45(message: str = "", **_: Any) -> dict[str, Any]:
     return _ok("AG-45", "local_exec_inspect", **local_execution_plane.local_exec_inspect_repo(repo))
 
 
+def run_ag41(message: str = "", *, dry_run: bool = True, **_: Any) -> dict[str, Any]:
+    """AG-41 typed A2A adapter. Plain instructions cannot count as host execution."""
+    from raphiia_openai.agents import ag41_peer_ops_executor as ag41
+
+    if not (message or "").strip():
+        return _merge("AG-41", "peer_ops_snapshot", ag41.peer_ops_snapshot())
+    try:
+        request = json.loads(message)
+    except (TypeError, ValueError):
+        return {"ok": False, "agent_id": "AG-41", "error": "peer_ops_structured_request_required"}
+    if not isinstance(request, dict) or request.get("protocol") != "peer_ops.v1":
+        return {"ok": False, "agent_id": "AG-41", "error": "peer_ops_protocol_invalid"}
+    action = str(request.get("action") or "").strip().lower()
+    if action != "status":
+        return {"ok": False, "agent_id": "AG-41", "error": "peer_ops_mutation_requires_governed_approval"}
+    node = str(request.get("node") or "").strip().lower()
+    service_id = str(request.get("service_id") or "").strip().lower()
+    if node not in {"amd", "primary", "intel"}:
+        return {"ok": False, "agent_id": "AG-41", "error": "peer_ops_node_not_allowlisted"}
+    if service_id not in ag41.ALLOWLIST_SERVICES:
+        return {"ok": False, "agent_id": "AG-41", "error": "peer_ops_service_not_allowlisted"}
+    if dry_run:
+        return {"ok": False, "agent_id": "AG-41", "dry_run": True, "error": "peer_ops_live_probe_required"}
+    status = ag41.peer_ops_status(service_id=service_id, node=node)
+    valid = (
+        isinstance(status, dict)
+        and status.get("ok") is True
+        and isinstance(status.get("healthy"), bool)
+        and str(status.get("health") or "").strip() != ""
+        and str(status.get("system_state") or "").strip().lower() not in {"", "unknown"}
+    )
+    if not valid:
+        return {
+            "ok": False, "agent_id": "AG-41",
+            "error": "peer_ops_live_status_evidence_missing",
+            "node": node, "service_id": service_id,
+            "peer_status": status if isinstance(status, dict) else {},
+        }
+    recorded = _merge("AG-41", "peer_ops_service_status", {
+        "ok": True,
+        "protocol": "peer_ops.v1",
+        "node": node,
+        "service_id": service_id,
+        "read_only": True,
+        "verified": True,
+        "peer_status": status,
+    })
+    recorded["action"] = "status"
+    return recorded
+
+
 # Agentes con módulo dedicado ag*.py — reexport runners
 def _import_dedicated() -> dict[str, Runner]:
     from raphiia_openai.agents import (
@@ -346,7 +398,7 @@ def _import_dedicated() -> dict[str, Runner]:
         "AG-38": lambda message="", dry_run=True, **kw: _merge("AG-38", "vero", vero_orchestrator.vero_dispatch(message=message, channel="mcp", require_approval=dry_run)),
         "AG-39": lambda message="", **kw: _merge("AG-39", "raul", raul_orchestrator.raul_dispatch(message=message or "catálogo")),
         "AG-40": lambda message="", **kw: _merge("AG-40", "reconcile", ag40.reconcile_runtime_state(dry_run=True)),
-        "AG-41": lambda message="", **kw: _merge("AG-41", "peer_ops", ag41.peer_ops_snapshot()),
+        "AG-41": run_ag41,
         "AG-42": lambda message="", **kw: _merge("AG-42", "guardian", ag42.run_self_heal_cycle(auto_repair=kw.get("auto_repair", False)) if (message or "").strip().lower() in ("heal", "self_heal", "reparar") else ag42.run_service_guardian(notify=False)),
         "AG-43": lambda message="", **kw: _merge("AG-43", "platform_sync", ag43.sync_platform_to_intel(dry_run=True)),
         "AG-44": lambda message="", **kw: _merge("AG-44", "cloud_deploy", ag44.cloud_deploy_status()),
