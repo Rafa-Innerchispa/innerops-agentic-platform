@@ -171,8 +171,8 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     evidence_required = list(envelope_dict.get("evidence_required") or [])
     commit_sha = str(agent_result.get("commit_sha") or "").strip()
 
-    if commit_sha and (
-        task_class == "verification" or "commit_sha" in evidence_required
+    if commit_sha and task_class == "verification" and (
+        not evidence_required or set(evidence_required) <= {"commit_sha"}
     ):
         return {
             "passed": True,
@@ -333,7 +333,7 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             for key in evidence_req
             if not str(agent_result.get(key) or nested.get(key) or "").strip()
         ]
-        if missing and agent_result.get("ok") is False:
+        if missing:
             return {
                 "passed": False,
                 "error": f"Completion prohibited: Required evidence missing for task {envelope_dict.get('task_id')}",
