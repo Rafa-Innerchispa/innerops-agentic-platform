@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "platform/inneros_core_runtime/execution_binding.py"
+      - "platform/inneros_core_runtime/capability_gateway.py"
+      - "platform/inneros_core_runtime/capability_gateway_peer.py"
+      - "platform/tests/test_capability_gateway.py"
+      - "platform/tests/test_capability_gateway_regressions_p0.py"
       - "platform/inneros_core_runtime/temporal_activities.py"
       - "platform/inneros_core_runtime/temporal_workflows.py"
       - "platform/inneros_core_runtime/agents/pool_agent_runners.py"
@@ -17,6 +21,10 @@ on:
     branches: [main]
     paths:
       - "platform/inneros_core_runtime/execution_binding.py"
+      - "platform/inneros_core_runtime/capability_gateway.py"
+      - "platform/inneros_core_runtime/capability_gateway_peer.py"
+      - "platform/tests/test_capability_gateway.py"
+      - "platform/tests/test_capability_gateway_regressions_p0.py"
       - "platform/inneros_core_runtime/temporal_activities.py"
       - "platform/inneros_core_runtime/temporal_workflows.py"
       - "platform/inneros_core_runtime/agents/pool_agent_runners.py"
@@ -50,6 +58,9 @@ jobs:
         run: |
           python -m compileall -q \
             platform/inneros_core_runtime/execution_binding.py \
+            platform/inneros_core_runtime/capability_gateway.py \
+            platform/inneros_core_runtime/capability_gateway_peer.py \
+            platform/tests/test_capability_gateway_regressions_p0.py \
             platform/inneros_core_runtime/temporal_activities.py \
             platform/inneros_core_runtime/agents/pool_agent_runners.py \
             platform/tests/test_global_coordination_guards.py \
@@ -62,6 +73,8 @@ jobs:
           python -m pytest -q \
             platform/tests/test_global_coordination_guards.py \
             platform/tests/test_execution_binding.py \
+            platform/tests/test_capability_gateway.py \
+            platform/tests/test_capability_gateway_regressions_p0.py \
             platform/tests/test_peer_ops_runner_contract.py \
             platform/tests/test_runtime_routing_and_a2a_lease_regressions.py \
             platform/tests/test_a2a_bridge.py \

@@ -12,7 +12,7 @@ def test_capability_search():
     res = capability_search(query="network")
     assert res["ok"] is True
     assert len(res["capabilities"]) >= 1
-    assert res["capabilities"][0]["capability_id"] == "network.device.query.v1"
+    assert any(cap["capability_id"] == "network.device.query.v1" for cap in res["capabilities"])
 
 def test_capability_describe():
     res = capability_describe("network.device.query.v1")

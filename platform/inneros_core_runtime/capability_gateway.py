@@ -184,11 +184,15 @@ def capability_invoke(
     
     try:
         result_data = handler(parameters, ctx)
+        # A handler returning {"ok": False} did not complete the operation.
+        # Never promote a failed host operation to a successful capability
+        # execution, even if the Python invocation itself returned normally.
+        handler_failed = isinstance(result_data, dict) and result_data.get("ok") is False
         exec_record = {
-            "ok": True,
+            "ok": not handler_failed,
             "execution_id": exec_id,
             "capability_id": capability_id,
-            "status": "COMPLETED",
+            "status": "FAILED" if handler_failed else "COMPLETED",
             "result": result_data,
             "provenance": {
                 "started_at": start_ts,
@@ -197,6 +201,10 @@ def capability_invoke(
                 "confidence": 1.0
             }
         }
+        if handler_failed:
+            exec_record["error"] = str(
+                result_data.get("error") or "CAPABILITY_HANDLER_REPORTED_FAILURE"
+            )
         if idempotency_key:
             _EXECUTIONS_STORE[idempotency_key] = exec_record
         _EXECUTIONS_STORE[exec_id] = exec_record

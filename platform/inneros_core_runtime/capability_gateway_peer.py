@@ -88,6 +88,34 @@ def _cursor_owner_order(
     )
 
 
+def _redact_observability_process_args(payload: dict[str, Any]) -> dict[str, Any]:
+    """Prevent exposure of process command arguments containing credentials."""
+    if not isinstance(payload, dict):
+        return {"ok": False, "error": "peer_observability_invalid_result"}
+    result = dict(payload)
+    snapshot = payload.get("snapshot")
+    if isinstance(snapshot, dict):
+        snapshot = dict(snapshot)
+        if "processes" in snapshot:
+            processes = snapshot["processes"]
+            safe_processes: dict[str, Any] = {"redacted": True}
+            if isinstance(processes, dict):
+                for field in ("ok", "returncode"):
+                    if field in processes:
+                        safe_processes[field] = processes[field]
+            snapshot["processes"] = safe_processes
+        result["snapshot"] = snapshot
+    if result.get("ok") is False and not result.get("error"):
+        result["error"] = "peer_observability_helper_failed"
+    return result
+
+
+def _peer_observability_redacted(node: str = "primary", **_: Any) -> dict[str, Any]:
+    from raphiia_openai.agents import ag41_peer_ops_executor as ag41
+
+    return _redact_observability_process_args(ag41.peer_observability_snapshot(node=node))
+
+
 def register_peer_capabilities() -> int:
     from raphiia_openai.agents import ag41_peer_ops_executor as ag41
 
@@ -229,7 +257,7 @@ def register_peer_capabilities() -> int:
                 mode="read_only",
                 properties={"node": {"type": "string"}},
             ),
-            _handler(ag41.peer_observability_snapshot),
+            _handler(_peer_observability_redacted),
         ),
         (
             _manifest(
