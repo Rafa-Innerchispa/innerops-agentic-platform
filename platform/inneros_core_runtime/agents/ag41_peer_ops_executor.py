@@ -631,9 +631,29 @@ def peer_host_ops_policy() -> dict[str, Any]:
 
 
 def peer_observability_snapshot(node: str = "primary") -> dict[str, Any]:
+    """Read-only metrics; never publish process command lines or credentials."""
     node = whatsapp_service_ops.normalize_node(node)
     result = _helper(node, "observability", timeout=45)
-    return {"ok": bool(result.get("ok")), "agent_id": AGENT_ID, "node": node, "snapshot": result}
+    safe = dict(result)
+    process_info = safe.get("processes")
+    if "processes" in safe:
+        clean = {"redacted": True}
+        if isinstance(process_info, dict):
+            for field in ("ok", "returncode"):
+                if field in process_info:
+                    clean[field] = process_info[field]
+        safe["processes"] = clean
+    # Some helper versions include raw command output, including secret argv.
+    safe.pop("raw", None)
+    rc = safe.get("helper_returncode")
+    ok = bool(safe.get("ok")) and rc in (None, 0)
+    response = {"ok": ok, "agent_id": AGENT_ID, "node": node, "snapshot": safe}
+    if not ok:
+        response["error"] = (
+            "peer_helper_command_denied" if rc == 126
+            else "peer_observability_failed"
+        )
+    return response
 
 
 def peer_project_fs(

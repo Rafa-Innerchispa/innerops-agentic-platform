@@ -15,6 +15,8 @@ on:
       - "platform/tests/test_global_coordination_guards.py"
       - "platform/tests/test_execution_binding.py"
       - "platform/tests/test_peer_ops_runner_contract.py"
+      - "platform/inneros_core_runtime/agents/ag41_peer_ops_executor.py"
+      - "platform/tests/test_peer_observability_security_p0.py"
       - "platform/tests/test_runtime_routing_and_a2a_lease_regressions.py"
       - ".github/workflows/inneros-runtime-gates.yml"
   push:
@@ -32,6 +34,8 @@ on:
       - "platform/tests/test_global_coordination_guards.py"
       - "platform/tests/test_execution_binding.py"
       - "platform/tests/test_peer_ops_runner_contract.py"
+      - "platform/inneros_core_runtime/agents/ag41_peer_ops_executor.py"
+      - "platform/tests/test_peer_observability_security_p0.py"
       - "platform/tests/test_runtime_routing_and_a2a_lease_regressions.py"
       - ".github/workflows/inneros-runtime-gates.yml"
   workflow_dispatch:
@@ -76,6 +80,7 @@ jobs:
             platform/tests/test_capability_gateway.py \
             platform/tests/test_capability_gateway_regressions_p0.py \
             platform/tests/test_peer_ops_runner_contract.py \
+            platform/tests/test_peer_observability_security_p0.py \
             platform/tests/test_runtime_routing_and_a2a_lease_regressions.py \
             platform/tests/test_a2a_bridge.py \
             platform/tests/test_temporal_bounded_executor.py
