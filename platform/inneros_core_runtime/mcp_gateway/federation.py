@@ -69,6 +69,8 @@ class FederationManager:
         self.default_backend_name: str | None = None
         self._lock = asyncio.Lock()
         self.failover_enabled = _env_enabled("INNEROS_MCP_FAILOVER_ENABLED", False)
+        # Bind shared idempotency attestation at startup, not per request.
+        self.shared_idempotency_proven = _env_enabled("INNEROS_MCP_SHARED_IDEMPOTENCY_PROVEN", False)
 
         if backends_config:
             for key, conf in backends_config.items():
@@ -116,8 +118,8 @@ class FederationManager:
             )
         return candidates
 
-    @staticmethod
     def _request_is_idempotent(
+        self,
         payload: dict[str, Any],
         headers: dict[str, str] | None,
     ) -> bool:
@@ -142,11 +144,15 @@ class FederationManager:
             or arguments.get("idempotency_key")
             or arguments.get("idempotencyKey")
         )
+        if tool_name in SAFE_TOOL_NAMES or tool_name.startswith(SAFE_TOOL_PREFIXES):
+            return True
+        # A key alone does not prove cross-node deduplication. The feature is
+        # admitted only when an operator has attested a shared durable ledger.
+        # Binding that attestation at startup also prevents configuration
+        # changes from silently widening replay privileges mid-request.
         if explicit_key:
-            return True
-        if tool_name in SAFE_TOOL_NAMES:
-            return True
-        return tool_name.startswith(SAFE_TOOL_PREFIXES)
+            return self.shared_idempotency_proven
+        return False
 
     async def _ensure_backend_session(
         self,
