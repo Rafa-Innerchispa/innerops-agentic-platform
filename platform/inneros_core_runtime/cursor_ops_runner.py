@@ -172,16 +172,20 @@ def authorize_ops_task_for_cursor(
         return {"ok": False, "error": "task_id_required"}
     db = mongo_store.get_db()
     now = _now()
+    # Scoped, idempotent owner grant: never authorize another provider's task,
+    # terminal task, or a task that already belongs to a running claim.
+    owner = "cursor"
     doc = db[OPS_TASKS_COL].find_one_and_update(
-        {"task_id": tid},
-        {
-            "$set": {
-                "owner_authorized_at": now,
-                "owner_authorized_by": owner_actor,
-                "owner_authorization_channel": channel,
-                "updated_at": now,
-            }
-        },
+        {"task_id": tid,
+         "assignee": owner,
+         "status": {"$nin": ["completed", "done", "failed", "cancelled", "superseded", "archived"]},
+         "claim_token": {"$exists": False}},
+        {"$set": {
+            "owner_authorized_at": now,
+            "owner_authorized_by": owner_actor,
+            "owner_authorization_channel": channel,
+            "updated_at": now,
+        }},
         return_document=True,
     )
     if not doc:
