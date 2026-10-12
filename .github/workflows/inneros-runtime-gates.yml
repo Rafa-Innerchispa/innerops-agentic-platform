@@ -39,6 +39,8 @@ on:
       - "platform/tests/test_inneros_release_gate.py"
       - "platform/inneros_core_runtime/local_execution_plane.py"
       - "platform/tests/test_gitlab_runner_policy_precedence.py"
+      - "platform/inneros_core_runtime/local_github_plane.py"
+      - "platform/tests/test_local_github_plane.py"
       - "platform/scripts/repo_delivery_guardian.py"
       - "platform/tests/test_repo_delivery_guardian.py"
       - "platform/systemd/user/inneros-universal-delivery-guardian.service"
@@ -87,6 +89,8 @@ on:
       - "platform/tests/test_inneros_release_gate.py"
       - "platform/inneros_core_runtime/local_execution_plane.py"
       - "platform/tests/test_gitlab_runner_policy_precedence.py"
+      - "platform/inneros_core_runtime/local_github_plane.py"
+      - "platform/tests/test_local_github_plane.py"
       - "platform/scripts/repo_delivery_guardian.py"
       - "platform/tests/test_repo_delivery_guardian.py"
       - "platform/systemd/user/inneros-universal-delivery-guardian.service"
@@ -133,6 +137,8 @@ jobs:
             platform/tests/test_inneros_release_gate.py \
             platform/inneros_core_runtime/local_execution_plane.py \
             platform/tests/test_gitlab_runner_policy_precedence.py \
+            platform/inneros_core_runtime/local_github_plane.py \
+            platform/tests/test_local_github_plane.py \
             platform/scripts/repo_delivery_guardian.py \
             platform/tests/test_repo_delivery_guardian.py \
             platform/tests/test_capability_gateway_regressions_p0.py \
@@ -170,6 +176,7 @@ jobs:
             platform/tests/test_local_release_executor_contract.py \
             platform/tests/test_inneros_release_gate.py \
             platform/tests/test_gitlab_runner_policy_precedence.py \
+            platform/tests/test_local_github_plane.py \
             platform/tests/test_repo_delivery_guardian.py \
             platform/tests/test_runtime_routing_and_a2a_lease_regressions.py \
             platform/tests/test_a2a_bridge.py \
