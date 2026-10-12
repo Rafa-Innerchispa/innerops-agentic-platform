@@ -3,6 +3,9 @@ name: InnerOS P0 Runtime Safety Gates
 on:
   pull_request:
     paths:
+      - "platform/inneros_core_runtime/local_model_router.py"
+      - "platform/raphiia_openai/__init__.py"
+      - "platform/tests/test_local_model_router_fallback.py"
       - "platform/inneros_core_runtime/execution_binding.py"
       - "platform/inneros_core_runtime/capability_gateway.py"
       - "platform/inneros_core_runtime/capability_gateway_peer.py"
@@ -28,6 +31,9 @@ on:
   push:
     branches: [main]
     paths:
+      - "platform/inneros_core_runtime/local_model_router.py"
+      - "platform/raphiia_openai/__init__.py"
+      - "platform/tests/test_local_model_router_fallback.py"
       - "platform/inneros_core_runtime/execution_binding.py"
       - "platform/inneros_core_runtime/capability_gateway.py"
       - "platform/inneros_core_runtime/capability_gateway_peer.py"
@@ -70,6 +76,9 @@ jobs:
       - name: Compile critical runtime contracts
         run: |
           python -m compileall -q \
+            platform/inneros_core_runtime/local_model_router.py \
+            platform/raphiia_openai/__init__.py \
+            platform/tests/test_local_model_router_fallback.py \
             platform/inneros_core_runtime/execution_binding.py \
             platform/inneros_core_runtime/capability_gateway.py \
             platform/inneros_core_runtime/capability_gateway_peer.py \
@@ -90,6 +99,7 @@ jobs:
           python -m pytest -q \
             platform/tests/test_global_coordination_guards.py \
             platform/tests/test_execution_binding.py \
+            platform/tests/test_local_model_router_fallback.py \
             platform/tests/test_execution_receipts.py \
             platform/tests/test_capability_gateway.py \
             platform/tests/test_capability_gateway_regressions_p0.py \

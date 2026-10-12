@@ -2,12 +2,19 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from raphiia_openai import local_model_router as lmr
 
 
 class LocalModelRouterFallbackTests(unittest.TestCase):
+    def test_scheduler_uses_active_canonical_router_from_shim(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
+        self.assertIs(scheduler.local_model_router, lmr)
+        self.assertEqual(Path(lmr.__file__).parent.name, "inneros_core_runtime")
+        self.assertTrue(callable(getattr(lmr, "_intel_ollama_fallback", None)))
+
     @patch.object(lmr, "_intel_ollama_fallback")
     @patch.object(lmr, "_http_ok")
     @patch.object(lmr, "local_model_health")
@@ -34,6 +41,47 @@ class LocalModelRouterFallbackTests(unittest.TestCase):
         self.assertTrue(out.get("ok"))
         mock_fallback.assert_called_once()
 
+
+    @patch.object(lmr, "_intel_ollama_fallback")
+    @patch.object(lmr, "_http_ok")
+    @patch.object(lmr, "local_model_health")
+    def test_vllm_generation_failure_uses_intel_ollama(self, mock_health, mock_ok, mock_fallback):
+        mock_health.return_value = {"ok": True}
+        mock_ok.return_value = {"ok": True}
+        mock_fallback.return_value = {
+            "ok": True, "runtime": "local_model", "selected_node": "intel",
+            "response": "fallback generated", "fallback_reason": "amd_vllm_generation_failed",
+        }
+        with patch.object(lmr, "classify_task_runtime") as classifier, patch.object(lmr, "_vllm_chat") as vllm:
+            classifier.return_value = {
+                "task_type": "coding", "recommended_model": "amd-qwen",
+                "recommended_provider": "local-amd-5", "recommended_backend": "vllm",
+                "reason": "test",
+            }
+            vllm.return_value = {"ok": False, "error": "vllm_unavailable"}
+            result = lmr.run_local_model(task_type="coding", prompt="test")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["selected_node"], "intel")
+        self.assertEqual(mock_fallback.call_args.kwargs["fallback_reason"], "amd_vllm_generation_failed")
+
+    @patch.object(lmr, "_intel_ollama_fallback")
+    @patch.object(lmr, "_http_ok")
+    @patch.object(lmr, "local_model_health")
+    def test_failed_fallback_remains_fail_closed(self, mock_health, mock_ok, mock_fallback):
+        mock_health.return_value = {"ok": True}
+        mock_ok.side_effect = lambda url: {"ok": "/v1/models" not in url}
+        mock_fallback.return_value = {"ok": False, "error": "intel_ollama_no_models"}
+        with patch.object(lmr, "classify_task_runtime") as classifier:
+            classifier.return_value = {
+                "task_type": "coding", "recommended_model": "amd-qwen",
+                "recommended_provider": "local-amd-5", "recommended_backend": "vllm",
+                "reason": "test",
+            }
+            result = lmr.run_local_model(task_type="coding", prompt="test")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "intel_ollama_no_models")
+        self.assertFalse(result["external_needed"])
+        mock_fallback.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()
