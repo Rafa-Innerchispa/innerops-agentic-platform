@@ -212,6 +212,31 @@ def _receipt_verified(repo: str, sha: str, evidence: dict,
     return recent(evidence, ("verified_at_utc",), now, hours=24)
 
 
+def next_gate(gaps: list[str], lifecycle: str | None) -> str:
+    outstanding = set(gaps)
+    if "backup_mirror_unverified" in outstanding or "mirror_discovery_missing_or_stale" in outstanding:
+        return "PRESERVE_AND_VERIFY_BACKUP_BEFORE_CHANGES"
+    if "taxonomy_missing_or_stale" in outstanding or lifecycle is None:
+        return "CLASSIFY_PROJECT_WITHOUT_CHANGING_VISIBILITY"
+    if "github_api_unverified" in outstanding or "github_branch_pr_inventory_unverified" in outstanding:
+        return "RESTORE_READ_ONLY_INVENTORY"
+    if "branches_require_semantic_triage" in outstanding:
+        return "TRIAGE_BRANCHES_THEN_SCOPED_PR_WITH_CI"
+    if "ci_not_proven_for_default_sha" in outstanding:
+        return "RESTORE_PROJECT_SPECIFIC_CI"
+    if "default_branch_unprotected_or_unknown" in outstanding:
+        return "ENABLE_PROTECTED_BRANCH_AFTER_PR_PIPELINE_VERIFIED"
+    if "github_issues_off_or_unknown" in outstanding:
+        return "ENABLE_GITHUB_ISSUES_WITH_ADMIN_SCOPE"
+    if "official_release_missing_or_unknown" in outstanding:
+        return "PREPARE_VERSIONED_RELEASE_WITH_HOST_EVIDENCE"
+    if "gitlab_sync_missing_or_stale" in outstanding or "gitlab_refs_or_tags_unverified" in outstanding:
+        return "VERIFY_GITLAB_MIRROR_WITHOUT_FORCE_PUSH"
+    if lifecycle in {"active", "maintenance"}:
+        return "VERIFY_UNCOMMITTED_WORKTREES_AND_LIVE_RUNTIME"
+    return "PRESERVE_EXPERIMENT_OR_LEGACY_WITHOUT_FORCED_DEPLOY"
+
+
 def evaluate(rows: list[dict], github: dict[str, dict], catalog: dict,
              discovery: dict, gitlab: dict, receipts: dict,
              now: datetime | None = None) -> dict:
@@ -314,6 +339,7 @@ def evaluate(rows: list[dict], github: dict[str, dict], catalog: dict,
             "open_pr_count": gh.get("open_pr_count"),
             "unreviewed_branch_count": gh.get("unreviewed_branch_count"),
             "unreviewed_branch_sample": gh.get("unreviewed_branch_sample", []),
+            "next_gate": next_gate(gaps, lifecycle),
         })
     return {
         "schema": "inneros-universal-delivery-audit-v1",
