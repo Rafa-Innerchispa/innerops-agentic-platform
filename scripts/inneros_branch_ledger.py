@@ -274,8 +274,14 @@ def main():
         json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"sha": report["main_sha"], "branches": report["branches_total"],
                       "prs": len(report["prs"]), "errors": report["errors"]}))
+    # Keep individual API comparison failures visible in main; one oversized
+    # legacy branch must not prevent inventorying all other branches.
+    # Fail closed if the API failed for too many refs to be meaningful.
+    max_errors = max(10, len(report["rows"]) // 4)
+    if report["errors"] > max_errors:
+        raise RuntimeError("branch_comparisons_unreliable; refusing_publication")
     if report["errors"]:
-        raise RuntimeError("incomplete_branch_scan; no publication")
+        print("::warning::Some branch comparisons failed; see ERROR rows in ledger")
     if args.publish:
         print("published_main_sha=" + publish(args.repo, text + "\n"))
 
