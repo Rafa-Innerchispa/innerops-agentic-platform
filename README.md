@@ -19,6 +19,9 @@
 
 ## Recovery and cross-agent continuity
 
+**GitHub branch debt and production proof:** [automatic branch ledger](docs/INNEROS_BRANCH_LEDGER.md) and [per-host runtime attestation](docs/INNEROS_RELEASE_ATTESTATION.json). Updated by the daily InnerOS Branch and Production Ledger workflow. A merged branch is NOT evidence that AMD/Intel services imported that code. No auto-delete or blind merge.
+
+
 **Current active continuity (12 Oct 2026):** [`platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md`](platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md) and repository-wide [`AGENTS.md`](AGENTS.md). Agents must read this current handoff and verify live Mongo/Temporal/task leases/GitHub/runtime before accepting work. The [30 Sep handoff](docs/CANONICAL_CONTINUITY_HANDOFF_20260930.md) remains historical context, not current dispatch instructions.
 
 ---

@@ -3,6 +3,8 @@
 **Destino:** documentación persistente en `main` de `Rafa-Innerchispa/innerops-agentic-platform`.  
 **IMPORTANTE:** estados en este archivo son una instantánea, no certificación de que la situación seguirá igual. Recuperar telemetría viva antes de actuar. **No contiene credenciales.**
 
+**Inventario vivo de código pendiente:** [docs/INNEROS_BRANCH_LEDGER.md](../../docs/INNEROS_BRANCH_LEDGER.md), actualizado automáticamente cada día por GitHub Actions, y [docs/INNEROS_RELEASE_ATTESTATION.json](../../docs/INNEROS_RELEASE_ATTESTATION.json), inicialmente NO_CERTIFICADO por nodo hasta evidencia host. El registro preserva todas las ramas; no debe confundirse CI/merge con producción.
+
 ## 1. Objetivo del propietario (no perder)
 InnerOS debe tomar una orden en ChatGPT, voz o WhatsApp y **ejecutarla** usando el agente adecuado, interno o externo, sin intervención manual en una laptop, con cambios de código reales, verificación, posibilidad de rollback y cierre durable. No son suficientes mensajes ACK, modelos cargados, servicios activos, IDs `claimed` ni un PR fusionado. El propietario quiere un *único sistema* y no un router v2 ni otra instancia de Temporal.
 

@@ -6,6 +6,10 @@ on:
       - "platform/inneros_core_runtime/local_model_router.py"
       - "platform/raphiia_openai/__init__.py"
       - "platform/tests/test_local_model_router_fallback.py"
+      - "scripts/inneros_branch_ledger.py"
+      - "platform/tests/test_inneros_branch_ledger.py"
+      - ".github/workflows/inneros-branch-ledger.yml"
+      - "docs/INNEROS_RELEASE_ATTESTATION.json"
       - "platform/inneros_core_runtime/execution_binding.py"
       - "platform/inneros_core_runtime/capability_gateway.py"
       - "platform/inneros_core_runtime/capability_gateway_peer.py"
@@ -41,6 +45,10 @@ on:
       - "platform/inneros_core_runtime/local_model_router.py"
       - "platform/raphiia_openai/__init__.py"
       - "platform/tests/test_local_model_router_fallback.py"
+      - "scripts/inneros_branch_ledger.py"
+      - "platform/tests/test_inneros_branch_ledger.py"
+      - ".github/workflows/inneros-branch-ledger.yml"
+      - "docs/INNEROS_RELEASE_ATTESTATION.json"
       - "platform/inneros_core_runtime/execution_binding.py"
       - "platform/inneros_core_runtime/capability_gateway.py"
       - "platform/inneros_core_runtime/capability_gateway_peer.py"
@@ -95,6 +103,8 @@ jobs:
             platform/inneros_core_runtime/local_model_router.py \
             platform/raphiia_openai/__init__.py \
             platform/tests/test_local_model_router_fallback.py \
+            scripts/inneros_branch_ledger.py \
+            platform/tests/test_inneros_branch_ledger.py \
             platform/inneros_core_runtime/execution_binding.py \
             platform/inneros_core_runtime/capability_gateway.py \
             platform/inneros_core_runtime/capability_gateway_peer.py \
@@ -123,6 +133,7 @@ jobs:
             platform/tests/test_global_coordination_guards.py \
             platform/tests/test_execution_binding.py \
             platform/tests/test_local_model_router_fallback.py \
+            platform/tests/test_inneros_branch_ledger.py \
             platform/tests/test_execution_receipts.py \
             platform/tests/test_reconcile_ops_mongo_temporal.py \
             platform/tests/test_governed_model_writes.py \

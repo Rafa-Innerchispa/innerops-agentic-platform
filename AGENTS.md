@@ -2,6 +2,8 @@
 
 > Vigente desde el 12 de octubre de 2026. Aplica a Cursor, Codex, Antigravity y agentes locales que trabajen en este repositorio.
 
+**Inventario vivo de ramas y producción:** leer [docs/INNEROS_BRANCH_LEDGER.md](docs/INNEROS_BRANCH_LEDGER.md) (actualizado diariamente por GitHub Actions) y [docs/INNEROS_RELEASE_ATTESTATION.json](docs/INNEROS_RELEASE_ATTESTATION.json). Nunca considerar que main o CI implica despliegue. El auditor conserva ramas y NO las fusiona ni borra.
+
 ## Al iniciar una sesión o reclamar trabajo
 
 1. Leer **[platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md](platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md)**. Es el handoff actual; referencias de septiembre y manuales antiguos siguen como material histórico, no como autoridad de estado vivo.
