@@ -127,7 +127,9 @@ def create_github_repo(
                 except json.JSONDecodeError:
                     data = {}
                 return {"ok": True, "idempotent": True, "repo": full, "url": data.get("url"), "private": data.get("isPrivate"), "backend": "gh"}
-            args = [gh_path, "repo", "create", full, "--disable-wiki", "--disable-issues"]
+            # Issues are required for durable tracking of errors and delivered changes.
+            # Never create another project with Issues disabled by default.
+            args = [gh_path, "repo", "create", full, "--disable-wiki"]
             args.append("--private" if private else "--public")
             if description:
                 args += ["--description", description[:350]]
@@ -166,8 +168,26 @@ def _create_github_repo_api(
     except urllib.error.HTTPError as exc:
         if exc.code != 404:
             return {"ok": False, "error": "github_view_failed", "status": exc.code}
-    payload = json.dumps({"name": name, "description": description[:350], "private": private, "homepage": homepage or ""}).encode("utf-8")
-    endpoint = f"https://api.github.com/orgs/{owner}/repos"
+    payload = json.dumps({
+        "name": name, "description": description[:350], "private": private,
+        "homepage": homepage or "", "has_issues": True,
+    }).encode("utf-8")
+    # Owners can be personal users or organizations. GitHub /orgs/ endpoint
+    # fails for a personal account, so detect the authenticated identity.
+    who = urllib.request.Request(
+        "https://api.github.com/user",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+    )
+    try:
+        with urllib.request.urlopen(who, timeout=30) as response:
+            principal = json.loads(response.read().decode("utf-8"))
+        login = str(principal.get("login") or "")
+        if not login:
+            return {"ok": False, "error": "github_identity_missing"}
+    except urllib.error.HTTPError as exc:
+        return {"ok": False, "error": "github_identity_unavailable", "status": exc.code}
+    endpoint = ("https://api.github.com/user/repos" if login.lower() == owner.lower()
+                else f"https://api.github.com/orgs/{owner}/repos")
     req = urllib.request.Request(endpoint, data=payload, method="POST", headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
