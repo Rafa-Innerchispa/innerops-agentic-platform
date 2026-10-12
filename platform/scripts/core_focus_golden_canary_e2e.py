@@ -20,7 +20,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 CORRELATION = "chatgpt-golden-flow-20261005"
-DEFAULT_REPO = "Rafa-Innerchispa/amd-academy-mc3-rag"
+DEFAULT_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
 
 
 def _run_id() -> str:
