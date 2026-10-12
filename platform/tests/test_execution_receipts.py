@@ -6,7 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from inneros_core_runtime.execution_receipts import committed_objective_receipt, git_head
+from inneros_core_runtime.execution_receipts import (
+    committed_objective_receipt, completion_evidence_from_worktree, git_head,
+)
 
 
 class ExecutionReceiptsTests(unittest.TestCase):
@@ -62,6 +64,30 @@ class ExecutionReceiptsTests(unittest.TestCase):
         proof = committed_objective_receipt(self.repo, self.baseline)
         self.assertFalse(proof["ok"])
         self.assertEqual(proof["error"], "no_committed_objective_files")
+
+    def test_completed_receipt_never_fabricates_test_success(self) -> None:
+        (self.repo / "README.md").write_text("changed\n", encoding="utf-8")
+        self.git("add", "README.md")
+        self.git("commit", "-qm", "real task write")
+        proof = completion_evidence_from_worktree(self.repo, self.baseline)
+        self.assertTrue(proof["ok"], proof)
+        self.assertNotIn("test_results", proof["evidence"])
+        self.assertEqual(proof["evidence"]["objective_paths"], ["README.md"])
+
+    def test_completed_receipt_accepts_only_explicit_exit_code(self) -> None:
+        (self.repo / "README.md").write_text("changed\n", encoding="utf-8")
+        self.git("add", "README.md")
+        self.git("commit", "-qm", "real task write")
+        good = completion_evidence_from_worktree(self.repo, self.baseline, test_exit_code=0)
+        self.assertTrue(good["ok"], good)
+        self.assertEqual(good["evidence"]["test_results"]["exit_code"], 0)
+        failed = completion_evidence_from_worktree(self.repo, self.baseline, test_exit_code=1)
+        self.assertFalse(failed["ok"])
+        self.assertEqual(failed["error"], "tests_failed")
+        self.assertFalse(failed["evidence"]["test_results"]["ok"])
+        invalid = completion_evidence_from_worktree(self.repo, self.baseline, test_exit_code="invalid")
+        self.assertFalse(invalid["ok"])
+        self.assertEqual(invalid["error"], "invalid_test_exit_code")
 
 
 if __name__ == "__main__":
