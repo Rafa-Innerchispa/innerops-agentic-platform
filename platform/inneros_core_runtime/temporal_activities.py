@@ -193,11 +193,28 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             "task_class": task_class,
         }
 
-    def _has_required_evidence(key: str) -> bool:
+    def _lookup_evidence_value(key: str) -> Any:
         nested = agent_result.get("evidence") or {}
-        val = agent_result.get(key)
+        if key in agent_result:
+            return agent_result.get(key)
+        if key in nested:
+            return nested.get(key)
+        if "." in key:
+            for root in (agent_result, nested):
+                cur: Any = root
+                for part in key.split("."):
+                    if not isinstance(cur, dict):
+                        cur = None
+                        break
+                    cur = cur.get(part)
+                if cur is not None:
+                    return cur
+        return None
+
+    def _has_required_evidence(key: str) -> bool:
+        val = _lookup_evidence_value(key)
         if val is None:
-            val = nested.get(key)
+            return False
         if isinstance(val, bool):
             return val
         if isinstance(val, (int, float)):
@@ -400,12 +417,7 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     # 2. Ops / Network / Read-Only Validation Gate
     evidence_req = envelope_dict.get("evidence_required") or []
     if evidence_req:
-        nested = agent_result.get("evidence") or {}
-        missing = [
-            key
-            for key in evidence_req
-            if not str(agent_result.get(key) or nested.get(key) or "").strip()
-        ]
+        missing = [key for key in evidence_req if not _has_required_evidence(key)]
         if missing:
             return {
                 "passed": False,
