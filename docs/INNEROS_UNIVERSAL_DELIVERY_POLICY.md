@@ -65,3 +65,9 @@ No ejecutar un rsync destructivo sobre directorios con código local/worktrees, 
 **Implementado inicialmente solo en InnerOS core:** workflow `.github/workflows/inneros-branch-ledger.yml`, script `scripts/inneros_branch_ledger.py`, atestación `docs/INNEROS_RELEASE_ATTESTATION.json`. Esto **no equivale** a todos los repos GitHub/GitLab ni a despliegue AMD/Intel. Aplicar en etapas, un repositorio por vez y con recibo de adopción.
 
 **Continuidad transversal:** [Handoff del próximo chat](INNEROS_NEXT_CHAT_HANDOFF_20261012.md). Comprobar telemetría viva antes de continuar; este documento es política, no un estado de producción en tiempo real.
+
+## Extensión real de gobernanza del portafolio (actualización 2026-10-12)
+
+El nuevo guardián central `platform/scripts/repo_delivery_guardian.py` consulta todos los repositorios GitHub accesibles, ramas/PR abiertos, CI sobre SHA principal, Releases, gobierno de rama, y cruza la información con los datos persistidos del sistema **ya existente** de `repo_sovereignty` (taxonomía, integridad de mirror, sincronización GitLab) y con recibos de host. Sólo consulta y clasifica; no cambia código, visibilidad, ramas, servicios ni permisos. Su contrato y adopción: [INNEROS_GLOBAL_DELIVERY_ADOPTION_20261012.md](INNEROS_GLOBAL_DELIVERY_ADOPTION_20261012.md).
+
+Para evitar una falsa sensación de seguridad, el informe identifica `gitlab_only_project_coverage=NOT_YET_ATTESTED`, `local_uncommitted_worktree_coverage=NOT_YET_ATTESTED` y `universal_coverage_certified=false` hasta que los lectores independientes de GitLab y del sistema de archivos estén realmente ejecutados. El servicio Systemd está **preparado pero no activado**; sigue pendiente la verificación en el host. Cualquier paso de edición o producción requiere PR, gates y permisos específicos por repositorio, nunca una aprobación global en blanco.

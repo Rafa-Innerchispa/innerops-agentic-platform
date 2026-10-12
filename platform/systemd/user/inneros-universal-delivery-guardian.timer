@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily InnerOS universal delivery audit (requires verified local install)
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=15min
+Persistent=true
+Unit=inneros-universal-delivery-guardian.service
+
+[Install]
+WantedBy=timers.target
