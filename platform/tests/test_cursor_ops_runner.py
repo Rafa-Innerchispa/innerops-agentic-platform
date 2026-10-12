@@ -28,6 +28,19 @@ class CursorOpsRunnerTests(unittest.TestCase):
         self.assertFalse(out.get("ok"))
         self.assertEqual(out.get("error"), "owner_approval_required")
 
+    def test_claim_does_not_create_fictitious_ide_session(self) -> None:
+        with (
+            patch.object(cor.cep, "register_cursor_ide_session") as fake_session,
+            patch.object(cor.cep, "classify_cursor_execution", return_value={
+                "execution_classification": "remote_inbox_only",
+            }),
+            patch.dict("os.environ", {"INNEROS_CURSOR_HEADLESS_EXECUTE": "0"}),
+        ):
+            result = cor.claim_ops_task(task_id="ops_not_started", owner_approved=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "cursor_session_not_ready")
+        fake_session.assert_not_called()
+
     def test_pinned_model_constant(self) -> None:
         self.assertIn("composer", cor.CURSOR_PINNED_MODEL.lower())
 
