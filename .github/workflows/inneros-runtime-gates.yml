@@ -39,6 +39,10 @@ on:
       - "platform/tests/test_inneros_release_gate.py"
       - "platform/inneros_core_runtime/local_execution_plane.py"
       - "platform/tests/test_gitlab_runner_policy_precedence.py"
+      - "platform/scripts/repo_delivery_guardian.py"
+      - "platform/tests/test_repo_delivery_guardian.py"
+      - "platform/systemd/user/inneros-universal-delivery-guardian.service"
+      - "platform/systemd/user/inneros-universal-delivery-guardian.timer"
       - ".github/workflows/inneros-release-readiness.yml"
       - "docs/INNEROS_LAST_KNOWN_GOOD.json"
       - ".github/workflows/inneros-local-release.yml"
@@ -83,6 +87,10 @@ on:
       - "platform/tests/test_inneros_release_gate.py"
       - "platform/inneros_core_runtime/local_execution_plane.py"
       - "platform/tests/test_gitlab_runner_policy_precedence.py"
+      - "platform/scripts/repo_delivery_guardian.py"
+      - "platform/tests/test_repo_delivery_guardian.py"
+      - "platform/systemd/user/inneros-universal-delivery-guardian.service"
+      - "platform/systemd/user/inneros-universal-delivery-guardian.timer"
       - ".github/workflows/inneros-release-readiness.yml"
       - "docs/INNEROS_LAST_KNOWN_GOOD.json"
       - ".github/workflows/inneros-local-release.yml"
@@ -125,6 +133,8 @@ jobs:
             platform/tests/test_inneros_release_gate.py \
             platform/inneros_core_runtime/local_execution_plane.py \
             platform/tests/test_gitlab_runner_policy_precedence.py \
+            platform/scripts/repo_delivery_guardian.py \
+            platform/tests/test_repo_delivery_guardian.py \
             platform/tests/test_capability_gateway_regressions_p0.py \
             platform/inneros_core_runtime/governed_model_writes.py \
             platform/inneros_core_runtime/temporal_bounded_executor.py \
@@ -160,6 +170,7 @@ jobs:
             platform/tests/test_local_release_executor_contract.py \
             platform/tests/test_inneros_release_gate.py \
             platform/tests/test_gitlab_runner_policy_precedence.py \
+            platform/tests/test_repo_delivery_guardian.py \
             platform/tests/test_runtime_routing_and_a2a_lease_regressions.py \
             platform/tests/test_a2a_bridge.py \
             platform/tests/test_temporal_bounded_executor.py
