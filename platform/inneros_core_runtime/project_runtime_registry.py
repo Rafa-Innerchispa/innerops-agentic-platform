@@ -377,6 +377,28 @@ def migrate_existing(actor: str = "codex") -> dict[str, Any]:
         ("ralphiia-founderos-openai", "Rafa-Innerchispa/ralphiia-founderos-openai", None, None),
         ("innerspark-workforce-ai", "Rafa-Innerchispa/innerspark-workforce-ai", None, None),
         ("innerops-agentic-platform", "Rafa-Innerchispa/innerops-agentic-platform", None, None),
+        (
+            "ambient-guardian-amazon-2026",
+            "Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026",
+            None,
+            {
+                "policy_class": "product-app",
+                "allowed_commands_profile": "python-tests",
+                "allowed_paths": [
+                    "docs",
+                    "scripts",
+                    "src",
+                    "tests",
+                    "README.md",
+                    "devpost-submission.md",
+                    "pyproject.toml",
+                    "requirements.txt",
+                    "Dockerfile",
+                ],
+                "package_roots": ["."],
+                "write_scope": "worktree",
+            },
+        ),
         ("gitlab-contributorops-agent", "Rafa-Innerchispa/gitlab-contributorops-agent", None, None),
         (
             "infralens-ocr-amd",
