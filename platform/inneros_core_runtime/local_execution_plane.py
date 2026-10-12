@@ -382,7 +382,23 @@ DEFAULT_REPO_PROFILES = {
             "requirements.txt",
             "docker-compose.yml",
         ],
-    },
+    },,
+    "Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026": {
+        "profile": "python-tests",
+        "source_path": "/home/rlopez/inneros/inneros_core/workspaces/inneros-ambient-guardian-amazon-2026",
+        "package_roots": ["."],
+        "allowed_paths": [
+            "docs",
+            "scripts",
+            "src",
+            "tests",
+            "README.md",
+            "devpost-submission.md",
+            "pyproject.toml",
+            "requirements.txt",
+            "Dockerfile",
+        ],
+    }
 }
 
 
