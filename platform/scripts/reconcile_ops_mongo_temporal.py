@@ -39,7 +39,22 @@ async def _temporal_describe(workflow_id: str) -> dict[str, Any]:
         desc = await handle.describe()
         status_name = str(desc.status)
         terminal = any(x in status_name for x in ("COMPLETED", "FAILED", "TERMINATED", "CANCELED"))
-        return {"ok": True, "workflow_id": workflow_id, "status": status_name, "run_id": desc.run_id, "terminal": terminal}
+        result_status = None
+        result_gate_passed = None
+        if "COMPLETED" in status_name:
+            # The RPC workflow may COMPLETE while returning {"status": "failed"}.
+            result = await handle.result()
+            if isinstance(result, dict):
+                result_status = str(result.get("status") or "").strip().lower() or None
+                evidence = result.get("evidence") or {}
+                gate = evidence.get("gate_verification") if isinstance(evidence, dict) else None
+                if isinstance(gate, dict):
+                    result_gate_passed = gate.get("passed") is True
+        return {
+            "ok": True, "workflow_id": workflow_id, "status": status_name,
+            "run_id": desc.run_id, "terminal": terminal,
+            "result_status": result_status, "result_gate_passed": result_gate_passed,
+        }
     except Exception as exc:
         return {"ok": False, "workflow_id": workflow_id, "error": type(exc).__name__, "detail": str(exc)[:240]}
 
@@ -55,29 +70,37 @@ def _proposed_action(task: dict[str, Any], temporal: dict[str, Any]) -> dict[str
         return None
     tid = str(task.get("task_id") or "")
     wf_id = str(task.get("workflow_id") or f"ops_task:{tid}")
-    headless_done = bool(task.get("headless_execution_finished_at"))
-    stale_canary = _is_stale_canary(task)
-    if not temporal.get("ok"):
-        if stale_canary or headless_done or _lease_expired(task):
-            return {
-                "task_id": tid,
-                "action": "set_status",
-                "new_status": "superseded" if stale_canary else "failed",
-                "reason": "temporal_workflow_missing",
-                "temporal": temporal,
-            }
+    # Never mark tasks failed merely because Temporal is temporarily unreachable.
+    # A lease timeout is not proof that an external process stopped.
+    if not temporal.get("ok") or not temporal.get("terminal"):
         return None
-    if temporal.get("terminal"):
-        st = str(temporal.get("status") or "")
-        new_status = "failed" if any(x in st for x in ("FAILED", "TERMINATED", "CANCELED")) else "completed"
-        return {
-            "task_id": tid,
-            "action": "set_status",
-            "new_status": new_status,
-            "reason": "temporal_terminal_mongo_stale",
-            "temporal": temporal,
-        }
-    return None
+    st = str(temporal.get("status") or "").upper()
+    if any(x in st for x in ("FAILED", "TERMINATED")):
+        new_status = "failed"
+    elif "CANCELED" in st:
+        new_status = "cancelled"
+    elif "COMPLETED" in st:
+        outcome = str(temporal.get("result_status") or "").lower()
+        if outcome in {"failed", "cancelled"}:
+            new_status = outcome
+        elif outcome == "completed":
+            is_coding = str(task.get("task_class") or "coding").lower() == "coding"
+            if is_coding and temporal.get("result_gate_passed") is not True:
+                return None
+            new_status = "completed"
+        else:
+            # A successful Temporal RPC can carry a blocked or failed task.
+            # Unknown legacy result shape must be reviewed, not completed.
+            return None
+    else:
+        return None
+    return {
+        "task_id": tid,
+        "action": "set_status",
+        "new_status": new_status,
+        "reason": "temporal_result_verified_mongo_stale",
+        "temporal": temporal,
+    }
 
 
 def main() -> int:
@@ -107,11 +130,19 @@ def main() -> int:
             actions.append({**prop, "mongo_status": doc.get("status"), "correlation_id": doc.get("correlation_id")})
 
     applied = 0
+    skipped_concurrent_updates = 0
     if args.apply:
         now = _utc()
         for act in actions:
-            col.update_one(
-                {"task_id": act["task_id"], "status": {"$nin": sorted(TERMINAL_MONGO)}},
+            # CAS: a claim/lease/terminal state that moved since the scan wins.
+            prior = next((row for row in rows if row.get("task_id") == act["task_id"]), {})
+            filt = {"task_id": act["task_id"], "status": act["mongo_status"]}
+            if "revision" in prior:
+                filt["revision"] = prior["revision"]
+            if "lease_until" in prior:
+                filt["lease_until"] = prior["lease_until"]
+            change = col.update_one(
+                filt,
                 {
                     "$set": {
                         "status": act["new_status"],
@@ -123,7 +154,10 @@ def main() -> int:
                     "$inc": {"revision": 1},
                 },
             )
-            applied += 1
+            if getattr(change, "modified_count", 0) == 1:
+                applied += 1
+            else:
+                skipped_concurrent_updates += 1
 
     report = {
         "ok": True,
@@ -131,6 +165,7 @@ def main() -> int:
         "scanned": len(rows),
         "proposed": len(actions),
         "applied": applied,
+        "skipped_concurrent_updates": skipped_concurrent_updates,
         "dry_run": not args.apply,
         "actions": actions,
     }
