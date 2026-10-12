@@ -175,6 +175,18 @@ def test_local_report_is_private_and_outside_writes_are_denied(tmp_path):
             mod.save_private(tmp_path / "outside.json", {"blocked": True})
 
 
+def test_next_gate_prioritizes_preservation_and_branch_review():
+    assert mod.next_gate(["backup_mirror_unverified", "branches_require_semantic_triage"], "active") == (
+        "PRESERVE_AND_VERIFY_BACKUP_BEFORE_CHANGES"
+    )
+    assert mod.next_gate(["branches_require_semantic_triage"], "active") == (
+        "TRIAGE_BRANCHES_THEN_SCOPED_PR_WITH_CI"
+    )
+    assert mod.next_gate([], "experimental") == (
+        "PRESERVE_EXPERIMENT_OR_LEGACY_WITHOUT_FORCED_DEPLOY"
+    )
+
+
 def test_script_has_no_deploy_or_force_push_steps():
     code = SCRIPT.read_text()
     assert "subprocess.run" in code
