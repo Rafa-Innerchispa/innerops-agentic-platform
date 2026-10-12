@@ -779,6 +779,33 @@ def _gitlab_contributor_repo_config(repo: str) -> dict[str, Any] | None:
 
 
 def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
+    # Select the Go GitLab Runner policy before the Ruby GitLab project policy.
+    # Selective rescue of safe behavior from historical PR #126: no branch replay.
+    if repo == "gitlab-community/gitlab-org/gitlab-runner":
+        core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
+        workspace_root = (core / "workspaces").resolve()
+        source = (workspace_root / "gitlab-runner").resolve()
+        if source == workspace_root or workspace_root not in source.parents:
+            return None
+        if not source.exists() or not (source / ".git").exists():
+            return None
+        return {
+            "profile": "go_gitlab_runner",
+            "source_path": str(source),
+            "allowed_paths": [
+                "commands", "common", "executors", "helpers", "internal",
+                "network", "shells", "scripts", "docs", "tests", ".gitlab",
+                "README.md", "CONTRIBUTING.md", "AGENTS.md", "go.mod",
+                "go.sum", "Makefile",
+            ],
+            "package_roots": ["."],
+            "worktrees_path": str(_root() / "worktrees" / _slug(repo)),
+            "owner_approved_auto": True,
+            "external_nested_fork": True,
+            "contributor_ops": True,
+            "contributor_upstream": "gitlab-org/gitlab-runner",
+            "contributor_write_repo": "gitlab-community/gitlab-org/gitlab-runner",
+        }
     contrib = _gitlab_contributor_repo_config(repo)
     if contrib:
         return contrib
