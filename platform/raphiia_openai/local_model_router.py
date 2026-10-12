@@ -20,6 +20,8 @@ from typing import Any
 
 from raphiia_openai import capacity_governor_vnext, mongo_store, ralfia_time
 from raphiia_openai.settings import COL_AI_ROUTING_LOG, MCP_PUBLIC_URL
+# Share the tested AMD -> Intel fallback rather than maintaining a third copy.
+from inneros_core_runtime.local_model_router import _intel_ollama_fallback
 
 GPU_ROLE = os.getenv("INNEROS_GPU_ROLE", "").strip().lower()
 
@@ -779,9 +781,19 @@ def run_local_model(
     health = local_model_health()
     provider_health = _http_ok(f"{vllm_url}/v1/models") if backend == "vllm" and provider_id == "local-amd-5" else _http_ok(f"{ollama_url}/api/tags")
     if backend == "vllm" and provider_id == "local-amd-5" and not provider_health.get("ok"):
+        reason = "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable"
+        # Same helper used by the core router; no cloud fallback, no silent provider switch.
+        fb = _intel_ollama_fallback(
+            task_type=classification["task_type"], prompt=prompt,
+            system_prompt="Responde con precision en la tarea local solicitada.",
+            max_tokens=max_tokens, temperature=temperature,
+            fallback_reason=reason, preferred_model=selected,
+        )
+        if fb.get("ok"):
+            return fb
         return {
             "ok": False,
-            "error": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
+            "error": reason,
             "endpoint": vllm_url,
             "health": health,
             "provider_health": provider_health,
@@ -790,7 +802,9 @@ def run_local_model(
             "selected_node": "amd",
             "provider_id": provider_id,
             "fallback_silent": False,
-            "fallback_reason": "amd_vllm_unreachable_from_intel" if GPU_ROLE == "ollama-primary" else "amd_vllm_unreachable",
+            "fallback_reason": reason,
+            "intel_fallback_error": fb.get("error") or "intel_ollama_unavailable",
+            "external_needed": False,
         }
     if not (health.get("ok") or provider_health.get("ok")):
         return {
@@ -828,16 +842,24 @@ def run_local_model(
             endpoint=vllm_url,
         )
         if not result.get("ok"):
+            fb = _intel_ollama_fallback(
+                task_type=classification["task_type"], prompt=prompt,
+                system_prompt=system_prompt, max_tokens=max_tokens,
+                temperature=temperature,
+                fallback_reason="amd_vllm_generation_failed", preferred_model=selected,
+            )
+            if fb.get("ok"):
+                return fb
             _log_route(
                 title=classification["task_type"],
                 body=prompt,
                 task_type=classification["task_type"],
                 runtime="local_vllm",
                 model=selected,
-                local_ok=True,
+                local_ok=False,
                 external_needed=False,
                 approval_required=False,
-                reason="vLLM execution failed; no silent fallback",
+                reason="vLLM execution failed; Intel Ollama fallback unavailable",
                 decision="error",
             )
             return {
@@ -847,6 +869,9 @@ def run_local_model(
                 "selected_node": "amd",
                 "provider_id": provider_id,
                 "fallback_silent": False,
+                "fallback_reason": "amd_vllm_generation_failed",
+                "intel_fallback_error": fb.get("error") or "intel_ollama_unavailable",
+                "external_needed": False,
             }
         log = _log_route(
             title=classification["task_type"],
