@@ -197,6 +197,49 @@ class CoordinationLivenessTests(unittest.TestCase):
         self.assertEqual(task["status"], "blocked")
         self.assertIn("retry_budget_exhausted_frozen", task["blocker"])
 
+    def test_expired_cursor_claim_is_reported_but_not_requeued(self):
+        now = datetime(2026, 10, 12, 19, 0, tzinfo=timezone.utc)
+        row = {
+            "task_id": "ops_external_cursor_01",
+            "status": "claimed",
+            "owner": "cursor",
+            "claimed_by": "cursor",
+            "lease_until": (now - timedelta(hours=1)).isoformat(),
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "claim_token": "preserve_token",
+            "worktree": "/unmodified/agent-worktree",
+        }
+        self.mock_db["ralfia_ops_tasks"].insert_one(row)
+        result = coordination_liveness.reconcile_coordination_liveness(now=now, dry_run=False)
+        self.assertEqual(result["external_claims_requiring_verification_count"], 1)
+        self.assertEqual(result["external_claims_requiring_verification"][0]["reason"], "claim_lease_expired")
+        self.assertEqual(result["stale_tasks_reconciled"], 0)
+        preserved = self.mock_db["ralfia_ops_tasks"].find_one({"task_id": row["task_id"]})
+        self.assertEqual(preserved["status"], "claimed")
+        self.assertEqual(preserved["claim_token"], "preserve_token")
+        self.assertEqual(preserved["worktree"], "/unmodified/agent-worktree")
+
+    def test_external_lease_summary_recognizes_claimed_without_counting_as_worker(self):
+        now = datetime.now(timezone.utc)
+        for task_id, lease in [("ops_old", (now - timedelta(minutes=5)).isoformat()),
+                               ("ops_current", (now + timedelta(minutes=5)).isoformat())]:
+            self.mock_db["ralfia_ops_tasks"].insert_one({
+                "task_id": task_id, "status": "claimed", "owner": "cursor",
+                "lease_until": lease, "claim_token": task_id,
+            })
+        result = coordination_liveness.get_coordination_liveness_summary()
+        self.assertEqual(result["claimed_tasks_count"], 2)
+        self.assertEqual(result["external_claims_requiring_verification_count"], 1)
+        self.assertFalse(result["external_claims_reassigned_by_summary"])
+
+    def test_external_claim_without_lease_is_visible_and_not_requeued(self):
+        task = {"task_id": "ops_missing_lease", "status": "claimed", "assignee": "codex"}
+        self.assertEqual(coordination_liveness.external_claim_attention(task),
+                         "claim_lease_missing")
+        self.assertIsNone(coordination_liveness.external_claim_attention({
+            **task, "status": "completed"
+        }))
+
     def test_expired_lease_reconciliation(self):
         task_id = "ops_stale_001"
         t_start = datetime(2026, 9, 23, 11, 0, 0, tzinfo=timezone.utc)
