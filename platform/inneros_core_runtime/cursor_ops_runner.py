@@ -202,7 +202,8 @@ def claim_ops_task(
     owner_actor: str = "RAFAEL",
 ) -> dict[str, Any]:
     """Exclusive claim for active Cursor session (Composer model pinned)."""
-    cep.register_cursor_ide_session(host=_host(), source="cursor_ide_agent_session")
+    # A task claim must never mint a fake IDE heartbeat. Only an actual
+    # authenticated Cursor session or a usable headless SDK key may execute.
     classified = cep.classify_cursor_execution()
     headless_exec = os.getenv("INNEROS_CURSOR_HEADLESS_EXECUTE", "1").strip().lower() in {"1", "true", "yes"}
     if classified.get("execution_classification") not in {"partial", "headless_ready"}:
