@@ -123,7 +123,7 @@ def active_lane_count(*, host: str | None = None) -> int:
     db = mongo_store.get_db()
     filt = {
         "assignee": "cursor",
-        "status": "in_progress",
+        "status": {"$in": ["in_progress", "claimed", "running"]},
         "headless_execution_started_at": {"$exists": True},
         "headless_execution_finished_at": {"$exists": False},
         "$or": [

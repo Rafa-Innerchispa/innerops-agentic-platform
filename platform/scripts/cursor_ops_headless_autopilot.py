@@ -122,7 +122,7 @@ def _spawn_background_execution(task_id: str) -> dict[str, Any]:
     reserved = db[OPS_TASKS_COL].find_one_and_update(
         {
             "task_id": task_id,
-            "status": "in_progress",
+            "status": {"$in": ["in_progress", "claimed", "running"]},
             "headless_execution_started_at": {"$exists": False},
         },
         {

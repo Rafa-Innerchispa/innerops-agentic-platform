@@ -204,16 +204,29 @@ def claim_ops_task(
     """Exclusive claim for active Cursor session (Composer model pinned)."""
     cep.register_cursor_ide_session(host=_host(), source="cursor_ide_agent_session")
     classified = cep.classify_cursor_execution()
+    headless_exec = os.getenv("INNEROS_CURSOR_HEADLESS_EXECUTE", "1").strip().lower() in {"1", "true", "yes"}
     if classified.get("execution_classification") not in {"partial", "headless_ready"}:
-        return {
-            "ok": False,
-            "error": "cursor_session_not_ready",
-            "classification": classified,
-            "hint": (
-                "Requiere consumidor Cursor auténtico (cursor_inbox_consumer / sesión IDE). "
-                "Los heartbeats de cursor_ops_runner no activan sesión."
-            ),
-        }
+        try:
+            from inneros_core_runtime import cursor_api_credentials as cac
+
+            if headless_exec and cac.cursor_api_key_status().get("present"):
+                classified = {**classified, "execution_classification": "headless_ready", "headless_sdk_bypass": True}
+            else:
+                return {
+                    "ok": False,
+                    "error": "cursor_session_not_ready",
+                    "classification": classified,
+                    "hint": (
+                        "Requiere consumidor Cursor auténtico (cursor_inbox_consumer / sesión IDE) "
+                        "o headless SDK habilitado."
+                    ),
+                }
+        except Exception:
+            return {
+                "ok": False,
+                "error": "cursor_session_not_ready",
+                "classification": classified,
+            }
 
     db = mongo_store.get_db()
     filt: dict[str, Any] = {
