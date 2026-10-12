@@ -23,6 +23,7 @@ DEFAULT_LEASE_SECONDS = 600       # 10 minutes
 DEFAULT_RETRY_BUDGET = 3          # Max 3 attempts for same failure signature
 FROZEN_HEARTBEAT_THRESHOLD = 3    # 3 heartbeats without progress fingerprint change = frozen
 COOLDOWN_SECONDS = 900            # 15 minutes cooldown on retry exhausted
+EXTERNAL_CLAIM_OWNERS = frozenset({"cursor", "codex", "antigravity"})
 
 
 def _now() -> datetime:
@@ -41,6 +42,40 @@ def _parse_iso(val: str | None) -> datetime | None:
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
     except Exception:
         return None
+
+
+def is_external_managed_claim(task: dict[str, Any]) -> bool:
+    """An external claim owns a token/worktree and needs independent owner check."""
+    status = str(task.get("status") or "").lower()
+    if status not in {"claimed", "in_progress", "verification"}:
+        return False
+    owner = str(task.get("claimed_by") or task.get("assignee") or task.get("owner") or "").lower()
+    if owner not in EXTERNAL_CLAIM_OWNERS:
+        return False
+    return bool(status == "claimed" or task.get("lease_until") or task.get("claim_token"))
+
+
+def external_claim_attention(task: dict[str, Any], now: datetime | None = None) -> str | None:
+    """Report expired external claims without reassigning the agent's worktree.
+
+    Cursor/Codex/Antigravity interactive claims use lease_until, not the legacy
+    lease_expires_at column. Only owner verification may conclude that a process
+    has stopped; an expired timestamp alone cannot authorize a second runner.
+    """
+    status = str(task.get("status") or "").lower()
+    if status not in {"claimed", "in_progress", "verification"}:
+        return None
+    owner = str(task.get("claimed_by") or task.get("assignee") or task.get("owner") or "").lower()
+    if owner not in EXTERNAL_CLAIM_OWNERS:
+        return None
+    raw = str(task.get("lease_until") or "").strip()
+    if not raw:
+        return "claim_lease_missing" if is_external_managed_claim(task) else None
+    end = _parse_iso(raw)
+    if end is None:
+        return "claim_lease_invalid"
+    now_utc = now or _now()
+    return "claim_lease_expired" if end <= now_utc else None
 
 
 def compute_progress_fingerprint(
@@ -317,7 +352,9 @@ def reconcile_coordination_liveness(
     now_str = _iso(now_dt)
 
     reconciled_tasks: list[dict[str, Any]] = []
+    external_claims_to_verify: list[dict[str, str]] = []
     orphan_locks_released: list[str] = []
+    external_claim_locks_preserved = 0
     anomalies_resolved: list[str] = []
 
     active_progressing = 0
@@ -328,7 +365,7 @@ def reconcile_coordination_liveness(
     # 1. Scan all non-terminal tasks
     active_tasks = list(
         db[OPS_TASKS_COL].find(
-            {"status": {"$in": ["accepted", "in_progress", "verification", "blocked"]}},
+            {"status": {"$in": ["accepted", "claimed", "in_progress", "verification", "blocked"]}},
             {"_id": 0},
         )
     )
@@ -345,6 +382,17 @@ def reconcile_coordination_liveness(
         last_hb = _parse_iso(task.get("last_heartbeat_at"))
         last_prog = _parse_iso(task.get("last_progress_at"))
         is_frozen = bool(task.get("is_frozen"))
+
+        external_attention = external_claim_attention(task, now_dt)
+        if external_attention:
+            external_claims_to_verify.append({
+                "task_id": tid, "status": status, "reason": external_attention,
+            })
+        # External claims have a separate claim token and lease_until. Never
+        # requeue, mark completed, take over a worktree, or discard an agent's
+        # lease merely because a clock expired. Preserve owner until verified.
+        if status == "claimed" or is_external_managed_claim(task):
+            continue
 
         if status == "blocked":
             blocked_count += 1
@@ -448,6 +496,11 @@ def reconcile_coordination_liveness(
         is_lock_expired = bool(lexpiry and lexpiry <= now_dt)
         associated_task = db[OPS_TASKS_COL].find_one({"task_id": ltask_id}, {"_id": 0}) if ltask_id else None
         task_status = str((associated_task or {}).get("status") or "")
+        if associated_task and is_external_managed_claim(associated_task):
+            # A stale clock is not evidence that an external process ended.
+            # Preserve its repo lock until a verified owner handoff.
+            external_claim_locks_preserved += 1
+            continue
 
         if is_lock_expired or (associated_task and task_status in ["completed", "cancelled", "superseded", "blocked"]):
             orphan_locks_released.append(lresource)
@@ -483,9 +536,12 @@ def reconcile_coordination_liveness(
         "blocked": blocked_count,
         "retry_exhausted": retry_exhausted_count,
         "orphan_locks_released": orphan_locks_released,
+        "external_claim_locks_preserved": external_claim_locks_preserved,
         "stale_tasks_reconciled": len(reconciled_tasks),
         "reconciled_tasks": reconciled_tasks,
         "anomalies_resolved": anomalies_resolved,
+        "external_claims_requiring_verification_count": len(external_claims_to_verify),
+        "external_claims_requiring_verification": external_claims_to_verify[:40],
     }
 
 
@@ -496,7 +552,7 @@ def get_coordination_liveness_summary() -> dict[str, Any]:
 
     active_tasks = list(
         db[OPS_TASKS_COL].find(
-            {"status": {"$in": ["accepted", "in_progress", "verification"]}},
+            {"status": {"$in": ["accepted", "claimed", "in_progress", "verification"]}},
             {"_id": 0},
         )
     )
@@ -505,7 +561,19 @@ def get_coordination_liveness_summary() -> dict[str, Any]:
 
     progressing = 0
     frozen = 0
+    claimed_count = 0
+    attention: list[dict[str, str]] = []
     for t in active_tasks:
+        reason = external_claim_attention(t, now_dt)
+        if reason:
+            attention.append({
+                "task_id": str(t.get("task_id") or ""),
+                "status": str(t.get("status") or ""),
+                "reason": reason,
+            })
+        if t.get("status") == "claimed":
+            claimed_count += 1
+            continue
         if t.get("is_frozen") or (t.get("no_progress_heartbeat_count", 0) >= FROZEN_HEARTBEAT_THRESHOLD):
             frozen += 1
         else:
@@ -519,4 +587,8 @@ def get_coordination_liveness_summary() -> dict[str, Any]:
         "blocked_tasks_count": len(blocked_tasks),
         "active_locks_count": len(active_locks),
         "total_active_tasks": len(active_tasks),
+        "claimed_tasks_count": claimed_count,
+        "external_claims_requiring_verification_count": len(attention),
+        "external_claims_requiring_verification": attention[:40],
+        "external_claims_reassigned_by_summary": False,
     }
