@@ -607,9 +607,15 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
     model_kw: dict[str, Any] = {}
     if envelope.preferred_model:
         model_kw["model"] = envelope.preferred_model
+    structured_prompt = (
+        f"Task {envelope.task_id}: {prompt_body}\n\n"
+        "Return ONLY one JSON object (no markdown fences) with schema:\n"
+        '{"summary":"...", "files":[{"path":"platform/relative/path.py","content":"full file source"}]}\n'
+        "Paths must be repo-relative product files under allowed roots; content must be complete source."
+    )
     res = local_model_router.run_local_model(
         task_type=envelope.task_class or "coding",
-        prompt=f"Task {envelope.task_id}: {prompt_body}",
+        prompt=structured_prompt,
         **model_kw,
     )
     candidate = {

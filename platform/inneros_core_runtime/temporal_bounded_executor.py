@@ -328,7 +328,22 @@ def run_bounded_executor(
     work_branch = default_work_branch(envelope_dict)
     wt_path = _ensure_repo_worktree(envelope_dict, worktree)
 
+    model_text = str(candidate.get("response") or candidate.get("text") or "").strip()
+    materialization: dict[str, Any] = {}
+    if model_text and candidate.get("ok"):
+        from inneros_core_runtime import governed_model_writes as gmw
+
+        materialization = gmw.apply_candidate_response(
+            envelope_dict,
+            wt_path,
+            model_text=model_text,
+            actor=str(envelope_dict.get("assignee") or "temporal_bounded"),
+        )
+
+    # Bridge sync is not a substitute for product code from the model.
     sync_bridge = bool(envelope_dict.get("sync_bridge_artifacts", True))
+    if task_class == "coding" and model_text:
+        sync_bridge = bool(envelope_dict.get("sync_bridge_artifacts", False))
     touched = sync_bridge_artifacts(wt_path) if repo and sync_bridge else []
     marker_writes = _apply_required_objective_markers(envelope_dict, wt_path)
     required_objective = _parse_required_objective_paths(envelope_dict)
@@ -412,6 +427,11 @@ def run_bounded_executor(
         ok = False
         test_results["reason"] = "coding_task_requires_diff_or_files"
 
+    if task_class == "coding" and model_text and materialization and not materialization.get("ok"):
+        ok = False
+        test_results["reason"] = test_results.get("reason") or "model_materialization_failed"
+        test_results["materialization"] = materialization
+
     return {
         "ok": ok,
         "files_count": files_count,
@@ -424,6 +444,7 @@ def run_bounded_executor(
         "code_diff": code_diff,
         "test_results": test_results,
         "response": candidate.get("response") or candidate.get("text") or "",
+        "model_materialization": materialization,
         "worktree": str(wt_path),
         "candidate_only": False,
         "requires_bounded_executor": False,
