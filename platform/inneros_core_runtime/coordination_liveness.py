@@ -44,6 +44,17 @@ def _parse_iso(val: str | None) -> datetime | None:
         return None
 
 
+def is_external_managed_claim(task: dict[str, Any]) -> bool:
+    """An external claim owns a token/worktree and needs independent owner check."""
+    status = str(task.get("status") or "").lower()
+    if status not in {"claimed", "in_progress", "verification"}:
+        return False
+    owner = str(task.get("claimed_by") or task.get("assignee") or task.get("owner") or "").lower()
+    if owner not in EXTERNAL_CLAIM_OWNERS:
+        return False
+    return bool(status == "claimed" or task.get("lease_until") or task.get("claim_token"))
+
+
 def external_claim_attention(task: dict[str, Any], now: datetime | None = None) -> str | None:
     """Report expired external claims without reassigning the agent's worktree.
 
@@ -59,7 +70,7 @@ def external_claim_attention(task: dict[str, Any], now: datetime | None = None) 
         return None
     raw = str(task.get("lease_until") or "").strip()
     if not raw:
-        return "claim_lease_missing" if status == "claimed" else None
+        return "claim_lease_missing" if is_external_managed_claim(task) else None
     end = _parse_iso(raw)
     if end is None:
         return "claim_lease_invalid"
@@ -343,6 +354,7 @@ def reconcile_coordination_liveness(
     reconciled_tasks: list[dict[str, Any]] = []
     external_claims_to_verify: list[dict[str, str]] = []
     orphan_locks_released: list[str] = []
+    external_claim_locks_preserved = 0
     anomalies_resolved: list[str] = []
 
     active_progressing = 0
@@ -379,7 +391,7 @@ def reconcile_coordination_liveness(
         # External claims have a separate claim token and lease_until. Never
         # requeue, mark completed, take over a worktree, or discard an agent's
         # lease merely because a clock expired. Preserve owner until verified.
-        if status == "claimed" or (external_attention and task.get("lease_until")):
+        if status == "claimed" or is_external_managed_claim(task):
             continue
 
         if status == "blocked":
@@ -484,6 +496,11 @@ def reconcile_coordination_liveness(
         is_lock_expired = bool(lexpiry and lexpiry <= now_dt)
         associated_task = db[OPS_TASKS_COL].find_one({"task_id": ltask_id}, {"_id": 0}) if ltask_id else None
         task_status = str((associated_task or {}).get("status") or "")
+        if associated_task and is_external_managed_claim(associated_task):
+            # A stale clock is not evidence that an external process ended.
+            # Preserve its repo lock until a verified owner handoff.
+            external_claim_locks_preserved += 1
+            continue
 
         if is_lock_expired or (associated_task and task_status in ["completed", "cancelled", "superseded", "blocked"]):
             orphan_locks_released.append(lresource)
@@ -519,6 +536,7 @@ def reconcile_coordination_liveness(
         "blocked": blocked_count,
         "retry_exhausted": retry_exhausted_count,
         "orphan_locks_released": orphan_locks_released,
+        "external_claim_locks_preserved": external_claim_locks_preserved,
         "stale_tasks_reconciled": len(reconciled_tasks),
         "reconciled_tasks": reconciled_tasks,
         "anomalies_resolved": anomalies_resolved,
