@@ -50,3 +50,45 @@ def test_aggregated_blocker_report():
     report = pending_admission_summary(rows, provider="cursor", ready=False, not_ready_reason="cursor_api_key_missing")
     assert report["reasons"]["cursor_api_key_missing"] == 1
     assert report["reasons"]["owner_authorization_not_recorded"] == 1
+
+
+def test_autopilot_does_not_forge_ide_liveness():
+    from unittest.mock import patch, MagicMock
+    from scripts import cursor_ops_headless_autopilot as auto
+    status = {"available_slots": 0}
+    with (
+        patch.object(auto.lanes, "is_ha_execution_node", return_value=True),
+        patch.object(auto.lanes, "touch_node_liveness"),
+        patch.object(auto.lanes, "lane_status", return_value=status),
+        patch.object(auto.lanes, "available_slots", return_value=0),
+        patch.object(auto.cac, "cursor_api_key_status", return_value={"present": False, "source": "none"}),
+        patch.object(auto, "_missing_key_alert_once", return_value={"skipped": "cooldown"}),
+        patch.object(auto.cor, "list_claimable_ops_tasks", return_value={"tasks": []}),
+        patch.object(auto.mongo_store, "get_db", return_value=MagicMock()),
+        patch.object(auto.cep, "register_cursor_ide_session") as fake_ide,
+        patch.object(auto.cep, "register_cursor_consumer_heartbeat") as fake_consumer,
+    ):
+        output = auto.run(auto_claim=True, execute=True, limit=1)
+    fake_ide.assert_not_called()
+    fake_consumer.assert_not_called()
+    assert output["execution_blocker"] == "cursor_api_key_missing"
+
+
+def test_spawn_failure_does_not_leave_fake_running_reservation():
+    from unittest.mock import MagicMock, patch
+    from scripts import cursor_ops_headless_autopilot as auto
+    db = MagicMock()
+    db.__getitem__.return_value.find_one_and_update.return_value = {
+        "task_id": "ops_test",
+        "headless_execution_started_at": "2026-10-12T20:00:00+00:00",
+    }
+    with (
+        patch.object(auto.mongo_store, "get_db", return_value=db),
+        patch.object(auto.lanes, "hostname", return_value="ralfiia-amd"),
+        patch.object(auto.subprocess, "Popen", side_effect=FileNotFoundError("worker missing")),
+    ):
+        result = auto._spawn_background_execution("ops_test")
+    assert result["error"] == "worker_spawn_failed"
+    col = db.__getitem__.return_value
+    col.update_one.assert_called_once()
+    assert "$unset" in col.update_one.call_args.args[1]
