@@ -186,15 +186,9 @@ def run(*, auto_claim: bool | None = None, execute: bool | None = None, limit: i
     if not lanes.is_ha_execution_node():
         return {"ok": True, "skipped": "not_ha_execution_node", "host": lanes.hostname()}
 
+    # The autopilot timer is a dispatcher, not an authenticated Cursor IDE
+    # session or an inbox consumer. It must not create either heartbeat.
     lanes.touch_node_liveness()
-    cep.register_cursor_ide_session(
-        host=lanes.hostname(),
-        source="cursor_private_worker",
-        identity={"mailbox": "cursor", "role": "headless_autopilot", "host": lanes.hostname()},
-    )
-    cep.register_cursor_consumer_heartbeat(
-        identity={"mailbox": "cursor", "host": lanes.hostname(), "role": "inbox_consumer"},
-    )
 
     status = lanes.lane_status()
     key_status = cac.cursor_api_key_status()
