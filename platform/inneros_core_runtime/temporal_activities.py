@@ -215,6 +215,19 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     evidence_required = list(envelope_dict.get("evidence_required") or [])
     commit_sha = str(agent_result.get("commit_sha") or "").strip()
 
+    if _requires_observed_host_mutation(envelope_dict):
+        host_verified, host_evidence, postconditions = _observed_host_mutation_evidence(agent_result)
+        if not host_verified:
+            return {
+                "passed": False,
+                "error": (
+                    "Completion prohibited: host/deployment task requires observed host mutation "
+                    "and verified postconditions; generated files or passing unit tests are not deployment evidence"
+                ),
+                "host_execution": host_evidence,
+                "postconditions": postconditions,
+            }
+
     if commit_sha and task_class == "verification" and (
         not evidence_required or set(evidence_required) <= {"commit_sha"}
     ):
@@ -272,19 +285,6 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             "error": binding.get("message") or agent_result.get("response") or "execution_binding_blocked",
             "execution_binding": binding,
         }
-
-    if _requires_observed_host_mutation(envelope_dict):
-        host_verified, host_evidence, postconditions = _observed_host_mutation_evidence(agent_result)
-        if not host_verified:
-            return {
-                "passed": False,
-                "error": (
-                    "Completion prohibited: host/deployment task requires observed host mutation "
-                    "and verified postconditions; generated files or passing unit tests are not deployment evidence"
-                ),
-                "host_execution": host_evidence,
-                "postconditions": postconditions,
-            }
 
     if agent_result.get("ok") is False:
         bounded = agent_result.get("bounded_executor") or {}
