@@ -45,7 +45,7 @@ class InnerOSBranchLedgerTests(unittest.TestCase):
                     mod.request("test/repo", "compare/main...branch")
 
     def test_required_gate_has_unique_dispatch_and_unfiltered_pr(self):
-        workflow = FILE.parents[0] / ".github" / "workflows" / "inneros-runtime-gates.yml"
+        workflow = FILE.parents[1] / ".github" / "workflows" / "inneros-runtime-gates.yml"
         source = workflow.read_text(encoding="utf-8")
         self.assertEqual(source.count("  workflow_dispatch:"), 1)
         self.assertIn("  pull_request:\n", source)
