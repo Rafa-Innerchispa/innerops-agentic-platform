@@ -24,11 +24,12 @@ Política de modelos vigente:
 - AG-60 `ops_5ffa304380cc`: cerrada en coordinación con timers y muestras Mongo registradas; su cierre de Temporal no fue certificado de manera independiente.
 - Algunos componentes de A2A/LangGraph/NATS/OTel solo tienen integración parcial/no certificada. Flags vivos vistos: `INNEROS_TEMPORAL_ENABLED=true`, `INNEROS_NATS_ENABLED=false`, `INNEROS_OTEL_ENABLED=false`.
 
-## 3. Causa material verificada: dos routers locales diferentes
-El scheduler `platform/inneros_core_runtime/dev_swarm_scheduler.py` importa `local_model_router` de **`raphiia_openai`**, no el otro:
-- `platform/raphiia_openai/local_model_router.py` en Intel usa como ruta predeterminada del túnel vLLM AMD `http://127.0.0.1:18000`; si su health probe a `/v1/models` falla, retorna `amd_vllm_unreachable` sin efectuar fallback Intel/Ollama en esa ruta.
-- `platform/inneros_core_runtime/local_model_router.py` define distinto default Intel `http://192.168.1.5:8001` y contiene `_intel_ollama_fallback`. **No declarar ninguna URL correcta por defecto**: comparar ENV efectivo de cada proceso, binding del servidor `127.0.0.1:8000`, túneles reales y GET /v1/models desde el ejecutor en cada host.
-- Una corrección aplicada al router no importado **no arregla el scheduler**. Resolver única fuente canónica y fallback seguro con tests de fallos de transporte, modelo inexistente y respuesta inválida.
+## 3. Router local CANÓNICO: rectificación del diagnóstico (12 oct ~05:35 UTC)
+El scheduler usa `from raphiia_openai import local_model_router`; **eso NO implica que cargue el archivo legado** `platform/raphiia_openai/local_model_router.py`. El `platform/raphiia_openai/__init__.py` es un shim de compatibilidad que define `__path__ = inneros_core_runtime.__path__`, por lo que la importación normal de `raphiia_openai.local_model_router` resuelve el código de **`platform/inneros_core_runtime/local_model_router.py`**. El router canónico ya implementa `_intel_ollama_fallback`.
+
+La hipótesis anterior, según la cual Dev Swarm utilizaba una copia sin fallback, fue **refutada al inspeccionar el shim**. Se conserva como antecedente histórico, NO como tarea para modificar el router legado. La verdadera causa de errores `amd_vllm_unreachable` sigue **sin comprobarse en el proceso productivo**: verificar en AMD e Intel el `module.__file__`, URL activa, túneles/env, `GET /v1/models`, modelos disponibles Ollama `/api/tags`, logs de llamadas y el resultado real del fallback.
+
+En GitHub **PR #145** se convirtió deliberadamente en cobertura de tests y CI (sin alterar módulos productivos): exige que Dev Swarm use el módulo canónico y prueba fallbacks exitosos y negativos. CI `critical-runtime-contracts` PASS **71/71**, GitGuardian PASS, merge SHA `7f6c52aca61d1e243de62cf5de38ba8b3849f49f`. CI NO sustituye el canario de proceso vivo.
 
 ## 4. Distinción necesaria: ROCm 10/ROCm.AI/AMD Skills vs InnerOS
 **AMD ROCm 10** mejora la plataforma de cómputo GPU. **ROCm.AI** integra ROCm CLI, Hyperloom y **AMD Skills**, con procedimientos validados para agentes de programación (Cursor/Codex/etc). El catálogo oficial de AMD: <https://github.com/amd/skills> y documentación: <https://rocm.docs.amd.com/projects/amd-skills/en/latest/>. Instalar una skill AMD pone instrucciones/herramientas a disposición de un agente que la admita; **no** instala automáticamente todo el contrato de dispatch de InnerOS (task admission, autorización, secretos, worktrees, ciclo Temporal, reintentos, evidencias, release AMD/Intel, failover). Algunas skills pueden necesitar configuración específica de servidor/proveedor y confirmación de compatibilidad del hardware.
@@ -70,11 +71,20 @@ El scheduler `platform/inneros_core_runtime/dev_swarm_scheduler.py` importa `loc
 - Documentación previa `platform/docs/INNEROS_LOCAL_AGENT_FABRIC.md` y `platform/docs/AI_COORDINATION.md` conserva antecedentes útiles pero referencias de agosto y políticas ya superadas; **este archivo prevalece para el handoff del 12 de octubre**, mientras los procesos, Mongo/Temporal y GitHub aportan el estado vivo.
 
 ## 10. Cierre operativo verificado (2026-10-12 ~05:25 UTC)
-- **GitHub `main`:** incluye PR #144 fusionado, fix inbox (`poll_agent_inbox` + estados visibles), proyección Mongo Temporal vía `mongo_store`, fallback vLLM→Ollama en `raphiia_openai/local_model_router.py`, helper `completion_evidence_from_worktree`.
+- **GitHub `main`:** incluye PR #144 fusionado, fix inbox (`poll_agent_inbox` + estados visibles), proyección Mongo Temporal vía `mongo_store`, fallback vLLM→Ollama en el router CANÓNICO `inneros_core_runtime/local_model_router.py` (importado por shim de `raphiia_openai`); no se modificó el legado, helper `completion_evidence_from_worktree`.
 - **Mensajería:** `poll_agent_inbox(agent=cursor)` vuelve a listar mensajes `acknowledged` con tareas activas; consumer sigue ACK solo `open`.
-- **Ops canario E2E:** `ops_bb2b8a9eb081` / `ops_e0b587b1098e` → Temporal **COMPLETED/failed** (gate pre-PR144); Mongo alineado **failed** (no éxito ficticio). `ops_d45afea0028e` → **failed** (claim stale).
-- **Runtime:** espejo HA AMD↔Intel ejecutado; autopilot headless activo en ambos nodos; `test_execution_receipts` PASS en AMD.
+- **Ops canario E2E:** `ops_bb2b8a9eb081` → Mongo `failed` (gate anterior); `ops_e0b587b1098e` continúa `in_progress` según última lectura pese a registrar sincronización temporal; verificar historial de workflow y NO declarar cierre Intel. `ops_d45afea0028e` → `failed` (claim stale).
+- **Runtime:** Cursor reporta haber ejecutado el espejo HA y autopilot headless en ambos nodos; los runtimes productivos y hashes requieren comprobación independiente. AMD peer observability responde, Intel peer helper observability RC126; el workspace registrado en Intel informó `venv_exists=false`, que NO prueba estado del venv productivo. Tests de receipts reportados PASS en AMD.
 - **Pendiente certificación final:** cierre terminal **`ops_f46a62594c73`** con evidencia Git + señal Temporal + Dev Swarm dispatch medido (4 carriles).
 
-## 10. Decisión sobre Kubernetes / K3s (2026-10-12)
+## 11. Decisión sobre Kubernetes / K3s (2026-10-12)
 - Ver [ADR_20261012_KUBERNETES_VS_INNEROS_COORDINATION.md](ADR_20261012_KUBERNETES_VS_INNEROS_COORDINATION.md): **Kubernetes NO es prerrequisito de cierre P0**, no sustituye InnerOS/Temporal/Mongo/receipts ni requiere migración inmediata. K3s se evalúa posteriormente por supervisión, despliegues y escalado; con 2 nodos no se presume HA de control plane con etcd embebido. No introducir dependencias ocultas: exigir bloqueo real reproducible y autorización antes de cambiar el alcance.
+
+## 12. Punto vivo verificado por ChatGPT (12 oct, ~05:36 UTC)
+- GitHub PR #144 y PR #145 **fusionados**. PR #145 fue `test/CI`, con 71 pruebas aprobadas, sin despliegue ni reparación de endpoints productivos por sí mismo.
+- `ops_f46a62594c73` permanecía **`verification`** con `candidate_evidence.commit_sha=80b03a54` y `objective_paths=[platform/docs/P0_F46_CLOSURE_EVIDENCE.md]`; señal Temporal recibida, pero **no se confirmó Mongo terminal**. Es un marcador documental, no evidencia de que Codex, Antigravity y Dev Swarm estén todos operativos.
+- `ops_d45afea0028e` y `ops_bb2b8a9eb081` estaban `failed`; `ops_e0b587b1098e` seguía `in_progress`, con error de gate anterior. Mantener historial sin repetir efectos.
+- Dev Swarm `enabled`, `max_concurrent=4`, **0 workers y 0 lanzamientos en última iteración**. La GPU AMD tiene vLLM/Qwen cargado; falta certificar health + fallback en tarea local real.
+- `AGENTS.md` root, README y reglas Cursor apuntan a esta continuidad; **todos los agentes** deben usarla como entrada y verificar estado vivo.
+- Existe adaptador `interactive_ops_runner.py` para Codex/Antigravity, pero no hay prueba compartida todavía de ejecución autónoma headless y cierre final en esos proveedores. Las tarjetas de agentes A2A registradas NO son canarios reales.
+- Pendiente: canario local Dev Swarm coding real, Cursor AMD/Intel terminal, pruebas Codex/Antigravity según runner disponible, rutas read-only con evidence, recuperación de PID/lease y versión SHA de código importado en AMD e Intel; coordinar por la MISMA línea P0 y evitar tareas duplicadas.
