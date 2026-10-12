@@ -21,6 +21,24 @@ HEARTBEAT_TTL_SECONDS = 300
 SESSION_FILE = Path.home() / ".inneros" / "agent_sessions" / "cursor.json"
 MCP_HEALTH_URL = os.getenv("RALFIA_MCP_HEALTH_URL", "http://127.0.0.1:8102/health")
 
+# Infrastructure must not masquerade as an interactive Cursor IDE/agent session.
+INFRASTRUCTURE_HEARTBEAT_SOURCES = frozenset(
+    {
+        "cursor_ops_runner.claim",
+        "cursor_ops_orchestrator",
+        "interactive_ops_runner.claim",
+        "cursor_coordination_boot",
+    }
+)
+AUTHENTIC_CONSUMER_SOURCES = frozenset(
+    {
+        "cursor_inbox_consumer",
+        "cursor_private_worker",
+        "cursor_ide_agent_session",
+        "cursor_mcp_consumer_poll",
+    }
+)
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -58,6 +76,17 @@ def _sanitize_identity(raw: dict[str, Any] | None) -> dict[str, Any]:
     return {k: ident[k] for k in keys if ident.get(k) is not None}
 
 
+def _heartbeat_counts_as_active_session(*, source: str, consumer_authentic: bool | None) -> bool:
+    if consumer_authentic is not None:
+        return bool(consumer_authentic)
+    src = (source or "").strip()
+    if src in INFRASTRUCTURE_HEARTBEAT_SOURCES:
+        return False
+    if src in AUTHENTIC_CONSUMER_SOURCES:
+        return True
+    return False
+
+
 def register_session_heartbeat(
     *,
     identity: dict[str, Any] | None = None,
@@ -66,9 +95,11 @@ def register_session_heartbeat(
     role: str = "",
     pid: int | None = None,
     source: str = "cursor_coordination_boot",
+    consumer_authentic: bool | None = None,
 ) -> dict[str, Any]:
-    """Persist liveness for the active Cursor agent session (Mongo + local file)."""
+    """Persist liveness metadata. Only authentic consumer heartbeats mark session active."""
     ident = _sanitize_identity(identity)
+    counts = _heartbeat_counts_as_active_session(source=source, consumer_authentic=consumer_authentic)
     payload = {
         "agent": "cursor",
         "identity": ident,
@@ -79,6 +110,8 @@ def register_session_heartbeat(
         "source": source,
         "last_seen_at": _now(),
         "transport": "interactive_agent_session",
+        "consumer_authentic": counts,
+        "counts_as_active_session": counts,
     }
     file_ok = False
     try:
@@ -95,7 +128,35 @@ def register_session_heartbeat(
         mongo_ok = True
     except Exception:
         pass
-    return {"ok": file_ok or mongo_ok, "file_ok": file_ok, "mongo_ok": mongo_ok, "session": payload}
+    return {
+        "ok": file_ok or mongo_ok,
+        "file_ok": file_ok,
+        "mongo_ok": mongo_ok,
+        "session": payload,
+        "counts_as_active_session": counts,
+    }
+
+
+def register_cursor_consumer_heartbeat(
+    *,
+    identity: dict[str, Any] | None = None,
+    host: str = "",
+    lane: str = "cursor_interactive",
+    role: str = "inbox_consumer",
+    source: str = "cursor_inbox_consumer",
+) -> dict[str, Any]:
+    """Called only by the live Cursor agent consumer (private worker / IDE bridge)."""
+    ident = dict(identity or {})
+    ident.setdefault("mailbox", "cursor")
+    ident.setdefault("raw_agent", "cursor")
+    return register_session_heartbeat(
+        identity=ident,
+        host=host,
+        lane=lane,
+        role=role,
+        source=source,
+        consumer_authentic=True,
+    )
 
 
 def read_session_liveness(*, ttl_seconds: int = HEARTBEAT_TTL_SECONDS) -> dict[str, Any]:
@@ -120,16 +181,26 @@ def read_session_liveness(*, ttl_seconds: int = HEARTBEAT_TTL_SECONDS) -> dict[s
     last_seen = _parse_ts((session or {}).get("last_seen_at"))
     age_seconds = None
     active = False
+    counts = bool((session or {}).get("counts_as_active_session"))
+    if (session or {}).get("consumer_authentic") is True:
+        counts = True
+    elif (session or {}).get("source") in INFRASTRUCTURE_HEARTBEAT_SOURCES:
+        counts = False
     if last_seen:
         age_seconds = max(0, int((datetime.now(timezone.utc) - last_seen).total_seconds()))
-        active = age_seconds <= int(ttl_seconds)
+        active = counts and age_seconds <= int(ttl_seconds)
     return {
         "ok": True,
         "active": active,
+        "consumer_authentic": counts,
         "source": source or "none",
         "age_seconds": age_seconds,
         "ttl_seconds": int(ttl_seconds),
         "session": session or {},
+        "limitation": (
+            "Headless unattended Cursor CLI is not supported on this host; "
+            "delivery uses ide_inbox + authentic consumer heartbeat."
+        ),
     }
 
 

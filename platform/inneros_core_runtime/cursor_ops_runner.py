@@ -202,18 +202,16 @@ def claim_ops_task(
     owner_actor: str = "RAFAEL",
 ) -> dict[str, Any]:
     """Exclusive claim for active Cursor session (Composer model pinned)."""
-    cep.register_session_heartbeat(
-        host=_host(),
-        source="cursor_ops_runner.claim",
-        role="ops_executor",
-    )
     classified = cep.classify_cursor_execution()
     if classified.get("execution_classification") not in {"partial", "headless_ready"}:
         return {
             "ok": False,
             "error": "cursor_session_not_ready",
             "classification": classified,
-            "hint": "Abre sesión Cursor en el host o autoriza vía owner_approved tras WhatsApp.",
+            "hint": (
+                "Requiere consumidor Cursor auténtico (cursor_inbox_consumer / sesión IDE). "
+                "Los heartbeats de cursor_ops_runner no activan sesión."
+            ),
         }
 
     db = mongo_store.get_db()
@@ -361,15 +359,19 @@ def claim_ops_task(
             "worktree": worktree_path,
         },
     )
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": tid, "claim_token": token},
+        {"$set": {"status": "in_progress", "execution_started_at": now, "updated_at": now}, "$inc": {"revision": 1}},
+    )
     heartbeat_ops_task(
         tid,
         actor="cursor",
-        phase="claimed",
+        phase="in_progress",
         current_step="cursor_interactive",
         last_progress=f"Claimed on {_host()} model={CURSOR_PINNED_MODEL}",
     )
 
-    binding = eb.resolve_execution_binding({**claimed, "owner_approved": True, "assignee": "cursor"})
+    binding = eb.resolve_execution_binding({**claimed, "owner_approved": True, "assignee": "cursor", "status": "in_progress"})
     return {
         "ok": True,
         "task_id": tid,
@@ -462,6 +464,7 @@ def complete_ops_task(
         {
             "$set": {
                 "status": "verification",
+                "executed_at": now,
                 "updated_at": now,
                 "completion_submitted_at": now,
                 "candidate_evidence": ev,
@@ -469,6 +472,13 @@ def complete_ops_task(
             },
             "$inc": {"revision": 1},
         },
+    )
+    heartbeat_ops_task(
+        tid,
+        actor="cursor",
+        phase="executed",
+        current_step="cursor_execution_complete",
+        last_progress="Evidence submitted; awaiting Temporal verification gate",
     )
     _publish_task_event(
         "task.verification",
