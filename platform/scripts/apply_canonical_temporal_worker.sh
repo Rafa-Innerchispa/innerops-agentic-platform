@@ -16,7 +16,8 @@ fi
 if [[ "$_is_intel" == 1 ]]; then
   QUEUES="${TEMPORAL_WORKER_QUEUES:-inneros-general-ops,inneros-intel-ops}"
 else
-  QUEUES="${TEMPORAL_WORKER_QUEUES:-inneros-amd-gpu-ops}"
+  # Cada nodo tiene Temporal en 127.0.0.1:7233; general-ops debe existir donde se crean workflows.
+  QUEUES="${TEMPORAL_WORKER_QUEUES:-inneros-general-ops,inneros-amd-gpu-ops}"
 fi
 cat >"$DROPIN_DIR/canonical-platform.conf" <<EOF
 [Service]
