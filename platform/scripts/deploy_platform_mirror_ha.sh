@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Réplica espejo AMD ↔ Intel: mismo código platform, workers Temporal en ambos nodos, MCP activo en ambos.
-# Roles: AMD = primario (GPU, ejecución Cursor headless, AG-60 collector). Intel = secundario (Mongo, cola intel-ops).
+# Roles: AMD = GPU + AG-60; Intel = Mongo + cola intel-ops. Cursor headless HA: ambos nodos, 2 carriles/nodo (ampliable).
 # Un nodo caído → el otro sigue sirviendo MCP + drenando colas Temporal compartidas.
 set -euo pipefail
 
@@ -70,10 +70,7 @@ EOF
 install_cursor_headless_autopilot_timer() {
   local target="$1"
   local node_role="$2"
-  if [[ "$node_role" != "amd" ]]; then
-    echo "== skip cursor headless autopilot on ${target} (secondary)"
-    return 0
-  fi
+  local machine_name="$3"
   local run_remote
   if [[ "$target" == "localhost" ]] || [[ "$target" == "$(local_host)" ]]; then
     run_remote() { bash -s <<<"$1"; }
@@ -85,13 +82,36 @@ install_cursor_headless_autopilot_timer() {
 set -euo pipefail
 U=\${XDG_CONFIG_HOME:-\$HOME/.config}/systemd/user
 mkdir -p "\$U"
-cp -f '${PLATFORM}/systemd/user/inneros-cursor-headless-autopilot.service' "\$U/"
-cp -f '${PLATFORM}/systemd/user/inneros-cursor-headless-autopilot.timer' "\$U/"
+S="\$U/inneros-cursor-headless-autopilot.service"
+T="\$U/inneros-cursor-headless-autopilot.timer"
+cp -f '${PLATFORM}/systemd/user/inneros-cursor-headless-autopilot.timer' "\$T"
+cat > "\$S" <<UNIT
+[Unit]
+Description=InnerOS Cursor HA headless autopilot (${node_role})
+ConditionPathExists=${PLATFORM}/scripts/cursor_ops_headless_autopilot.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=${PLATFORM}
+Environment=PYTHONPATH=${PLATFORM}
+Environment=INNEROS_NODE_ROLE=${node_role}
+Environment=INNEROS_CURSOR_MACHINE_NAME=${machine_name}
+Environment=INNEROS_CURSOR_HA_DUAL=1
+Environment=INNEROS_CURSOR_MAX_CONCURRENT=2
+Environment=INNEROS_CURSOR_MAX_CONCURRENT_CEILING=8
+Environment=INNEROS_CURSOR_AUTO_CLAIM=1
+Environment=INNEROS_CURSOR_HEADLESS_EXECUTE=1
+Environment=INNEROS_CURSOR_DISPATCH_MODE=auto
+EnvironmentFile=-${PLATFORM}/.env
+ExecStart=${PLATFORM}/venv/bin/python3 ${PLATFORM}/scripts/cursor_ops_headless_autopilot.py
+TimeoutStartSec=180
+UNIT
 systemctl --user daemon-reload
 systemctl --user enable --now inneros-cursor-headless-autopilot.timer
 systemctl --user is-active inneros-cursor-headless-autopilot.timer
 EOF
 )
+  echo "== cursor HA autopilot on ${target} role=${node_role} machine=${machine_name}"
   run_remote "$timer_cmd"
 }
 
@@ -140,8 +160,8 @@ PEER_ROLE=intel
 activate_node "localhost"
 activate_node "$PEER"
 
-install_cursor_headless_autopilot_timer "localhost" "$LOCAL_ROLE"
-install_cursor_headless_autopilot_timer "$PEER" "$PEER_ROLE"
+install_cursor_headless_autopilot_timer "localhost" "$LOCAL_ROLE" "$ME"
+install_cursor_headless_autopilot_timer "$PEER" "$PEER_ROLE" "$PEER"
 
 install_notion_autopilot_timer "localhost"
 install_notion_autopilot_timer "$PEER"
