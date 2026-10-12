@@ -1,5 +1,12 @@
 # RaphiIA-OpenAI — instrucciones Cursor
 
+## Actualización canónica InnerOS (2026-10-12)
+
+**Precedencia sobre instrucciones históricas inferiores:** antes de ejecutar leer [continuidad actual](docs/INNEROS_COORDINATION_CONTINUITY_20261012.md) y el [AGENTS.md raíz](../AGENTS.md). Comprobar primero el estado vivo del task ID en Mongo/Temporal, el lease, el worker realmente activo, GitHub y hashes de los nodos; jamás inferir ejecución por ACK/claim/PID ni repetir trabajos cerrados. Los comandos de arranque del Intel y del viejo directorio `/home/rlopez/projects/raphiia-openai` que aparecen más abajo son **históricos y específicos del bridge**, no son el punto de entrada universal de InnerOS. El trabajo puede ejecutarse headless en AMD o Intel y no requiere laptop abierta. **No modificar worktrees ajenos ni reiniciar procesos sin preflight y rollback.**
+
+La política vigente permite a Cursor, Codex y Antigravity usar sus propios modelos y créditos aprobados. Los carriles internos prefieren Qwen/vLLM en AMD y Ollama en Intel. El estado terminal requiere evidencia real y aprobación de Temporal. **PR #144 es candidato** hasta verificarse/mergearse en main y desplegarse; consultar su estado real antes de intervenir.
+
+
 **Proyecto:** puente **MCP** ChatGPT ↔ MongoDB RalfyIA (contenido + conversaciones)  
 **Servidor:** `192.168.1.4` (`ralphi-ia-ver-10`) — **workspace remoto obligatorio**  
 **Ruta:** `/home/rlopez/projects/raphiia-openai`  
