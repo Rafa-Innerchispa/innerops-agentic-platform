@@ -2,12 +2,19 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from raphiia_openai import local_model_router as lmr
 
 
 class LocalModelRouterFallbackTests(unittest.TestCase):
+    def test_scheduler_uses_active_canonical_router_from_shim(self):
+        from inneros_core_runtime import dev_swarm_scheduler as scheduler
+        self.assertIs(scheduler.local_model_router, lmr)
+        self.assertEqual(Path(lmr.__file__).parent.name, "inneros_core_runtime")
+        self.assertTrue(callable(getattr(lmr, "_intel_ollama_fallback", None)))
+
     @patch.object(lmr, "_intel_ollama_fallback")
     @patch.object(lmr, "_http_ok")
     @patch.object(lmr, "local_model_health")
