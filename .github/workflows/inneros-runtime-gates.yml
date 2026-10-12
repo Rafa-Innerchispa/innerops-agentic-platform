@@ -140,7 +140,8 @@ jobs:
             platform/tests/test_a2a_bridge.py \
             platform/tests/test_temporal_bounded_executor.py \
             platform/tests/test_coordination_liveness.py \
-            platform/tests/test_anti_freeze_scheduler.py
+            platform/tests/test_anti_freeze_scheduler.py \
+            platform/tests/test_ops_auto_claim_admission.py
       - name: Produce CI-only provenance manifest
         env:
           INNEROS_COMMIT: ${{ github.sha }}
