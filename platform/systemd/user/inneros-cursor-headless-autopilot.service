@@ -1,0 +1,13 @@
+[Unit]
+Description=InnerOS Cursor headless autopilot tick (AMD primary — claim + optional SDK)
+ConditionPathExists=/home/rlopez/inneros/inneros_core/platform/scripts/cursor_ops_headless_autopilot.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+Environment=INNEROS_NODE_ROLE=amd
+Environment=INNEROS_CURSOR_EXECUTION_PRIMARY=1
+EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/cursor_ops_headless_autopilot.py
+TimeoutStartSec=120

@@ -3,7 +3,7 @@
 
 Run on a trusted self-hosted AMD/Intel runner. Never fetch or execute code from
 untrusted pull requests. The workflow pins a reviewed main SHA and does not
-permit arbitrary shell commands, arbitrary destination paths, or rsync --delete.
+permit arbitrary shell commands, arbitrary destination paths, or destructive bulk sync.
 """
 from __future__ import annotations
 

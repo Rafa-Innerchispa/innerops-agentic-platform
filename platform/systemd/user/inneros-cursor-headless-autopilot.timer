@@ -1,0 +1,10 @@
+[Unit]
+Description=Cursor headless autopilot every 2 minutes (AMD primary only)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

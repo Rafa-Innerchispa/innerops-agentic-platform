@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Réplica espejo AMD ↔ Intel: mismo código platform, workers Temporal en ambos nodos, MCP activo en ambos.
+# Roles: AMD = primario (GPU, ejecución Cursor headless, AG-60 collector). Intel = secundario (Mongo, cola intel-ops).
 # Un nodo caído → el otro sigue sirviendo MCP + drenando colas Temporal compartidas.
 set -euo pipefail
 
@@ -43,7 +44,11 @@ activate_node() {
   fi
 
   local node_role=amd
-  if [[ "$target" != "localhost" ]]; then
+  local me
+  me="$(local_host)"
+  if [[ "$target" != "localhost" ]] && [[ "$target" != "$me" ]]; then
+    node_role=intel
+  elif [[ "$me" == *intel* ]]; then
     node_role=intel
   fi
   echo "== activate ${target} (INNEROS_NODE_ROLE=${node_role})"
@@ -62,7 +67,39 @@ EOF
   run_remote "$cmd"
 }
 
+install_cursor_headless_autopilot_timer() {
+  local target="$1"
+  local node_role="$2"
+  if [[ "$node_role" != "amd" ]]; then
+    echo "== skip cursor headless autopilot on ${target} (secondary)"
+    return 0
+  fi
+  local run_remote
+  if [[ "$target" == "localhost" ]] || [[ "$target" == "$(local_host)" ]]; then
+    run_remote() { bash -s <<<"$1"; }
+  else
+    run_remote() { ssh -o BatchMode=yes "$target" "bash -s" <<<"$1"; }
+  fi
+  local timer_cmd
+  timer_cmd=$(cat <<EOF
+set -euo pipefail
+U=\${XDG_CONFIG_HOME:-\$HOME/.config}/systemd/user
+mkdir -p "\$U"
+cp -f '${PLATFORM}/systemd/user/inneros-cursor-headless-autopilot.service' "\$U/"
+cp -f '${PLATFORM}/systemd/user/inneros-cursor-headless-autopilot.timer' "\$U/"
+systemctl --user daemon-reload
+systemctl --user enable --now inneros-cursor-headless-autopilot.timer
+systemctl --user is-active inneros-cursor-headless-autopilot.timer
+EOF
+)
+  run_remote "$timer_cmd"
+}
+
 install_notion_autopilot_timer() {
+  if [[ "${INNEROS_INSTALL_NOTION_AUTOPILOT:-0}" != "1" ]]; then
+    echo "== skip Notion autopilot (set INNEROS_INSTALL_NOTION_AUTOPILOT=1 to enable)"
+    return 0
+  fi
   local target="$1"
   local run_remote
   if [[ "$target" == "localhost" ]] || [[ "$target" == "$(local_host)" ]]; then
@@ -95,8 +132,16 @@ echo "Local: $ME  Peer: $PEER  Platform: $PLATFORM"
 
 sync_to_peer "$PEER"
 
+LOCAL_ROLE=amd
+[[ "$ME" == *intel* ]] && LOCAL_ROLE=intel
+PEER_ROLE=intel
+[[ "$LOCAL_ROLE" == intel ]] && PEER_ROLE=amd
+
 activate_node "localhost"
 activate_node "$PEER"
+
+install_cursor_headless_autopilot_timer "localhost" "$LOCAL_ROLE"
+install_cursor_headless_autopilot_timer "$PEER" "$PEER_ROLE"
 
 install_notion_autopilot_timer "localhost"
 install_notion_autopilot_timer "$PEER"
