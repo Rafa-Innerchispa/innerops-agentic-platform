@@ -103,7 +103,7 @@ class LocalGithubPlaneTests(unittest.TestCase):
         calls = []
         def fake_open(request, timeout=30):
             calls.append(request)
-            if request.full_url.endswith("/repos/issue-probe"):
+            if request.full_url.endswith("/repos/Rafa-Innerchispa/issue-probe"):
                 raise HTTPError(request.full_url, 404, "Not found", {}, BytesIO(b""))
             if request.full_url.endswith("/user"):
                 return Resp({"login": "Rafa-Innerchispa"})
