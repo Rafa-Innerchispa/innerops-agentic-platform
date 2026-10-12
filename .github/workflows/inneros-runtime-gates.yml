@@ -8,6 +8,9 @@ on:
       - "platform/inneros_core_runtime/capability_gateway_peer.py"
       - "platform/tests/test_capability_gateway.py"
       - "platform/tests/test_capability_gateway_regressions_p0.py"
+      - "platform/inneros_core_runtime/execution_receipts.py"
+      - "platform/scripts/cursor_ops_headless_execute_one.py"
+      - "platform/tests/test_execution_receipts.py"
       - "platform/inneros_core_runtime/temporal_activities.py"
       - "platform/inneros_core_runtime/temporal_workflows.py"
       - "platform/inneros_core_runtime/agents/pool_agent_runners.py"
@@ -72,6 +75,9 @@ jobs:
             platform/inneros_core_runtime/capability_gateway_peer.py \
             scripts/inneros_local_release_executor.py \
             platform/tests/test_capability_gateway_regressions_p0.py \
+            platform/inneros_core_runtime/execution_receipts.py \
+            platform/scripts/cursor_ops_headless_execute_one.py \
+            platform/tests/test_execution_receipts.py \
             platform/inneros_core_runtime/temporal_activities.py \
             platform/inneros_core_runtime/agents/pool_agent_runners.py \
             platform/tests/test_global_coordination_guards.py \
@@ -84,6 +90,7 @@ jobs:
           python -m pytest -q \
             platform/tests/test_global_coordination_guards.py \
             platform/tests/test_execution_binding.py \
+            platform/tests/test_execution_receipts.py \
             platform/tests/test_capability_gateway.py \
             platform/tests/test_capability_gateway_regressions_p0.py \
             platform/tests/test_peer_ops_runner_contract.py \
