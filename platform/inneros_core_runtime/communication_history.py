@@ -171,12 +171,22 @@ def compare_snapshots(previous: dict[str, Any], current: dict[str, Any]) -> list
     return events
 
 
+def _mongo_uri(mongo_uri: str | None = None) -> str:
+    if mongo_uri:
+        return mongo_uri
+    try:
+        from raphiia_openai import mongo_store
+
+        return mongo_store.MONGO_URI
+    except Exception:
+        return os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
+
+
 def write_history(snapshot: dict[str, Any], mongo_uri: str | None = None) -> dict[str, Any]:
     """Store reduced snapshots in the site's local MongoDB. This never writes to devices."""
     try:
         from pymongo import MongoClient
-        with MongoClient(mongo_uri or os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017"),
-                         serverSelectionTimeoutMS=1500) as client:
+        with MongoClient(_mongo_uri(mongo_uri), serverSelectionTimeoutMS=1500) as client:
             db = client["pcdoctor_swarm"]
             site_id = snapshot["site_id"]
             prior = db.communication_observation.find_one(
@@ -193,9 +203,14 @@ def write_history(snapshot: dict[str, Any], mongo_uri: str | None = None) -> dic
                 "gateway_findings": snapshot.get("gateway_findings", []),
                 "gaps": snapshot.get("gaps", []),
             }
-            db.communication_observation.insert_one(compact)
+            inserted = db.communication_observation.insert_one(compact)
             if events:
                 db.communication_event.insert_many(events)
-            return {"ok": True, "events": events, "events_written": len(events)}
+            return {
+                "ok": True,
+                "observation_id": str(inserted.inserted_id),
+                "events": events,
+                "events_written": len(events),
+            }
     except Exception as exc:
         return {"ok": False, "error": type(exc).__name__, "detail": str(exc)[:160]}

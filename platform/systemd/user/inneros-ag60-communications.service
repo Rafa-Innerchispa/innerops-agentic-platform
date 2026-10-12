@@ -7,7 +7,8 @@ After=network-online.target
 Type=oneshot
 WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
 Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
-ExecStart=/usr/bin/python3 -m inneros_core_runtime.communication_runner --site home_pcdoctor_lab --save
+EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 -m inneros_core_runtime.communication_runner --site home_pcdoctor_lab --save
 TimeoutStartSec=90
 NoNewPrivileges=true
 PrivateTmp=true

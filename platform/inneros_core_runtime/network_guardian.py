@@ -122,12 +122,22 @@ def correlate_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return findings
 
 
+def _mongo_uri(mongo_uri: str | None = None) -> str:
+    if mongo_uri:
+        return mongo_uri
+    try:
+        from raphiia_openai import mongo_store
+
+        return mongo_store.MONGO_URI
+    except Exception:
+        return os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
+
+
 def persist_snapshot(snapshot: dict[str, Any], *, mongo_uri: str | None = None) -> dict[str, Any]:
     """Optional local Mongo persistence; do not turn unavailable DB into success."""
     try:
         from pymongo import MongoClient
-        with MongoClient(mongo_uri or os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017"),
-                         serverSelectionTimeoutMS=1200) as client:
+        with MongoClient(_mongo_uri(mongo_uri), serverSelectionTimeoutMS=1200) as client:
             db = client["pcdoctor_swarm"]
             existing = {r["ip"]: r for r in db.network_device_state.find(
                 {"site_id": snapshot["site_id"]}, {"_id": 0})}
@@ -165,11 +175,16 @@ def persist_snapshot(snapshot: dict[str, Any], *, mongo_uri: str | None = None) 
                         {"site_id": snapshot["site_id"], "ip": ip},
                         {"$set": {"health": "UNKNOWN", "reachable": None,
                                   "last_failed_at": snapshot["observed_at"]}})
-            db.network_device_samples.insert_one(snapshot)
+            sample_doc = dict(snapshot)
+            inserted = db.network_device_samples.insert_one(sample_doc)
             if events:
                 db.network_device_events.insert_many(events)
-            return {"ok": True, "transitions": events,
-                    "findings": correlate_events(events)}
+            return {
+                "ok": True,
+                "sample_id": str(inserted.inserted_id),
+                "transitions": events,
+                "findings": correlate_events(events),
+            }
     except (ImportError, Exception) as exc:
         return {"ok": False, "error": type(exc).__name__, "detail": str(exc)[:140]}
 
@@ -183,7 +198,10 @@ def main() -> None:
     snapshot = scan_site(args.site, args.limit_hosts)
     result = {"snapshot": snapshot,
               "persistence": persist_snapshot(snapshot) if args.save else "disabled"}
-    print(json.dumps(result, ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=False, default=str))
+    persistence = result.get("persistence")
+    if args.save and isinstance(persistence, dict) and not persistence.get("ok"):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
