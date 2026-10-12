@@ -53,6 +53,8 @@ on:
       - ".github/workflows/inneros-local-release.yml"
       - "platform/tests/test_local_release_executor_contract.py"
       - "platform/tests/test_runtime_routing_and_a2a_lease_regressions.py"
+      - "platform/inneros_core_runtime/coordination_liveness.py"
+      - "platform/tests/test_coordination_liveness.py"
       - ".github/workflows/inneros-runtime-gates.yml"
 
 permissions:
@@ -104,6 +106,8 @@ jobs:
             platform/tests/test_execution_receipts.py \
             platform/scripts/reconcile_ops_mongo_temporal.py \
             platform/tests/test_reconcile_ops_mongo_temporal.py \
+            platform/inneros_core_runtime/coordination_liveness.py \
+            platform/tests/test_coordination_liveness.py \
             platform/inneros_core_runtime/temporal_activities.py \
             platform/inneros_core_runtime/agents/pool_agent_runners.py \
             platform/tests/test_global_coordination_guards.py \
