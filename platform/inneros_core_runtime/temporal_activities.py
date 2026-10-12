@@ -187,13 +187,22 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
             "task_class": task_class,
         }
 
+    def _has_required_evidence(key: str) -> bool:
+        nested = agent_result.get("evidence") or {}
+        val = agent_result.get(key)
+        if val is None:
+            val = nested.get(key)
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (int, float)):
+            return True
+        if isinstance(val, (dict, list, tuple, set)):
+            return len(val) > 0
+        return bool(str(val or "").strip())
+
     # Enforce evidence requirements before any fast-path success gate.
     if evidence_required:
-        nested = agent_result.get("evidence") or {}
-        missing_evidence = [
-            key for key in evidence_required
-            if not str(agent_result.get(key) or nested.get(key) or "").strip()
-        ]
+        missing_evidence = [key for key in evidence_required if not _has_required_evidence(key)]
         if missing_evidence:
             return {
                 "passed": False,

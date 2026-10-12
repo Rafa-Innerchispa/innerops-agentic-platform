@@ -83,7 +83,7 @@ def _validate_completion_evidence(status: str, evidence: dict[str, Any] | None) 
 def _evidence_to_agent_result(evidence: dict[str, Any], *, status: str) -> dict[str, Any]:
     ev = dict(evidence or {})
     tests = ev.get("test_results") or {}
-    return {
+    out: dict[str, Any] = {
         "files_count": int(ev.get("objective_files_count") or 0),
         "objective_files_count": int(ev.get("objective_files_count") or 0),
         "objective_paths": list(ev.get("objective_paths") or []),
@@ -94,6 +94,10 @@ def _evidence_to_agent_result(evidence: dict[str, Any], *, status: str) -> dict[
         "completion_channel": "cursor_interactive",
         "response": ev.get("notes") or ev.get("summary") or "",
     }
+    for key, val in ev.items():
+        if key not in out:
+            out[key] = val
+    return out
 
 
 def _release_claim(db, tid: str, *, reason: str) -> None:
