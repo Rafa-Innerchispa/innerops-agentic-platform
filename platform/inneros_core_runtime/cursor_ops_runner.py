@@ -202,6 +202,7 @@ def claim_ops_task(
     owner_actor: str = "RAFAEL",
 ) -> dict[str, Any]:
     """Exclusive claim for active Cursor session (Composer model pinned)."""
+    cep.register_cursor_ide_session(host=_host(), source="cursor_ide_agent_session")
     classified = cep.classify_cursor_execution()
     if classified.get("execution_classification") not in {"partial", "headless_ready"}:
         return {

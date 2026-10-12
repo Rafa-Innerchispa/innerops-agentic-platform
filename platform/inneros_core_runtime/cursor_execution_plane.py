@@ -17,8 +17,10 @@ from pathlib import Path
 from typing import Any
 
 SESSION_STATE_KEY = "cursor_ide_session"
+CONSUMER_STATE_KEY = "cursor_inbox_consumer_liveness"
 HEARTBEAT_TTL_SECONDS = 300
 SESSION_FILE = Path.home() / ".inneros" / "agent_sessions" / "cursor.json"
+CONSUMER_FILE = Path.home() / ".inneros" / "agent_sessions" / "cursor_inbox_consumer.json"
 MCP_HEALTH_URL = os.getenv("RALFIA_MCP_HEALTH_URL", "http://127.0.0.1:8102/health")
 
 # Infrastructure must not masquerade as an interactive Cursor IDE/agent session.
@@ -137,6 +139,30 @@ def register_session_heartbeat(
     }
 
 
+def _upsert_liveness_state(
+    *,
+    state_key: str,
+    file_path: Path,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    file_ok = False
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(__import__("json").dumps(payload, indent=2) + "\n", encoding="utf-8")
+        file_ok = True
+    except OSError:
+        pass
+    mongo_ok = False
+    try:
+        from raphiia_openai import mongo_store
+
+        mongo_store.upsert_coordination_state(key=state_key, data=payload)
+        mongo_ok = True
+    except Exception:
+        pass
+    return {"ok": file_ok or mongo_ok, "file_ok": file_ok, "mongo_ok": mongo_ok, "session": payload}
+
+
 def register_cursor_consumer_heartbeat(
     *,
     identity: dict[str, Any] | None = None,
@@ -145,36 +171,63 @@ def register_cursor_consumer_heartbeat(
     role: str = "inbox_consumer",
     source: str = "cursor_inbox_consumer",
 ) -> dict[str, Any]:
-    """Called only by the live Cursor agent consumer (private worker / IDE bridge)."""
+    """Inbox/delivery liveness only — does NOT prove Cursor IDE can execute ops."""
     ident = dict(identity or {})
     ident.setdefault("mailbox", "cursor")
     ident.setdefault("raw_agent", "cursor")
+    payload = {
+        "agent": "cursor",
+        "identity": _sanitize_identity(ident),
+        "host": host or ident.get("host") or socket.gethostname(),
+        "lane": lane,
+        "role": role,
+        "pid": int(os.getpid()),
+        "source": source,
+        "last_seen_at": _now(),
+        "transport": "inbox_consumer_tick",
+        "delivery_only": True,
+        "consumer_authentic": True,
+        "counts_as_active_session": False,
+    }
+    out = _upsert_liveness_state(state_key=CONSUMER_STATE_KEY, file_path=CONSUMER_FILE, payload=payload)
+    out["counts_as_active_session"] = False
+    return out
+
+
+def register_cursor_ide_session(
+    *,
+    identity: dict[str, Any] | None = None,
+    host: str = "",
+    source: str = "cursor_ide_agent_session",
+) -> dict[str, Any]:
+    """Interactive Cursor IDE / Private Worker session — required before claim/execute."""
+    ident = dict(identity or {})
+    ident.setdefault("mailbox", "cursor")
     return register_session_heartbeat(
         identity=ident,
         host=host,
-        lane=lane,
-        role=role,
+        lane="cursor_interactive",
+        role="ide_executor",
         source=source,
         consumer_authentic=True,
     )
 
 
-def read_session_liveness(*, ttl_seconds: int = HEARTBEAT_TTL_SECONDS) -> dict[str, Any]:
-    """Return whether an interactive Cursor session was seen recently."""
+def _read_state_row(*, state_key: str, file_path: Path, ttl_seconds: int) -> dict[str, Any]:
     session: dict[str, Any] | None = None
     source = ""
     try:
         from raphiia_openai import mongo_store
 
-        row = mongo_store.get_coordination_state(SESSION_STATE_KEY)
+        row = mongo_store.get_coordination_state(state_key)
         if row.get("ok"):
             session = dict((row.get("state") or {}))
             source = "mongo"
     except Exception:
         pass
-    if not session and SESSION_FILE.is_file():
+    if not session and file_path.is_file():
         try:
-            session = __import__("json").loads(SESSION_FILE.read_text(encoding="utf-8"))
+            session = __import__("json").loads(file_path.read_text(encoding="utf-8"))
             source = "file"
         except Exception:
             session = None
@@ -182,10 +235,12 @@ def read_session_liveness(*, ttl_seconds: int = HEARTBEAT_TTL_SECONDS) -> dict[s
     age_seconds = None
     active = False
     counts = bool((session or {}).get("counts_as_active_session"))
-    if (session or {}).get("consumer_authentic") is True:
-        counts = True
-    elif (session or {}).get("source") in INFRASTRUCTURE_HEARTBEAT_SOURCES:
+    if (session or {}).get("source") in INFRASTRUCTURE_HEARTBEAT_SOURCES:
         counts = False
+    if (session or {}).get("delivery_only"):
+        counts = False
+    if (session or {}).get("consumer_authentic") is True and not (session or {}).get("delivery_only"):
+        counts = True
     if last_seen:
         age_seconds = max(0, int((datetime.now(timezone.utc) - last_seen).total_seconds()))
         active = counts and age_seconds <= int(ttl_seconds)
@@ -197,11 +252,33 @@ def read_session_liveness(*, ttl_seconds: int = HEARTBEAT_TTL_SECONDS) -> dict[s
         "age_seconds": age_seconds,
         "ttl_seconds": int(ttl_seconds),
         "session": session or {},
-        "limitation": (
-            "Headless unattended Cursor CLI is not supported on this host; "
-            "delivery uses ide_inbox + authentic consumer heartbeat."
-        ),
     }
+
+
+def read_inbox_consumer_liveness(*, ttl_seconds: int = HEARTBEAT_TTL_SECONDS) -> dict[str, Any]:
+    """Delivery path alive (ACK timer); not execution capability."""
+    row = _read_state_row(state_key=CONSUMER_STATE_KEY, file_path=CONSUMER_FILE, ttl_seconds=ttl_seconds)
+    sess = row.get("session") or {}
+    row["delivery_only"] = True
+    last_seen = _parse_ts(sess.get("last_seen_at"))
+    if last_seen:
+        age = max(0, int((datetime.now(timezone.utc) - last_seen).total_seconds()))
+        row["age_seconds"] = age
+        row["active"] = age <= int(ttl_seconds)
+    else:
+        row["active"] = False
+    row["consumer_authentic"] = bool(sess.get("consumer_authentic"))
+    return row
+
+
+def read_session_liveness(*, ttl_seconds: int = HEARTBEAT_TTL_SECONDS) -> dict[str, Any]:
+    """Return whether an interactive Cursor IDE session was seen recently."""
+    row = _read_state_row(state_key=SESSION_STATE_KEY, file_path=SESSION_FILE, ttl_seconds=ttl_seconds)
+    row["limitation"] = (
+        "Headless unattended Cursor CLI is not supported on this host; "
+        "execution requires register_cursor_ide_session (IDE/Private Worker)."
+    )
+    return row
 
 
 def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -209,9 +286,11 @@ def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dic
     cli = dict(cli_probe or {})
     mcp = probe_mcp_bridge()
     session = read_session_liveness()
+    consumer = read_inbox_consumer_liveness()
     headless_ready = bool(cli.get("installed") and cli.get("headless_supported") and cli.get("auth_ready"))
     mcp_ok = bool(mcp.get("reachable"))
     session_active = bool(session.get("active"))
+    consumer_active = bool(consumer.get("active"))
 
     if headless_ready:
         classification = "headless_ready"
@@ -221,6 +300,10 @@ def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dic
         classification = "partial"
         provider_status = "interactive_session"
         transport = "ide_inbox+interactive_agent"
+    elif mcp_ok and consumer_active:
+        classification = "remote_inbox_only"
+        provider_status = "inbox_delivery_only"
+        transport = "ide_inbox+consumer_ack"
     elif mcp_ok:
         classification = "remote_inbox_only"
         provider_status = "remote_inbox"
@@ -238,7 +321,9 @@ def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dic
     if not mcp_ok:
         blockers.append("mcp_bridge_unreachable")
     if mcp_ok and not session_active:
-        blockers.append("no_active_cursor_agent_session")
+        blockers.append("no_active_cursor_ide_session")
+    if consumer_active and not session_active:
+        blockers.append("inbox_consumer_active_but_ide_session_required_for_execute")
 
     return {
         "ok": True,
@@ -248,6 +333,7 @@ def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dic
         "headless_ready": headless_ready,
         "mcp_bridge": mcp,
         "interactive_session": session,
+        "inbox_consumer": consumer,
         "blockers": blockers,
         "control_path": (
             "ChatGPT/RalfIA: ide_dispatch_task → cursor/INBOX → poll_agent_inbox → "

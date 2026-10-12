@@ -13,11 +13,17 @@ class CursorExecutionPlaneTests(unittest.TestCase):
         self.assertFalse(live.get("active"))
         self.assertFalse(live.get("consumer_authentic"))
 
-    def test_consumer_heartbeat_active_session(self) -> None:
+    def test_consumer_heartbeat_does_not_activate_ide_session(self) -> None:
         cep.register_cursor_consumer_heartbeat()
         live = cep.read_session_liveness()
+        consumer = cep.read_inbox_consumer_liveness()
+        self.assertFalse(live.get("active"))
+        self.assertTrue(consumer.get("active"))
+
+    def test_ide_session_register_enables_execute(self) -> None:
+        cep.register_cursor_ide_session()
+        live = cep.read_session_liveness()
         self.assertTrue(live.get("active"))
-        self.assertTrue(live.get("consumer_authentic"))
 
     def test_classify_after_infra_heartbeat_not_partial(self) -> None:
         cep.register_session_heartbeat(source="cursor_ops_runner.claim", role="ops_executor")

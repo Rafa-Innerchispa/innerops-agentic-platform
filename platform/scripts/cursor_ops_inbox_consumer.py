@@ -33,14 +33,17 @@ def run(*, limit: int = 20, ack_open: bool = True) -> dict:
     hb = cep.register_cursor_consumer_heartbeat(
         identity={"mailbox": "cursor", "host": socket.gethostname(), "role": "inbox_consumer"},
     )
-    live = cep.read_session_liveness()
+    consumer = cep.read_inbox_consumer_liveness()
+    ide = cep.read_session_liveness()
     return {
         "ok": True,
         "heartbeat": hb,
-        "session_active": live.get("active"),
+        "delivery_active": consumer.get("active"),
+        "ide_session_active": ide.get("active"),
         "open_listed": len(listed.get("messages") or []),
         "acks": acks if isinstance(acks, list) else [],
         "classification": cep.classify_cursor_execution(),
+        "executes_ops": False,
     }
 
 
@@ -51,7 +54,7 @@ def main() -> int:
     args = parser.parse_args()
     out = run(limit=max(1, min(args.limit, 100)), ack_open=not args.no_ack)
     print(json.dumps(out, indent=2, default=str))
-    return 0 if out.get("session_active") else 2
+    return 0 if out.get("delivery_active") else 2
 
 
 if __name__ == "__main__":
