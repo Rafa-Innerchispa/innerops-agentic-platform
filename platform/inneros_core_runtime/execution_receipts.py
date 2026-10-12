@@ -101,7 +101,7 @@ def completion_evidence_from_worktree(
         try:
             verified_exit_code = int(test_exit_code)
         except (TypeError, ValueError):
-            return {"ok": False, "error": "invalid_test_exit_code", **proof}
+            return {**proof, "ok": False, "error": "invalid_test_exit_code"}
         evidence["test_results"] = {
             "exit_code": verified_exit_code,
             "ok": verified_exit_code == 0,
