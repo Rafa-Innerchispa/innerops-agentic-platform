@@ -3,6 +3,7 @@ name: InnerOS P0 Runtime Safety Gates
 on:
   pull_request:
     # Required status checks must run on EVERY PR, including docs-only changes.
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
