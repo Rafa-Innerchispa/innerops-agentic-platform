@@ -170,6 +170,38 @@ def _hydrate_gate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _requires_observed_host_mutation(envelope_dict: Dict[str, Any]) -> bool:
+    """Host/deploy operations must prove real execution, not just generated code/tests."""
+    task_class = str(envelope_dict.get("task_class") or "").strip().lower()
+    if task_class == "deployment":
+        return True
+    policy = str(envelope_dict.get("execution_policy") or "").strip().lower()
+    payload = envelope_dict.get("payload") if isinstance(envelope_dict.get("payload"), dict) else {}
+    objective = " ".join(
+        str(envelope_dict.get(key) or "")
+        for key in ("title", "objective")
+    ).lower()
+    objective += " " + " ".join(str(item or "") for item in envelope_dict.get("checklist") or []).lower()
+    host_markers = ("deploy", "deployment", "restart", "runtime", "platform sync", "platform-sync", "sync intel", "sync amd")
+    policy_markers = ("deploy", "host", "platform-sync", "platform_sync")
+    return (
+        any(marker in policy for marker in policy_markers)
+        or (
+            any(marker in objective for marker in host_markers)
+            and bool(payload.get("rollback_required") or payload.get("verify_dual_node"))
+        )
+    )
+
+
+def _observed_host_mutation_evidence(agent_result: Dict[str, Any]) -> tuple[bool, dict[str, Any], dict[str, Any]]:
+    nested = agent_result.get("evidence") if isinstance(agent_result.get("evidence"), dict) else {}
+    host = agent_result.get("host_execution") or agent_result.get("deployment_evidence") or nested.get("host_execution") or nested.get("deployment_evidence") or {}
+    post = agent_result.get("postconditions") or agent_result.get("observed_postconditions") or nested.get("postconditions") or nested.get("observed_postconditions") or {}
+    host_ok = isinstance(host, dict) and host.get("executed") is True
+    post_ok = isinstance(post, dict) and post.get("verified") is True
+    return bool(host_ok and post_ok), host if isinstance(host, dict) else {}, post if isinstance(post, dict) else {}
+
+
 @activity.defn
 async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent_result: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("validating_completion_gate")
@@ -182,6 +214,19 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     test_ok = test_results.get("ok", True)
     evidence_required = list(envelope_dict.get("evidence_required") or [])
     commit_sha = str(agent_result.get("commit_sha") or "").strip()
+
+    if _requires_observed_host_mutation(envelope_dict):
+        host_verified, host_evidence, postconditions = _observed_host_mutation_evidence(agent_result)
+        if not host_verified:
+            return {
+                "passed": False,
+                "error": (
+                    "Completion prohibited: host/deployment task requires observed host mutation "
+                    "and verified postconditions; generated files or passing unit tests are not deployment evidence"
+                ),
+                "host_execution": host_evidence,
+                "postconditions": postconditions,
+            }
 
     if commit_sha and task_class == "verification" and (
         not evidence_required or set(evidence_required) <= {"commit_sha"}
