@@ -141,14 +141,25 @@ def _spawn_background_execution(task_id: str) -> dict[str, Any]:
     script = ROOT / "scripts" / "cursor_ops_headless_execute_one.py"
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
-    proc = subprocess.Popen(
-        [str(py), str(script), "--task-id", task_id],
-        cwd=str(ROOT),
-        env=env,
-        start_new_session=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    try:
+        proc = subprocess.Popen(
+            [str(py), str(script), "--task-id", task_id],
+            cwd=str(ROOT),
+            env=env,
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        # Undo ONLY our startup reservation, preserving the original claim.
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": task_id, "headless_execution_host": host,
+             "headless_execution_started_at": reserved.get("headless_execution_started_at")},
+            {"$unset": {"headless_execution_started_at": "", "headless_execution_host": "",
+                        "cursor_execution_host": "", "cursor_execution_role": ""}},
+        )
+        return {"ok": False, "task_id": task_id, "error": "worker_spawn_failed",
+                "exception_type": type(exc).__name__}
     db[OPS_TASKS_COL].update_one(
         {"task_id": task_id},
         {"$set": {"headless_execution_pid": int(proc.pid)}},
