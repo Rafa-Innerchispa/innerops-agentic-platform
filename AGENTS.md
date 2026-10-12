@@ -23,3 +23,11 @@ ROCm y AMD Skills habilitan cómputo y procedimientos, pero **no sustituyen** bi
 **Contrato objetivo:** orden → autorización/policy → asignación → entrega/ACK → claim con lease → trabajo real → receipt de evidencia → gate Temporal → Mongo terminal → release certificada si corresponde.
 
 **Handoff activo:** [platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md](platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md). Confirmar siempre con las fuentes vivas; el documento guarda historia, no una garantía de actualidad.
+
+## Contrato UNIVERSAL de conservación y entrega
+
+Esta norma se extiende a **todos** los proyectos que coordina InnerOS, en GitHub, GitLab, worktrees locales, AMD, Intel y futuros nodos: [adopción universal](docs/INNEROS_GLOBAL_DELIVERY_ADOPTION_20261012.md) y [política general](docs/INNEROS_UNIVERSAL_DELIVERY_POLICY.md).
+
+Para cada mejora: conservar commits y cambios sin publicar; verificar el owner/lease; auditar ramas y PR/MR; crear PR acotado; pasar CI; integrar a la rama principal **de ese mismo proyecto**; para servicios en uso, desplegar SHA aprobado con backup, prueba funcional real y reversión; registrar SHA y LKG. No declarar `DONE` con una rama, ACK, CI o HEAD local. Un experimento no se fuerza a producción. Jamás borrar una rama/worktree de otro agente sin revisión y prueba de respaldo.
+
+El auditor `platform/scripts/repo_delivery_guardian.py` reutiliza el catálogo y los mirrors existentes. Su reporte de solo lectura es evidencia de estado, **NO autorización para merge ni deploy**. Mientras GitLab-only, worktrees, reglas de rama y hashes efectivos de producción no estén verificados, indicar `NOT_CERTIFIED` y atender los bloqueos.
