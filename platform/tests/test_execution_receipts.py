@@ -85,6 +85,9 @@ class ExecutionReceiptsTests(unittest.TestCase):
         self.assertFalse(failed["ok"])
         self.assertEqual(failed["error"], "tests_failed")
         self.assertFalse(failed["evidence"]["test_results"]["ok"])
+        invalid = completion_evidence_from_worktree(self.repo, self.baseline, test_exit_code="invalid")
+        self.assertFalse(invalid["ok"])
+        self.assertEqual(invalid["error"], "invalid_test_exit_code")
 
 
 if __name__ == "__main__":
