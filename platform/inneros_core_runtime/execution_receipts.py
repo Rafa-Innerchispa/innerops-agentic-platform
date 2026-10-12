@@ -87,16 +87,28 @@ def completion_evidence_from_worktree(
     worktree: Path,
     before_sha: str,
     *,
-    test_exit_code: int = 0,
+    test_exit_code: int | None = None,
     **extra: Any,
 ) -> dict[str, Any]:
     """Build a Temporal/Mongo completion payload shared by Cursor, Codex, and Dev Swarm."""
     proof = committed_objective_receipt(worktree, before_sha)
     if not proof.get("ok"):
         return proof
-    evidence = {
-        **proof,
-        "test_results": {"exit_code": int(test_exit_code), "ok": int(test_exit_code) == 0},
-        **extra,
-    }
+    # Never invent a passing test result: it must be supplied by the runner
+    # after executing actual tests. Missing test evidence stays missing.
+    evidence = {**proof, **extra}
+    if test_exit_code is not None:
+        try:
+            verified_exit_code = int(test_exit_code)
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "invalid_test_exit_code", **proof}
+        evidence["test_results"] = {
+            "exit_code": verified_exit_code,
+            "ok": verified_exit_code == 0,
+        }
+        if verified_exit_code != 0:
+            return {
+                "ok": False, "error": "tests_failed",
+                "evidence": evidence, "commit_sha": proof["commit_sha"],
+            }
     return {"ok": True, "evidence": evidence, "commit_sha": proof["commit_sha"]}
