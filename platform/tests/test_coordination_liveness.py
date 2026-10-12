@@ -240,6 +240,32 @@ class CoordinationLivenessTests(unittest.TestCase):
             **task, "status": "completed"
         }))
 
+    def test_external_claim_preserves_expired_repository_lock(self):
+        now = datetime(2026, 10, 12, 19, 0, tzinfo=timezone.utc)
+        self.mock_db["ralfia_ops_tasks"].insert_one({
+            "task_id": "ops_external_locked", "status": "claimed",
+            "owner": "cursor", "claim_token": "do-not-steal",
+            "lease_until": (now - timedelta(minutes=5)).isoformat(),
+            "repo": "critical-repo",
+        })
+        self.mock_db["ralfia_coordination_locks"].insert_one({
+            "resource_id": "critical-repo", "task_id": "ops_external_locked",
+            "status": "active", "expires_at": (now - timedelta(minutes=5)).isoformat()
+        })
+        result = coordination_liveness.reconcile_coordination_liveness(now=now, dry_run=False)
+        self.assertEqual(result["external_claim_locks_preserved"], 1)
+        lock = self.mock_db["ralfia_coordination_locks"].find_one({"resource_id": "critical-repo"})
+        self.assertEqual(lock["status"], "active")
+        task = self.mock_db["ralfia_ops_tasks"].find_one({"task_id": "ops_external_locked"})
+        self.assertEqual(task["status"], "claimed")
+
+    def test_external_in_progress_claim_missing_lease_requires_verification(self):
+        row = {"status": "in_progress", "owner": "codex",
+               "claim_token": "keep-owner"}
+        self.assertEqual(coordination_liveness.external_claim_attention(row),
+                         "claim_lease_missing")
+        self.assertTrue(coordination_liveness.is_external_managed_claim(row))
+
     def test_expired_lease_reconciliation(self):
         task_id = "ops_stale_001"
         t_start = datetime(2026, 9, 23, 11, 0, 0, tzinfo=timezone.utc)
