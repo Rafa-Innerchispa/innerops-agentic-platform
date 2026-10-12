@@ -1,0 +1,42 @@
+name: InnerOS Release Evidence Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inneros-release-evidence-readonly
+  cancel-in-progress: false
+
+jobs:
+  verify-metadata:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          submodules: false
+          fetch-depth: 1
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Report evidence readiness without changing hosts or GitHub releases
+        run: |
+          set -eu
+          SHA="$(git rev-parse HEAD)"
+          python scripts/inneros_release_gate.py --candidate-sha "$SHA" > inneros-release-evidence-preflight.json
+          cat inneros-release-evidence-preflight.json
+      - name: Preserve readiness report, including blockers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inneros-release-evidence-preflight
+          path: inneros-release-evidence-preflight.json
+          if-no-files-found: warn
+          retention-days: 90
