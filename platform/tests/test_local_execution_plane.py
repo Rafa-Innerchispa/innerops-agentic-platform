@@ -425,3 +425,17 @@ def test_python_profile_allows_bounded_gitlab_contributorops_wrapper() -> None:
     ]
     assert lep._command_allowed(command, "python-tests") is True
     assert lep._command_allowed(["python3", "platform/scripts/other_gitlab_script.py"], "python-tests") is False
+
+
+def test_ambient_guardian_has_bounded_default_repo_profile() -> None:
+    repo = "Rafa-Innerchispa/inneros-ambient-guardian-amazon-2026"
+    profiles = lep._load_repo_profiles()
+    assert repo in profiles
+    conf = profiles[repo]
+    assert conf["profile"] == "python-tests"
+    assert conf["package_roots"] == ["."]
+    assert "src" in conf["allowed_paths"]
+    assert "tests" in conf["allowed_paths"]
+    assert "devpost-submission.md" in conf["allowed_paths"]
+    assert ".env" not in conf["allowed_paths"]
+    assert conf["source_path"].endswith("/workspaces/inneros-ambient-guardian-amazon-2026")
