@@ -54,7 +54,6 @@ on:
       - "platform/tests/test_local_release_executor_contract.py"
       - "platform/tests/test_runtime_routing_and_a2a_lease_regressions.py"
       - ".github/workflows/inneros-runtime-gates.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
