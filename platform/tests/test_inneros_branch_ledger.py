@@ -44,6 +44,15 @@ class InnerOSBranchLedgerTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "no_common_ancestor"):
                     mod.request("test/repo", "compare/main...branch")
 
+    def test_required_gate_has_unique_dispatch_and_unfiltered_pr(self):
+        workflow = FILE.parents[0] / ".github" / "workflows" / "inneros-runtime-gates.yml"
+        source = workflow.read_text(encoding="utf-8")
+        self.assertEqual(source.count("  workflow_dispatch:"), 1)
+        self.assertIn("  pull_request:\n", source)
+        pr_section = source.split("  pull_request:", 1)[1].split("  push:", 1)[0]
+        self.assertNotIn("    paths:", pr_section)
+        self.assertIn("  workflow_dispatch:", pr_section)
+
     def test_ledger_has_no_direct_main_publish_function(self):
         self.assertFalse(hasattr(mod, "publish"))
 
