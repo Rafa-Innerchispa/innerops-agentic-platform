@@ -1,0 +1,18 @@
+[Unit]
+Description=InnerOS universal repository delivery evidence audit (read only)
+Documentation=https://github.com/Rafa-Innerchispa/innerops-agentic-platform
+ConditionPathExists=/home/rlopez/inneros/inneros_core/platform/scripts/repo_delivery_guardian.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=HOME=/home/rlopez
+Environment=PATH=/home/rlopez/.local/bin:/usr/local/bin:/usr/bin
+UMask=0077
+NoNewPrivileges=true
+Nice=10
+TimeoutStartSec=20min
+ExecStart=/usr/bin/flock -n /home/rlopez/inneros/inneros_core/var/repo_sovereignty/universal-delivery.lock /home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/repo_delivery_guardian.py
+
+# No remote mutations, no production deploys, no branching/merging/rebases.
+# This unit is deliberately NOT enabled by this repository change.
