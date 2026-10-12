@@ -1,0 +1,58 @@
+name: InnerOS Branch and Production Ledger
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/inneros-branch-ledger.yml"
+      - "scripts/inneros_branch_ledger.py"
+      - "platform/tests/test_inneros_branch_ledger.py"
+      - "docs/INNEROS_RELEASE_ATTESTATION.json"
+  schedule:
+    # 12:00 UTC = 07:00 Ecuador, every day
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: inneros-canonical-branch-inventory
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    if: github.repository == 'Rafa-Innerchispa/innerops-agentic-platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Fetch trusted main only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run offline regression tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python -m unittest discover -s platform/tests -p 'test_inneros_branch_ledger.py' -v
+      - name: Inventory every branch and update only the ledger in main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: Rafa-Innerchispa/innerops-agentic-platform
+        run: |
+          python scripts/inneros_branch_ledger.py --repo "$GITHUB_REPOSITORY" --workers 4 --publish
+      - name: Preserve full JSON and Markdown snapshot even if publication failed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inneros-branch-ledger
+          path: |
+            inneros-branch-ledger.md
+            inneros-branch-ledger.json
+          if-no-files-found: warn
+          retention-days: 90
