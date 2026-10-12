@@ -19,6 +19,7 @@ from inneros_core_runtime import cursor_api_credentials as cac
 from inneros_core_runtime import cursor_execution_plane as cep
 from inneros_core_runtime import cursor_headless_lanes as lanes
 from inneros_core_runtime import cursor_ops_runner as cor
+from inneros_core_runtime.ops_auto_claim_admission import claim_admission, pending_admission_summary
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
 from inneros_core_runtime.memory import agent_messages as am
 from raphiia_openai import mongo_store
@@ -79,11 +80,7 @@ def _task_auto_ok(task: dict[str, Any]) -> bool:
         return False
     if payload.get("cursor_auto_execute") or payload.get("headless_auto"):
         return True
-    if bool(task.get("owner_authorized_at")):
-        assignee = str(task.get("assignee") or task.get("assigned_to") or "").lower()
-        if assignee == "cursor":
-            return True
-    return False
+    return bool(task.get("owner_authorized_at")) and str(task.get("assignee") or task.get("assigned_to") or "").lower() == "cursor"
 
 
 def _host_owns_task(task: dict[str, Any]) -> bool:
@@ -216,6 +213,7 @@ def run(*, auto_claim: bool | None = None, execute: bool | None = None, limit: i
         out["missing_key"] = _missing_key_alert_once()
         execute = False
         out["execute"] = False
+        out["execution_blocker"] = "cursor_api_key_missing"
 
     slots = status.get("available_slots") or 0
     if execute and slots > 0:
@@ -226,13 +224,19 @@ def run(*, auto_claim: bool | None = None, execute: bool | None = None, limit: i
             out["spawned"].append(sp)
 
     slots = lanes.available_slots()
-    if auto_claim and execute and slots > 0:
+    if auto_claim:
         listed = cor.list_claimable_ops_tasks(limit=limit)
+        full_tasks = [mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": stub.get("task_id")}, {"_id": 0}) for stub in (listed.get("tasks") or [])]
+        full_tasks = [task for task in full_tasks if task]
+        out["admission"] = pending_admission_summary(full_tasks, provider="cursor", ready=bool(execute and slots > 0), not_ready_reason="cursor_api_key_missing" if not key_status.get("present") else "no_available_execution_slots")
+    if auto_claim and execute and slots > 0:
         for stub in listed.get("tasks") or []:
             if lanes.available_slots() <= 0:
                 break
             full = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": stub.get("task_id")}, {"_id": 0})
             if not full or not _task_auto_ok(full):
+                continue
+            if not claim_admission(full, provider="cursor", ready=True).get("eligible"):
                 continue
             claim = _claim_from_task_doc(full)
             out["claims"].append(claim)
