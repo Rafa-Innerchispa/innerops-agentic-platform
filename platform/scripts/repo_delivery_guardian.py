@@ -108,6 +108,19 @@ def _api(gh: str, endpoint: str) -> tuple[Any | None, str | None]:
     return _run([gh, "api", endpoint], timeout=45)
 
 
+def _pages(gh: str, endpoint: str, max_count: int = 2000) -> tuple[list | None, str | None]:
+    # gh --paginate --slurp returns an array of pages; never silently truncate.
+    payload, error = _run([gh, "api", "--paginate", "--slurp", endpoint], timeout=120)
+    if error:
+        return None, error
+    if not isinstance(payload, list) or not all(isinstance(p, list) for p in payload):
+        return None, "invalid_paginated_result"
+    result = [item for page in payload for item in page]
+    if len(result) >= max_count:
+        return None, "pagination_limit_reached"
+    return result, None
+
+
 def inspect(gh: str, item: dict) -> dict:
     full = str(item["nameWithOwner"])
     if not REPO_RE.fullmatch(full):
@@ -119,6 +132,8 @@ def inspect(gh: str, item: dict) -> dict:
     branch_info, branch_error = _api(gh, "repos/" + full + "/branches/" + quote(branch, safe=""))
     releases, release_error = _api(gh, "repos/" + full + "/releases?per_page=5")
     runs, ci_error = _api(gh, "repos/" + full + "/actions/runs?per_page=30&branch=" + quote(branch, safe=""))
+    refs, refs_error = _pages(gh, "repos/" + full + "/branches?per_page=100")
+    prs, prs_error = _pages(gh, "repos/" + full + "/pulls?state=open&per_page=100")
     if not isinstance(branch_info, dict):
         branch_info = {}
     if not isinstance(releases, list):
@@ -136,9 +151,33 @@ def inspect(gh: str, item: dict) -> dict:
         if not release.get("draft") and release.get("published_at")
         and str(release.get("tag_name") or "")
     ]
+    refs_ok = refs_error is None and isinstance(refs, list) and all(
+        isinstance(b, dict) and isinstance(b.get("name"), str) for b in refs
+    )
+    prs_ok = prs_error is None and isinstance(prs, list) and all(
+        isinstance(p, dict) and isinstance(p.get("head"), dict) for p in prs
+    )
+    open_pr_branches = {
+        str(p["head"].get("ref") or "") for p in prs or []
+        if isinstance(p, dict) and isinstance(p.get("head"), dict)
+        and (p["head"].get("repo") or {}).get("full_name") == full
+    } if prs_ok else set()
+    unreviewed = sorted({
+        b["name"] for b in refs or []
+        if isinstance(b, dict) and isinstance(b.get("name"), str)
+        and b["name"] != branch
+        and (b.get("commit") or {}).get("sha") != head
+        and b["name"] not in open_pr_branches
+    }) if refs_ok and prs_ok else []
     return {
-        "source_ok": not (meta_error or branch_error or release_error or ci_error),
-        "source_errors": list(filter(None, [meta_error, branch_error, release_error, ci_error])),
+        "source_ok": not (meta_error or branch_error or release_error or ci_error or refs_error or prs_error)
+                     and refs_ok and prs_ok,
+        "source_errors": list(filter(None, [meta_error, branch_error, release_error, ci_error, refs_error, prs_error])),
+        "branch_inventory_complete": refs_ok and prs_ok,
+        "remote_branch_count": len(refs) if refs_ok else None,
+        "open_pr_count": len(prs) if prs_ok else None,
+        "unreviewed_branch_count": len(unreviewed) if refs_ok and prs_ok else None,
+        "unreviewed_branch_sample": unreviewed[:25],
         "default_branch": branch, "head_sha": head,
         "protected": branch_info.get("protected") is True if not branch_error else None,
         "issues_enabled": metadata.get("has_issues"),
@@ -216,6 +255,11 @@ def evaluate(rows: list[dict], github: dict[str, dict], catalog: dict,
             gaps.append("gitlab_refs_or_tags_unverified")
         if gh.get("source_ok") is not True:
             gaps.append("github_api_unverified")
+        if gh.get("branch_inventory_complete") is not True:
+            gaps.append("github_branch_pr_inventory_unverified")
+        elif (gh.get("unreviewed_branch_count") or 0) > 0:
+            # Could already be squash/cherry-picked: DO NOT auto-merge/delete.
+            gaps.append("branches_require_semantic_triage")
         if not gh.get("head_sha") or not SHA_RE.fullmatch(str(gh["head_sha"])):
             gaps.append("default_branch_sha_unknown")
         if gh.get("protected") is not True:
@@ -228,7 +272,8 @@ def evaluate(rows: list[dict], github: dict[str, dict], catalog: dict,
             gaps.append("official_release_missing_or_unknown")
         if bool(row.get("isPrivate")) != gh.get("private"):
             gaps.append("visibility_not_verified")
-        release_applicable = t.get("lifecycle") in {"active", "maintenance"}
+        lifecycle = t.get("lifecycle")
+        release_applicable = lifecycle in {"active", "maintenance"}
         if not release_applicable and "official_release_missing_or_unknown" in gaps:
             # Preserve archived/experimental histories without forcing deployment.
             gaps.remove("official_release_missing_or_unknown")
@@ -241,8 +286,10 @@ def evaluate(rows: list[dict], github: dict[str, dict], catalog: dict,
         prod_status = "NO_CERTIFICADO"
         if release_applicable and nodes and all(receipt_status.values()):
             prod_status = "HOST_EVIDENCE_RECORDED_RECHECK_REQUIRED"
-        elif not release_applicable:
+        elif lifecycle in {"experimental", "submission_snapshot", "legacy", "archived"}:
             prod_status = "NO_APLICA_SIN_DEPLOY_DECLARADO"
+        elif lifecycle is None:
+            prod_status = "LIFECYCLE_DESCONOCIDO"
         governed = not gaps
         if governed:
             counts["governed"] += 1
@@ -263,11 +310,20 @@ def evaluate(rows: list[dict], github: dict[str, dict], catalog: dict,
             "host_receipt_status": receipt_status,
             "release_tag": gh.get("latest_release"),
             "github_ci_run_id": gh.get("last_successful_ci_run_id"),
+            "remote_branch_count": gh.get("remote_branch_count"),
+            "open_pr_count": gh.get("open_pr_count"),
+            "unreviewed_branch_count": gh.get("unreviewed_branch_count"),
+            "unreviewed_branch_sample": gh.get("unreviewed_branch_sample", []),
         })
     return {
         "schema": "inneros-universal-delivery-audit-v1",
         "as_of_utc": now.isoformat(), "observed_repos": len(rows),
-        "coverage_complete": len(github) == len(rows) and all(gh.get("source_ok") for gh in github.values()),
+        "github_coverage_complete": set(github) == set(keys) and
+                                    all(github[key].get("source_ok") is True for key in keys),
+        # GitLab-only projects and local-only worktrees need independent scans.
+        "gitlab_only_project_coverage": "NOT_YET_ATTESTED",
+        "local_uncommitted_worktree_coverage": "NOT_YET_ATTESTED",
+        "universal_coverage_certified": False,
         "source_fresh": source_fresh, "counts": counts,
         "projects": projects, "no_branch_merged_or_deleted": True,
         "no_production_changes": True,
@@ -276,6 +332,9 @@ def evaluate(rows: list[dict], github: dict[str, dict], catalog: dict,
 
 
 def save_private(path: Path, data: dict) -> None:
+    # Prevent arbitrary chmod/writes when launched by a privileged service.
+    if not path.resolve().is_relative_to(ROOT.resolve()) or path == ROOT:
+        raise ValueError("output_must_be_inside_repo_sovereignty")
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(path.parent, 0o700)
     fd, temporary = tempfile.mkstemp(prefix=".delivery-", suffix=".tmp", dir=path.parent)
@@ -321,14 +380,15 @@ def main() -> int:
         save_private(args.output, report)
     # Keep private repo names, paths and host details out of stdout and GitHub CI.
     print(json.dumps({
-        "ok": report["coverage_complete"] and report["counts"]["needs_attention"] == 0,
+        "ok": report["github_coverage_complete"] and report["counts"]["needs_attention"] == 0,
         "observed_repos": report["observed_repos"],
-        "coverage_complete": report["coverage_complete"],
+        "github_coverage_complete": report["github_coverage_complete"],
+        "universal_coverage_certified": report["universal_coverage_certified"],
         "source_fresh": report["source_fresh"],
         "counts": report["counts"],
         "private_report_local": not args.no_save,
     }, sort_keys=True))
-    return 0 if report["coverage_complete"] and report["counts"]["needs_attention"] == 0 else 1
+    return 0 if report["github_coverage_complete"] and report["counts"]["needs_attention"] == 0 else 1
 
 
 if __name__ == "__main__":
