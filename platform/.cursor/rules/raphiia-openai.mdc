@@ -4,6 +4,13 @@ globs: "**/*"
 alwaysApply: true
 ---
 
+## Vigencia obligatoria de InnerOS 2026-10-12 (prevalece sobre las rutas antiguas)
+
+Antes de cualquier nueva ejecución, leer `platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md` (desde repo root) o `docs/INNEROS_COORDINATION_CONTINUITY_20261012.md` (si cwd es platform) y `AGENTS.md` raíz. Leer estado real de tareas/leases/procesos en Mongo y Temporal; verificar runtime AMD/Intel, main y PRs. No asumir que `ai_coordination`, Notion o `TASKS.md` viejos tienen el estado correcto. No reactivar tareas antiguas, relanzar SDKs, hacer resets o pisar worktrees sin comprobar procesos y owner gates. Los pasos históricos de Intel SSH abajo NO obligan a usar laptop: AMD+Intel headless son objetivos productivos. Cursor puede usar Composer con los créditos aprobados; internos usan modelos locales.
+
+Un ACK, heartbeat, claim o PID sólo prueban etapas parciales: completar exige evidence receipt verificado por Temporal y Mongo, y release SHA/hash en producción cuando aplica. Mantener conversación de sincronización y responder con IDs exactos; separar mensajes de seguimiento de nuevas ops_tasks.
+
+
 # RaphiIA-OpenAI + Coordinación RalfIA
 
 ## Al iniciar CUALQUIER chat (obligatorio)
