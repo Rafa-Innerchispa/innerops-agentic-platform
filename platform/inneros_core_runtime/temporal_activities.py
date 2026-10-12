@@ -31,8 +31,14 @@ except ImportError:
     DOCKER_SANDBOX_AVAILABLE = False
 
 logger = logging.getLogger("temporal_activities")
-MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb://127.0.0.1:27017")
-MONGODB_DB = os.environ.get("INNEROS_MONGO_DB", "pcdoctor_swarm")
+
+
+def _mongo_projection_client():
+    """Use the same Mongo settings as MCP/coordination (not localhost defaults)."""
+    from raphiia_openai import mongo_store
+
+    db = mongo_store.get_db()
+    return db.client, db.name
 WORKTREE_BASE = Path(
     os.environ.get(
         "INNEROS_WORKTREE_BASE",
@@ -625,9 +631,8 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
 async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str, evidence: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("syncing_mongo_mirror")
     try:
-        from pymongo import MongoClient
-        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=2000)
-        db = client[MONGODB_DB]
+        client, db_name = _mongo_projection_client()
+        db = client[db_name]
         col = db["ralfia_ops_tasks"]
         task_id = envelope_dict.get("task_id")
         now = datetime.now(timezone.utc).isoformat()
