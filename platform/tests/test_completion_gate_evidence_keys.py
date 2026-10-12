@@ -71,5 +71,23 @@ class CompletionGateEvidenceKeysTests(unittest.TestCase):
         self.assertTrue(result.get("passed"), result)
 
 
+    def test_host_deploy_verification_sha_cannot_bypass_host_evidence(self) -> None:
+        envelope = {
+            "task_class": "verification",
+            "execution_lane": "internal",
+            "execution_policy": "owner-approved-bounded-platform-sync",
+            "payload": {"rollback_required": True},
+            "title": "Verify deployed runtime",
+        }
+        agent_result = {
+            "ok": True,
+            "commit_sha": "c" * 40,
+            "test_results": {"exit_code": 0, "ok": True},
+        }
+        result = asyncio.run(ta.activity_validate_completion_gate(envelope, agent_result))
+        self.assertFalse(result.get("passed"), result)
+        self.assertIn("observed host mutation", result.get("error", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
