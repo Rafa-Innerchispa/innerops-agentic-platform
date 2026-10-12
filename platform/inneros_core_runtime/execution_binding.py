@@ -19,6 +19,13 @@ def _ide_providers() -> frozenset[str]:
         return _interactive_ide_providers()
     except Exception:
         return INTERACTIVE_IDE_PROVIDERS
+
+
+def _internal_providers() -> frozenset[str]:
+    """Use the same normalized, extensible provider set as task admission."""
+    from inneros_core_runtime import agent_provider_registry as apr
+
+    return frozenset(normalize_provider(p) for p in apr.internal_providers())
 INTERNAL_BOUNDED_RUNNER = "internal_bounded_local"
 INTERACTIVE_IDE_RUNNER = "interactive_ide_handoff"
 CURSOR_INTERACTIVE_RUNNER = "cursor_interactive"
@@ -331,13 +338,7 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
                 "message": f"Esperando claim/ejecución en sesión {provider}.",
             }
 
-    if lane in {"internal", "local_dev_swarm", "dev_swarm"} or provider in {
-        "local",
-        "local-amd-5",
-        "dev_swarm",
-        "dev-swarm",
-        "temporal",
-    }:
+    if lane in {"internal", "local_dev_swarm", "dev_swarm"} or provider in _internal_providers():
         # The internal bounded runner creates a governed Git worktree. Without
         # a real owner/repo it cannot execute an infrastructure request, even
         # when a local model generates convincing instructions.

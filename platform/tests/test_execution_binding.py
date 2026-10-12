@@ -5,6 +5,7 @@ import asyncio
 import unittest
 
 from inneros_core_runtime import execution_binding as eb
+from inneros_core_runtime import agent_provider_registry as apr
 from inneros_core_runtime import temporal_activities as ta
 
 
@@ -84,6 +85,55 @@ class ExecutionBindingTests(unittest.TestCase):
         self.assertIn("IDE", summary["why_not_internal"])
         self.assertTrue(summary["requires_owner_authorization"])
         self.assertIn("Dev Swarm", summary["internal_alternative"])
+
+    def test_local_amd_and_intel_internal_defaults_match_binding(self) -> None:
+        for provider in ("local-amd-5", "local-intel-4"):
+            with self.subTest(provider=provider):
+                lane, effective_provider, no_auto = apr.apply_create_ops_defaults(
+                    "dev_swarm", execution_lane=None, preferred_provider=provider,
+                    do_not_auto_dispatch=None,
+                )
+                self.assertEqual(lane, "local_dev_swarm")
+                self.assertFalse(no_auto)
+                self.assertIn(effective_provider, apr.internal_providers())
+                binding = eb.resolve_execution_binding({
+                    "task_id": "ops_local_symmetry",
+                    "preferred_provider": provider,
+                    "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+                })
+                self.assertTrue(binding["allowed"], binding)
+                self.assertEqual(binding["runner"], eb.INTERNAL_BOUNDED_RUNNER)
+
+    def test_registered_internal_provider_binds_without_hardcoded_list(self) -> None:
+        apr.register_internal_provider("local-test-edge")
+        binding = eb.resolve_execution_binding({
+            "task_id": "ops_new_internal",
+            "preferred_provider": "local-test-edge",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+        })
+        self.assertTrue(binding["allowed"], binding)
+        lane, _, no_auto = apr.apply_create_ops_defaults(
+            "dev_swarm", execution_lane=None,
+            preferred_provider="local-test-edge", do_not_auto_dispatch=None,
+        )
+        self.assertEqual(lane, "local_dev_swarm")
+        self.assertFalse(no_auto)
+
+    def test_owner_explicit_no_autodispatch_not_overridden(self) -> None:
+        lane, _, no_auto = apr.apply_create_ops_defaults(
+            "dev_swarm", execution_lane=None,
+            preferred_provider="local-intel-4", do_not_auto_dispatch=True,
+        )
+        self.assertEqual(lane, "local_dev_swarm")
+        self.assertTrue(no_auto)
+        binding = eb.resolve_execution_binding({
+            "task_id": "ops_intel_blocked",
+            "preferred_provider": "local-intel-4",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "do_not_auto_dispatch": True,
+        })
+        self.assertFalse(binding["allowed"])
+        self.assertEqual(binding["error"], "do_not_auto_dispatch")
 
     def test_internal_dev_swarm_allowed(self) -> None:
         binding = eb.resolve_execution_binding(
