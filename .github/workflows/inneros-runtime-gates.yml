@@ -3,6 +3,7 @@ name: InnerOS P0 Runtime Safety Gates
 on:
   pull_request:
     # Required status checks must run on EVERY PR, including docs-only changes.
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -53,7 +54,6 @@ on:
       - "platform/tests/test_local_release_executor_contract.py"
       - "platform/tests/test_runtime_routing_and_a2a_lease_regressions.py"
       - ".github/workflows/inneros-runtime-gates.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read

@@ -1,6 +1,8 @@
 """Offline regression tests for branch preservation and truthful release flags."""
 import importlib.util
+from io import BytesIO
 from pathlib import Path
+from urllib.error import HTTPError
 import unittest
 from unittest.mock import patch
 
@@ -24,6 +26,35 @@ class InnerOSBranchLedgerTests(unittest.TestCase):
 
     def test_branch_in_main_history_is_not_marked_as_missing(self):
         self.assertEqual(mod.classification({"ahead": 0, "prs": [], "behind": 6}), "EN_HISTORIA_MAIN")
+
+
+    def test_separate_legacy_root_is_not_a_transport_error_or_safe_merge(self):
+        branch = {"name": "chatgpt/innerops-bootstrap", "sha": "f" * 40,
+                  "prs": [], "no_common_ancestor": True}
+        self.assertEqual(mod.classification(branch), "HISTORIA_SEPARADA")
+        self.assertNotEqual(mod.classification(branch), "EN_HISTORIA_MAIN")
+
+    def test_compare_404_no_common_ancestor_is_distinct_from_api_failures(self):
+        github_error = HTTPError(
+            "https://api.github.com/repos/test/repo/compare/main...branch",
+            404, "Not Found", {},
+            BytesIO(b'{"message":"No common ancestor between main and branch."}'))
+        with patch.dict(mod.os.environ, {"GITHUB_TOKEN": "test-token"}):
+            with patch.object(mod, "urlopen", side_effect=github_error):
+                with self.assertRaisesRegex(RuntimeError, "no_common_ancestor"):
+                    mod.request("test/repo", "compare/main...branch")
+
+    def test_required_gate_has_unique_dispatch_and_unfiltered_pr(self):
+        workflow = FILE.parents[1] / ".github" / "workflows" / "inneros-runtime-gates.yml"
+        source = workflow.read_text(encoding="utf-8")
+        self.assertEqual(source.count("  workflow_dispatch:"), 1)
+        self.assertIn("  pull_request:\n", source)
+        pr_section = source.split("  pull_request:", 1)[1].split("  push:", 1)[0]
+        self.assertNotIn("    paths:", pr_section)
+        self.assertIn("  workflow_dispatch:", pr_section)
+
+    def test_ledger_has_no_direct_main_publish_function(self):
+        self.assertFalse(hasattr(mod, "publish"))
 
     def test_dangerous_bulk_deletion_is_flagged(self):
         result = mod.summarize_compare({"ahead_by": 43, "behind_by": 337,
