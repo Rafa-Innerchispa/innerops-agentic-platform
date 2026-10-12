@@ -763,10 +763,9 @@ def _gitlab_contributor_repo_config(repo: str) -> dict[str, Any] | None:
 
 
 def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
-    contrib = _gitlab_contributor_repo_config(repo)
-    if contrib:
-        return contrib
-    if repo in OWNER_APPROVED_NESTED_REPOS:
+    # GitLab Runner is a Go repository and must be resolved before the generic
+    # GitLab contributor policy, which is Ruby-oriented for gitlab-org/gitlab.
+    if repo == "gitlab-community/gitlab-org/gitlab-runner":
         core = Path(os.getenv("INNEROS_CORE_ROOT", str(DEFAULT_INNEROS_CORE_ROOT))).expanduser().resolve()
         source = (core / "workspaces" / "gitlab-runner").resolve()
         workspace_root = (core / "workspaces").resolve()
@@ -777,12 +776,40 @@ def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
         return {
             "profile": "go_gitlab_runner",
             "source_path": str(source),
-            "allowed_paths": ["docs/configuration/init.md", "README.md", "CONTRIBUTING.md", "AGENTS.md"],
+            "allowed_paths": [
+                "commands",
+                "common",
+                "executors",
+                "helpers",
+                "internal",
+                "network",
+                "shells",
+                "scripts",
+                "docs",
+                "tests",
+                ".gitlab",
+                "README.md",
+                "CONTRIBUTING.md",
+                "AGENTS.md",
+                "go.mod",
+                "go.sum",
+                "Makefile",
+            ],
             "package_roots": ["."],
             "worktrees_path": str(_root() / "worktrees" / _slug(repo)),
             "owner_approved_auto": True,
             "external_nested_fork": True,
+            "contributor_ops": True,
+            "contributor_upstream": "gitlab-org/gitlab-runner",
+            "contributor_write_repo": "gitlab-community/gitlab-org/gitlab-runner",
         }
+
+    contrib = _gitlab_contributor_repo_config(repo)
+    if contrib:
+        return contrib
+    if repo in OWNER_APPROVED_NESTED_REPOS:
+        return None
+
     owner, name = repo.split("/", 1)
     if owner not in OWNER_APPROVED_GITHUB_OWNERS:
         return None
@@ -803,7 +830,6 @@ def _owner_approved_repo_config(repo: str) -> dict[str, Any] | None:
         "owner_approved_auto": True,
         "repo_class": known.get("repo_class") or "owner-approved",
     }
-
 
 def _resolve_under(base: Path, path: str | Path) -> Path:
     base_r = base.resolve()
