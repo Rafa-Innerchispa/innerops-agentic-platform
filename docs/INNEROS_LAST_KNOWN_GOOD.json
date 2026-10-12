@@ -1,0 +1,12 @@
+{
+  "schema": "inneros-last-known-good-v1",
+  "status": "UNSET",
+  "git_sha": null,
+  "release_tag": null,
+  "verified_at_utc": null,
+  "hosts": {
+    "amd": {"runtime_import_sha256": null, "rollback_snapshot": null, "receipt_path": null},
+    "intel": {"runtime_import_sha256": null, "rollback_snapshot": null, "receipt_path": null}
+  },
+  "note": "No hay release certificado. Nunca establecer LKG a partir de CI, HEAD, ACK o claim. Solo evidencias independientes por host."
+}
