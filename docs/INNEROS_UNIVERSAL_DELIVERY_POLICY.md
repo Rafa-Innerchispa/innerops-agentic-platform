@@ -33,7 +33,7 @@ Cada proyecto debe registrar: URL/ID GitHub o GitLab, owner, main SHA, ramas y P
 
 El repositorio `Rafa-Innerchispa/innerops-agentic-platform` tenía `has_issues=false`, `has_projects=true` y **0 releases** al auditarlo el 12-10. El conector GitHub actual no expone la mutación de `has_issues`/Rulesets ni creación de Releases; no afirmar que están activados. Requiere ajuste administrativo o herramienta aprobada que permita esas acciones.
 
-**Compatibilidad del libro diario con Rulesets:** el workflow actual publica el informe en `main`; antes de activar un Ruleset sin bypass, trasladar la actualización del informe a PR automatizado o conceder una excepción estrictamente limitada a la identidad del bot. **No dar bypass a todos los agentes.**
+**Compatibilidad del libro diario con Rulesets:** el workflow de inventario queda configurado para preparar cambios en `automation/inneros-branch-ledger` y proponerlos mediante PR, sin publicar directamente en `main`. Para que funcione debe estar habilitado **Settings > Actions > General > Workflow permissions > Allow GitHub Actions to create and approve pull requests**; el workflow solicita permisos mínimos por capacidad `contents: write`, `pull-requests: write` y `actions: write` (este último exclusivamente para el dispatch explícito). Los PR creados con `GITHUB_TOKEN` pueden dejar los checks de PR pendientes de aprobación; por eso se despacha explícitamente el workflow existente `inneros-runtime-gates.yml` por `workflow_dispatch` para ejecutar `critical-runtime-contracts` sobre la rama de propuesta. **No activar un Ruleset estricto hasta comprobar el PR automatizado y su CI en vivo.** No existe bypass universal para agentes ni auto-merge.
 
 ## GitLab: adopción equivalente
 

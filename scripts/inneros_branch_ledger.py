@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Read-only branch audit; optionally publish one generated Markdown file on main.
+"""Read-only branch audit, including separated legacy Git histories.
 
-Never merges, deletes, rebases, checks out, or executes a remote branch.
-The only write on --publish is docs/INNEROS_BRANCH_LEDGER.md.
+Never merges, deletes, rebases, checks out, executes a remote branch, or
+updates a protected branch. A separate GitHub Actions workflow may submit
+the generated ledger for review through a pull request.
 """
 from __future__ import annotations
 
 import argparse
-import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 import json
@@ -40,6 +40,11 @@ def request(repo, endpoint, method="GET", payload=None, missing_ok=False):
             with urlopen(req, timeout=40) as response:
                 return json.load(response)
         except HTTPError as exc:
+            if exc.code == 404 and endpoint.startswith("compare/"):
+                # A legacy unrelated Git root is not a failed API audit.
+                body = exc.read(4096).decode("utf-8", errors="replace")
+                if "no common ancestor" in body.lower():
+                    raise RuntimeError("no_common_ancestor") from exc
             if missing_ok and exc.code == 404:
                 return None
             if exc.code not in (429, 502, 503, 504) or attempt == 2:
@@ -78,6 +83,8 @@ def summarize_compare(data):
 def classification(row):
     if row.get("error"):
         return "ERROR"
+    if row.get("no_common_ancestor"):
+        return "HISTORIA_SEPARADA"
     if not row.get("ahead"):
         return "EN_HISTORIA_MAIN"
     if row.get("bulk_risk"):
@@ -135,6 +142,8 @@ def audit(repo, workers=4):
                 raise RuntimeError("compare_invalid_shape")
             return sha, summarize_compare(value)
         except RuntimeError as exc:
+            if str(exc) == "no_common_ancestor":
+                return sha, {"no_common_ancestor": True}
             return sha, {"error": str(exc)}
 
     comparisons = {}
@@ -180,6 +189,7 @@ def render(report):
         "Generado automaticamente; no ejecuta ramas, ni fusiona ni elimina codigo.",
         "Un commit adelantado no implica cambios utiles ausentes del main: revisar",
         "equivalencia semantica, squash y cherry-pick antes de integrar.",
+        "HISTORIA_SEPARADA: sin ancestro comun, revisar raiz aislada antes de rescatar.",
         "",
         "Auditoria UTC: " + report["generated_at"],
         "Repositorio: " + report["repo"],
@@ -216,8 +226,9 @@ def render(report):
         "| Rama | Ahead | Behind | Estado | PR | Archivos |",
         "|---|---:|---:|---|---|---:|",
     ])
-    priority = {"ERROR": 0, "RIESGO_ALTO": 1,
-                "PR_ABIERTO": 2, "REVISAR_SIN_PR": 3, "EN_HISTORIA_MAIN": 4}
+    priority = {"ERROR": 0, "HISTORIA_SEPARADA": 1,
+                "RIESGO_ALTO": 2, "PR_ABIERTO": 3,
+                "REVISAR_SIN_PR": 4, "EN_HISTORIA_MAIN": 5}
     ordered = sorted(rows, key=lambda r: (priority.get(r["classification"], 5),
                                          -r.get("ahead", 0), r["name"]))
     for row in ordered:
@@ -245,25 +256,11 @@ def render(report):
     return "\n".join(lines)
 
 
-def publish(repo, markdown):
-    endpoint = "contents/docs/INNEROS_BRANCH_LEDGER.md"
-    prev = request(repo, endpoint, missing_ok=True)
-    data = {"message": "chore(inneros): refresh automated branch-debt ledger",
-            "content": base64.b64encode(markdown.encode("utf-8")).decode("ascii"),
-            "branch": "main"}
-    if isinstance(prev, dict) and prev.get("sha"):
-        data["sha"] = prev["sha"]
-    result = request(repo, endpoint, method="PUT", payload=data)
-    if not isinstance(result, dict) or not (result.get("commit") or {}).get("sha"):
-        raise RuntimeError("publication_unconfirmed")
-    return result["commit"]["sha"]
-
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", default=os.getenv("GITHUB_REPOSITORY", ""))
     parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--publish", action="store_true")
     args = parser.parse_args()
     if args.repo.count("/") != 1:
         parser.error("--repo owner/name required")
@@ -282,8 +279,6 @@ def main():
         raise RuntimeError("branch_comparisons_unreliable; refusing_publication")
     if report["errors"]:
         print("::warning::Some branch comparisons failed; see ERROR rows in ledger")
-    if args.publish:
-        print("published_main_sha=" + publish(args.repo, text + "\n"))
 
 
 if __name__ == "__main__":

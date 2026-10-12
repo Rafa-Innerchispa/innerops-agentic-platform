@@ -15,6 +15,8 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  actions: write  # required only for explicit workflow_dispatch CI on the bot PR
 
 concurrency:
   group: inneros-canonical-branch-inventory
@@ -45,12 +47,35 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
           python -m unittest discover -s platform/tests -p 'test_inneros_branch_ledger.py' -v
-      - name: Inventory every branch and update only the ledger in main
+      - name: Inventory every branch without changing main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: Rafa-Innerchispa/innerops-agentic-platform
         run: |
-          python scripts/inneros_branch_ledger.py --repo "$GITHUB_REPOSITORY" --workers 4 --publish
+          python scripts/inneros_branch_ledger.py --repo "$GITHUB_REPOSITORY" --workers 4
+          cp inneros-branch-ledger.md docs/INNEROS_BRANCH_LEDGER.md
+      - name: Open or update a reviewable branch ledger PR
+        id: ledger_pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
+          branch: automation/inneros-branch-ledger
+          add-paths: docs/INNEROS_BRANCH_LEDGER.md
+          delete-branch: false
+          commit-message: "chore(inneros): refresh audited branch debt"
+          title: "chore(inneros): review refreshed branch and production ledger"
+          body: |
+            Generated read-only inventory. No branch deletions, merges, or automatic deployment.
+            HISTORIA_SEPARADA means a historical branch has no common ancestor with main.
+            AMD/Intel host attestations must be verified independently before marking production.
+            Review the diff and critical-runtime-contracts before merging. Do not enable auto-merge.
+      - name: Explicit CI dispatch for GITHUB_TOKEN-created review PR
+        if: steps.ledger_pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run inneros-runtime-gates.yml --ref automation/inneros-branch-ledger
       - name: Preserve full JSON and Markdown snapshot even if publication failed
         if: always()
         uses: actions/upload-artifact@v4
