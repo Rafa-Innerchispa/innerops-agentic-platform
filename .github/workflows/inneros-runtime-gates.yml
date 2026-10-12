@@ -2,6 +2,7 @@ name: InnerOS P0 Runtime Safety Gates
 
 on:
   pull_request:
+  workflow_dispatch:
     paths:
       - "platform/inneros_core_runtime/local_model_router.py"
       - "platform/raphiia_openai/__init__.py"
