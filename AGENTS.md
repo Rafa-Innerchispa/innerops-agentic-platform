@@ -1,5 +1,8 @@
 # InnerOS - entrada obligatoria de continuidad para agentes
 
+**Migración y continuidad 12-10-2026:** [docs/INNEROS_NEXT_CHAT_HANDOFF_20261012.md](docs/INNEROS_NEXT_CHAT_HANDOFF_20261012.md). Leer ANTES de proponer nuevas tareas o reparar ramas; contiene estado de GitHub/GitLab/AMD/Intel, PRs fusionados, fases 1/2, evidencia pendiente y regla de no repetición.
+
+
 > Vigente desde el 12 de octubre de 2026. Aplica a Cursor, Codex, Antigravity y agentes locales que trabajen en este repositorio.
 
 **Inventario vivo de ramas y producción:** leer [docs/INNEROS_BRANCH_LEDGER.md](docs/INNEROS_BRANCH_LEDGER.md) (actualizado diariamente por GitHub Actions) y [docs/INNEROS_RELEASE_ATTESTATION.json](docs/INNEROS_RELEASE_ATTESTATION.json). Nunca considerar que main o CI implica despliegue. El auditor conserva ramas y NO las fusiona ni borra.
