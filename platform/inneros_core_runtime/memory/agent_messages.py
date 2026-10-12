@@ -300,6 +300,7 @@ def list_agent_messages(
     *,
     agent: str | None = None,
     status: str | None = None,
+    statuses: list[str] | tuple[str, ...] | None = None,
     limit: int = 20,
     role: str = "inbox",
 ) -> dict[str, Any]:
@@ -317,7 +318,11 @@ def list_agent_messages(
             filt["$or"] = [{"from_agent": au}, {"agent": au}]
         else:
             filt["$or"] = [{"target_agent": a}, {"from_agent": au}, {"agent": au}]
-    if status:
+    if statuses:
+        normalized = [str(s).strip().lower() for s in statuses if str(s).strip()]
+        if normalized:
+            filt["status"] = {"$in": normalized} if len(normalized) > 1 else normalized[0]
+    elif status:
         filt["status"] = status.strip().lower()
     # Prefer created_at; legacy docs use ts
     cursor = db[COL_AGENT_MESSAGES].find(filt).sort([("created_at", -1), ("ts", -1)]).limit(limit)
@@ -334,13 +339,25 @@ def list_agent_messages(
 
 
 def poll_agent_inbox(*, agent: str, limit: int = 20, auto_ack: bool = False) -> dict[str, Any]:
-    """Poll inbox messages without consuming them unless explicitly requested."""
-    result = list_agent_messages(agent=agent, status="open", limit=limit, role="inbox")
+    """Poll inbox messages without consuming them unless explicitly requested.
+
+    Inbox delivery ACK moves messages to ``acknowledged``; agents must still see
+    actionable items until task messages reach a terminal ops state. Listing only
+    ``open`` hid every delivered instruction and forced manual copy/paste.
+    """
+    result = list_agent_messages(
+        agent=agent,
+        statuses=sorted(VISIBLE_INBOX_STATUSES),
+        limit=limit,
+        role="inbox",
+    )
     if not result.get("ok") or not auto_ack:
         return {**result, "auto_ack": False, "acknowledged": []}
     acknowledged: list[str] = []
     errors: list[dict[str, Any]] = []
     for message in result.get("messages", []):
+        if str(message.get("status") or "").strip().lower() != "open":
+            continue
         message_id = str(message.get("message_id") or "")
         ack = ack_agent_message(message_id, agent)
         if ack.get("ok"):
