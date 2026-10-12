@@ -622,8 +622,8 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
     structured_prompt = (
         f"Task {envelope.task_id}: {prompt_body}\n\n"
         "Return ONLY one JSON object (no markdown fences) with schema:\n"
-        '{"summary":"...", "files":[{"path":"platform/relative/path.py","content":"full file source"}]}\n'
-        "Paths must be repo-relative product files under allowed roots; content must be complete source."
+        '{"summary":"...", "files":[{"path":"tests/test_example.py","content":"full file source"}]}\n'
+        "For innerops-agentic-platform the worktree root IS platform/: use tests/, inneros_core_runtime/, scripts/ — not platform/tests/."
     )
     res = local_model_router.run_local_model(
         task_type=envelope.task_class or "coding",

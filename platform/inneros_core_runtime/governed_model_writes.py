@@ -7,6 +7,15 @@ from typing import Any
 from inneros_core_runtime import local_execution_plane as lep
 
 
+def _rewrite_path_for_worktree(worktree: Path, raw_path: str) -> str:
+    """InnerOS worktrees are often the platform tree at repo root (tests/, not platform/tests/)."""
+    rel = str(raw_path or "").strip().replace("\\", "/").lstrip("/")
+    if rel.startswith("platform/") and not (worktree / "platform").is_dir():
+        if (worktree / "tests").is_dir() or (worktree / "inneros_core_runtime").is_dir():
+            return rel.split("platform/", 1)[1]
+    return rel
+
+
 def apply_candidate_response(
     envelope_dict: dict[str, Any],
     worktree: Path,
@@ -28,6 +37,10 @@ def apply_candidate_response(
     correlation_id = str(envelope_dict.get("correlation_id") or task_id)
 
     payload = dss._fanout_parse_model_json(model_text)
+    if isinstance(payload, dict) and isinstance(payload.get("files"), list):
+        for item in payload["files"]:
+            if isinstance(item, dict) and item.get("path"):
+                item["path"] = _rewrite_path_for_worktree(worktree, str(item["path"]))
     files, rejected = dss._safe_generated_files(
         payload, objective, task_id, repo, worktree, model_text=model_text
     )
