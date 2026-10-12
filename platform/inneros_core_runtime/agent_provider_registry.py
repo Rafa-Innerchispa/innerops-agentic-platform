@@ -9,7 +9,11 @@ from typing import Any
 from inneros_core_runtime import agent_identity
 
 _DEFAULT_IDE = frozenset({"cursor", "codex", "antigravity", "gemini", "chatgpt"})
-_DEFAULT_INTERNAL = frozenset({"local", "dev_swarm", "dev-swarm", "temporal", "local-amd-5"})
+_DEFAULT_INTERNAL = frozenset({
+    "local", "dev_swarm", "dev-swarm", "temporal",
+    # Actor mailboxes use underscores, while execution providers use hyphens.
+    "local-amd-5", "local_amd_5", "local-intel-4", "local_intel_4",
+})
 
 _REGISTRY: dict[str, dict[str, Any]] = {}
 
@@ -51,7 +55,7 @@ def register_interactive_provider(
 
 
 def register_internal_provider(provider: str, *, default_lane: str = "local_dev_swarm") -> dict[str, Any]:
-    key = _slug(provider)
+    key = agent_identity.canonical_mailbox(provider, default=_slug(provider))
     doc = {"provider": key, "kind": "internal_bounded", "default_lane": default_lane, "do_not_auto_dispatch_default": False}
     _REGISTRY[key] = doc
     return {"ok": True, "registered": doc}
@@ -93,8 +97,10 @@ def apply_create_ops_defaults(
             lane = f"{prov}_interactive"
         if do_not_auto_dispatch is None:
             do_not_auto_dispatch = True
-    elif prov in internal_providers() and not lane:
-        lane = "local_dev_swarm"
+    elif prov in internal_providers():
+        lane = lane or "local_dev_swarm"
+        if do_not_auto_dispatch is None:
+            do_not_auto_dispatch = False
     return lane or None, prov, do_not_auto_dispatch
 
 
