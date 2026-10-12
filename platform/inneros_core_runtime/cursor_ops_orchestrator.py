@@ -44,7 +44,14 @@ def owner_order_execute(
             "hint": "Usa owner_approved=true, WhatsApp «procede cursor» + confirmar co_…, o cursor_authorize_ops_task.",
         }
 
-    cep.register_session_heartbeat(source="cursor_ops_orchestrator", role="ops_executor")
+    session = cep.read_session_liveness()
+    if not session.get("active"):
+        return {
+            "ok": False,
+            "error": "cursor_consumer_not_active",
+            "session": session,
+            "hint": "Ejecuta cursor_ops_inbox_consumer o abre sesión Cursor antes de owner_order_execute.",
+        }
     tid = (task_id or "").strip() or None
     corr = (correlation_id or "").strip() or None
     if not tid and not corr:

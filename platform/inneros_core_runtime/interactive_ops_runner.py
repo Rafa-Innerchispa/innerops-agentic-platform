@@ -175,7 +175,6 @@ def claim_ops_task(
     if prov == "cursor" and require_cursor_session:
         from inneros_core_runtime import cursor_execution_plane as cep
 
-        cep.register_session_heartbeat(host=_host(), source="interactive_ops_runner.claim", role="ops_executor")
         classified = cep.classify_cursor_execution()
         if classified.get("execution_classification") not in {"partial", "headless_ready"}:
             return {"ok": False, "error": "cursor_session_not_ready", "classification": classified}

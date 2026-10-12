@@ -1,0 +1,11 @@
+[Unit]
+Description=Cursor inbox consumer (ACK + authentic session heartbeat)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+Persistent=true
+Unit=inneros-cursor-inbox-consumer.service
+
+[Install]
+WantedBy=timers.target
