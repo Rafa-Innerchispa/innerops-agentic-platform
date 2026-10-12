@@ -29,7 +29,12 @@ jobs:
       - name: Fetch trusted main only
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          # Upstream checkout issue: persist-credentials=false invokes
+          # git submodule foreach even when submodules are disabled.
+          # This repo has a legacy gitlink without a .gitmodules entry.
+          # No untrusted PR code runs in this main-only workflow.
+          persist-credentials: true
+          submodules: false
           fetch-depth: 1
       - name: Python 3.12
         uses: actions/setup-python@v5
