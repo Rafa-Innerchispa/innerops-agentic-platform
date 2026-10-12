@@ -1,5 +1,8 @@
 # InnerOS Local Agent Fabric
 
+> **Nota de vigencia (2026-10-12):** documento histórico. Para el estado operativo, ID de tareas, política actual de modelos, ROCm 10/AMD Skills y criterios de entrega consultar [INNEROS_COORDINATION_CONTINUITY_20261012.md](INNEROS_COORDINATION_CONTINUITY_20261012.md). Las rutas, versiones, políticas y estados debajo pueden haber cambiado. Corroborar con Mongo/Temporal/GitHub y runtime antes de intervenir.
+
+
 InnerOS treats the Intel and AMD hosts as one logical MCP ecosystem with two execution planes.
 
 - Intel `.4`: coordination, memory, business services, Home Assistant primary, WhatsApp, email, and fallback tests.
