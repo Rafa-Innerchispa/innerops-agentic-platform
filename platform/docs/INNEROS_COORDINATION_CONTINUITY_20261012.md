@@ -75,3 +75,6 @@ El scheduler `platform/inneros_core_runtime/dev_swarm_scheduler.py` importa `loc
 - **Ops canario E2E:** `ops_bb2b8a9eb081` / `ops_e0b587b1098e` → Temporal **COMPLETED/failed** (gate pre-PR144); Mongo alineado **failed** (no éxito ficticio). `ops_d45afea0028e` → **failed** (claim stale).
 - **Runtime:** espejo HA AMD↔Intel ejecutado; autopilot headless activo en ambos nodos; `test_execution_receipts` PASS en AMD.
 - **Pendiente certificación final:** cierre terminal **`ops_f46a62594c73`** con evidencia Git + señal Temporal + Dev Swarm dispatch medido (4 carriles).
+
+## 10. Decisión sobre Kubernetes / K3s (2026-10-12)
+- Ver [ADR_20261012_KUBERNETES_VS_INNEROS_COORDINATION.md](ADR_20261012_KUBERNETES_VS_INNEROS_COORDINATION.md): **Kubernetes NO es prerrequisito de cierre P0**, no sustituye InnerOS/Temporal/Mongo/receipts ni requiere migración inmediata. K3s se evalúa posteriormente por supervisión, despliegues y escalado; con 2 nodos no se presume HA de control plane con etcd embebido. No introducir dependencias ocultas: exigir bloqueo real reproducible y autorización antes de cambiar el alcance.
