@@ -13,12 +13,15 @@ from raphiia_openai import mongo_store
 from inneros_core_runtime import agent_provider_registry as apr
 from inneros_core_runtime import execution_binding as eb
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL, heartbeat_ops_task
+from pathlib import Path
+
 from inneros_core_runtime.cursor_ops_runner import (
     _evidence_to_agent_result,
     _lease_valid,
     _release_claim,
     _validate_completion_evidence,
 )
+from inneros_core_runtime import execution_receipts as receipts
 
 LEASE_SECONDS = int(os.getenv("INTERACTIVE_OPS_LEASE_SECONDS", os.getenv("CURSOR_OPS_LEASE_SECONDS", "3600")))
 CLAIM_STATUSES = frozenset(
@@ -249,7 +252,11 @@ def claim_ops_task(
         if not worktree_path:
             _release_claim(db, tid, reason="worktree_create_failed")
             return {"ok": False, "error": "worktree_required", "task_id": tid, "details": wt}
-        db[OPS_TASKS_COL].update_one({"task_id": tid, "claim_token": token}, {"$set": {"worktree": worktree_path}})
+        baseline_sha = receipts.git_head(Path(worktree_path))
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": token},
+            {"$set": {"worktree": worktree_path, "git_baseline_sha": baseline_sha}},
+        )
     from inneros_core_runtime import durable_coordination_spine
 
     handoff = durable_coordination_spine.signal_task_workflow(
@@ -304,6 +311,13 @@ def complete_ops_task(
     ev = dict(evidence or {})
     if commit_sha:
         ev["commit_sha"] = commit_sha.strip()
+    if normalized == "completed" and not str(ev.get("commit_sha") or "").strip():
+        wt_path = str(task.get("worktree") or task.get("local_worktree") or "").strip()
+        base = str(task.get("git_baseline_sha") or ev.get("git_before_sha") or "").strip()
+        if wt_path and base:
+            built = receipts.completion_evidence_from_worktree(Path(wt_path), base)
+            if built.get("ok"):
+                ev = {**ev, **built["evidence"]}
     ev_err = _validate_completion_evidence(normalized, ev)
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}

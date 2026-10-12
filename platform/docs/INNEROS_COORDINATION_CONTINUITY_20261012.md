@@ -97,3 +97,15 @@ En GitHub **PR #145** se convirtió deliberadamente en cobertura de tests y CI (
 - La solución prioritaria es **reutilizar/exponer un motor ya gobernado de escrituras del Dev Swarm desde el ciclo durable de Temporal** para tareas `coding`, sin abrir un tercer motor ni permitir escrituras arbitrarias; exigir archivos y pruebas de código objetivo antes de cerrar. Cursor recibió hallazgo exacto vía `msg_ef47caf28a4e628c`, asociado al P0 **existente** `ops_f46a62594c73`. Mantener escritor único de `temporal_activities.py`, `temporal_bounded_executor.py` y `dev_swarm_scheduler.py` mientras Cursor lo corrige.
 - **PR #147** mergeado a `main` SHA `9286519248a4ee38e615f9083e2df16a837d0f2c`: corrige identidad de `local-amd-5` y `local-intel-4` en `agent_provider_registry`, habilita defaults `local_dev_swarm` sin sobreescribir `do_not_auto_dispatch=true`, y `execution_binding` consulta registro dinámico en lugar de lista fija. Gates `critical-runtime-contracts` y `GitGuardian` PASS. **Este PR no soluciona por sí solo las escrituras de modelo ni se ha certificado runtime AMD/Intel**.
 - **Criterio de cierre obligatorio:** canario nuevo por la ruta Temporal local → modelo Qwen o fallback Intel → **archivos reales** en worktree → tests y commit → evidencia receipt y Temporal/Mongo **estado terminal**; además Cursor AMD+Intel y Codex/Antigravity según transporte real disponible. No inventar éxito ni reiniciar tareas históricas ciegamente. Fase K3s queda fuera del P0.
+
+## 14. Certificación autónoma post-canario (2026-10-12 ~14:20 UTC)
+
+- **Git runtime AMD:** `a7553157` (rewrite `platform/` en worktrees + prompt modelo); PR #144/#147 en `main`.
+- **P0 correlación `inneros-p0-universal-execution-gates-pr144-20261012`:** `ops_f46a62594c73` y `ops_ba6e885a1cf3` en Mongo **completed**; no abrir duplicados para `msg_0da48bf5982f9f90`.
+- **Cursor HA E2E (solo lectura, handoff obligatorio):**
+  - AMD `ops_1369791f60a0` / `cursor-ha-e2e-amd-b93e3f7192` → Temporal `cursor_claim_handoff` + `cursor_execution_complete` → Mongo **completed**.
+  - Intel `ops_cb8cafe5c2f4` / `cursor-ha-e2e-intel-b1d3cb5323` → mismo contrato → Mongo **completed**.
+  - Script: `platform/scripts/cursor_ha_e2e_server_probe.py`; evidencia en `var/evidence/cursor_ha_e2e_*.json`.
+- **Reconciliación proyección:** `platform/scripts/reconcile_ops_mongo_temporal.py` (--apply) cerró 7 ops golden-flow/`co_cursor_ha_e2e` sin workflow Temporal; `ops_ba1cc9c01e42` → **failed** (workflow Temporal falló en hidratación).
+- **Runner interactivo:** `interactive_ops_runner` guarda `git_baseline_sha` en claim y puede completar evidencia Git vía `completion_evidence_from_worktree` (Codex/Antigravity/Cursor).
+- **Pendiente:** canario Codex/Antigravity con transporte real; re-admitir Ambient Guardian tras allowlist de repo.

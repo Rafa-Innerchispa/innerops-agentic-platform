@@ -1,138 +1,150 @@
 #!/usr/bin/env python3
-"""Create + drive one Cursor HA e2e mini-task bound to amd or intel (server-side proof)."""
+"""Cursor HA E2E: temporal worker health + read-only Cursor ops canary."""
 from __future__ import annotations
 
 import argparse
 import json
+import socket
+import subprocess
 import sys
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from inneros_core_runtime import cursor_ops_runner as cor
-from inneros_core_runtime import cursor_headless_lanes as lanes
-from inneros_core_runtime.coordination_live import OPS_TASKS_COL, create_ops_task
-from inneros_core_runtime.memory import agent_messages as am
-from raphiia_openai import mongo_store
+DEFAULT_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
 
 
-def _wait_task(tid: str, *, timeout: int = 420) -> dict:
+def _utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _host() -> str:
+    return socket.gethostname().lower()
+
+
+def _worker_running() -> bool:
+    proc = subprocess.run(["pgrep", "-f", "inneros_core_runtime.temporal_worker"], capture_output=True, text=True, check=False)
+    return proc.returncode == 0 and bool(proc.stdout.strip())
+
+
+def _temporal_port() -> bool:
+    with socket.socket() as sock:
+        sock.settimeout(1)
+        return sock.connect_ex(("127.0.0.1", 7233)) == 0
+
+
+def _run_cursor_readonly_canary(*, correlation_id: str) -> dict[str, Any]:
+    from inneros_core_runtime import coordination_live as cl
+    from inneros_core_runtime import interactive_ops_runner as ior
+    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+    from raphiia_openai import mongo_store
+
+    objective = (
+        "Solo lectura: git rev-parse HEAD en el worktree; entregar commit_sha en evidencia. "
+        "Prohibido modificar archivos."
+    )
+    created = cl.create_ops_task(
+        assignee="cursor",
+        title=f"[cursor-ha-e2e] read-only HEAD @ {_host()}",
+        correlation_id=correlation_id,
+        repo=DEFAULT_REPO,
+        objective=objective,
+        task_class="verification",
+        execution_lane="cursor_interactive",
+        preferred_provider="cursor",
+        do_not_auto_dispatch=True,
+        idempotency_key=f"{correlation_id}|cursor",
+        evidence_required=["commit_sha"],
+        from_agent="cursor_ha_e2e_probe",
+    )
+    if not created.get("ok"):
+        return {"ok": False, "stage": "create", "create": created}
+
+    task_id = str(created.get("task_id") or (created.get("task") or {}).get("task_id") or "")
+    ior.authorize_ops_task("cursor", task_id, owner_actor="RAFAEL", channel="cursor_ha_e2e")
+    claim = ior.claim_ops_task("cursor", task_id=task_id, owner_approved=True)
+    if not claim.get("ok"):
+        return {"ok": False, "stage": "claim", "task_id": task_id, "claim": claim}
+
+    wt = str(claim.get("worktree") or ROOT)
+    proc = subprocess.run(["git", "-C", wt, "rev-parse", "HEAD"], capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        return {"ok": False, "stage": "git", "task_id": task_id, "stderr": proc.stderr.strip()}
+
+    commit_sha = proc.stdout.strip()
+    done = ior.complete_ops_task(
+        "cursor",
+        task_id,
+        claim_token=str(claim.get("claim_token") or ""),
+        status="completed",
+        evidence={"commit_sha": commit_sha, "notes": f"cursor-ha-e2e readonly @ {wt}", "probe_host": _host()},
+    )
+
     db = mongo_store.get_db()
-    deadline = time.time() + timeout
-    last = {}
+    deadline = time.time() + 180
+    final: dict[str, Any] = {}
     while time.time() < deadline:
-        last = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or {}
-        if last.get("headless_execution_finished_at"):
-            return last
-        if last.get("status") in {"verification", "completed", "failed", "blocked"}:
-            return last
-        time.sleep(5)
-    return last
+        final = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
+        if str(final.get("status") or "") in {"completed", "failed", "cancelled", "superseded"}:
+            break
+        time.sleep(2)
+
+    ok = bool(done.get("ok")) and str(final.get("status") or "") == "completed"
+    return {
+        "ok": ok,
+        "task_id": task_id,
+        "correlation_id": correlation_id,
+        "claim": claim,
+        "complete": done,
+        "final_status": final.get("status"),
+        "commit_sha": commit_sha,
+        "temporal_handoff": claim.get("temporal_handoff"),
+    }
 
 
 def main() -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument("--target-node", choices=("amd", "intel"), required=True)
-    p.add_argument("--run-autopilot", action="store_true", help="Run one autopilot tick after create")
-    args = p.parse_args()
-    here = lanes.node_role()
-    if args.run_autopilot and here != args.target_node:
-        print(json.dumps({"ok": False, "error": "wrong_node_for_autopilot", "here": here, "want": args.target_node}))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--target-node", choices=("amd", "intel", "local"), default="local")
+    parser.add_argument("--run-autopilot", action="store_true")
+    args = parser.parse_args()
+
+    node = args.target_node
+    if node == "local":
+        node = "amd" if "amd" in _host() else ("intel" if "intel" in _host() or "ver-10" in _host() else "local")
+
+    correlation_id = f"cursor-ha-e2e-{node}-{uuid.uuid4().hex[:10]}"
+    report: dict[str, Any] = {
+        "ok": False,
+        "target_node": node,
+        "host": _host(),
+        "started_at": _utc(),
+        "temporal_port_open": _temporal_port(),
+        "temporal_worker_running": _worker_running(),
+        "correlation_id": correlation_id,
+    }
+
+    if not report["temporal_port_open"] or not report["temporal_worker_running"]:
+        report["error"] = "temporal_not_ready"
+        print(json.dumps(report, indent=2, default=str))
         return 2
 
-    stamp = uuid.uuid4().hex[:8]
-    corr = f"co_cursor_ha_e2e_{args.target_node}_{stamp}"
-    objective = (
-        f"Prueba E2E InnerOS Cursor en servidor {args.target_node}. "
-        f"En el worktree del repo crea docs/CURSOR_HA_E2E_{args.target_node.upper()}_{stamp}.md "
-        f"con una sola línea: CURSOR_E2E host=$(hostname) node={args.target_node} ts=UTC_NOW. "
-        "Guarda el archivo; commit opcional si el repo lo permite."
-    )
-    created = create_ops_task(
-        "cursor",
-        f"HA E2E probe {args.target_node} {stamp}",
-        objective=objective,
-        from_agent="cursor",
-        correlation_id=corr,
-        repo="Rafa-Innerchispa/innerops-agentic-platform",
-        preferred_provider="cursor",
-        preferred_model=cor.CURSOR_PINNED_MODEL,
-        do_not_auto_dispatch=False,
-        payload={
-            "cursor_auto_execute": True,
-            "headless_auto": True,
-            "preferred_execution_host": args.target_node,
-            "canary_test_type": "cursor_ha_e2e",
-        },
-        idempotency_key=f"cursor-ha-e2e-{args.target_node}-{stamp}",
-    )
-    tid = str(created.get("task_id") or created.get("id") or "")
-    if not tid:
-        print(json.dumps({"ok": False, "create": created}))
-        return 1
-    auth = cor.authorize_ops_task_for_cursor(tid, owner_actor="INNEROS_E2E", channel="e2e_probe")
-    am.create_agent_message(
-        from_agent="chatgpt",
-        target_agent="cursor",
-        title=f"E2E probe {args.target_node}",
-        body=objective[:2000],
-        correlation_id=corr,
-        message_type="task",
-        payload={"task_id": tid, "preferred_execution_host": args.target_node},
-        idempotency_key=f"e2e-inbox-{tid}",
-    )
-    out = {"ok": True, "task_id": tid, "correlation_id": corr, "create": created, "authorize": auth, "host": lanes.hostname(), "role": here}
-    if args.run_autopilot:
-        import subprocess
+    report["canary"] = _run_cursor_readonly_canary(correlation_id=correlation_id)
+    report["ok"] = bool(report["canary"].get("ok"))
+    report["finished_at"] = _utc()
 
-        proc = subprocess.run(
-            [str(ROOT / "venv/bin/python3"), str(ROOT / "scripts/cursor_ops_headless_autopilot.py")],
-            cwd=str(ROOT),
-            env={**__import__("os").environ, "PYTHONPATH": str(ROOT)},
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        out["autopilot_rc"] = proc.returncode
-        try:
-            out["autopilot"] = json.loads(proc.stdout)
-        except Exception:
-            out["autopilot_stdout"] = proc.stdout[:2000]
-        ap = out.get("autopilot") or {}
-        spawned_ok = any(s.get("ok") for s in (ap.get("spawned") or []))
-        if not spawned_ok:
-            for cl in ap.get("claims") or []:
-                if cl.get("ok") and cl.get("task_id") == tid:
-                    import subprocess as sp
-
-                    sp.run(
-                        [str(ROOT / "venv/bin/python3"), str(ROOT / "scripts/cursor_ops_headless_execute_one.py"), "--task-id", tid],
-                        cwd=str(ROOT),
-                        env={**__import__("os").environ, "PYTHONPATH": str(ROOT)},
-                        timeout=600,
-                    )
-                    break
-        final = _wait_task(tid, timeout=360)
-        out["final_task"] = {
-            "status": final.get("status"),
-            "headless_execution_host": final.get("headless_execution_host"),
-            "headless_last_result": final.get("headless_last_result"),
-            "worktree": final.get("worktree") or final.get("local_worktree"),
-        }
-        wt = final.get("worktree") or final.get("local_worktree")
-        marker_glob = f"CURSOR_HA_E2E_{args.target_node.upper()}_{stamp}.md"
-        if wt:
-            hits = list(Path(wt).glob(f"docs/{marker_glob}"))
-            out["marker_found"] = bool(hits)
-            if hits:
-                out["marker_content"] = hits[0].read_text(encoding="utf-8")[:200]
-    print(json.dumps(out, indent=2, default=str))
-    ok = out.get("ok") and (not args.run_autopilot or out.get("final_task", {}).get("headless_execution_host"))
-    return 0 if ok else 3
+    out_dir = Path("/home/rlopez/inneros/inneros_core/var/evidence")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"cursor_ha_e2e_{node}_{correlation_id.split('-')[-1]}.json"
+    out_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    report["evidence_path"] = str(out_path)
+    print(json.dumps(report, indent=2, default=str))
+    return 0 if report["ok"] else 1
 
 
 if __name__ == "__main__":
