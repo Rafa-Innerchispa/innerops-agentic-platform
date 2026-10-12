@@ -19,6 +19,9 @@
 
 ## Recovery and cross-agent continuity
 
+**Current handoff for a new chat or IDE agent:** [12 October InnerOS complete migration state](docs/INNEROS_NEXT_CHAT_HANDOFF_20261012.md). **Global delivery standard for GitHub, GitLab and host releases:** [universal policy](docs/INNEROS_UNIVERSAL_DELIVERY_POLICY.md). Verify live state and do not re-run already merged PRs.
+
+
 **GitHub branch debt and production proof:** [automatic branch ledger](docs/INNEROS_BRANCH_LEDGER.md) and [per-host runtime attestation](docs/INNEROS_RELEASE_ATTESTATION.json). Updated by the daily InnerOS Branch and Production Ledger workflow. A merged branch is NOT evidence that AMD/Intel services imported that code. No auto-delete or blind merge.
 
 
