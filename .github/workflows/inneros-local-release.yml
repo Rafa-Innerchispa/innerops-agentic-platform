@@ -1,0 +1,51 @@
+name: InnerOS Trusted Local Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "Full 40-char reviewed main SHA"
+        required: true
+        type: string
+      mode:
+        description: "Preview or approved deployment"
+        required: true
+        default: plan
+        type: choice
+        options: [plan, apply]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inneros-amd-local-release
+  cancel-in-progress: false
+
+jobs:
+  release-amd:
+    # Install and register a trusted, dedicated runner ON AMD first.
+    # Do not attach a general purpose or public pull_request runner.
+    runs-on: [self-hosted, linux, x64, inneros-amd]
+    environment: ${{ inputs.mode == 'apply' && 'inneros-production' || 'inneros-staging' }}
+    timeout-minutes: 12
+    steps:
+      - name: Fetch approved source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify candidate and perform bounded release
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          INNEROS_APPROVED_RELEASE: ${{ inputs.release_sha }}
+          RUNNER_ENVIRONMENT: self-hosted
+          RELEASE_MODE: ${{ inputs.mode }}
+        run: |
+          set -eu
+          test "${#RELEASE_SHA}" -eq 40
+          python3 scripts/inneros_local_release_executor.py --sha "$RELEASE_SHA" --mode "$RELEASE_MODE"
+      - name: Post-release note
+        if: always()
+        run: |
+          echo "Workflow status is CI/runner status only. Confirm MCP health, Intel failover and workers separately."
