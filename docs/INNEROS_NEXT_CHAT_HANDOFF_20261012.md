@@ -101,3 +101,13 @@ Repositorio central: <https://github.com/Rafa-Innerchispa/innerops-agentic-platf
 - [GitHub PRs](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pulls)
 
 **Frase de retomada:** «Continúa InnerOS desde `docs/INNEROS_NEXT_CHAT_HANDOFF_20261012.md`; verifica el estado vivo, no repitas tareas ni PRs integrados, arregla el inventario diario si sigue fallando, habilita fase 1 de CI/release y certifícalo por GitHub/GitLab/servidor».
+
+
+## Confirmación posterior: el inventario automático ya funciona (12 oct 2026, verificación independiente)
+
+- El primer workflow de inventario falló en checkout (`38269250249`), **pero su reejecución posterior `38269793085` terminó con job `audit: success`**. No repetir el fix de gitlink/submódulos ni abrir otro PR de lo mismo.
+- **El archivo [docs/INNEROS_BRANCH_LEDGER.md](INNEROS_BRANCH_LEDGER.md) YA existe en main**, generado con timestamp de auditoría `2026-10-12T15:23:28Z`: 266 ramas (incluye main), 8 PR abiertos; categorías: 52 `EN_HISTORIA_MAIN`, 148 `REVISAR_SIN_PR`, 24 `RIESGO_ALTO`, 6 `PR_ABIERTO` y 35 `ERROR` de comparación. Las 35 deben revisarse/reintentarse sin concluir que son ramas dañadas ni que falta su código. No fusionar las 148 a ciegas.
+- El último SHA de main observado antes de esta anotación era `1b78fdd8b56c3d5fe0926ec43f60087a5344e869`, con cambio `docs(inneros): make next-chat handoff entrypoint mandatory for all agents`. Siempre refrescarlo al comenzar un nuevo chat.
+- Confirmación adicional del API GitHub: `has_issues=false`, `has_projects=true`, `allow_auto_merge=false`; repositorio con permisos de administración del conector, pero sin acción directa de configuración aprobada. GitHub Releases: **0**. Issues y Rulesets siguen sin activar; el siguiente chat debe resolver por UI/acción administrativa apropiada sin prometer que la herramienta los activó.
+- **Producción permanece NO_CERTIFICADO** en AMD e Intel según [atestación](INNEROS_RELEASE_ATTESTATION.json). No equiparar el inventario exitoso con despliegue. La política universal [INNEROS_UNIVERSAL_DELIVERY_POLICY.md](INNEROS_UNIVERSAL_DELIVERY_POLICY.md) aplica a GitHub, GitLab y cada servidor, pero **su adopción todavía necesita pruebas por repositorio y servicio**.
+- Para la siguiente etapa, **no recrear PR #149 ni #151**. Ir directamente a: sanear ramas comparadas con error, evaluar ramas adelantadas por equivalencia real, habilitar Issues/protección adecuada, implementar GitHub Releases + LKG y certificar despliegues host. Luego replicar gobierno a GitLab y otros proyectos sin migrar códigos entre repos distintos.
