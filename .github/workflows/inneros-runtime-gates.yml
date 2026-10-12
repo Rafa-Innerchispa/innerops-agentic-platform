@@ -37,6 +37,8 @@ on:
       - "scripts/inneros_local_release_executor.py"
       - "scripts/inneros_release_gate.py"
       - "platform/tests/test_inneros_release_gate.py"
+      - "platform/inneros_core_runtime/local_execution_plane.py"
+      - "platform/tests/test_gitlab_runner_policy_precedence.py"
       - ".github/workflows/inneros-release-readiness.yml"
       - "docs/INNEROS_LAST_KNOWN_GOOD.json"
       - ".github/workflows/inneros-local-release.yml"
@@ -79,6 +81,8 @@ on:
       - "scripts/inneros_local_release_executor.py"
       - "scripts/inneros_release_gate.py"
       - "platform/tests/test_inneros_release_gate.py"
+      - "platform/inneros_core_runtime/local_execution_plane.py"
+      - "platform/tests/test_gitlab_runner_policy_precedence.py"
       - ".github/workflows/inneros-release-readiness.yml"
       - "docs/INNEROS_LAST_KNOWN_GOOD.json"
       - ".github/workflows/inneros-local-release.yml"
@@ -119,6 +123,8 @@ jobs:
             scripts/inneros_local_release_executor.py \
             scripts/inneros_release_gate.py \
             platform/tests/test_inneros_release_gate.py \
+            platform/inneros_core_runtime/local_execution_plane.py \
+            platform/tests/test_gitlab_runner_policy_precedence.py \
             platform/tests/test_capability_gateway_regressions_p0.py \
             platform/inneros_core_runtime/governed_model_writes.py \
             platform/inneros_core_runtime/temporal_bounded_executor.py \
@@ -153,6 +159,7 @@ jobs:
             platform/tests/test_peer_observability_security_p0.py \
             platform/tests/test_local_release_executor_contract.py \
             platform/tests/test_inneros_release_gate.py \
+            platform/tests/test_gitlab_runner_policy_precedence.py \
             platform/tests/test_runtime_routing_and_a2a_lease_regressions.py \
             platform/tests/test_a2a_bridge.py \
             platform/tests/test_temporal_bounded_executor.py
