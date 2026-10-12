@@ -81,3 +81,22 @@ def committed_objective_receipt(worktree: Path, before_sha: str) -> dict[str, An
         "git_diff_rc": 0,
         "evidence_source": "git_committed_diff_on_execution_host",
     }
+
+
+def completion_evidence_from_worktree(
+    worktree: Path,
+    before_sha: str,
+    *,
+    test_exit_code: int = 0,
+    **extra: Any,
+) -> dict[str, Any]:
+    """Build a Temporal/Mongo completion payload shared by Cursor, Codex, and Dev Swarm."""
+    proof = committed_objective_receipt(worktree, before_sha)
+    if not proof.get("ok"):
+        return proof
+    evidence = {
+        **proof,
+        "test_results": {"exit_code": int(test_exit_code), "ok": int(test_exit_code) == 0},
+        **extra,
+    }
+    return {"ok": True, "evidence": evidence, "commit_sha": proof["commit_sha"]}

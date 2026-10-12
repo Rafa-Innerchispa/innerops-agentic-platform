@@ -68,3 +68,10 @@ El scheduler `platform/inneros_core_runtime/dev_swarm_scheduler.py` importa `loc
 - `ops_d45afea0028e` sigue `claimed` y `ops_f46a62594c73` sigue `in_progress` sin `headless_execution_finished_at` en la última consulta; no repetir ejecución hasta inspección de PID, lease, Temporal y logs.
 - Búsqueda en árbol GitHub `main`: no se encontraron carpetas versionadas `.cursor/skills/`, `.agents/skills/`, `amd/skills` ni referencias directas a `rocm-doctor` / `lemonade-router-builder`. Esto **no demuestra** que las skills no estén instaladas en HOME de AMD/Intel; inspeccionar ambas máquinas con herramientas aprobadas antes de concluir. Tampoco confirma que ROCm 10 esté instalado.
 - Documentación previa `platform/docs/INNEROS_LOCAL_AGENT_FABRIC.md` y `platform/docs/AI_COORDINATION.md` conserva antecedentes útiles pero referencias de agosto y políticas ya superadas; **este archivo prevalece para el handoff del 12 de octubre**, mientras los procesos, Mongo/Temporal y GitHub aportan el estado vivo.
+
+## 10. Cierre operativo verificado (2026-10-12 ~05:25 UTC)
+- **GitHub `main`:** incluye PR #144 fusionado, fix inbox (`poll_agent_inbox` + estados visibles), proyección Mongo Temporal vía `mongo_store`, fallback vLLM→Ollama en `raphiia_openai/local_model_router.py`, helper `completion_evidence_from_worktree`.
+- **Mensajería:** `poll_agent_inbox(agent=cursor)` vuelve a listar mensajes `acknowledged` con tareas activas; consumer sigue ACK solo `open`.
+- **Ops canario E2E:** `ops_bb2b8a9eb081` / `ops_e0b587b1098e` → Temporal **COMPLETED/failed** (gate pre-PR144); Mongo alineado **failed** (no éxito ficticio). `ops_d45afea0028e` → **failed** (claim stale).
+- **Runtime:** espejo HA AMD↔Intel ejecutado; autopilot headless activo en ambos nodos; `test_execution_receipts` PASS en AMD.
+- **Pendiente certificación final:** cierre terminal **`ops_f46a62594c73`** con evidencia Git + señal Temporal + Dev Swarm dispatch medido (4 carriles).
