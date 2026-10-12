@@ -136,7 +136,8 @@ jobs:
             platform/tests/test_repo_delivery_guardian.py \
             platform/tests/test_runtime_routing_and_a2a_lease_regressions.py \
             platform/tests/test_a2a_bridge.py \
-            platform/tests/test_temporal_bounded_executor.py
+            platform/tests/test_temporal_bounded_executor.py \
+            platform/tests/test_coordination_liveness.py
       - name: Produce CI-only provenance manifest
         env:
           INNEROS_COMMIT: ${{ github.sha }}
