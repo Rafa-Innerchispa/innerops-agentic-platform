@@ -19,7 +19,7 @@
 
 ## Recovery and cross-agent continuity
 
-For MCP Small/Full, dual-node coordination, local agents, and Bellini recovery, **start here**: [`docs/CANONICAL_CONTINUITY_HANDOFF_20260930.md`](docs/CANONICAL_CONTINUITY_HANDOFF_20260930.md). Do not rely on chat history alone; verify Git state and live runtime evidence.
+**Current active continuity (12 Oct 2026):** [`platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md`](platform/docs/INNEROS_COORDINATION_CONTINUITY_20261012.md) and repository-wide [`AGENTS.md`](AGENTS.md). Agents must read this current handoff and verify live Mongo/Temporal/task leases/GitHub/runtime before accepting work. The [30 Sep handoff](docs/CANONICAL_CONTINUITY_HANDOFF_20260930.md) remains historical context, not current dispatch instructions.
 
 ---
 
