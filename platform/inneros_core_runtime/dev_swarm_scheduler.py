@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, durable_coordination_spine, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
+from inneros_core_runtime import coordination_liveness
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -882,6 +883,10 @@ def _expire_inactive_locks(db: Any, now: datetime, now_iso: str) -> dict[str, in
     locks = db["ralfia_coordination_locks"].find({"status": "active", "expires_at": {"$lt": now_iso}}, {"_id": 0})
     for lock in locks:
         task_id = str(lock.get("task_id") or "")
+        task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) if task_id else None
+        if task and coordination_liveness.is_external_managed_claim(task):
+            preserved += 1
+            continue
         if _has_recent_task_activity(db, task_id, now):
             preserved += 1
             continue
@@ -902,6 +907,8 @@ def _reconcile_stale_ops_tasks(db: Any, now: datetime, now_iso: str, reason: str
     for task in rows:
         task_id = str(task.get("task_id") or "")
         if not task_id:
+            continue
+        if coordination_liveness.is_external_managed_claim(task):
             continue
         activity = _task_activity_time(task)
         if not activity or activity.timestamp() >= stale_before:
