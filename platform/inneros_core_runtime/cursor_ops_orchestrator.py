@@ -44,37 +44,34 @@ def owner_order_execute(
             "hint": "Usa owner_approved=true, WhatsApp «procede cursor» + confirmar co_…, o cursor_authorize_ops_task.",
         }
 
-    classified = cep.classify_cursor_execution()
-    session = cep.read_session_liveness()
-    consumer = cep.read_inbox_consumer_liveness()
-    execution_ready = bool(session.get("active")) or classified.get("execution_classification") in {
-        "partial",
-        "headless_ready",
-    }
-    delivery_ready = bool(consumer.get("active"))
-    if not execution_ready and not delivery_ready:
-        return {
-            "ok": False,
-            "error": "cursor_plane_not_ready",
-            "session": session,
-            "consumer": consumer,
-            "classification": classified,
-            "hint": (
-                "Activa inneros-cursor-inbox-consumer.timer y/o Private Worker "
-                "(inneros-cursor-headless-autopilot en AMD primario)."
-            ),
-        }
     tid = (task_id or "").strip() or None
     corr = (correlation_id or "").strip() or None
-    if not tid and not corr:
-        listed = cor.list_claimable_ops_tasks(limit=1)
+    if not tid:
+        listed = cor.list_claimable_ops_tasks(limit=5, correlation_id=corr)
         tasks = listed.get("tasks") or []
         if not tasks:
             return {"ok": False, "error": "no_claimable_task", "listed": listed}
         tid = str(tasks[0].get("task_id") or "")
 
-    if tid:
-        cor.authorize_ops_task_for_cursor(tid, owner_actor=owner_actor, channel=channel)
+    # Persist owner approval BEFORE probing the IDE/worker. An offline
+    # executor must not silently discard an approved task.
+    authorization = cor.authorize_ops_task_for_cursor(tid, owner_actor=owner_actor, channel=channel)
+    if not authorization.get("ok"):
+        return {"ok": False, "stage": "authorization", "authorization": authorization}
+
+    classified = cep.classify_cursor_execution()
+    session = cep.read_session_liveness()
+    execution_ready = bool(session.get("active")) or classified.get("execution_classification") in {"partial", "headless_ready"}
+    if not execution_ready:
+        return {
+            "ok": True,
+            "stage": "authorized_waiting_for_executor",
+            "task_id": tid,
+            "authorization": authorization,
+            "execution_ready": False,
+            "classification": classified,
+            "hint": "Executor offline: leave original task claimable; headless worker/IDE must claim when ready.",
+        }
     claim = cor.claim_ops_task(
         task_id=tid,
         correlation_id=corr if not tid else None,
