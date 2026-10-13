@@ -91,11 +91,51 @@ def _host_owns_task(task: dict[str, Any]) -> bool:
     return owner in h or h in owner or lanes.node_role() in owner
 
 
+def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
+    """Free concurrency slots when the background PID died without finishing."""
+    import os as _os
+
+    db = mongo_store.get_db()
+    h = lanes.hostname()
+    filt = {
+        "assignee": "cursor",
+        "headless_execution_started_at": {"$exists": True},
+        "headless_execution_finished_at": {"$exists": False},
+        "$or": [
+            {"headless_execution_host": h},
+            {"headless_execution_host": {"$regex": h.split(".")[0], "$options": "i"}},
+        ],
+    }
+    reaped: list[dict[str, Any]] = []
+    for row in db[OPS_TASKS_COL].find(filt, {"_id": 0, "task_id": 1, "headless_execution_pid": 1}):
+        pid = int(row.get("headless_execution_pid") or 0)
+        if pid > 0 and _os.path.exists(f"/proc/{pid}"):
+            continue
+        tid = str(row.get("task_id") or "")
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {
+                "$set": {
+                    "headless_execution_finished_at": _now(),
+                    "headless_last_result": {
+                        "ok": False,
+                        "error": "stale_headless_pid_reaped",
+                        "reaped_at": _now(),
+                    },
+                    "updated_at": _now(),
+                },
+                "$inc": {"revision": 1},
+            },
+        )
+        reaped.append({"task_id": tid, "reaped": True, "pid": pid})
+    return reaped
+
+
 def _find_resume_on_host(limit: int) -> list[dict[str, Any]]:
     db = mongo_store.get_db()
     h = lanes.hostname()
     filt = {
-        "status": "in_progress",
+        "status": {"$in": ["in_progress", "claimed"]},
         "assignee": "cursor",
         "claim_token": {"$exists": True},
         "headless_execution_started_at": {"$exists": False},
@@ -103,7 +143,12 @@ def _find_resume_on_host(limit: int) -> list[dict[str, Any]]:
     rows = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(limit, 1) * 3))
     out: list[dict[str, Any]] = []
     for row in rows:
-        if not _host_owns_task(row):
+        claim_host = str(row.get("claim_host") or "").lower()
+        if claim_host and claim_host not in h and h not in claim_host:
+            allowed, _ = lanes.should_this_node_run_task(row)
+            if not allowed:
+                continue
+        elif not _host_owns_task(row):
             allowed, _ = lanes.should_this_node_run_task(row)
             if not allowed:
                 continue
@@ -170,7 +215,7 @@ def _spawn_background_execution(task_id: str) -> dict[str, Any]:
 def _claim_from_task_doc(task: dict[str, Any]) -> dict[str, Any]:
     allowed, reason = lanes.should_this_node_run_task(task)
     if not allowed:
-        return {"ok": False, "error": "routing_skip", "reason": reason}
+        return {"ok": False, "error": "routing_skip", "reason": reason, "task_id": task.get("task_id")}
     tid = str(task.get("task_id") or "")
     claim = cor.claim_ops_task(task_id=tid, owner_approved=True, owner_actor="INNEROS_HEADLESS_AUTOPILOT")
     if claim.get("ok"):
@@ -200,12 +245,14 @@ def run(*, auto_claim: bool | None = None, execute: bool | None = None, limit: i
     # The autopilot timer is a dispatcher, not an authenticated Cursor IDE
     # session or an inbox consumer. It must not create either heartbeat.
     lanes.touch_node_liveness()
+    reaped_lanes = _reap_stale_headless_lanes()
 
     status = lanes.lane_status()
     key_status = cac.cursor_api_key_status()
     out: dict[str, Any] = {
         "ok": True,
         "lanes": status,
+        "reaped_lanes": reaped_lanes,
         "api_key": {"present": key_status.get("present"), "source": key_status.get("source")},
         "auto_claim": auto_claim,
         "execute": execute,

@@ -26,6 +26,13 @@ if [ "$#" -eq 1 ] && [ "$1" = "hostname" ]; then
   exec /usr/bin/hostname
 fi
 
+if [ "$#" -eq 2 ] && { [ "$1" = "/home/rlopez/bin/ralfia-peer-wifi-helper" ] || [ "$1" = "/home/rlopez/bin/ralfia-peer-node-helper" ]; }; then
+  case "$2" in
+    interfaces|route_check|scan|status|secret_store|connect|disconnect|forget|package_status|package_install|package_remove|hardware|python_runtime|user_service|project_bootstrap|project_reconcile|project_fs|observability)
+      exec /home/rlopez/bin/ralfia-peer-node-helper "$2" ;;
+  esac
+fi
+
 if [ "$#" -eq 4 ] && [ "$1" = "systemctl" ] && [ "$2" = "--user" ]; then
   action=$3
   unit=$4
