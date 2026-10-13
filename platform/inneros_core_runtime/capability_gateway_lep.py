@@ -48,6 +48,36 @@ def _handler(fn: Callable[..., dict[str, Any]]) -> Callable[[dict[str, Any], dic
     return _wrapped
 
 
+def _gitlab_manifest(
+    capability_id: str,
+    *,
+    title: str,
+    description: str,
+    keywords: list[str],
+    mode: str,
+    risk_class: str,
+    properties: dict[str, Any],
+    required: list[str] | None = None,
+    required_scopes: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "capability_id": capability_id,
+        "version": "1.0.0",
+        "title": title,
+        "domain": "local_gitlab",
+        "risk_class": risk_class,
+        "mode": mode,
+        "description": description,
+        "keywords": keywords + ["gitlab", "contributorops", "merge request", "ci", "pipeline"],
+        "parameters_schema": {
+            "type": "object",
+            "properties": properties,
+            "required": required or [],
+        },
+        "required_scopes": required_scopes or ["ralfia:read"],
+    }
+
+
 def register_local_execution_capabilities() -> int:
     """Register governed LEP capabilities for capability_search/describe/invoke."""
     if _LEP_TOOL_SPECS:
@@ -286,36 +316,109 @@ def register_local_execution_capabilities() -> int:
             _handler(lep.report_evidence),
         ),
         (
-            {
-                "capability_id": "local_gitlab.create_draft_merge_request.v1",
-                "version": "1.0.0",
-                "title": "Create GitLab draft merge request",
-                "domain": "local_gitlab",
-                "risk_class": "medium",
-                "mode": "mutation",
-                "description": "Open a draft MR on allowlisted GitLab source/target project pairs.",
-                "keywords": [
-                    "gitlab",
-                    "merge request",
-                    "draft mr",
-                    "draft merge",
-                    "pull request",
-                ],
-                "parameters_schema": {
-                    "type": "object",
-                    "properties": {
-                        "source_project": {"type": "string"},
-                        "source_branch": {"type": "string"},
-                        "target_project": {"type": "string"},
-                        "target_branch": {"type": "string"},
-                        "title": {"type": "string"},
-                        "description": {"type": "string"},
-                        "dry_run": {"type": "boolean"},
-                    },
-                    "required": ["source_project", "source_branch", "target_project", "title", "description"],
+            _gitlab_manifest(
+                "local_gitlab.get_merge_request.v1",
+                title="Get GitLab merge request (read-only)",
+                description="Fetch MR metadata, labels, pipeline summary, and merge status for allowlisted projects.",
+                keywords=["mr", "merge request", "inspect", "review", "257991"],
+                mode="read_only",
+                risk_class="low",
+                properties={
+                    "project_id_or_path": {"type": "string"},
+                    "mr_iid": {"type": "integer"},
                 },
-                "required_scopes": ["ralfia:agents"],
-            },
+                required=["project_id_or_path", "mr_iid"],
+            ),
+            _handler(gl.get_merge_request),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.list_merge_request_discussions.v1",
+                title="List GitLab MR discussions (read-only)",
+                description="List human review threads and bot notes on a merge request.",
+                keywords=["discussions", "feedback", "review comments", "notes"],
+                mode="read_only",
+                risk_class="low",
+                properties={
+                    "project_id_or_path": {"type": "string"},
+                    "mr_iid": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                },
+                required=["project_id_or_path", "mr_iid"],
+            ),
+            _handler(gl.list_merge_request_discussions),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.list_merge_request_pipelines.v1",
+                title="List GitLab MR pipelines (read-only)",
+                description="List CI pipelines attached to a merge request.",
+                keywords=["pipelines", "ci status", "tier-1"],
+                mode="read_only",
+                risk_class="low",
+                properties={
+                    "project_id_or_path": {"type": "string"},
+                    "mr_iid": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                },
+                required=["project_id_or_path", "mr_iid"],
+            ),
+            _handler(gl.list_merge_request_pipelines),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.list_pipeline_jobs.v1",
+                title="List GitLab pipeline jobs (read-only)",
+                description="List jobs for a pipeline (rubocop, static-analysis, etc.).",
+                keywords=["jobs", "failed job", "lint"],
+                mode="read_only",
+                risk_class="low",
+                properties={
+                    "project_id_or_path": {"type": "string"},
+                    "pipeline_id": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                },
+                required=["project_id_or_path", "pipeline_id"],
+            ),
+            _handler(gl.list_pipeline_jobs),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.get_job_trace.v1",
+                title="Get GitLab CI job trace tail (read-only)",
+                description="Return bounded, redacted tail of a CI job log for diagnosis.",
+                keywords=["trace", "log", "job output", "rubocop failure"],
+                mode="read_only",
+                risk_class="low",
+                properties={
+                    "project_id_or_path": {"type": "string"},
+                    "job_id": {"type": "integer"},
+                    "max_bytes": {"type": "integer"},
+                },
+                required=["project_id_or_path", "job_id"],
+            ),
+            _handler(gl.get_job_trace),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.create_draft_merge_request.v1",
+                title="Create GitLab draft merge request",
+                description="Open a draft MR on allowlisted GitLab source/target project pairs.",
+                keywords=["draft mr", "draft merge", "pull request", "open mr"],
+                mode="mutation",
+                risk_class="medium",
+                properties={
+                    "source_project": {"type": "string"},
+                    "source_branch": {"type": "string"},
+                    "target_project": {"type": "string"},
+                    "target_branch": {"type": "string"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "dry_run": {"type": "boolean"},
+                },
+                required=["source_project", "source_branch", "target_project", "title", "description"],
+                required_scopes=["ralfia:agents"],
+            ),
             _handler(gl.create_draft_merge_request),
         ),
     ]

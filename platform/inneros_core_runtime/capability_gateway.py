@@ -30,6 +30,11 @@ _LEGACY_CAPABILITY_ALIASES: Dict[str, str] = {
     "local_exec_push_branch": "local_exec.push_branch.v1",
     "local_exec_report_evidence": "local_exec.report_evidence.v1",
     "local_gitlab_create_draft_merge_request": "local_gitlab.create_draft_merge_request.v1",
+    "local_gitlab_get_merge_request": "local_gitlab.get_merge_request.v1",
+    "local_gitlab_list_merge_request_discussions": "local_gitlab.list_merge_request_discussions.v1",
+    "local_gitlab_list_merge_request_pipelines": "local_gitlab.list_merge_request_pipelines.v1",
+    "local_gitlab_list_pipeline_jobs": "local_gitlab.list_pipeline_jobs.v1",
+    "local_gitlab_get_job_trace": "local_gitlab.get_job_trace.v1",
 }
 
 

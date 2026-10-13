@@ -16,7 +16,23 @@ _RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 _PROFILE_SIGNALS: dict[str, tuple[str, ...]] = {
     "quoteops": ("quoteops", "misión de cotización", "mision de cotizacion", "build week"),
-    "coordination": ("agente", "coordinación", "coordinacion", "tarea", "buzón", "buzon", "handoff", "lock"),
+    "coordination": (
+        "agente",
+        "coordinación",
+        "coordinacion",
+        "tarea",
+        "buzón",
+        "buzon",
+        "handoff",
+        "lock",
+        "gitlab",
+        "merge request",
+        "contributorops",
+        "mr !",
+        "pipeline",
+        "rubocop",
+        "job trace",
+    ),
     "product_catalog": ("producto", "catálogo", "catalogo", "proveedor", "modelo", "ficha técnica", "pdf", "inventario"),
     "quoter": ("cotiz", "quote", "propuesta", "presupuesto", "pdf", "precio"),
     "vero": ("vero", "dile a vero", "facturador", "facturadora", "informe técnico", "informe tecnico"),
@@ -139,6 +155,48 @@ def route_tools(
                     "capability_id": "email.sent.query.v1",
                     "invoke_via": "capability_invoke",
                     "note": "Query sent email delivery and IMAP audit ledger without secrets.",
+                },
+            ]
+        )
+    if any(
+        token in hay
+        for token in (
+            "gitlab",
+            "merge request",
+            "contributorops",
+            "mr !",
+            "!257991",
+            "pipeline",
+            "job trace",
+            "rubocop",
+        )
+    ):
+        recommended_capabilities.extend(
+            [
+                {
+                    "capability_id": "local_gitlab.get_merge_request.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Read MR state for gitlab-org/gitlab (allowlisted paths).",
+                },
+                {
+                    "capability_id": "local_gitlab.list_merge_request_discussions.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Human/bot review threads on the MR.",
+                },
+                {
+                    "capability_id": "local_gitlab.list_merge_request_pipelines.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "CI pipelines linked to the MR.",
+                },
+                {
+                    "capability_id": "local_gitlab.list_pipeline_jobs.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Jobs within a pipeline (lint/static-analysis).",
+                },
+                {
+                    "capability_id": "local_gitlab.get_job_trace.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Bounded redacted job log tail.",
                 },
             ]
         )
