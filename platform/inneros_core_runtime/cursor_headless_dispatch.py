@@ -20,7 +20,15 @@ def headless_execute_enabled() -> bool:
     return os.getenv("INNEROS_CURSOR_HEADLESS_EXECUTE", "1").strip().lower() in {"1", "true", "yes"}
 
 
-def spawn_headless_execute(task_id: str) -> dict[str, Any]:
+def _headless_log_path(task_id: str) -> Path:
+    root = Path(__file__).resolve().parents[1]
+    log_dir = root.parent / "var" / "evidence" / "headless"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    safe = task_id.replace("/", "_")
+    return log_dir / f"{safe}-{_now().replace(':', '')}.log"
+
+
+def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[str, Any]:
     """Reserve lane and start cursor_ops_headless_execute_one in background."""
     from inneros_core_runtime import cursor_headless_lanes as lanes
 
@@ -31,15 +39,27 @@ def spawn_headless_execute(task_id: str) -> dict[str, Any]:
         return {"ok": False, "error": "headless_execute_disabled"}
     if not lanes.is_ha_execution_node():
         return {"ok": False, "error": "not_ha_execution_node"}
-    if lanes.available_slots() <= 0:
+    if lanes.available_slots() <= 0 and not force_retry:
         return {"ok": False, "error": "no_available_slots", "lanes": lanes.lane_status()}
 
     host = lanes.hostname()
     db = mongo_store.get_db()
+    if force_retry:
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "assignee": "cursor"},
+            {
+                "$unset": {
+                    "headless_execution_started_at": "",
+                    "headless_execution_finished_at": "",
+                    "headless_execution_pid": "",
+                },
+                "$set": {"updated_at": _now()},
+            },
+        )
     reserved = db[OPS_TASKS_COL].find_one_and_update(
         {
             "task_id": tid,
-            "status": {"$in": ["in_progress", "claimed", "running"]},
+            "status": {"$in": ["in_progress", "claimed", "running", "failed", "verification"]},
             "claim_token": {"$exists": True},
             "headless_execution_started_at": {"$exists": False},
         },
@@ -63,15 +83,18 @@ def spawn_headless_execute(task_id: str) -> dict[str, Any]:
     script = root / "scripts" / "cursor_ops_headless_execute_one.py"
     env = os.environ.copy()
     env["PYTHONPATH"] = str(root)
+    log_path = _headless_log_path(tid)
     try:
+        log_fh = open(log_path, "a", encoding="utf-8")
         proc = subprocess.Popen(
             [str(py), str(script), "--task-id", tid],
             cwd=str(root),
             env=env,
             start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
         )
+        log_fh.close()
     except OSError as exc:
         db[OPS_TASKS_COL].update_one(
             {"task_id": tid, "headless_execution_host": host},
@@ -86,5 +109,8 @@ def spawn_headless_execute(task_id: str) -> dict[str, Any]:
         )
         return {"ok": False, "task_id": tid, "error": "worker_spawn_failed", "detail": type(exc).__name__}
 
-    db[OPS_TASKS_COL].update_one({"task_id": tid}, {"$set": {"headless_execution_pid": int(proc.pid)}})
-    return {"ok": True, "task_id": tid, "pid": proc.pid, "host": host}
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": tid},
+        {"$set": {"headless_execution_pid": int(proc.pid), "headless_log_path": str(log_path)}},
+    )
+    return {"ok": True, "task_id": tid, "pid": proc.pid, "host": host, "log_path": str(log_path)}
