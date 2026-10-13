@@ -5,59 +5,9 @@ on:
     # Required status checks must run on EVERY PR, including docs-only changes.
   workflow_dispatch:
   push:
+    # Test the EXACT merged main SHA even when changed files were not on a list.
+    # Path filters previously skipped Cursor headless and Temporal recovery merges.
     branches: [main]
-    paths:
-      - "platform/inneros_core_runtime/local_model_router.py"
-      - "platform/raphiia_openai/__init__.py"
-      - "platform/tests/test_local_model_router_fallback.py"
-      - "scripts/inneros_branch_ledger.py"
-      - "platform/tests/test_inneros_branch_ledger.py"
-      - ".github/workflows/inneros-branch-ledger.yml"
-      - "docs/INNEROS_RELEASE_ATTESTATION.json"
-      - "platform/inneros_core_runtime/execution_binding.py"
-      - "platform/inneros_core_runtime/capability_gateway.py"
-      - "platform/inneros_core_runtime/capability_gateway_peer.py"
-      - "platform/tests/test_capability_gateway.py"
-      - "platform/tests/test_capability_gateway_regressions_p0.py"
-      - "platform/inneros_core_runtime/governed_model_writes.py"
-      - "platform/inneros_core_runtime/temporal_bounded_executor.py"
-      - "platform/inneros_core_runtime/interactive_ops_runner.py"
-      - "platform/scripts/cursor_ha_e2e_server_probe.py"
-      - "platform/tests/test_governed_model_writes.py"
-      - "platform/inneros_core_runtime/execution_receipts.py"
-      - "platform/tests/test_execution_receipts.py"
-      - "platform/scripts/reconcile_ops_mongo_temporal.py"
-      - "platform/tests/test_reconcile_ops_mongo_temporal.py"
-      - "platform/inneros_core_runtime/temporal_activities.py"
-      - "platform/inneros_core_runtime/temporal_workflows.py"
-      - "platform/inneros_core_runtime/agents/pool_agent_runners.py"
-      - "platform/inneros_core_runtime/a2a_controller.py"
-      - "platform/tests/test_global_coordination_guards.py"
-      - "platform/tests/test_execution_binding.py"
-      - "platform/tests/test_peer_ops_runner_contract.py"
-      - "platform/inneros_core_runtime/agents/ag41_peer_ops_executor.py"
-      - "platform/tests/test_peer_observability_security_p0.py"
-      - "scripts/inneros_local_release_executor.py"
-      - "scripts/inneros_release_gate.py"
-      - "platform/tests/test_inneros_release_gate.py"
-      - "platform/inneros_core_runtime/local_execution_plane.py"
-      - "platform/tests/test_gitlab_runner_policy_precedence.py"
-      - "platform/inneros_core_runtime/local_github_plane.py"
-      - "platform/tests/test_local_github_plane.py"
-      - "platform/scripts/repo_delivery_guardian.py"
-      - "platform/tests/test_repo_delivery_guardian.py"
-      - "platform/systemd/user/inneros-universal-delivery-guardian.service"
-      - "platform/systemd/user/inneros-universal-delivery-guardian.timer"
-      - ".github/workflows/inneros-release-readiness.yml"
-      - "docs/INNEROS_LAST_KNOWN_GOOD.json"
-      - ".github/workflows/inneros-local-release.yml"
-      - "platform/tests/test_local_release_executor_contract.py"
-      - "platform/tests/test_runtime_routing_and_a2a_lease_regressions.py"
-      - "platform/inneros_core_runtime/coordination_liveness.py"
-      - "platform/tests/test_coordination_liveness.py"
-      - "platform/inneros_core_runtime/dev_swarm_scheduler.py"
-      - "platform/tests/test_anti_freeze_scheduler.py"
-      - ".github/workflows/inneros-runtime-gates.yml"
 
 permissions:
   contents: read
@@ -143,7 +93,8 @@ jobs:
             platform/tests/test_anti_freeze_scheduler.py \
             platform/tests/test_ops_auto_claim_admission.py \
             platform/tests/test_cursor_ops_runner.py \
-            platform/tests/test_owner_authorization_pipeline.py
+            platform/tests/test_owner_authorization_pipeline.py \
+            platform/tests/test_main_ci_gate_trigger.py
       - name: Produce CI-only provenance manifest
         env:
           INNEROS_COMMIT: ${{ github.sha }}
