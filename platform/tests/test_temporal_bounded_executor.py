@@ -50,6 +50,46 @@ class TemporalBoundedExecutorTests(unittest.TestCase):
         self.assertEqual(result["test_results"]["exit_code"], 0)
         run_cmd.assert_called_once()
 
+    def test_generated_test_is_actually_run_by_bounded_executor(self) -> None:
+        envelope = {
+            "task_id": "ops_real_code_canary",
+            "correlation_id": "corr-generated",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "task_class": "coding",
+            "assignee": "dev_swarm",
+            "base_ref": "main",
+            "objective": "Add a meaningful Python regression test",
+        }
+        with TemporaryDirectory() as tmp:
+            wt = Path(tmp)
+            rel = "platform/tests/test_generated_retry.py"
+            generated = wt / rel
+            generated.parent.mkdir(parents=True)
+            generated.write_text("def test_true(): assert True\n", encoding="utf-8")
+            with (
+                patch.object(tbe, "_ensure_repo_worktree", return_value=wt),
+                patch.object(tbe, "objective_change_count", return_value=(1, [rel], [])),
+                patch.object(tbe, "_git_diff_summary", return_value=(1, "+ " + rel)),
+                patch(
+                    "inneros_core_runtime.governed_model_writes.apply_candidate_response",
+                    return_value={"ok": True, "files_touched": [rel], "writes": []},
+                ),
+                patch(
+                    "inneros_core_runtime.local_execution_plane.run_command_allowlisted",
+                    return_value={
+                        "ok": True,
+                        "command_result": {"ok": True, "returncode": 0, "stdout": "5 passed"},
+                    },
+                ) as runner,
+            ):
+                result = tbe.run_bounded_executor(
+                    envelope, str(wt), {"ok": True, "response": '{"files":[]}'},
+                )
+            self.assertTrue(result["ok"], result)
+            verified = runner.call_args.kwargs["command"]
+            self.assertIn(rel, verified)
+            self.assertIn("platform/tests/test_temporal_bounded_executor.py", verified)
+
     def test_run_bounded_executor_materializes_model_json_before_verify(self) -> None:
         envelope = {
             "task_id": "ops_materialize_canary",

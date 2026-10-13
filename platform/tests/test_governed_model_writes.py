@@ -58,6 +58,30 @@ class GovernedMaterializationTests(unittest.TestCase):
             self.assertEqual(writer.call_args.kwargs["path"], "tests/test_marker.py")
             self.assertEqual(writer.call_args.kwargs["task_id"], "ops_governed")
 
+    def test_monorepo_platform_tests_are_allowed_but_secrets_are_not(self) -> None:
+        from inneros_core_runtime import dev_swarm_scheduler as dss
+
+        with tempfile.TemporaryDirectory() as tmp:
+            wt = Path(tmp)
+            (wt / "platform" / "tests").mkdir(parents=True)
+            # The repo policy explicitly allows platform/tests; the separate
+            # model materializer must not silently reject its valid prefix.
+            with patch.object(dss, "_primary_product_root", return_value=""):
+                allowed = dss._normalize_product_scoped_path(
+                    repo="Rafa-Innerchispa/innerops-agentic-platform",
+                    worktree=wt,
+                    raw_path="platform/tests/test_generated.py",
+                )
+                self.assertTrue(allowed["ok"], allowed)
+                self.assertEqual(allowed["normalized_path"], "platform/tests/test_generated.py")
+                for forbidden in ("platform/.env", "platform/.git/config", "platform/tests/../../.env"):
+                    result = dss._normalize_product_scoped_path(
+                        repo="Rafa-Innerchispa/innerops-agentic-platform",
+                        worktree=wt,
+                        raw_path=forbidden,
+                    )
+                    self.assertFalse(result["ok"], result)
+
     def test_narrative_without_file_payload_does_not_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with (

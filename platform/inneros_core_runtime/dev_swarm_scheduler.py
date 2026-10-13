@@ -1882,7 +1882,7 @@ PRODUCT_PREFIXES = (
 )
 DIAGNOSTIC_PATH_PARTS = ("/inneros_dev_swarm/", "/__dev_swarm_contracts/", "/diagnostics/", "/dev_swarm_frontend_status")
 NODE_PROJECT_FILES = ("package.json", "tsconfig.json", "vite.config.js", "vite.config.ts")
-TEST_PREFIXES = ("tests/", "__tests__/", "test/")
+TEST_PREFIXES = ("tests/", "__tests__/", "test/", "platform/tests/", "platform/__tests__/", "platform/test/")
 DOC_PREFIXES = ("docs/",)
 WRITABLE_PREFIXES = PRODUCT_PREFIXES + TEST_PREFIXES + DOC_PREFIXES + NODE_PROJECT_FILES
 NODE_BUILTINS = {
