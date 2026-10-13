@@ -347,7 +347,23 @@ def run_bounded_executor(
     touched = sync_bridge_artifacts(wt_path) if repo and sync_bridge else []
     marker_writes = _apply_required_objective_markers(envelope_dict, wt_path)
     required_objective = _parse_required_objective_paths(envelope_dict)
-    verify_cmd = _default_verify_command(envelope_dict)
+    verify_envelope = envelope_dict
+    if not envelope_dict.get("verify_command") and not envelope_dict.get("verify_tests"):
+        # Run tests emitted by the local model, not only an unrelated bridge suite.
+        # Model paths were already checked by governed_model_writes; re-check that
+        # they exist in this worktree before passing them to the pytest profile.
+        generated_tests = sorted({
+            rel for rel in (materialization.get("files_touched") or [])
+            if rel.startswith(("tests/", "platform/tests/"))
+            and Path(rel).name.startswith("test_") and rel.endswith(".py")
+            and (wt_path / rel).is_file()
+        })
+        if generated_tests:
+            verify_envelope = {
+                **envelope_dict,
+                "verify_tests": list(DEFAULT_OFFLINE_VERIFY) + generated_tests,
+            }
+    verify_cmd = _default_verify_command(verify_envelope)
     test_results: Dict[str, Any] = {
         "exit_code": None,
         "ok": False,
