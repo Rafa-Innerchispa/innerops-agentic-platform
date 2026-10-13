@@ -116,6 +116,26 @@ def test_spawn_failure_does_not_leave_fake_running_reservation():
     assert "$unset" in col.update_one.call_args.args[1]
 
 
+def test_platform_local_headless_offers_for_phase1_correlation():
+    from inneros_core_runtime import platform_local_headless_executor as plhe
+    import os
+
+    task = {
+        "task_id": "ops_x",
+        "correlation_id": "inneros-phase1-universal-auto-exec-20261013",
+        "payload": {"task_class": "platform"},
+    }
+    old = os.environ.get("INNEROS_CURSOR_PLATFORM_LOCAL_EXECUTE")
+    os.environ["INNEROS_CURSOR_PLATFORM_LOCAL_EXECUTE"] = "1"
+    try:
+        assert plhe.offers_local_execution(task)
+    finally:
+        if old is None:
+            os.environ.pop("INNEROS_CURSOR_PLATFORM_LOCAL_EXECUTE", None)
+        else:
+            os.environ["INNEROS_CURSOR_PLATFORM_LOCAL_EXECUTE"] = old
+
+
 def test_reap_stale_headless_unsets_lane_for_retry():
     from unittest.mock import MagicMock, patch
     from scripts import cursor_ops_headless_autopilot as auto
