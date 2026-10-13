@@ -36,6 +36,7 @@ jobs:
             scripts/inneros_branch_ledger.py \
             platform/tests/test_inneros_branch_ledger.py \
             platform/inneros_core_runtime/execution_binding.py \
+            platform/inneros_core_runtime/cursor_execution_plane.py \
             platform/inneros_core_runtime/capability_gateway.py \
             platform/inneros_core_runtime/capability_gateway_peer.py \
             scripts/inneros_local_release_executor.py \
@@ -94,6 +95,7 @@ jobs:
             platform/tests/test_ops_auto_claim_admission.py \
             platform/tests/test_cursor_headless_retry_policy.py \
             platform/tests/test_cursor_ops_runner.py \
+            platform/tests/test_cursor_execution_plane.py \
             platform/tests/test_owner_authorization_pipeline.py \
             platform/tests/test_main_ci_gate_trigger.py
       - name: Produce CI-only provenance manifest
