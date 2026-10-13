@@ -77,18 +77,40 @@ def test_autopilot_does_not_forge_ide_liveness():
 def test_spawn_failure_does_not_leave_fake_running_reservation():
     from unittest.mock import MagicMock, patch
     from scripts import cursor_ops_headless_autopilot as auto
+    from inneros_core_runtime import cursor_headless_dispatch as dispatch
+
     db = MagicMock()
-    db.__getitem__.return_value.find_one_and_update.return_value = {
+    col = MagicMock()
+    db.__getitem__.return_value = col
+    col.find_one_and_update.return_value = {
         "task_id": "ops_test",
         "headless_execution_started_at": "2026-10-12T20:00:00+00:00",
     }
     with (
-        patch.object(auto.mongo_store, "get_db", return_value=db),
-        patch.object(auto.lanes, "hostname", return_value="ralfiia-amd"),
-        patch.object(auto.subprocess, "Popen", side_effect=FileNotFoundError("worker missing")),
+        patch.object(dispatch.mongo_store, "get_db", return_value=db),
+        patch(
+            "inneros_core_runtime.cursor_headless_lanes.is_ha_execution_node",
+            return_value=True,
+        ),
+        patch(
+            "inneros_core_runtime.cursor_headless_lanes.available_slots",
+            return_value=1,
+        ),
+        patch(
+            "inneros_core_runtime.cursor_headless_lanes.hostname",
+            return_value="ralfiia-amd",
+        ),
+        patch(
+            "inneros_core_runtime.cursor_headless_lanes.node_role",
+            return_value="amd",
+        ),
+        patch.object(
+            dispatch.subprocess,
+            "Popen",
+            side_effect=FileNotFoundError("worker missing"),
+        ),
     ):
         result = auto._spawn_background_execution("ops_test")
     assert result["error"] == "worker_spawn_failed"
-    col = db.__getitem__.return_value
     col.update_one.assert_called_once()
     assert "$unset" in col.update_one.call_args.args[1]
