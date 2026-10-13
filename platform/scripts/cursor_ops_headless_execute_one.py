@@ -112,11 +112,12 @@ def main() -> int:
         if result.get("ok") and result.get("primary") == "platform_local_pytest":
             proof = dict(result.get("test_results") or {})
             evidence = {
-                **proof,
+                "test_results": proof,
                 "notes": str(result.get("pytest_tail") or "")[:2000],
                 "headless_primary": "platform_local_pytest",
                 "execution_host": _host(),
                 "git_head_sha": receipts.git_head(worktree),
+                "runtime_main_sha": receipts.git_head(ROOT),
             }
             token = str(claim.get("claim_token") or "")
             if token:
