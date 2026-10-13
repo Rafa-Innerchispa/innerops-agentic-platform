@@ -40,18 +40,29 @@ def run_platform_work(task: dict[str, Any], *, worktree: Path, platform_root: Pa
         return {"ok": False, "error": "unsupported_local_headless_executor", "executor": executor}
 
     tests = list(payload.get("local_pytest_paths") or DEFAULT_PYTEST)
+    if (worktree / "platform" / "tests").is_dir():
+        cwd = worktree / "platform"
+        test_args = []
+        for t in tests:
+            rel = Path(t)
+            candidate = cwd / rel if not rel.is_absolute() else rel
+            if candidate.is_file():
+                test_args.append(str(rel))
+    else:
+        cwd = platform_root
+        test_args = []
+        for t in tests:
+            candidate = platform_root / t
+            if candidate.is_file():
+                test_args.append(t)
+    if not test_args:
+        return {"ok": False, "error": "no_pytest_files_found", "primary": "platform_local_pytest", "requested": tests}
     py = platform_root / "venv" / "bin" / "python3"
     if not py.is_file():
         py = Path(sys.executable)
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(platform_root)
-    if (worktree / "platform" / "tests").is_dir():
-        cwd = worktree / "platform"
-        test_args = [f"tests/{Path(t).name}" if t.startswith("tests/") else t for t in tests]
-    else:
-        cwd = platform_root
-        test_args = tests
     cmd = [str(py), "-m", "pytest", "-q", *test_args]
     proc = subprocess.run(
         cmd,
