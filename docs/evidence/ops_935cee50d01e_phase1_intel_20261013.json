@@ -1,0 +1,39 @@
+{
+  "task_id": "ops_935cee50d01e",
+  "phase": "inspection_and_partial_remediation",
+  "recorded_at_utc": "2026-10-13T18:25:00Z",
+  "origin_main_sha": "4842fff93873602d7280fb9260bffb68696f0071",
+  "host": {
+    "name": "ralphi-ia-ver-10",
+    "arch": "x86_64",
+    "role": "intel"
+  },
+  "findings": {
+    "runtime_root": "/home/rlopez/inneros/inneros_core/platform/inneros_core_runtime",
+    "pre_deploy_intel_dev_swarm_sha256": "571a58a936bdb1fe6dc8e67604902778cfb2563a90011d9817820487733e6207",
+    "main_dev_swarm_sha256": "3cc197298300d04b450c80b8f461f3447f1cb9962851b46b66d670a7b7746f33",
+    "root_cause_not_a_writable_product_prefix": "Intel runtime dev_swarm_scheduler lacked platform/tests/ in WRITABLE_PREFIXES; workspace innerops-agentic-platform was also stale vs main.",
+    "amd_dev_swarm_sha256_at_inspection": "3cc197298300d04b450c80b8f461f3447f1cb9962851b46b66d670a7b7746f33",
+    "intel_mcp_8102": "ralfia-mcp.service pre-existing crash loop: missing platform/scripts/run_mcp_runtime.py (restart counter >8200); not introduced by scheduler deploy.",
+    "coordination_daemon_pid": 2856106
+  },
+  "remediation_intel": {
+    "rollback_snapshot": "/home/rlopez/inneros/inneros_core/var/release-backups/20261013T182255Z-ops935cee50-intel-pre",
+    "deployed_modules": [
+      "dev_swarm_scheduler.py",
+      "temporal_bounded_executor.py"
+    ],
+    "post_deploy_dev_swarm_sha256": "3cc197298300d04b450c80b8f461f3447f1cb9962851b46b66d670a7b7746f33"
+  },
+  "coding_canary_intel_qwen": {
+    "correlation_id": "ops_935cee50d01e",
+    "work_branch": "local-agent/ops_provider_07c527ea60b4-9c6ef1",
+    "commit_sha": "fc2e4ad23fffe0015c5226518ad74da36ee2735e",
+    "generated_file": "platform/tests/test_ops935cee50_coding_canary.py",
+    "pytest_exit_code": 0,
+    "model": "qwen2.5-coder:7b",
+    "fabric_ok_before_proof_fix": false,
+    "fabric_blocker": "local_qwen_proof_required (case-sensitive Qwen check)"
+  },
+  "attestation_status": "verified=false; LKG UNSET — full dual-host E2E and release_gate not satisfied"
+}

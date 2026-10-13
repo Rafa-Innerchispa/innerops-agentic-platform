@@ -32,6 +32,18 @@ class ProviderExecutionFabricTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "process_pid_required")
 
+    def test_local_qwen_proof_accepts_lowercase_model_name(self):
+        result = fabric.validate_execution_proof(
+            "local_qwen",
+            {
+                "proof_type": "local_model",
+                "run_id": "ops_provider_abc",
+                "provider_id": "local-amd-5",
+                "model": "qwen2.5-coder:7b",
+            },
+        )
+        self.assertTrue(result["ok"])
+
     def test_remote_session_proof_requires_transport(self):
         result = fabric.validate_execution_proof("cursor", {"proof_type": "remote_session", "session_id": "sess-1", "transport": "a2a"})
 
