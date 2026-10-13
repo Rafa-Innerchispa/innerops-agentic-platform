@@ -155,7 +155,11 @@ def main() -> int:
             # Cursor Cloud agent creation is asynchronous, not execution success.
             reason = "cloud_agent_async_submission_not_verified"
         else:
-            reason = str(result.get("error") or "sdk_dispatch_failed")
+            reason = str(
+                result.get("error")
+                or result.get("pytest_tail")
+                or "headless_dispatch_failed"
+            )[:500]
 
         if submitted_status != "verification":
             # A real negative result, not an invented successful completion.

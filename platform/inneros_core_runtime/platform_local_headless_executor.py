@@ -46,10 +46,16 @@ def run_platform_work(task: dict[str, Any], *, worktree: Path, platform_root: Pa
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(platform_root)
-    cmd = [str(py), "-m", "pytest", "-q", *tests]
+    if (worktree / "platform" / "tests").is_dir():
+        cwd = worktree / "platform"
+        test_args = [f"tests/{Path(t).name}" if t.startswith("tests/") else t for t in tests]
+    else:
+        cwd = platform_root
+        test_args = tests
+    cmd = [str(py), "-m", "pytest", "-q", *test_args]
     proc = subprocess.run(
         cmd,
-        cwd=str(worktree if (worktree / "platform").is_dir() else platform_root),
+        cwd=str(cwd),
         env=env,
         capture_output=True,
         text=True,
