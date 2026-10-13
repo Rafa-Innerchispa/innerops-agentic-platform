@@ -120,7 +120,13 @@ def test_hackathon_projects_in_canonical_registry_json() -> None:
     assert act3["write_scope"] == "worktree_branch_only"
 
 
-def test_dev_swarm_scope_ok_for_hackathon_repos() -> None:
+def test_dev_swarm_scope_ok_for_hackathon_repos(monkeypatch) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry = json.loads(
+        (root / "var" / "project_runtime_registry" / "registry.json").read_text(encoding="utf-8")
+    )
+    monkeypatch.setenv("INNEROS_CORE_ROOT", "/home/rlopez/inneros/inneros_core")
+    monkeypatch.setattr(prr, "_load", lambda: registry)
     for repo in (
         "Rafa-Innerchispa/amd-academy-mc3-rag",
         "Rafa-Innerchispa/inneros-amd-act-iii",

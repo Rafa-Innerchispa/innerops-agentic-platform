@@ -423,7 +423,7 @@ def migrate_existing(actor: str = "codex") -> dict[str, Any]:
         (
             "amd-academy-mc3-rag",
             "Rafa-Innerchispa/amd-academy-mc3-rag",
-            "/home/rlopez/inneros/inneros_core/workspaces/amd-academy-mc3-rag",
+            None,
             {
                 "policy_class": "product-app",
                 "allowed_commands_profile": "python-tests",
@@ -447,7 +447,7 @@ def migrate_existing(actor: str = "codex") -> dict[str, Any]:
         (
             "inneros-amd-act-iii",
             "Rafa-Innerchispa/inneros-amd-act-iii",
-            "/home/rlopez/inneros/inneros_core/workspaces/inneros-amd-act-iii",
+            None,
             {
                 "policy_class": "product-app",
                 "allowed_commands_profile": "python-tests",
