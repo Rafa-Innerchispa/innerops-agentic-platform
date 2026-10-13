@@ -116,6 +116,13 @@ def test_spawn_failure_does_not_leave_fake_running_reservation():
     assert "$unset" in col.update_one.call_args.args[1]
 
 
+def test_resolve_workflow_id_prefers_mongo_row():
+    from inneros_core_runtime import durable_coordination_spine as spine
+
+    assert spine.resolve_workflow_id_for_task("ops_x", workflow_id="ops_task:ops_x:g2") == "ops_task:ops_x:g2"
+    assert spine.resolve_workflow_id_for_task("ops_y") == "ops_task:ops_y"
+
+
 def test_platform_local_headless_offers_for_phase1_correlation():
     from inneros_core_runtime import platform_local_headless_executor as plhe
     import os

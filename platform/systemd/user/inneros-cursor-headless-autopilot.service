@@ -12,6 +12,7 @@ Environment=INNEROS_CURSOR_MAX_CONCURRENT_CEILING=8
 Environment=INNEROS_CURSOR_AUTO_CLAIM=1
 Environment=INNEROS_CURSOR_HEADLESS_EXECUTE=1
 Environment=INNEROS_CURSOR_DISPATCH_MODE=auto
+Environment=INNEROS_CURSOR_PLATFORM_LOCAL_EXECUTE=1
 EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
 ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/cursor_ops_headless_autopilot.py
 TimeoutStartSec=180
