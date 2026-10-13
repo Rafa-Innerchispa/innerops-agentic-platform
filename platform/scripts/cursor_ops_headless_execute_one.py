@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 from inneros_core_runtime import cursor_headless_executor as che
 from inneros_core_runtime import cursor_ops_runner as cor
 from inneros_core_runtime import execution_receipts as receipts
+from inneros_core_runtime import platform_local_headless_executor as plhe
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
 from raphiia_openai import mongo_store
 
@@ -88,20 +89,52 @@ def main() -> int:
     proof: dict = {}
     submitted_status = "failed"
     try:
-        raw_timeout = os.getenv("INNEROS_CURSOR_SDK_TIMEOUT_SECONDS", "420")
-        try:
-            timeout = int(raw_timeout)
-        except ValueError:
-            timeout = 420
-        try:
-            with _bounded_sdk_run(timeout):
-                result = che.execute_claimed_task(claim)
-        except TimeoutError:
-            result = {"ok": False, "error": "cursor_sdk_timeout", "primary": "local_sdk"}
-        except Exception as exc:
-            result = {"ok": False, "error": "cursor_sdk_exception_" + type(exc).__name__}
+        if plhe.offers_local_execution(task):
+            result = plhe.run_platform_work(
+                task,
+                worktree=worktree,
+                platform_root=ROOT,
+            )
+        else:
+            raw_timeout = os.getenv("INNEROS_CURSOR_SDK_TIMEOUT_SECONDS", "420")
+            try:
+                timeout = int(raw_timeout)
+            except ValueError:
+                timeout = 420
+            try:
+                with _bounded_sdk_run(timeout):
+                    result = che.execute_claimed_task(claim)
+            except TimeoutError:
+                result = {"ok": False, "error": "cursor_sdk_timeout", "primary": "local_sdk"}
+            except Exception as exc:
+                result = {"ok": False, "error": "cursor_sdk_exception_" + type(exc).__name__}
 
-        if result.get("ok") and result.get("primary") == "local_sdk":
+        if result.get("ok") and result.get("primary") == "platform_local_pytest":
+            proof = dict(result.get("test_results") or {})
+            main_sha = receipts.git_head(ROOT)
+            evidence = {
+                "test_results": proof,
+                "notes": str(result.get("pytest_tail") or "")[:2000],
+                "headless_primary": "platform_local_pytest",
+                "execution_host": _host(),
+                "git_head_sha": receipts.git_head(worktree),
+                "runtime_main_sha": main_sha,
+                "commit_sha": main_sha,
+            }
+            token = str(claim.get("claim_token") or "")
+            if token:
+                complete = cor.complete_ops_task(
+                    tid,
+                    claim_token=token,
+                    status="completed",
+                    evidence=evidence,
+                    commit_sha=main_sha,
+                )
+            if complete and complete.get("ok"):
+                submitted_status = "verification"
+            else:
+                reason = str((complete or {}).get("error") or "completion_signal_missing")
+        elif result.get("ok") and result.get("primary") == "local_sdk":
             proof = receipts.committed_objective_receipt(worktree, before_sha)
             if proof.get("ok"):
                 evidence = {
@@ -126,7 +159,11 @@ def main() -> int:
             # Cursor Cloud agent creation is asynchronous, not execution success.
             reason = "cloud_agent_async_submission_not_verified"
         else:
-            reason = str(result.get("error") or "sdk_dispatch_failed")
+            reason = str(
+                result.get("error")
+                or result.get("pytest_tail")
+                or "headless_dispatch_failed"
+            )[:500]
 
         if submitted_status != "verification":
             # A real negative result, not an invented successful completion.

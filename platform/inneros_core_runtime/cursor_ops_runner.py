@@ -373,7 +373,10 @@ def claim_ops_task(
         "owner_authorized_at": claimed.get("owner_authorized_at"),
     }
     temporal_handoff = durable_coordination_spine.signal_task_workflow(
-        tid, "cursor_claim_handoff", handoff_payload
+        tid,
+        "cursor_claim_handoff",
+        handoff_payload,
+        workflow_id=str(claimed.get("workflow_id") or ""),
     )
 
     _publish_task_event(
@@ -481,9 +484,30 @@ def complete_ops_task(
         "actor": "cursor",
         "at": now,
     }
+    wf_id = str(task.get("workflow_id") or "")
     temporal = durable_coordination_spine.signal_task_workflow(
-        tid, "cursor_execution_complete", signal_payload
+        tid,
+        "cursor_execution_complete",
+        signal_payload,
+        workflow_id=wf_id,
     )
+    if not temporal.get("ok") and "already completed" in str(temporal.get("error") or "").lower():
+        from inneros_core_runtime.ops_temporal_recovery import reopen_ops_temporal_execution
+
+        reopened = reopen_ops_temporal_execution(
+            tid,
+            reason="auto_reopen_terminal_workflow_for_completion",
+            actor="cursor_ops_runner",
+        )
+        if reopened.get("ok") and not reopened.get("skipped"):
+            task = db[OPS_TASKS_COL].find_one({"task_id": tid, "claim_token": tok}) or task
+            wf_id = str(task.get("workflow_id") or wf_id)
+            temporal = durable_coordination_spine.signal_task_workflow(
+                tid,
+                "cursor_execution_complete",
+                signal_payload,
+                workflow_id=wf_id,
+            )
     if not temporal.get("ok"):
         return {
             "ok": False,

@@ -224,6 +224,9 @@ class OpsTaskWorkflow:
                 "awaiting_chatgpt_claim",
                 "awaiting_ide_claim",
                 "waiting_for_binding",
+                "claimed",
+                "in_progress",
+                "verification",
             }
             if blocked_status in handoff_statuses or binding_res.get("error") in handoff_errors:
                 return await self._run_cursor_interactive_path(envelope_dict, binding_res, val_res)

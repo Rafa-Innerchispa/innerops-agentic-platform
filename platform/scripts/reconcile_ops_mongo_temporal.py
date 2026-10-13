@@ -37,8 +37,23 @@ async def _temporal_describe(workflow_id: str) -> dict[str, Any]:
         )
         handle = client.get_workflow_handle(workflow_id)
         desc = await handle.describe()
-        status_name = str(desc.status)
-        terminal = any(x in status_name for x in ("COMPLETED", "FAILED", "TERMINATED", "CANCELED"))
+        from temporalio.client import WorkflowExecutionStatus
+
+        raw_status = desc.status
+        if isinstance(raw_status, int):
+            try:
+                status_name = WorkflowExecutionStatus(raw_status).name
+            except ValueError:
+                status_name = str(raw_status)
+        else:
+            status_name = str(getattr(raw_status, "name", raw_status))
+        terminal = status_name in {
+            "COMPLETED",
+            "FAILED",
+            "TERMINATED",
+            "CANCELED",
+            "CANCELLED",
+        } or any(x in status_name for x in ("COMPLETED", "FAILED", "TERMINATED", "CANCELED", "CANCELLED"))
         result_status = None
         result_gate_passed = None
         if "COMPLETED" in status_name:

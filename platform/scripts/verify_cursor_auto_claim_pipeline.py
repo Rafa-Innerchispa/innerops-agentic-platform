@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -84,10 +85,16 @@ def main() -> int:
     except Exception as exc:
         check("ollama_intel_generate", False, error=type(exc).__name__, url=ollama_url)
 
+    timer_env = os.environ.copy()
+    if not timer_env.get("XDG_RUNTIME_DIR"):
+        uid = os.getuid()
+        timer_env["XDG_RUNTIME_DIR"] = f"/run/user/{uid}"
+        timer_env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path=/run/user/{uid}/bus")
     timers = subprocess.run(
         ["systemctl", "--user", "is-active", "inneros-cursor-headless-autopilot.timer"],
         capture_output=True,
         text=True,
+        env=timer_env,
     )
     check("autopilot_timer_active", timers.stdout.strip() == "active", detail=timers.stdout.strip())
 

@@ -12,7 +12,7 @@ from raphiia_openai import mongo_store
 
 PEERS = ("amd", "intel")
 HOST_AMD = ("ralfiia-amd", "amd")
-HOST_INTEL = ("ralfiia-intel", "intel")
+HOST_INTEL = ("ralfiia-intel", "intel", "ralphi-ia-ver-10", "ralphi-ia")
 
 
 def _now() -> str:
@@ -32,9 +32,9 @@ def node_role() -> str:
             return role if role in PEERS else "amd"
         return role
     h = hostname()
-    if "intel" in h:
+    if any(token in h for token in HOST_INTEL) or h.startswith("ralphi-ia") or "-ia-" in h:
         return "intel"
-    if "amd" in h:
+    if any(token in h for token in HOST_AMD) or "amd" in h:
         return "amd"
     return "amd"
 

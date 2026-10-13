@@ -1,5 +1,51 @@
 {
   "projects": {
+    "amd-academy-mc3-rag": {
+      "allowed_commands_profile": "python-tests",
+      "allowed_paths": [
+        "app",
+        "src",
+        "tests",
+        "scripts",
+        "docs",
+        ".github",
+        "README.md",
+        "pyproject.toml",
+        "requirements.txt",
+        "Dockerfile",
+        "docker-compose.yml"
+      ],
+      "created_at": "2026-10-13T06:00:00+00:00",
+      "package_roots": [
+        "app",
+        "."
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/amd-academy-mc3-rag",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/amd-academy-mc3-rag"
+      },
+      "policy_class": "product-app",
+      "project_id": "amd-academy-mc3-rag",
+      "repo": "Rafa-Innerchispa/amd-academy-mc3-rag",
+      "source": "amd-hackathons-runtime-register-20261013",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-10-13T06:00:00+00:00",
+      "updated_by": "cursor",
+      "write_scope": "worktree_branch_only"
+    },
     "cozmo-alive": {
       "created_at": "2026-08-22T17:32:10.208329+00:00",
       "paths": {
@@ -208,6 +254,52 @@
         ]
       },
       "updated_at": "2026-10-01T19:20:00.000000+00:00",
+      "updated_by": "cursor",
+      "write_scope": "worktree_branch_only"
+    },
+    "inneros-amd-act-iii": {
+      "allowed_commands_profile": "python-tests",
+      "allowed_paths": [
+        "src",
+        "tests",
+        "docs",
+        "submission",
+        "scripts",
+        ".github",
+        "README.md",
+        "pyproject.toml",
+        "requirements.txt",
+        "Dockerfile",
+        "docker-compose.yml"
+      ],
+      "created_at": "2026-10-13T06:00:00+00:00",
+      "package_roots": [
+        "src",
+        "."
+      ],
+      "paths": {
+        "amd": "/home/rlopez/inneros/inneros_core/workspaces/inneros-amd-act-iii",
+        "primary": "/home/rlopez/inneros/inneros_core/workspaces/inneros-amd-act-iii"
+      },
+      "policy_class": "product-app",
+      "project_id": "inneros-amd-act-iii",
+      "repo": "Rafa-Innerchispa/inneros-amd-act-iii",
+      "source": "amd-hackathons-runtime-register-20261013",
+      "trusted_roots": {
+        "amd": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ],
+        "primary": [
+          "/home/rlopez/inneros/inneros_core/workspaces",
+          "/home/rlopez/projects",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/repos",
+          "/home/rlopez/inneros/inneros_core/var/local_execution/worktrees"
+        ]
+      },
+      "updated_at": "2026-10-13T06:00:00+00:00",
       "updated_by": "cursor",
       "write_scope": "worktree_branch_only"
     },

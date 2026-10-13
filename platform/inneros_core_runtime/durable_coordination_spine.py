@@ -378,10 +378,11 @@ async def _start_task_workflow_async(task: dict[str, Any]) -> dict[str, Any]:
         _temporal_address(),
         namespace=os.getenv("INNEROS_TEMPORAL_NAMESPACE", "default"),
     )
+    workflow_id = str(task.get("workflow_id") or intent["workflow_id"])
     handle = await client.start_workflow(
         OpsTaskWorkflow.run,
         task,
-        id=intent["workflow_id"],
+        id=workflow_id,
         task_queue=intent["task_queue"],
     )
     return {
@@ -407,10 +408,30 @@ def start_task_workflow(task: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+def resolve_workflow_id_for_task(task_id: str, *, workflow_id: str | None = None) -> str:
+    """Prefer a real persisted workflow ID; never route signals to mock/invalid IDs."""
+    if isinstance(workflow_id, str) and workflow_id.strip():
+        return workflow_id.strip()
+    try:
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+        from raphiia_openai import mongo_store
+
+        row = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": task_id}, {"workflow_id": 1})
+        if isinstance(row, dict):
+            stored_id = row.get("workflow_id")
+            if isinstance(stored_id, str) and stored_id.strip():
+                return stored_id.strip()
+    except Exception:
+        pass
+    return f"ops_task:{task_id}"
+
+
 async def _signal_task_workflow_async(
     task_id: str,
     signal_name: str,
     payload: Any,
+    *,
+    workflow_id: str | None = None,
 ) -> dict[str, Any]:
     from temporalio.client import Client
 
@@ -420,7 +441,7 @@ async def _signal_task_workflow_async(
         _temporal_address(),
         namespace=os.getenv("INNEROS_TEMPORAL_NAMESPACE", "default"),
     )
-    workflow_id = f"ops_task:{task_id}"
+    workflow_id = resolve_workflow_id_for_task(task_id, workflow_id=workflow_id)
     handle = client.get_workflow_handle(workflow_id)
     await handle.signal(signal_name, payload)
     return {
@@ -432,16 +453,25 @@ async def _signal_task_workflow_async(
     }
 
 
-def signal_task_workflow(task_id: str, signal_name: str, payload: Any) -> dict[str, Any]:
+def signal_task_workflow(
+    task_id: str,
+    signal_name: str,
+    payload: Any,
+    *,
+    workflow_id: str | None = None,
+) -> dict[str, Any]:
     """Send a lifecycle command to Temporal instead of mutating Mongo."""
+    wf = resolve_workflow_id_for_task(task_id, workflow_id=workflow_id)
     try:
-        return _run_async(_signal_task_workflow_async(task_id, signal_name, payload))
+        return _run_async(
+            _signal_task_workflow_async(task_id, signal_name, payload, workflow_id=wf)
+        )
     except Exception as exc:
         return {
             "ok": False,
             "backend": "temporal",
             "task_id": task_id,
-            "workflow_id": f"ops_task:{task_id}" if task_id else "",
+            "workflow_id": wf if task_id else "",
             "signal": signal_name,
             "error": str(exc)[:500],
         }

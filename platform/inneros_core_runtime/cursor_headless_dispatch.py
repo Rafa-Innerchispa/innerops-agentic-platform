@@ -94,7 +94,7 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
             stdout=log_fh,
             stderr=subprocess.STDOUT,
         )
-        log_fh.close()
+        # Keep log handle open in parent until child exits (closing early can truncate logs).
     except OSError as exc:
         db[OPS_TASKS_COL].update_one(
             {"task_id": tid, "headless_execution_host": host},
