@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -54,8 +55,8 @@ def save_owner_credential(
     actor: str = OWNER,
 ) -> dict[str, Any]:
     key = key.strip().lower()
-    if not key or not secret:
-        return {"ok": False, "error": "key_and_secret_required"}
+    if not key or not secret or not secret.strip():
+        return {"ok": False, "error": "key_and_nonempty_secret_required"}
     if actor.upper() != OWNER:
         return {"ok": False, "error": "owner_only"}
 
@@ -75,7 +76,33 @@ def save_owner_credential(
     }
     db = mongo_store.get_db()
     db[COL].update_one({"vault_id": vault_id}, {"$set": doc, "$setOnInsert": {"created_at": _now()}}, upsert=True)
-    return {"ok": True, "vault_id": vault_id, "key": key, "category": category, "label": doc["label"]}
+
+    # Never report success until the value can be read back and decrypted with
+    # the active vault key. This prevents phantom/empty credential records.
+    persisted = db[COL].find_one({"vault_id": vault_id}, {"_id": 0, "encrypted_secret": 1})
+    recovered = ""
+    try:
+        blob = str((persisted or {}).get("encrypted_secret") or "")
+        recovered = f.decrypt(blob.encode("ascii")).decode("utf-8") if blob else ""
+    except (InvalidToken, UnicodeDecodeError, ValueError):
+        recovered = ""
+    if not recovered or not hmac.compare_digest(recovered, secret):
+        return {
+            "ok": False,
+            "error": "persistence_verification_failed",
+            "vault_id": vault_id,
+            "key": key,
+            "category": category.strip().lower(),
+        }
+
+    return {
+        "ok": True,
+        "vault_id": vault_id,
+        "key": key,
+        "category": category.strip().lower(),
+        "label": doc["label"],
+        "verified_persisted": True,
+    }
 
 
 def _decrypt(blob: str) -> str:
