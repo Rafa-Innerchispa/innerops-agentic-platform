@@ -999,6 +999,104 @@ def dedupe_devices(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(merged.values())
 
 
+def _ruijie_bellini_live_inventory() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read Bellini Ruijie/Reyee Cloud inventory and normalize it into Device Fabric."""
+    try:
+        from inneros_core_runtime import ruijie_reyee_client as rj
+
+        creds, cred_err = rj.load_ruijie_credentials()
+        if not creds:
+            return [], {"ok": False, "error": cred_err or "ruijie_cloud_credentials_missing"}
+
+        gid = rj.resolve_group_id(client_id="bellini", site_id="bellini-i-ii")
+        group_meta: dict[str, Any] = {"match": "configured"} if gid else {}
+        if not gid:
+            gid, group_meta = rj.pick_group_id_from_cloud(creds, hint="bellini")
+        if not gid:
+            return [], {"ok": False, "error": "ruijie_group_unresolved", "detail": group_meta}
+
+        snapshot = rj.fetch_full_network_snapshot(
+            group_id=int(gid),
+            creds=creds,
+            include_switch_ports=True,
+        )
+        if not snapshot.get("ok"):
+            return [], {
+                "ok": False,
+                "error": snapshot.get("error") or "ruijie_snapshot_failed",
+                "group_id": int(gid),
+            }
+
+        ports_by_serial: dict[str, Any] = {}
+        for row in snapshot.get("switch_ports") or []:
+            serial = str(row.get("serial_number") or "").strip()
+            if serial:
+                ports_by_serial[serial.casefold()] = row.get("ports")
+
+        records: list[dict[str, Any]] = []
+        block = (snapshot.get("devices") or {}).get("devices") or {}
+        type_map = {
+            "AP": "access_point",
+            "Switch": "switch",
+            "Gateway": "gateway",
+        }
+        for common_type, device_type in type_map.items():
+            for row in block.get(common_type) or []:
+                if not isinstance(row, dict):
+                    continue
+                serial = str(row.get("serialNumber") or "").strip()
+                online = str(row.get("onlineStatus") or "").strip().upper() in {"ON", "ONLINE", "1", "TRUE"}
+                record = canonical_device_record(
+                    tenant_id="bellini",
+                    client_id="bellini",
+                    site_id="bellini-i-ii",
+                    name=row.get("aliasName") or row.get("name") or f"Ruijie {common_type}",
+                    ip=row.get("localIp"),
+                    mac=row.get("mac"),
+                    serial=serial,
+                    manufacturer="Ruijie/Reyee",
+                    model=row.get("productClass") or row.get("productType") or common_type,
+                    firmware=row.get("softwareVersion"),
+                    device_type=device_type,
+                    protocols=["ruijie_cloud_api", "https"],
+                    provider_ids=["ruijie_reyee"],
+                    capabilities=[
+                        "cloud_inventory",
+                        "read_only_status",
+                        "switch_ports" if common_type == "Switch" else "device_detail",
+                    ],
+                    credential_ref_present=True,
+                    transport="ruijie_cloud_api",
+                    confidence=1.0,
+                    health={
+                        "status": "ONLINE" if online else "OFFLINE",
+                        "reachable": online,
+                        "verified": True,
+                        "source": "ruijie_cloud_api",
+                    },
+                )
+                record["provider"] = "ruijie_reyee"
+                record["provider_device_id"] = serial or row.get("mac")
+                record["group_id"] = int(gid)
+                record["group_name"] = row.get("groupName")
+                record["status"] = row.get("onlineStatus") or record["health"]["status"]
+                record["provenance"] = "ruijie_cloud_api"
+                if serial and serial.casefold() in ports_by_serial:
+                    record["ports"] = ports_by_serial[serial.casefold()]
+                records.append(record)
+
+        return dedupe_devices(records), {
+            "ok": True,
+            "group_id": int(gid),
+            "group_resolution": group_meta,
+            "device_count": len(records),
+            "switch_port_sets": len(ports_by_serial),
+            "source": "ruijie_cloud_api",
+        }
+    except Exception as exc:
+        return [], {"ok": False, "error": "ruijie_live_inventory_failed", "detail": str(exc)[:200]}
+
+
 def device_fabric_providers() -> dict[str, Any]:
     """Lista todos los providers y capacidades soportadas por AG-60."""
     return {
@@ -1046,8 +1144,12 @@ def device_fabric_discover(
             "generated_at": _now(),
         }
 
-    # Bellini discovery: return canonical MongoDB assets
+    # Bellini discovery: canonical MongoDB assets plus live Ruijie/Reyee Cloud when requested.
     mongo_devices = _get_mongo_assets(client_id="bellini", site_id="bellini-i-ii")
+    ruijie_live: dict[str, Any] | None = None
+    if live:
+        ruijie_devices, ruijie_live = _ruijie_bellini_live_inventory()
+        mongo_devices = dedupe_devices(mongo_devices + ruijie_devices)
     return {
         "ok": True,
         "site": site,
@@ -1055,6 +1157,7 @@ def device_fabric_discover(
         "client_id": "bellini",
         "count": len(mongo_devices),
         "inventory": mongo_devices,
+        "ruijie_live": ruijie_live,
         "transport": {
             "peer": site.get("transport_peer"),
             "peer_tailscale_ip": site.get("peer_tailscale_ip"),
@@ -1137,6 +1240,8 @@ def device_fabric_inventory(
     if client_id == "bellini" or site_id in ("bellini", "bellini_i_ii", "bellini-i-ii"):
         mongo_devices = _get_mongo_assets(client_id="bellini", site_id="bellini-i-ii")
         cloud_live: dict[str, Any] | None = None
+        ruijie_live: dict[str, Any] | None = None
+        ruijie_devices: list[dict[str, Any]] = []
         if live:
             try:
                 from inneros_core_runtime import grandstream_gwn_client as gwn
@@ -1153,20 +1258,24 @@ def device_fabric_inventory(
                     cloud_live = gwn.fetch_network_snapshot(network_id=int(nid), creds=creds)
             except Exception as exc:
                 cloud_live = {"ok": False, "error": str(exc)[:200]}
+            ruijie_devices, ruijie_live = _ruijie_bellini_live_inventory()
+        merged_devices = dedupe_devices(mongo_devices + ruijie_devices)
         return {
             "ok": True,
             "client_id": "bellini",
             "client_name": "Torres Bellini I-II",
             "site_id": "bellini-i-ii",
             "site_name": "Torres Bellini I-II Campus",
-            "count": len(mongo_devices),
-            "inventory": mongo_devices,
-            "provider": "grandstream_gwn",
+            "count": len(merged_devices),
+            "inventory": merged_devices,
+            "provider": "multi_provider",
+            "providers": ["grandstream_gwn", "ruijie_reyee"],
             "provider_account_ref": "gwn_acc_rafagye",
             "mutation_policy": MUTATION_POLICY,
             "mutations_attempted": [],
             "source": "gwn_cloud_and_local_fabric",
             "cloud_live": cloud_live,
+            "ruijie_live": ruijie_live,
             "generated_at": _now(),
         }
 
@@ -1303,6 +1412,32 @@ def device_fabric_get(device_ref: str = "", site_id: str = "") -> dict[str, Any]
                 }
         except Exception:
             pass
+
+    if site_id in ("", "bellini", "bellini_i_ii", "bellini-i-ii"):
+        rows, ruijie_meta = _ruijie_bellini_live_inventory()
+        ref_lower = ref.casefold()
+        for record in rows:
+            identifiers = (
+                record.get("asset_id"),
+                record.get("provider_device_id"),
+                record.get("serial"),
+                record.get("serial_number"),
+                record.get("mac"),
+                record.get("ip"),
+                record.get("name"),
+                record.get("model"),
+            )
+            if any(str(val).casefold() == ref_lower for val in identifiers if val):
+                return {
+                    "ok": True,
+                    "kind": "device",
+                    "site_id": "bellini-i-ii",
+                    "device": record,
+                    "provenance": "ruijie_cloud_api",
+                    "provider_meta": ruijie_meta,
+                    "mutation_policy": MUTATION_POLICY,
+                    "generated_at": _now(),
+                }
 
     if site_id in ("", "home_pcdoctor_lab"):
         rows, _delegated, blockers = _home_assistant_inventory()

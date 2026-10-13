@@ -52,3 +52,29 @@ def test_all_four_manifests_are_read_only():
         desc = capability_describe(cap_id)
         assert desc["ok"] is True
         assert desc["capability"]["mode"] == "read_only"
+
+
+def test_ports_capability_preserves_ruijie_device_result(monkeypatch):
+    monkeypatch.setattr(
+        "inneros_core_runtime.universal_network_audit._resolve_gwn",
+        lambda t, s: {"creds": object(), "credentials_error": None, "network_id": 180122, "tenant_row": None},
+    )
+    monkeypatch.setattr(
+        "inneros_core_runtime.device_fabric.device_fabric_get",
+        lambda **kw: {
+            "ok": True,
+            "device": {
+                "ip": "192.168.3.172",
+                "provider": "ruijie_reyee",
+                "ports": {"data": [{"port": 1, "status": "UP"}]},
+            },
+        },
+    )
+    res = capability_invoke(
+        "network.device.ports.v1",
+        {"tenant_id": "bellini", "site_id": "bellini-i-ii", "device_ref": "192.168.3.172"},
+    )
+    assert res["ok"] is True
+    result = res["result"]
+    assert result["provider_used"] == "ruijie_reyee"
+    assert result["data"]["port_records"][0]["port_detail"]["data"][0]["status"] == "UP"
