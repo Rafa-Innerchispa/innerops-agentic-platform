@@ -112,6 +112,14 @@ En GitHub **PR #145** se convirtió deliberadamente en cobertura de tests y CI (
 - **Runner interactivo:** `interactive_ops_runner` guarda `git_baseline_sha` en claim y puede completar evidencia Git vía `completion_evidence_from_worktree` (Codex/Antigravity/Cursor).
 - **Pendiente:** canario Codex/Antigravity con transporte real; re-admitir Ambient Guardian tras allowlist de repo.
 
+## 15. Auto-claim Cursor al 100% (2026-10-13 ~05:25 UTC)
+
+- **ops_c8a5ba5c7b35 / issue #161:** cerrada; rc126 resuelto (`observability` en `ralfia-peer-ops`); peer amd/intel OK; comentario GitHub #161; evidencia `var/evidence/cursor_auto_claim_pipeline_verify.json`.
+- **Pipeline:** timers `inneros-cursor-headless-autopilot.timer` (AMD+Intel), `inneros-cursor-inbox-consumer.timer` (ACK only). Tras claim: `INNEROS_CURSOR_SPAWN_ON_CLAIM=1` → `cursor_headless_dispatch.spawn_headless_execute` → `cursor_ops_headless_execute_one.py`.
+- **Routing:** `preferred_execution_host` enforced en `cursor_ops_runner.claim_ops_task` e `interactive_ops_runner` (Cursor delega a runner canónico).
+- **Verificación:** `platform/scripts/verify_cursor_auto_claim_pipeline.py` (Temporal, vLLM, Ollama Intel, peer obs, admission sample).
+- **ChatGPT debe:** crear ops con `owner_authorized_at` vía MCP, `preferred_execution_host` correcto, no claim manual cross-node; usar correlación única; no confundir ACK con ejecución.
+
 
 ## 15. Auditoría independiente posterior al cierre de Cursor (12 oct 2026 ~14:54 UTC)
 

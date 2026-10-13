@@ -205,11 +205,14 @@ def claim_ops_task(
     if not (bool(task.get("owner_authorized_at")) or owner_approved):
         return {"ok": False, "error": "owner_approval_required", "task_id": tid}
     if prov == "cursor":
-        from inneros_core_runtime import cursor_headless_lanes as _lanes
+        from inneros_core_runtime import cursor_ops_runner as cor
 
-        allowed, reason = _lanes.should_this_node_run_task(task)
-        if not allowed:
-            return {"ok": False, "error": "execution_host_routing", "reason": reason, "task_id": tid}
+        claim = cor.claim_ops_task(
+            task_id=tid,
+            owner_approved=owner_approved or bool(task.get("owner_authorized_at")),
+            owner_actor=owner_actor,
+        )
+        return {**claim, "provider": "cursor"}
     pin = pinned_model(prov)
     token = secrets.token_hex(8)
     now = _now()

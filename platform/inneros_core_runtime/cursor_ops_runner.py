@@ -263,6 +263,16 @@ def claim_ops_task(
         return {"ok": False, "error": "no_claimable_task", "filter": filt}
 
     tid = str(task.get("task_id") or "")
+    from inneros_core_runtime import cursor_headless_lanes as _lanes
+
+    allowed, route_reason = _lanes.should_this_node_run_task(task)
+    if not allowed:
+        return {
+            "ok": False,
+            "error": "execution_host_routing",
+            "reason": route_reason,
+            "task_id": tid,
+        }
     authorized = bool(task.get("owner_authorized_at")) or bool(owner_approved)
     if not authorized:
         return {
@@ -391,7 +401,7 @@ def claim_ops_task(
     )
 
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True, "assignee": "cursor", "status": "in_progress"})
-    return {
+    result: dict[str, Any] = {
         "ok": True,
         "task_id": tid,
         "claim_token": token,
@@ -409,6 +419,11 @@ def claim_ops_task(
         "temporal_handoff": temporal_handoff,
         "session": classified.get("interactive_session"),
     }
+    if os.getenv("INNEROS_CURSOR_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes"}:
+        from inneros_core_runtime.cursor_headless_dispatch import spawn_headless_execute
+
+        result["headless_spawn"] = spawn_headless_execute(tid)
+    return result
 
 
 def complete_ops_task(

@@ -159,57 +159,9 @@ def _find_resume_on_host(limit: int) -> list[dict[str, Any]]:
 
 
 def _spawn_background_execution(task_id: str) -> dict[str, Any]:
-    host = lanes.hostname()
-    db = mongo_store.get_db()
-    reserved = db[OPS_TASKS_COL].find_one_and_update(
-        {
-            "task_id": task_id,
-            "status": {"$in": ["in_progress", "claimed", "running"]},
-            "headless_execution_started_at": {"$exists": False},
-        },
-        {
-            "$set": {
-                "headless_execution_started_at": _now(),
-                "headless_execution_host": host,
-                "cursor_execution_host": host,
-                "cursor_execution_role": lanes.node_role(),
-                "updated_at": _now(),
-            },
-            "$inc": {"revision": 1},
-        },
-        return_document=True,
-    )
-    if not reserved:
-        return {"ok": False, "task_id": task_id, "error": "lane_race_or_not_in_progress"}
+    from inneros_core_runtime.cursor_headless_dispatch import spawn_headless_execute
 
-    py = ROOT / "venv" / "bin" / "python3"
-    script = ROOT / "scripts" / "cursor_ops_headless_execute_one.py"
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(ROOT)
-    try:
-        proc = subprocess.Popen(
-            [str(py), str(script), "--task-id", task_id],
-            cwd=str(ROOT),
-            env=env,
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except OSError as exc:
-        # Undo ONLY our startup reservation, preserving the original claim.
-        db[OPS_TASKS_COL].update_one(
-            {"task_id": task_id, "headless_execution_host": host,
-             "headless_execution_started_at": reserved.get("headless_execution_started_at")},
-            {"$unset": {"headless_execution_started_at": "", "headless_execution_host": "",
-                        "cursor_execution_host": "", "cursor_execution_role": ""}},
-        )
-        return {"ok": False, "task_id": task_id, "error": "worker_spawn_failed",
-                "exception_type": type(exc).__name__}
-    db[OPS_TASKS_COL].update_one(
-        {"task_id": task_id},
-        {"$set": {"headless_execution_pid": int(proc.pid)}},
-    )
-    return {"ok": True, "task_id": task_id, "pid": proc.pid, "host": host}
+    return spawn_headless_execute(task_id)
 
 
 def _claim_from_task_doc(task: dict[str, Any]) -> dict[str, Any]:
