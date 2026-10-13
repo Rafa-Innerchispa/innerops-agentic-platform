@@ -173,10 +173,17 @@ def test_reap_stale_headless_unsets_lane_for_retry():
         patch.object(auto.lanes, "hostname", return_value="ralfiia-amd"),
     ):
         reaped = auto._reap_stale_headless_lanes()
-    assert reaped == [{"task_id": "ops_stale", "reaped": True, "pid": 999999, "retryable": True}]
+    assert reaped == [
+        {
+            "task_id": "ops_stale",
+            "reaped": True,
+            "pid": 999999,
+            "reap_count": 1,
+            "retry_exhausted": False,
+        }
+    ]
     col.update_one.assert_called_once()
     update = col.update_one.call_args.args[1]
     assert "$unset" in update
     assert "headless_execution_started_at" in update["$unset"]
-    assert "headless_execution_finished_at" in update["$unset"]
-    assert update["$set"]["headless_last_result"]["retryable"] is True
+    assert update["$set"]["headless_reap_count"] == 1
