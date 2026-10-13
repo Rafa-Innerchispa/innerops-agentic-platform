@@ -91,8 +91,22 @@ def _host_owns_task(task: dict[str, Any]) -> bool:
     return owner in h or h in owner or lanes.node_role() in owner
 
 
+def _headless_max_reaps() -> int:
+    try:
+        return max(1, int(os.getenv("INNEROS_CURSOR_HEADLESS_MAX_REAPS", "3")))
+    except Exception:
+        return 3
+
+
 def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
-    """Free concurrency slots when the background PID died without finishing."""
+    """Recover a claimed lane when its background worker vanished.
+
+    A dead worker must not leave the task permanently stuck with
+    headless_execution_started_at set. For bounded retries we clear the active
+    attempt markers so the same claim/worktree can be resumed by this host.
+    After the retry budget is exhausted, release the claim and block the task
+    with explicit evidence instead of respawning forever.
+    """
     import os as _os
 
     db = mongo_store.get_db()
@@ -107,34 +121,82 @@ def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
         ],
     }
     reaped: list[dict[str, Any]] = []
-    for row in db[OPS_TASKS_COL].find(filt, {"_id": 0, "task_id": 1, "headless_execution_pid": 1}):
+    projection = {
+        "_id": 0,
+        "task_id": 1,
+        "headless_execution_pid": 1,
+        "headless_reap_count": 1,
+        "claim_token": 1,
+        "status": 1,
+    }
+    for row in db[OPS_TASKS_COL].find(filt, projection):
         pid = int(row.get("headless_execution_pid") or 0)
         if pid > 0 and _os.path.exists(f"/proc/{pid}"):
             continue
+
         tid = str(row.get("task_id") or "")
-        db[OPS_TASKS_COL].update_one(
-            {"task_id": tid},
-            {
+        now = _now()
+        reap_count = int(row.get("headless_reap_count") or 0) + 1
+        exhausted = reap_count >= _headless_max_reaps()
+
+        if exhausted:
+            update = {
+                "$set": {
+                    "status": "blocked",
+                    "headless_execution_finished_at": now,
+                    "headless_last_result": {
+                        "ok": False,
+                        "error": "stale_headless_retry_exhausted",
+                        "reaped_at": now,
+                        "reap_count": reap_count,
+                    },
+                    "claim_error": "stale_headless_retry_exhausted",
+                    "headless_reap_count": reap_count,
+                    "updated_at": now,
+                },
                 "$unset": {
+                    "claim_token": "",
+                    "claimed_at": "",
+                    "lease_until": "",
                     "headless_execution_started_at": "",
                     "headless_execution_pid": "",
-                    "headless_execution_finished_at": "",
+                    "headless_execution_host": "",
                 },
+                "$inc": {"revision": 1},
+            }
+        else:
+            update = {
                 "$set": {
                     "headless_last_result": {
                         "ok": False,
                         "error": "stale_headless_pid_reaped",
-                        "reaped_at": _now(),
-                        "retryable": True,
+                        "reaped_at": now,
+                        "reap_count": reap_count,
                     },
-                    "updated_at": _now(),
+                    "headless_reap_count": reap_count,
+                    "headless_last_reaped_at": now,
+                    "updated_at": now,
+                },
+                "$unset": {
+                    "headless_execution_started_at": "",
+                    "headless_execution_finished_at": "",
+                    "headless_execution_pid": "",
+                    "headless_execution_host": "",
                 },
                 "$inc": {"revision": 1},
-            },
-        )
-        reaped.append({"task_id": tid, "reaped": True, "pid": pid, "retryable": True})
-    return reaped
+            }
 
+        db[OPS_TASKS_COL].update_one({"task_id": tid}, update)
+        reaped.append(
+            {
+                "task_id": tid,
+                "reaped": True,
+                "pid": pid,
+                "reap_count": reap_count,
+                "retry_exhausted": exhausted,
+            }
+        )
+    return reaped
 
 def _find_resume_on_host(limit: int) -> list[dict[str, Any]]:
     db = mongo_store.get_db()
