@@ -102,7 +102,7 @@ def network_device_ports_handler(parameters: dict[str, Any], context: dict[str, 
     provider = "device_fabric"
 
     if device_ref:
-        got = device_fabric.device_fabric_get(device_ref=device_ref)
+        got = device_fabric.device_fabric_get(device_ref=device_ref, site_id=site_id)
         provider = str(got.get("device", {}).get("provider") or provider)
         ports.append(
             {
@@ -113,7 +113,7 @@ def network_device_ports_handler(parameters: dict[str, Any], context: dict[str, 
             }
         )
 
-    if ctx["creds"] and ctx["network_id"]:
+    if ctx["creds"] and ctx["network_id"] and provider != "ruijie_reyee":
         provider = "grandstream_gwn_cloud_api"
         sw = gwn.list_switches(ctx["creds"], int(ctx["network_id"]))
         switches = (sw.get("data") or sw.get("items") or []) if sw.get("ok") else []
@@ -138,7 +138,8 @@ def network_device_ports_handler(parameters: dict[str, Any], context: dict[str, 
                 }
             )
     else:
-        gaps.append("gwn_credentials_or_network_id_unavailable")
+        if provider != "ruijie_reyee":
+            gaps.append("gwn_credentials_or_network_id_unavailable")
 
     if not ports:
         inv = device_fabric.device_fabric_inventory(client_id=tenant_id, site_id=site_id, live=False)
