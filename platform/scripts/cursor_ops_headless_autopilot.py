@@ -115,19 +115,24 @@ def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
         db[OPS_TASKS_COL].update_one(
             {"task_id": tid},
             {
+                "$unset": {
+                    "headless_execution_started_at": "",
+                    "headless_execution_pid": "",
+                    "headless_execution_finished_at": "",
+                },
                 "$set": {
-                    "headless_execution_finished_at": _now(),
                     "headless_last_result": {
                         "ok": False,
                         "error": "stale_headless_pid_reaped",
                         "reaped_at": _now(),
+                        "retryable": True,
                     },
                     "updated_at": _now(),
                 },
                 "$inc": {"revision": 1},
             },
         )
-        reaped.append({"task_id": tid, "reaped": True, "pid": pid})
+        reaped.append({"task_id": tid, "reaped": True, "pid": pid, "retryable": True})
     return reaped
 
 
@@ -135,7 +140,7 @@ def _find_resume_on_host(limit: int) -> list[dict[str, Any]]:
     db = mongo_store.get_db()
     h = lanes.hostname()
     filt = {
-        "status": {"$in": ["in_progress", "claimed"]},
+        "status": {"$in": ["in_progress", "claimed", "failed", "verification"]},
         "assignee": "cursor",
         "claim_token": {"$exists": True},
         "headless_execution_started_at": {"$exists": False},

@@ -114,3 +114,27 @@ def test_spawn_failure_does_not_leave_fake_running_reservation():
     assert result["error"] == "worker_spawn_failed"
     col.update_one.assert_called_once()
     assert "$unset" in col.update_one.call_args.args[1]
+
+
+def test_reap_stale_headless_unsets_lane_for_retry():
+    from unittest.mock import MagicMock, patch
+    from scripts import cursor_ops_headless_autopilot as auto
+
+    db = MagicMock()
+    col = MagicMock()
+    db.__getitem__.return_value = col
+    col.find.return_value = [
+        {"task_id": "ops_stale", "headless_execution_pid": 999999},
+    ]
+    with (
+        patch.object(auto.mongo_store, "get_db", return_value=db),
+        patch.object(auto.lanes, "hostname", return_value="ralfiia-amd"),
+    ):
+        reaped = auto._reap_stale_headless_lanes()
+    assert reaped == [{"task_id": "ops_stale", "reaped": True, "pid": 999999, "retryable": True}]
+    col.update_one.assert_called_once()
+    update = col.update_one.call_args.args[1]
+    assert "$unset" in update
+    assert "headless_execution_started_at" in update["$unset"]
+    assert "headless_execution_finished_at" in update["$unset"]
+    assert update["$set"]["headless_last_result"]["retryable"] is True
