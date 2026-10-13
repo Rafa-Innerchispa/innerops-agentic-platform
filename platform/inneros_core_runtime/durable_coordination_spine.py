@@ -409,15 +409,18 @@ def start_task_workflow(task: dict[str, Any]) -> dict[str, Any]:
 
 
 def resolve_workflow_id_for_task(task_id: str, *, workflow_id: str | None = None) -> str:
-    if (workflow_id or "").strip():
+    """Prefer a real persisted workflow ID; never route signals to mock/invalid IDs."""
+    if isinstance(workflow_id, str) and workflow_id.strip():
         return workflow_id.strip()
     try:
         from inneros_core_runtime.coordination_live import OPS_TASKS_COL
         from raphiia_openai import mongo_store
 
         row = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": task_id}, {"workflow_id": 1})
-        if row and row.get("workflow_id"):
-            return str(row["workflow_id"])
+        if isinstance(row, dict):
+            stored_id = row.get("workflow_id")
+            if isinstance(stored_id, str) and stored_id.strip():
+                return stored_id.strip()
     except Exception:
         pass
     return f"ops_task:{task_id}"

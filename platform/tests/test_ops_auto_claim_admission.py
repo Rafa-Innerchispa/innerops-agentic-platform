@@ -117,10 +117,25 @@ def test_spawn_failure_does_not_leave_fake_running_reservation():
 
 
 def test_resolve_workflow_id_prefers_mongo_row():
+    from unittest.mock import MagicMock, patch
     from inneros_core_runtime import durable_coordination_spine as spine
+    from raphiia_openai import mongo_store
 
+    # A mock left by another test must not turn into a Temporal workflow ID.
     assert spine.resolve_workflow_id_for_task("ops_x", workflow_id="ops_task:ops_x:g2") == "ops_task:ops_x:g2"
-    assert spine.resolve_workflow_id_for_task("ops_y") == "ops_task:ops_y"
+    with patch.object(mongo_store, "get_db", return_value=MagicMock()):
+        assert spine.resolve_workflow_id_for_task("ops_y") == "ops_task:ops_y"
+
+    db = MagicMock()
+    col = MagicMock()
+    db.__getitem__.return_value = col
+    with patch.object(mongo_store, "get_db", return_value=db):
+        col.find_one.return_value = {"workflow_id": " ops_task:ops_z:g3 "}
+        assert spine.resolve_workflow_id_for_task("ops_z") == "ops_task:ops_z:g3"
+        col.find_one.return_value = {"workflow_id": MagicMock()}
+        assert spine.resolve_workflow_id_for_task("ops_z") == "ops_task:ops_z"
+        col.find_one.return_value = {"workflow_id": ""}
+        assert spine.resolve_workflow_id_for_task("ops_z") == "ops_task:ops_z"
 
 
 def test_platform_local_headless_offers_for_phase1_correlation():
