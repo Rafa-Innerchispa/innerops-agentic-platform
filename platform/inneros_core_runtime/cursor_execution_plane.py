@@ -1,10 +1,9 @@
 """Truthful Cursor execution classification for the IDE Task Bridge.
 
-Cursor on the AMD headless host does not expose a supported headless CLI runner.
-Interactive execution is available when an agent session (Cursor Composer / SSH)
-is live and the MCP bridge is reachable.  This module separates delivery
-(ide_inbox) from execution (claim → running → completed) without fabricating
-headless capabilities.
+Cursor has independent execution paths: a real IDE session, the Cursor
+headless CLI, or the authenticated local Cursor SDK already used by the
+background worker.  Inbox ACK alone is never an executable session.
+This module separates delivery from execution without fabricating liveness.
 """
 from __future__ import annotations
 
@@ -275,19 +274,68 @@ def read_session_liveness(*, ttl_seconds: int = HEARTBEAT_TTL_SECONDS) -> dict[s
     """Return whether an interactive Cursor IDE session was seen recently."""
     row = _read_state_row(state_key=SESSION_STATE_KEY, file_path=SESSION_FILE, ttl_seconds=ttl_seconds)
     row["limitation"] = (
-        "Headless unattended Cursor CLI is not supported on this host; "
-        "execution requires register_cursor_ide_session (IDE/Private Worker)."
+        "An inactive IDE heartbeat alone does not prove headless unavailable; "
+        "check authenticated SDK or CLI readiness separately."
     )
     return row
 
 
-def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dict[str, Any]:
+def probe_cursor_sdk_readiness() -> dict[str, Any]:
+    """Read-only SDK preflight; this is NOT proof that a task completed.
+
+    The SDK runner used by cursor_headless_executor is independent of the
+    optional cursor-agent CLI.  A missing CLI must not suppress a working SDK.
+    Never return the API key or a secret-bearing exception string.
+    """
+    from importlib.util import find_spec
+
+    try:
+        installed = find_spec("cursor_sdk") is not None
+    except (ImportError, ValueError):
+        installed = False
+    try:
+        from inneros_core_runtime import cursor_api_credentials as credentials
+        auth_ready = bool(credentials.cursor_api_key_status().get("present"))
+    except Exception:
+        auth_ready = False
+    try:
+        from inneros_core_runtime import cursor_headless_dispatch as dispatch
+        enabled = bool(dispatch.headless_execute_enabled())
+    except Exception:
+        enabled = False
+    try:
+        from inneros_core_runtime import cursor_headless_lanes as lanes
+        host_eligible = bool(lanes.is_ha_execution_node())
+    except Exception:
+        host_eligible = False
+
+    return {
+        "installed": installed,
+        "auth_ready": auth_ready,
+        "enabled": enabled,
+        "host_eligible": host_eligible,
+        "ready": all((installed, auth_ready, enabled, host_eligible)),
+    }
+
+
+def classify_cursor_execution(
+    *,
+    cli_probe: dict[str, Any] | None = None,
+    sdk_probe: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Map live probes to headless_ready | partial | remote_inbox_only."""
     cli = dict(cli_probe or {})
+    sdk = dict(sdk_probe) if sdk_probe is not None else probe_cursor_sdk_readiness()
     mcp = probe_mcp_bridge()
     session = read_session_liveness()
     consumer = read_inbox_consumer_liveness()
-    headless_ready = bool(cli.get("installed") and cli.get("headless_supported") and cli.get("auth_ready"))
+    cli_ready = bool(cli.get("installed") and cli.get("headless_supported") and cli.get("auth_ready"))
+    # The headless SDK is a separate, authenticated execution path.  Requiring
+    # an IDE heartbeat or CLI binary also when its own worker is ready causes
+    # owner-approved tasks to be stranded in the inbox.
+    sdk_ready = bool(sdk.get("ready") and sdk.get("installed") and sdk.get("auth_ready")
+                     and sdk.get("enabled") and sdk.get("host_eligible"))
+    headless_ready = cli_ready or sdk_ready
     mcp_ok = bool(mcp.get("reachable"))
     session_active = bool(session.get("active"))
     consumer_active = bool(consumer.get("active"))
@@ -295,7 +343,7 @@ def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dic
     if headless_ready:
         classification = "headless_ready"
         provider_status = "ready"
-        transport = "external_repair"
+        transport = "local_cursor_sdk_headless" if sdk_ready else "cursor_cli_headless"
     elif mcp_ok and session_active:
         classification = "partial"
         provider_status = "interactive_session"
@@ -320,9 +368,9 @@ def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dic
             blockers.append(reason)
     if not mcp_ok:
         blockers.append("mcp_bridge_unreachable")
-    if mcp_ok and not session_active:
+    if mcp_ok and not session_active and not headless_ready:
         blockers.append("no_active_cursor_ide_session")
-    if consumer_active and not session_active:
+    if consumer_active and not session_active and not headless_ready:
         blockers.append("inbox_consumer_active_but_ide_session_required_for_execute")
 
     return {
@@ -336,6 +384,8 @@ def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dic
         "inbox_consumer": consumer,
         "blockers": blockers,
         "control_path": (
+            "Owner authorization → claim → headless SDK worker → evidence → "
+            "Temporal/Mongo terminal" if sdk_ready else
             "ChatGPT/RalfIA: ide_dispatch_task → cursor/INBOX → poll_agent_inbox → "
             "ide_claim_task → ide_mark_task_running → ide_complete_task "
             "(requires active Cursor agent session on reachable host)"
@@ -346,6 +396,13 @@ def classify_cursor_execution(*, cli_probe: dict[str, Any] | None = None) -> dic
             "version": cli.get("version") or "",
             "headless_supported": bool(cli.get("headless_supported")),
             "auth_ready": bool(cli.get("auth_ready")),
+        },
+        "sdk_probe_summary": {
+            "installed": bool(sdk.get("installed")),
+            "auth_ready": bool(sdk.get("auth_ready")),
+            "enabled": bool(sdk.get("enabled")),
+            "host_eligible": bool(sdk.get("host_eligible")),
+            "ready": sdk_ready,
         },
     }
 
@@ -362,9 +419,11 @@ def enrich_cursor_provider_status(base: dict[str, Any]) -> dict[str, Any]:
     if session.get("identity") and isinstance(session["identity"], dict) and session["identity"].get("error"):
         session["identity"] = _sanitize_identity(session["identity"])
         merged["interactive_session"] = {**(classified.get("interactive_session") or {}), "session": session}
-    merged["note"] = (
-        "Cursor CLI on server is not a headless runner; "
-        f"classification={classified['execution_classification']}. "
-        + (classified["control_path"] if classified["execution_classification"] == "partial" else "Delivery-only until session is active.")
-    )
+    if (classified.get("sdk_probe_summary") or {}).get("ready"):
+        merged["note"] = "Authenticated local Cursor SDK headless preflight ready; task completion still requires real evidence."
+    else:
+        merged["note"] = (
+            f"classification={classified['execution_classification']}. "
+            + (classified["control_path"] if classified["execution_classification"] == "partial" else "Delivery-only until an authenticated executor is ready.")
+        )
     return merged
