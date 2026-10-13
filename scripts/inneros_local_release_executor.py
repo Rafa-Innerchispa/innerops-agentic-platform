@@ -24,6 +24,9 @@ FILES = (
     "capability_gateway.py",
     "capability_gateway_peer.py",
     "agents/ag41_peer_ops_executor.py",
+    "dev_swarm_scheduler.py",
+    "temporal_bounded_executor.py",
+    "governed_model_writes.py",
 )
 SERVICE = "ralfia-mcp.service"
 

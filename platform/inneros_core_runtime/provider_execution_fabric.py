@@ -146,7 +146,7 @@ def validate_execution_proof(provider: str, proof: dict[str, Any] | None) -> dic
         run_id = str(proof.get("run_id") or "").strip()
         model = str(proof.get("model") or proof.get("selected_model") or "").strip()
         provider_id = str(proof.get("provider_id") or "").strip()
-        if not run_id or provider_id != "local-amd-5" or "Qwen" not in model:
+        if not run_id or provider_id != "local-amd-5" or "qwen" not in model.lower():
             return {"ok": False, "error": "local_qwen_proof_required", "provider": provider_n}
         return {"ok": True, "provider": provider_n, "proof_type": proof_type, "run_id": run_id, "provider_id": provider_id, "model": model}
     if proof_type == "process":

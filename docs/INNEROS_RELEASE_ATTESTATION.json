@@ -1,21 +1,21 @@
 {
   "schema": "inneros-runtime-host-attestation-v1",
   "intent": "GitHub main does NOT mean AMD/Intel runtime deployed. Update only after an independent on-host executable code hash, commit version and E2E probe.",
-  "recorded_at_utc": "2026-10-12T15:00:00Z",
+  "recorded_at_utc": "2026-10-13T18:25:00Z",
   "hosts": {
     "amd": {
       "verified": false,
       "runtime_git_sha": null,
       "evidence_path": null,
       "runtime_root": "/home/rlopez/inneros/inneros_core/platform",
-      "note": "LEP workspace HEAD bf43c6a5 observed; Cursor reported a7553157 at runtime earlier, source/process mapping not independently certified."
+      "note": "2026-10-13 ops_935cee50d01e: dev_swarm+TBE aligned to main 3cc197/8b95a2 at inspection; coding canary evidence docs/evidence/ops_935cee50d01e_phase1_intel_20261013.json; verified still false."
     },
     "intel": {
       "verified": false,
       "runtime_git_sha": null,
       "evidence_path": null,
       "runtime_root": "/home/rlopez/inneros/inneros_core/platform",
-      "note": "Peer observability RC126 and workspace venv absence; no independently verified SHA for production import."
+      "note": "2026-10-13 ops_935cee50d01e: runtime dev_swarm 3cc197 matches origin/main; Intel had been stale (571a58). Evidence JSON on Intel host; verified still false."
     }
   },
   "verification_contract": [
