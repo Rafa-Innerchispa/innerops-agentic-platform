@@ -415,6 +415,45 @@ def _claim_error_es(provider: str) -> str:
     )
 
 
+INTERNAL_ROUTE_BLOCK_ERRORS = frozenset(
+    {
+        "bounded_runner_requires_repo",
+    }
+)
+
+_IDE_CLAIM_ERRORS = frozenset(
+    {
+        "cursor_claim_required",
+        "codex_claim_required",
+        "antigravity_claim_required",
+        "gemini_claim_required",
+        "chatgpt_claim_required",
+    }
+)
+
+
+def classify_owner_whatsapp_alert(binding: dict[str, Any]) -> str:
+    """external_spend = IDE/credits gate; internal_fix = contrato/repo sin gasto externo."""
+    if binding.get("allowed"):
+        return "internal_ready"
+    err = str(binding.get("error") or "")
+    provider = str(binding.get("provider_normalized") or "")
+    if err in INTERNAL_ROUTE_BLOCK_ERRORS:
+        return "internal_fix"
+    if err in _IDE_CLAIM_ERRORS or err in {
+        "interactive_provider_requires_ide_runner",
+        "interactive_handoff_pending",
+    }:
+        return "external_spend"
+    if provider in _ide_providers() or bool(binding.get("do_not_auto_dispatch")):
+        return "external_spend"
+    if provider in _internal_providers() or err == "execution_binding_unresolved":
+        return "internal_fix"
+    if err == "preferred_model_missing":
+        return "external_spend" if provider in _ide_providers() else "internal_fix"
+    return "internal_fix"
+
+
 _ERROR_ES: dict[str, str] = {
     "cursor_claim_required": "Requiere sesión Cursor activa y autorización owner (claim); no se usa runner interno.",
     "codex_claim_required": "Requiere claim Codex con owner_approved; no se usa runner interno.",
@@ -428,6 +467,9 @@ _ERROR_ES: dict[str, str] = {
     ),
     "interactive_handoff_pending": "Esperando handoff en sesión IDE del proveedor asignado.",
     "execution_binding_unresolved": "No hay runner confirmado para la combinación provider + lane.",
+    "bounded_runner_requires_repo": (
+        "Falta repositorio owner/repo válido para el ejecutor interno acotado (worktree)."
+    ),
 }
 
 
@@ -490,6 +532,9 @@ def owner_execution_summary(
         else f"Alternativa interna: no recomendada ({internal.get('reason', 'n/a')})."
     )
 
+    alert_kind = classify_owner_whatsapp_alert(binding)
+    requires_external = alert_kind == "external_spend"
+
     return {
         "provider": provider,
         "execution_lane": lane,
@@ -501,7 +546,8 @@ def owner_execution_summary(
         "internal_alternative": internal_line,
         "owner_action_hint": action_detail,
         "preferred_model": model or None,
-        "requires_owner_authorization": not bool(binding.get("allowed"))
-        or provider in _ide_providers()
-        or bool(binding.get("do_not_auto_dispatch")),
+        "owner_whatsapp_alert_kind": alert_kind,
+        "requires_external_credit_authorization": requires_external,
+        "requires_owner_authorization": requires_external,
+        "blocked_internal_route": alert_kind == "internal_fix",
     }

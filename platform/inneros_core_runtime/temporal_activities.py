@@ -614,7 +614,7 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             }
         from raphiia_openai.notifications import email_router
 
-        processed = email_router.process_email_intelligence_mail(mail_id, create_task=False, hydrate=True)
+        processed = email_router.process_mail_id(mail_id, create_task=False, hydrate=True)
         analysis = (processed.get("analysis") or {}) if isinstance(processed, dict) else {}
         routing = (processed.get("routing") or analysis.get("routing") or {}) if isinstance(processed, dict) else {}
         verified = bool(processed.get("ok")) and bool(

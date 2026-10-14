@@ -63,6 +63,22 @@ def owner_auth_notified(task_id: str) -> bool:
     return str(task_id) in set(_STATE.get("sent", []))
 
 
+def _synthetic_ops_task_skip(task: dict[str, Any]) -> str | None:
+    """No WhatsApp de autorización en fixtures/canary/synthetic."""
+    sid = str(task.get("source_message_id") or "").strip()
+    if sid.startswith("msg_test") or sid in {"msg_test_source"}:
+        return "synthetic_source_message"
+    if str(task.get("task_class") or "") == "coordination_canary":
+        return "coordination_canary"
+    lane = str(task.get("execution_lane") or "").lower()
+    if lane == "canary":
+        return "canary_lane"
+    corr = str(task.get("correlation_id") or "").lower()
+    if corr.startswith("fixture:") or "synthetic" in corr:
+        return "synthetic_correlation"
+    return None
+
+
 def notify_ops_owner_authorization_request(
     task: dict[str, Any],
     *,
@@ -76,39 +92,63 @@ def notify_ops_owner_authorization_request(
 
     from inneros_core_runtime.execution_binding import owner_execution_summary, resolve_execution_binding
 
+    skip = _synthetic_ops_task_skip(task)
+    if skip:
+        return {"ok": False, "skipped": skip, "task_id": str(task.get("task_id") or "")}
+
     binding = binding or resolve_execution_binding(task)
     summary = owner_execution_summary(task, binding)
-    if summary.get("allowed_internal_runner") and not summary.get("requires_owner_authorization"):
-        if not NOTIFY_OPS_INTERNAL_BRIEF:
-            return {"ok": False, "skipped": "internal_runner_no_owner_gate"}
-    if summary.get("allowed_internal_runner") and not summary.get("requires_owner_authorization"):
-        icon = "⚙️"
-        headline = "OPS interna (Dev Swarm/local)"
-    else:
-        icon = "🛂"
-        headline = "OPS · autorización requerida"
-
-    from_agent = (source_agent or task.get("from_agent") or "?").strip()
-    model_line = f"\nModelo: {summary['preferred_model']}" if summary.get("preferred_model") else ""
+    alert_kind = str(summary.get("owner_whatsapp_alert_kind") or "external_spend")
     tid = str(task.get("task_id") or "")
     objective = str(task.get("objective") or task.get("title") or "")[:280]
     provider = str(summary.get("provider") or "?")
-    spends = (
-        "Esta tarea *gasta créditos* del agente IDE al ejecutar."
-        if summary.get("requires_owner_authorization") and not summary.get("allowed_internal_runner")
-        else "Carril *interno* (no gasta Cursor/Codex/Antigravity)."
-    )
+    why = str(summary.get("why_not_internal") or "")[:320]
+    action = str(summary.get("owner_action_hint") or "")[:240]
+    internal_alt = str(summary.get("internal_alternative") or "")[:240]
+
+    if alert_kind == "internal_ready":
+        if not NOTIFY_OPS_INTERNAL_BRIEF:
+            return {"ok": False, "skipped": "internal_runner_no_owner_gate"}
+        icon = "⚙️"
+        headline = "OPS interna (Dev Swarm/local)"
+        spends = "Carril *interno* (no gasta Cursor/Codex/Antigravity)."
+        auth_block = ""
+    elif alert_kind == "internal_fix":
+        icon = "🚧"
+        headline = "OPS · carril interno bloqueado (contrato)"
+        spends = (
+            "Bloqueo de *ruta interna*: falta repo/contrato válido. "
+            "No es autorización de consumo externo ni gasto de créditos IDE."
+        )
+        auth_block = (
+            f"\nPor qué no runner interno: {why}\n"
+            f"{internal_alt}\n"
+            f"Acción: registra `repo` owner/repo y reintenta (o corrige assignee/lane)."
+        )
+    else:
+        icon = "🛂"
+        headline = "OPS · autorización requerida"
+        spends = "Esta tarea *gasta créditos* del agente IDE al ejecutar."
+        auth_block = (
+            f"\nPor qué no runner interno: {why}\n"
+            f"{action}\n"
+            f"{internal_alt}"
+        )
+
     short = tid.replace("ops_", "")[:6]
     body = (
-        f"{icon} *Autorización requerida* · {provider.upper()}\n"
+        f"{icon} *{headline}* · {provider.upper()}\n"
         f"Referencia: `{tid}`\n"
         f"{objective[:140]}\n"
-        f"{spends}\n\n"
-        f"Usa los botones *Confirmar* / *Cancelar* si aparecen.\n"
-        f"Si no ves botones, responde:\n"
-        f"• *CONFIRMAR {short}*\n"
-        f"• *CANCELAR {short}*"
+        f"{spends}{auth_block}\n"
     )
+    if alert_kind == "external_spend":
+        body += (
+            f"\nUsa los botones *Confirmar* / *Cancelar* si aparecen.\n"
+            f"Si no ves botones, responde:\n"
+            f"• *CONFIRMAR {short}*\n"
+            f"• *CANCELAR {short}*"
+        )
     key = _dedupe_key("owner_auth", tid)
     if not _can_send("owner_auth", tid, force=force):
         return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid}
@@ -116,51 +156,57 @@ def notify_ops_owner_authorization_request(
     import os
 
     from raphiia_openai.notifications.evolution_client import send_alert_whatsapp, send_whatsapp_interactive
-    from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
-    owner_phone = (
-        os.getenv("RALFIA_ALERTS_TO") or os.getenv("NOTIFY_WHATSAPP_TO") or ""
-    ).strip()
-    auth_ui = (os.getenv("NOTIFY_OPS_AUTH_UI") or "buttons").strip().lower()
-    poll_message_id = ""
-    buttons = [
-        {"id": f"ops.auth.yes.{tid}", "label": "Confirmar"},
-        {"id": f"ops.auth.no.{tid}", "label": "Cancelar"},
-    ]
-    if auth_ui == "poll":
-        from raphiia_openai.notifications.evolution_client import (
-            OPS_AUTH_POLL_NO,
-            OPS_AUTH_POLL_YES,
-            send_alert_whatsapp_poll,
-        )
-
-        result = send_alert_whatsapp_poll(
-            body,
-            [OPS_AUTH_POLL_YES, OPS_AUTH_POLL_NO],
-            number=owner_phone or None,
-            selectable_count=1,
-        )
-        poll_message_id = str(result.get("poll_message_id") or "").strip()
-        delivery_mode = "poll"
-    else:
-        result = send_whatsapp_interactive(
-            body,
-            buttons,
-            number=owner_phone or None,
-            footer="RalfIA · operaciones",
-            fallback_text=body,
-        )
-        delivery_mode = "buttons_plus_text"
-    if result.get("ok") and owner_phone:
-        ops_pending.register_pending(
-            phone=owner_phone,
-            task_id=tid,
-            provider=provider,
-            poll_message_id=poll_message_id or None,
-        )
-    if not result.get("ok"):
+    if alert_kind == "internal_fix":
         result = send_alert_whatsapp(body, prefix_node=True)
-        delivery_mode = "text"
+        delivery_mode = "text_internal_fix"
+        poll_message_id = ""
+    else:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+        owner_phone = (
+            os.getenv("RALFIA_ALERTS_TO") or os.getenv("NOTIFY_WHATSAPP_TO") or ""
+        ).strip()
+        auth_ui = (os.getenv("NOTIFY_OPS_AUTH_UI") or "buttons").strip().lower()
+        poll_message_id = ""
+        buttons = [
+            {"id": f"ops.auth.yes.{tid}", "label": "Confirmar"},
+            {"id": f"ops.auth.no.{tid}", "label": "Cancelar"},
+        ]
+        if auth_ui == "poll":
+            from raphiia_openai.notifications.evolution_client import (
+                OPS_AUTH_POLL_NO,
+                OPS_AUTH_POLL_YES,
+                send_alert_whatsapp_poll,
+            )
+
+            result = send_alert_whatsapp_poll(
+                body,
+                [OPS_AUTH_POLL_YES, OPS_AUTH_POLL_NO],
+                number=owner_phone or None,
+                selectable_count=1,
+            )
+            poll_message_id = str(result.get("poll_message_id") or "").strip()
+            delivery_mode = "poll"
+        else:
+            result = send_whatsapp_interactive(
+                body,
+                buttons,
+                number=owner_phone or None,
+                footer="RalfIA · operaciones",
+                fallback_text=body,
+            )
+            delivery_mode = "buttons_plus_text"
+        if result.get("ok") and owner_phone:
+            ops_pending.register_pending(
+                phone=owner_phone,
+                task_id=tid,
+                provider=provider,
+                poll_message_id=poll_message_id or None,
+            )
+        if not result.get("ok"):
+            result = send_alert_whatsapp(body, prefix_node=True)
+            delivery_mode = "text"
     if result.get("ok"):
         _mark_sent("owner_auth", tid)
     return {
