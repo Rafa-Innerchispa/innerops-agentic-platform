@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict
 from inneros_core_runtime.capability_gateway import register_capability
 from inneros_core_runtime import contifico_billing as bill
 from inneros_core_runtime import contifico_accounting_sync as acct
+from inneros_core_runtime.contifico_read_query import contifico_read_query
 
 
 def _wrap(fn: Callable[..., dict[str, Any]]) -> Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]:
@@ -84,6 +85,18 @@ def register_contifico_capabilities() -> None:
             ),
             bill.connection_status,
         ),
+        (
+            _manifest(
+                "contifico.query.v1",
+                "Query Contifico purchases, sales, products and margins",
+                mode="read_only",
+                risk="low",
+                description="Read-only query of Contifico accounting documents by proveedor, producto, documento, fecha, and compute price/margin cross-reference without mutations.",
+                keywords=["contifico", "query", "search", "proveedor", "producto", "documento", "fecha", "compras", "ventas", "margen", "costo", "cartimex", "ryzen"],
+            ),
+            contifico_read_query,
+        ),
+
         (
             _manifest(
                 "contifico.customer.search.v1",
@@ -205,9 +218,10 @@ def register_contifico_capabilities() -> None:
             ),
             bill.payment_query,
         ),
+
     ]
     for manifest, handler in specs:
-        if handler in (bill.connection_status, bill.customer_search, bill.customer_get, bill.item_search, bill.invoice_get, bill.invoice_status, bill.payment_query, acct.accounting_entities_status):
+        if handler in (bill.connection_status, bill.customer_search, bill.customer_get, bill.item_search, bill.invoice_get, bill.invoice_status, bill.payment_query, acct.accounting_entities_status, contifico_read_query):
             register_capability(manifest, _wrap(handler))
         else:
             register_capability(manifest, handler)

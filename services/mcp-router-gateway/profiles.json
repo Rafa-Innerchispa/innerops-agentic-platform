@@ -28,14 +28,14 @@
       "enabled": false
     },
     "inneros_compact_amd": {
-      "description": "ChatGPT compact MCP on AMD (.5) — primary ROCm/Qwen execution node",
+      "description": "ChatGPT compact MCP on AMD (.5) \u2014 primary ROCm/Qwen execution node",
       "url": "http://100.72.153.124:8112/mcp",
       "enabled": true
     }
   },
   "profiles": {
     "chatgpt_compact": {
-      "description": "ChatGPT compact — primary backend AMD (.5), Intel (.4) fallback",
+      "description": "ChatGPT compact \u2014 primary backend AMD (.5), Intel (.4) fallback",
       "backends": [
         "inneros_compact_amd",
         "inneros_compact"
@@ -74,7 +74,8 @@
         "capability_search",
         "capability_describe",
         "capability_invoke",
-        "capability_execution"
+        "capability_execution",
+        "contifico_query"
       ],
       "max_tools": 30,
       "sandbox": {
@@ -217,6 +218,49 @@
           "/workspace"
         ],
         "read_only_required_for_prefixes": []
+      }
+    },
+    "perplexity_readonly": {
+      "description": "Perplexity / external audit \u2014 read-only coordination and health, no writes or launches.",
+      "backends": [
+        "inneros_compact_amd",
+        "inneros_compact"
+      ],
+      "default_backend": "inneros_compact_amd",
+      "allow_all": false,
+      "prefixes": [],
+      "whitelist": [
+        "mcp_version",
+        "diagnose_mcp_session",
+        "get_coordination_live",
+        "get_coordination_liveness_summary",
+        "list_ops_tasks",
+        "list_agent_messages",
+        "dev_swarm_scheduler_status",
+        "dev_swarm_scope_status",
+        "a2a_status",
+        "bootstrap_context",
+        "device_fabric_health",
+        "device_fabric_inventory",
+        "bellini_guardian_dashboard",
+        "bellini_guardian_status"
+      ],
+      "max_tools": 16,
+      "sandbox": {
+        "allowed_roots": [
+          "/home/rlopez/inneros",
+          "/workspace"
+        ],
+        "read_only_required_for_prefixes": [
+          "fs_",
+          "terminal_",
+          "shell_",
+          "exec_",
+          "dev_swarm_launch",
+          "create_",
+          "complete_",
+          "write_"
+        ]
       }
     },
     "admin": {

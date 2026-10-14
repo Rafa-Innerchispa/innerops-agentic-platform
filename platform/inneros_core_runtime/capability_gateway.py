@@ -34,7 +34,12 @@ _LEGACY_CAPABILITY_ALIASES: Dict[str, str] = {
     "local_gitlab_list_merge_request_discussions": "local_gitlab.list_merge_request_discussions.v1",
     "local_gitlab_list_merge_request_pipelines": "local_gitlab.list_merge_request_pipelines.v1",
     "local_gitlab_list_pipeline_jobs": "local_gitlab.list_pipeline_jobs.v1",
-    "local_gitlab_get_job_trace": "local_gitlab.get_job_trace.v1",
+        "local_gitlab_get_job_trace": "local_gitlab.get_job_trace.v1",
+    "contifico_query": "contifico.query.v1",
+    "contifico.read.query.v1": "contifico.query.v1",
+    "search_contifico_documents": "contifico.query.v1",
+    "search_contifico_transactions": "contifico.query.v1",
+    "cap.contifico.query": "contifico.query.v1",
 }
 
 

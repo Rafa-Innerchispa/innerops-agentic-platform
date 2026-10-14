@@ -203,10 +203,42 @@ def contifico_query(
     include_details: bool = False,
     natural_language: str | None = None,
     actor: str = "mcp",
+    proveedor: str | None = None,
+    cliente: str | None = None,
+    producto: str | None = None,
+    documento: str | None = None,
+    fecha: str | None = None,
+    year: int | None = None,
+    tipo: str | None = None,
+    cruce_margen: bool = False,
+    **kwargs: Any,
 ) -> dict[str, Any]:
-    """Consulta parametrizada allowlist."""
+    """Consulta parametrizada allowlist y read-only query unificado."""
     t0 = time.perf_counter()
     filters = dict(filters or {})
+    prov = proveedor or filters.get("proveedor") or kwargs.get("proveedor")
+    cli = cliente or filters.get("cliente") or kwargs.get("cliente")
+    prod = producto or filters.get("producto") or kwargs.get("producto")
+    doc = documento or filters.get("documento") or kwargs.get("documento")
+    fec = fecha or filters.get("fecha") or kwargs.get("fecha")
+    yr = year or filters.get("year") or kwargs.get("year")
+    tip = tipo or filters.get("tipo") or kwargs.get("tipo")
+    cruce = cruce_margen or filters.get("cruce_margen") or kwargs.get("cruce_margen", False)
+    if prov or cli or prod or doc or fec or tip or cruce:
+        from inneros_core_runtime.contifico_read_query import contifico_read_query
+        return contifico_read_query(
+            proveedor=prov,
+            cliente=cli,
+            producto=prod,
+            documento=doc,
+            fecha=fec,
+            year=yr,
+            tipo=tip or "all",
+            cruce_margen=bool(cruce),
+            limit=limit,
+            include_detalles=include_details,
+            entity_id=kwargs.get("entity_id", "pcdoctor"),
+        )
     measures = measures or ["gross_sales"]
     dimensions = dimensions or []
     for m in measures:

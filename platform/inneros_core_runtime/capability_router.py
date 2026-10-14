@@ -136,6 +136,40 @@ def route_tools(
 
     recommended_capabilities: list[dict[str, str]] = []
     hay = f"{title} {body}".lower()
+    if profile_name == "contifico_analytics" or any(
+        token in hay
+        for token in (
+            "contifico",
+            "cartimex",
+            "compra",
+            "compras",
+            "proveedor",
+            "factura",
+            "ryzen",
+            "margen",
+            "precio venta",
+            "costo",
+        )
+    ):
+        recommended_capabilities.extend(
+            [
+                {
+                    "capability_id": "contifico.query.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Read-only query of Contífico purchases, sales, products, and margin cross-references.",
+                },
+                {
+                    "capability_id": "contifico.connection.status.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "API connectivity status per entity.",
+                },
+                {
+                    "capability_id": "contifico.customer.search.v1",
+                    "invoke_via": "capability_invoke",
+                    "note": "Search customers or providers in Contífico.",
+                },
+            ]
+        )
     if profile_name == "communications" or any(
         token in hay for token in ("correo", "email", "smtp", "ruijie")
     ):

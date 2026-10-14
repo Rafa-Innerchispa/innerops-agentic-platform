@@ -5236,10 +5236,17 @@ def contifico_query(
     limit: int = 20,
     include_details: bool = False,
     natural_language: str | None = None,
+    proveedor: str | None = None,
+    cliente: str | None = None,
+    producto: str | None = None,
+    documento: str | None = None,
+    fecha: str | None = None,
+    year: int | None = None,
+    tipo: str | None = None,
+    cruce_margen: bool = False,
 ) -> dict[str, Any]:
-    """Query analítica Contífico read-only (DSL allowlist). No crea tool por pregunta."""
+    """Query analítica Contífico read-only por proveedor, producto, documento o DSL."""
     from raphiia_openai import contifico_analytics
-
     return contifico_analytics.contifico_query(
         domain=domain,
         measures=measures,
@@ -5249,8 +5256,15 @@ def contifico_query(
         limit=limit,
         include_details=include_details,
         natural_language=natural_language,
+        proveedor=proveedor,
+        cliente=cliente,
+        producto=producto,
+        documento=documento,
+        fecha=fecha,
+        year=year,
+        tipo=tipo,
+        cruce_margen=cruce_margen,
     )
-
 
 @mcp.tool
 def contifico_get_document(document_id: str | None = None, number: str | None = None) -> dict[str, Any]:
@@ -8409,6 +8423,8 @@ if __name__ == "__main__":
     if runtime_profile:
         profile_info = _apply_runtime_tool_profile(runtime_profile)
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
+    from inneros_core_runtime.mcp_tool_annotation_transform import ToolAnnotationTransform
+    mcp.add_transform(ToolAnnotationTransform())
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
     mcp.run(
         transport="streamable-http",
