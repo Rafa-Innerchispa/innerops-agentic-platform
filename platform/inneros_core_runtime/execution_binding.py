@@ -33,6 +33,17 @@ PEER_OPS_RUNNER = "peer_ops_a2a"
 BLOCKED_RUNNER = "blocked"
 CURSOR_PINNED_MODEL = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
 
+# WhatsApp owner gate: only external IDE agents that spend cloud/IDE credits.
+EXTERNAL_SPEND_IDE_PROVIDERS = frozenset({"cursor", "codex", "antigravity", "gemini"})
+
+
+def requires_external_owner_authorization(envelope_dict: dict[str, Any], binding: dict[str, Any] | None = None) -> bool:
+    """True when owner must CONFIRMAR before execution (Cursor/Codex/Antigravity/Gemini IDE lanes)."""
+    env = merge_task_dispatch_fields(envelope_dict)
+    binding = binding or resolve_execution_binding(env)
+    provider = str(binding.get("provider_normalized") or normalize_provider(env.get("preferred_provider") or env.get("assignee")))
+    return provider in EXTERNAL_SPEND_IDE_PROVIDERS
+
 _DISPATCH_KEYS = (
     "dispatch_mode",
     "do_not_auto_dispatch",
@@ -465,18 +476,23 @@ def owner_execution_summary(
         else f"Alternativa interna: no recomendada ({internal.get('reason', 'n/a')})."
     )
 
+    external_auth = requires_external_owner_authorization(env, binding)
+    internal_ok = not external_auth and (
+        bool(binding.get("allowed"))
+        or normalize_provider(env.get("assignee") or env.get("preferred_provider") or "") in _internal_providers()
+    )
+
     return {
         "provider": provider,
         "execution_lane": lane,
         "runner": binding.get("runner"),
-        "allowed_internal_runner": bool(binding.get("allowed")),
+        "allowed_internal_runner": internal_ok,
         "expected_status": binding.get("status"),
         "error_code": err or None,
         "why_not_internal": why,
         "internal_alternative": internal_line,
         "owner_action_hint": action_detail,
         "preferred_model": model or None,
-        "requires_owner_authorization": not bool(binding.get("allowed"))
-        or provider in _ide_providers()
-        or bool(binding.get("do_not_auto_dispatch")),
+        "requires_owner_authorization": external_auth,
+        "requires_external_credit_authorization": external_auth,
     }

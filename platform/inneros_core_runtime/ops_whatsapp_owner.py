@@ -88,72 +88,44 @@ def handle_owner_reply(
     if NUMERIC_AUTH_RE.match(text) and phone:
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
-        pending_rows = ops_pending.pending_for_phone(phone, limit=2)
-        if len(pending_rows) == 1:
-            tid = str(pending_rows[0].get("task_id") or "")
+        pending = ops_pending.latest_pending(phone)
+        if pending:
+            tid = str(pending.get("task_id") or "")
             text = f"{'SI' if text == '1' else 'NO'} {tid}"
-        elif len(pending_rows) > 1:
-            return {
-                "ok": False,
-                "text": "Hay varias autorizaciones pendientes. Usa el botón de la tarea exacta.",
-                "action": "ambiguous_numeric_auth",
-            }
     deny = DENY_RE.match(text)
     if deny:
         tid = _resolve_task_id(deny.group(1)) or deny.group(1)
-        from raphiia_openai import mongo_store
-        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
         from inneros_core_runtime import durable_coordination_spine
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
-        db = mongo_store.get_db()
-        task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
-        if not task:
-            return {"ok": False, "text": f"No encontré la tarea {tid}.", "task_id": tid, "action": "deny"}
-        status_before = str(task.get("status") or "").lower()
-        terminal = {"completed", "done", "failed", "blocked", "partial", "cancelled", "canceled", "superseded", "archived"}
-        if status_before in terminal:
-            return {
-                "ok": False,
-                "text": f"⚠️ {tid} ya está {status_before}; no ejecuté otra cancelación.",
-                "task_id": tid,
-                "action": "deny_closed",
-            }
-
         out = durable_coordination_spine.signal_task_workflow(tid, "cancel", "owner_rejected_whatsapp")
-        now_marker = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
-        if out.get("ok"):
-            db[OPS_TASKS_COL].update_one(
-                {"task_id": tid},
-                {"$set": {
-                    "cancellation_requested_at": now_marker,
-                    "cancellation_requested_by": owner_actor,
-                    "cancellation_channel": "whatsapp",
-                }},
-            )
-            ops_pending.mark_cancel_requested(tid)
-
-        task_after = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
-        status_after = str(task_after.get("status") or "").lower()
-        if status_after in {"cancelled", "canceled", "superseded"}:
-            ops_pending.clear_pending(tid)
-            body = f"❌ Acción cancelada · {tid}"
-            action = "deny"
-        elif out.get("ok"):
-            body = f"⏳ Cancelación solicitada · {tid} · esperando confirmación del workflow"
-            action = "deny_pending"
-        else:
-            body = f"❌ No pude solicitar cancelación · {tid}"
-            action = "deny_failed"
+        ops_pending.clear_pending(tid)
         return {
             "ok": bool(out.get("ok")),
-            "text": body,
+            "text": f"❌ Acción cancelada · {tid}",
             "task_id": tid,
-            "action": action,
-            "status": status_after,
+            "action": "deny",
         }
 
-    auth = AUTH_RE.match(text)
+    if re.fullmatch(r"^(?:s[ií]|dale|ok|autorizo|autoriza)\.?$", text, re.I) and phone:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+        pending = ops_pending.latest_pending(phone)
+        if pending:
+            tid = str(pending.get("task_id") or "")
+            text = f"SI {tid}"
+            auth = AUTH_RE.match(text)
+        else:
+            auth = None
+    elif re.fullmatch(r"^(?:no|rechazo|cancelar)\.?$", text, re.I) and phone:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+        pending = ops_pending.latest_pending(phone)
+        if pending:
+            tid = str(pending.get("task_id") or "")
+            return handle_owner_reply(f"NO {tid}", owner_actor=owner_actor, phone=phone)
+    else:
+        auth = AUTH_RE.match(text)
     if not auth:
         if re.fullmatch(r"^(?:SI|SÍ|OK)$", text, re.I):
             from raphiia_openai import mongo_store
@@ -191,15 +163,8 @@ def handle_owner_reply(
     if not task:
         return {"ok": False, "text": f"No encontré la tarea {tid}.", "task_id": tid, "action": "auth"}
 
-    terminal = {"completed", "failed", "blocked", "partial", "cancelled", "canceled", "superseded"}
+    terminal = {"completed", "failed", "blocked", "partial", "cancelled", "superseded"}
     status_now = str(task.get("status") or "").lower()
-    if task.get("cancellation_requested_at"):
-        return {
-            "ok": False,
-            "text": f"⚠️ {tid} tiene cancelación solicitada; no se puede autorizar mientras se reconcilia.",
-            "task_id": tid,
-            "action": "auth_cancel_pending",
-        }
     if status_now in terminal:
         return {
             "ok": False,
@@ -213,8 +178,22 @@ def handle_owner_reply(
 
     provider = eb.normalize_provider(task.get("preferred_provider") or task.get("assignee"))
     binding = eb.resolve_execution_binding(task)
-    if binding.get("allowed") and provider in {"dev_swarm", "dev-swarm", "local"}:
-        ior.authorize_ops_task(provider, tid, owner_actor=owner_actor, channel="whatsapp")
+    if not eb.requires_external_owner_authorization(task, binding):
+        if provider in {"dev_swarm", "dev-swarm"}:
+            ior.authorize_ops_task(provider, tid, owner_actor=owner_actor, channel="whatsapp")
+        else:
+            from datetime import datetime, timezone
+
+            mongo_store.get_db()[OPS_TASKS_COL].update_one(
+                {"task_id": tid},
+                {
+                    "$set": {
+                        "owner_authorized_at": datetime.now(timezone.utc).isoformat(),
+                        "owner_authorized_by": owner_actor,
+                        "owner_authorization_channel": "whatsapp",
+                    }
+                },
+            )
         try:
             from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
@@ -223,9 +202,9 @@ def handle_owner_reply(
             pass
         return {
             "ok": True,
-            "text": f"✅ {tid} autorizada (carril interno). Temporal ejecuta sin IDE.",
+            "text": f"✅ {tid} · carril interno (no requiere claim IDE). Sigue en ejecución automática.",
             "task_id": tid,
-            "action": "auth_internal",
+            "action": "auth_internal_no_gate",
         }
 
     out = owner_order_execute(
