@@ -54,6 +54,17 @@ def _safe_heartbeat(details: str):
         pass
 
 
+def _mail_id_from_envelope(envelope_dict: Dict[str, Any]) -> str:
+    corr = str(envelope_dict.get("correlation_id") or "").strip()
+    if corr.startswith("email:"):
+        return corr.split(":", 1)[1]
+    for line in envelope_dict.get("checklist") or []:
+        text = str(line)
+        if "mail_id:" in text:
+            return text.split("mail_id:", 1)[1].strip().split()[0]
+    return ""
+
+
 @activity.defn
 async def activity_validate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("validating_envelope")
@@ -86,6 +97,8 @@ async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, 
         # Observing a host is not a coding task. Do not create or mutate any
         # Git worktree on its behalf.
         return {"ok": True, "worktree": "", "source": "peer_ops_read_only"}
+    if peer_binding.get("allowed") and peer_binding.get("runner") == _binding.EMAIL_INTELLIGENCE_RUNNER:
+        return {"ok": True, "worktree": "", "source": "email_intelligence_read_only"}
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
     repo = str(envelope_dict.get("repo") or envelope_dict.get("related_project") or "").strip()
     if repo:
@@ -580,6 +593,70 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             "requires_bounded_executor": False,
         }
 
+    if binding.get("runner") == execution_binding.EMAIL_INTELLIGENCE_RUNNER:
+        mail_id = _mail_id_from_envelope(envelope_dict)
+        if not mail_id:
+            return {
+                "ok": False,
+                "blocked": True,
+                "execution_binding": binding,
+                "files_count": 0,
+                "objective_files_count": 0,
+                "objective_paths": [],
+                "code_diff": "",
+                "response": "email_intelligence_missing_mail_id",
+                "test_results": {
+                    "exit_code": None,
+                    "ok": False,
+                    "reason": "email_intelligence_missing_mail_id",
+                },
+                "evidence": {"error": "missing_mail_id_in_correlation_or_checklist"},
+            }
+        from raphiia_openai.notifications import email_router
+
+        processed = email_router.process_email_intelligence_mail(mail_id, create_task=False, hydrate=True)
+        analysis = (processed.get("analysis") or {}) if isinstance(processed, dict) else {}
+        routing = (processed.get("routing") or analysis.get("routing") or {}) if isinstance(processed, dict) else {}
+        verified = bool(processed.get("ok")) and bool(
+            analysis.get("document_type") or routing.get("agent_id") or analysis.get("priority")
+        )
+        summary = str(
+            routing.get("next_step")
+            or analysis.get("summary")
+            or envelope_dict.get("objective")
+            or envelope_dict.get("title")
+            or ""
+        )[:4000]
+        evidence = {
+            "mail_id": mail_id,
+            "document_type": analysis.get("document_type"),
+            "priority": analysis.get("priority"),
+            "route_agent": routing.get("agent_id") or analysis.get("route_agent"),
+            "route_module": routing.get("module") or analysis.get("route_module"),
+            "security_verdict": processed.get("security_verdict"),
+            "read_only": True,
+            "runner": execution_binding.EMAIL_INTELLIGENCE_RUNNER,
+        }
+        return {
+            "ok": verified,
+            "blocked": not verified,
+            "execution_binding": binding,
+            "files_count": 0,
+            "objective_files_count": 0,
+            "objective_paths": [],
+            "code_diff": "",
+            "response": summary or "email_intelligence_processed",
+            "test_results": {"exit_code": None, "ok": verified, "reason": None if verified else "email_analysis_incomplete"},
+            "evidence": evidence,
+            "email_intelligence": {
+                "mail_id": mail_id,
+                "routing": routing,
+                "action": processed.get("action"),
+            },
+            "candidate_only": False,
+            "requires_bounded_executor": False,
+        }
+
     # If mock/canary test execution:
     if envelope_dict.get("canary_test_type") == "failed_test":
         return {
@@ -745,6 +822,18 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
                 )
             except Exception:
                 logger.debug("cursor awaiting claim notify skipped", exc_info=True)
+        if status in {"running", "verification", "completed", "failed", "blocked", "partial"}:
+            try:
+                from inneros_core_runtime import ops_owner_checkpoint
+
+                ops_owner_checkpoint.publish_ops_owner_checkpoint(
+                    {**mirror_fields, "task_id": task_id, "status": status},
+                    phase=status,
+                    evidence=evidence if isinstance(evidence, dict) else {},
+                    actor=str(envelope_dict.get("assignee") or "temporal_engine"),
+                )
+            except Exception:
+                logger.debug("owner checkpoint delivery skipped", exc_info=True)
         return {"ok": True, "mirrored": True}
     except Exception as e:
         logger.exception("Mongo projection update failed")

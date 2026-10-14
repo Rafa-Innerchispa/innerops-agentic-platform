@@ -27,6 +27,7 @@ def _internal_providers() -> frozenset[str]:
 
     return frozenset(normalize_provider(p) for p in apr.internal_providers())
 INTERNAL_BOUNDED_RUNNER = "internal_bounded_local"
+EMAIL_INTELLIGENCE_RUNNER = "email_intelligence_local"
 INTERACTIVE_IDE_RUNNER = "interactive_ide_handoff"
 CURSOR_INTERACTIVE_RUNNER = "cursor_interactive"
 PEER_OPS_RUNNER = "peer_ops_a2a"
@@ -91,6 +92,14 @@ def _interactive_claim_active(env: dict[str, Any], provider: str) -> bool:
 
 def _cursor_claim_active(env: dict[str, Any], provider: str) -> bool:
     return provider == "cursor" and _interactive_claim_active(env, provider)
+
+
+def _is_business_ops_email_envelope(env: dict[str, Any]) -> bool:
+    task_class = str(env.get("task_class") or "").lower()
+    lane = str(env.get("execution_lane") or "").lower()
+    if task_class == "business_ops":
+        return True
+    return lane in {"email_intelligence", "business_ops"}
 
 
 def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
@@ -212,6 +221,22 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
             "read_only": True,
             "message": "owner-authorized read-only peer_ops status routed to AG-41",
         }
+    if _is_business_ops_email_envelope(env):
+        return {
+            **base,
+            "ok": True,
+            "allowed": True,
+            "runner": EMAIL_INTELLIGENCE_RUNNER,
+            "status": "ready",
+            "error": None,
+            "read_only": True,
+            "requires_repo": False,
+            "message": (
+                "business_ops/email_intelligence: ejecutor local de correo (sin worktree Git); "
+                "reclasificación Perplexity/Dictamen 12."
+            ),
+        }
+
     if provider == "codex" and (do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}):
         codex_model = str(
             __import__("os").getenv("CODEX_OPS_PINNED_MODEL", __import__("os").getenv("CODEX_WHATSAPP_MODEL", "gpt-5.6-sol"))
