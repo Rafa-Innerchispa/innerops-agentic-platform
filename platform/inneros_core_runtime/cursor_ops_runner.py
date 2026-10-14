@@ -465,7 +465,7 @@ def complete_ops_task(
     ev.setdefault("effective_model", task.get("effective_model") or CURSOR_PINNED_MODEL)
     ev.setdefault("host", _host())
 
-    ev_err = _validate_completion_evidence(normalized, ev, task=task)
+    ev_err = ocp.validate_completed_evidence(task, ev) if normalized == "completed" else _validate_completion_evidence(normalized, ev)
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}
 
