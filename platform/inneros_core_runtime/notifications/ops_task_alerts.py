@@ -329,8 +329,9 @@ def notify_ops_transition(
     if sha or branch:
         extra = f"\nBranch: {branch or '?'} · SHA: {sha or '?'}"
 
+    fin = "✅ TAREA TERMINADA\n" if status == "completed" else ("⚠️ TAREA BLOQUEADA\n" if status == "blocked" else "")
     body = (
-        f"🧠 RalfIA {icon} OPS {status.upper()}\n"
+        f"{fin}🧠 RalfIA {icon} OPS {status.upper()}\n"
         f"{_format_task_line(task)}"
         f"{actor_line}{blocker_line}{extra}\n"
         f"{ralfia_time.format_log()}"

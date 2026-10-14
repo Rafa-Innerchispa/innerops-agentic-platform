@@ -12,6 +12,9 @@ from raphiia_openai import mongo_store
 
 from inneros_core_runtime import cursor_execution_plane as cep
 from inneros_core_runtime import execution_binding as eb
+from inneros_core_runtime import ops_completion_policy as ocp
+from inneros_core_runtime import ops_execution_state as oes
+from inneros_core_runtime import ops_lifecycle as ol
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL, _publish_task_event, heartbeat_ops_task
 
 CURSOR_PINNED_MODEL = os.getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
@@ -462,7 +465,7 @@ def complete_ops_task(
     ev.setdefault("effective_model", task.get("effective_model") or CURSOR_PINNED_MODEL)
     ev.setdefault("host", _host())
 
-    ev_err = _validate_completion_evidence(normalized, ev)
+    ev_err = _validate_completion_evidence(normalized, ev, task=task)
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}
 
@@ -481,31 +484,20 @@ def complete_ops_task(
         "actor": "cursor",
         "at": now,
     }
-    temporal = durable_coordination_spine.signal_task_workflow(
-        tid, "cursor_execution_complete", signal_payload
+    submitted = ol.submit_completion_with_temporal_fallback(
+        tid,
+        claim_token=tok,
+        status=normalized,
+        evidence=ev,
+        agent_result=agent_result,
+        actor="cursor",
+        signal_name="cursor_execution_complete",
     )
-    if not temporal.get("ok"):
-        return {
-            "ok": False,
-            "error": "temporal_completion_signal_failed",
-            "task_id": tid,
-            "details": temporal,
-            "hint": "El workflow Temporal debe estar vivo (handoff Cursor). No se escribió completed en Mongo.",
-        }
-
-    db[OPS_TASKS_COL].update_one(
-        {"task_id": tid, "claim_token": tok},
-        {
-            "$set": {
-                "status": "verification",
-                "executed_at": now,
-                "updated_at": now,
-                "completion_submitted_at": now,
-                "candidate_evidence": ev,
-                "candidate_agent_result": agent_result,
-            },
-            "$inc": {"revision": 1},
-        },
+    temporal = submitted.get("temporal") or {}
+    oes.refresh_current_execution_state(
+        {**task, "status": "verification"},
+        event="cursor_execution_complete",
+        actor="cursor",
     )
     heartbeat_ops_task(
         tid,

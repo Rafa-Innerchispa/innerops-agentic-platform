@@ -135,26 +135,52 @@ def main() -> int:
             else:
                 reason = str((complete or {}).get("error") or "completion_signal_missing")
         elif result.get("ok") and result.get("primary") == "local_sdk":
+            from inneros_core_runtime import ops_completion_policy as ocp
+            from inneros_core_runtime import ops_execution_state as oes
+
             proof = receipts.committed_objective_receipt(worktree, before_sha)
+            notes = str(result.get("local", {}).get("result") or "")[:2000]
+            evidence = {}
             if proof.get("ok"):
                 evidence = {
                     **proof,
-                    "notes": str(result.get("local", {}).get("result") or "")[:2000],
+                    "notes": notes,
                     "headless_primary": "local_sdk",
                     "execution_host": _host(),
                 }
+            elif ocp.allows_non_commit_completion(task, {"notes": notes}):
+                evidence = {
+                    "read_only_completion": True,
+                    "completion_mode": "read_only_evidence",
+                    "git_before_sha": before_sha,
+                    "commit_sha": receipts.git_head(worktree) or before_sha,
+                    "notes": notes,
+                    "summary": notes[:800],
+                    "headless_primary": "local_sdk",
+                    "execution_host": _host(),
+                }
+                proof = {"ok": True, "read_only": True}
+            else:
+                reason = str(proof.get("error") or "no_objective_evidence")
+            if evidence:
                 token = str(claim.get("claim_token") or "")
                 if token:
                     complete = cor.complete_ops_task(
-                        tid, claim_token=token, status="completed", evidence=evidence,
-                        commit_sha=str(proof["commit_sha"]),
+                        tid,
+                        claim_token=token,
+                        status="completed",
+                        evidence=evidence,
+                        commit_sha=str(evidence.get("commit_sha") or "") or None,
                     )
                 if complete and complete.get("ok"):
                     submitted_status = "verification"
+                    oes.refresh_current_execution_state(
+                        {**task, "status": "verification"},
+                        event="headless_complete",
+                        actor="cursor",
+                    )
                 else:
                     reason = str((complete or {}).get("error") or "completion_signal_missing")
-            else:
-                reason = str(proof.get("error") or "no_objective_evidence")
         elif result.get("ok") and result.get("primary") == "cloud_agent":
             # Cursor Cloud agent creation is asynchronous, not execution success.
             reason = "cloud_agent_async_submission_not_verified"

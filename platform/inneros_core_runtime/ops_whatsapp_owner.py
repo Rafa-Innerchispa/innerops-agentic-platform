@@ -178,6 +178,23 @@ def handle_owner_reply(
 
     provider = eb.normalize_provider(task.get("preferred_provider") or task.get("assignee"))
     binding = eb.resolve_execution_binding(task)
+    active = {"in_progress", "claimed", "running", "accepted"}
+    if status_now in active and task.get("owner_authorized_at"):
+        try:
+            from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+            ops_pending.clear_pending(tid)
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "text": (
+                f"✅ `{tid}` ya estaba autorizada y en *{status_now}* ({provider}).\n"
+                "No hace falta confirmar de nuevo; sigue la ejecución en el IDE."
+            ),
+            "task_id": tid,
+            "action": "auth_already_active",
+        }
     if binding.get("allowed") and provider in {"dev_swarm", "dev-swarm", "local"}:
         ior.authorize_ops_task(provider, tid, owner_actor=owner_actor, channel="whatsapp")
         try:
@@ -202,9 +219,62 @@ def handle_owner_reply(
     )
     claim = out.get("claim") or {}
     if not out.get("ok"):
+        err = str(out.get("error") or claim.get("error") or "")
+        task2 = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
+        st2 = str(task2.get("status") or "").lower()
+        if err == "no_claimable_task" and task2.get("owner_authorized_at") and st2 in active:
+            try:
+                from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+                ops_pending.clear_pending(tid)
+            except Exception:
+                pass
+            return {
+                "ok": True,
+                "text": (
+                    f"✅ `{tid}` ya autorizada · estado *{st2}* ({provider}).\n"
+                    "El claim ya estaba hecho; ignora este reintento."
+                ),
+                "task_id": tid,
+                "action": "auth_already_active",
+            }
+        if err == "worktree_required":
+            from raphiia_openai import ralfia_time
+
+            ior.authorize_ops_task(provider, tid, owner_actor=owner_actor, channel="whatsapp")
+            mongo_store.get_db()[OPS_TASKS_COL].update_one(
+                {"task_id": tid},
+                {
+                    "$set": {
+                        "status": "in_progress",
+                        "claimed_by": provider,
+                        "assignee": provider,
+                        "updated_at": ralfia_time.now_utc_iso(),
+                        "evidence.worktree_claim_deferred": claim.get("details") or {},
+                        "payload.owner_manual_ide_execution": True,
+                    },
+                    "$inc": {"revision": 1},
+                },
+            )
+            try:
+                from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+                ops_pending.clear_pending(tid)
+            except Exception:
+                pass
+            return {
+                "ok": True,
+                "text": (
+                    f"✅ `{tid}` autorizada ({provider}).\n"
+                    "Worktree en Intel falló (rama base o mirror); continúa en el IDE sin cancelar."
+                ),
+                "task_id": tid,
+                "action": "auth_worktree_deferred",
+                "details": out,
+            }
         return {
             "ok": False,
-            "text": f"❌ No pude autorizar/claim {tid} ({provider}): {out.get('error') or claim.get('error')}",
+            "text": f"❌ No pude autorizar/claim {tid} ({provider}): {err}",
             "task_id": tid,
             "action": "auth",
             "details": out,

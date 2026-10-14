@@ -812,16 +812,23 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
             },
             upsert=True,
         )
-        if status == "awaiting_cursor_claim":
+        if status in {
+            "awaiting_cursor_claim",
+            "awaiting_codex_claim",
+            "awaiting_antigravity_claim",
+            "awaiting_gemini_claim",
+            "awaiting_chatgpt_claim",
+            "awaiting_ide_claim",
+        }:
             try:
                 from inneros_core_runtime.notifications.ops_task_alerts import notify_cursor_awaiting_claim
 
                 notify_cursor_awaiting_claim(
-                    {**mirror_fields, "task_id": task_id},
+                    {**mirror_fields, "task_id": task_id, "status": status},
                     previous_status=previous_status,
                 )
             except Exception:
-                logger.debug("cursor awaiting claim notify skipped", exc_info=True)
+                logger.debug("ide awaiting claim notify skipped", exc_info=True)
         if status in {"running", "verification", "completed", "failed", "blocked", "partial"}:
             try:
                 from inneros_core_runtime import ops_owner_checkpoint
