@@ -76,6 +76,15 @@ def _synthetic_ops_task_skip(task: dict[str, Any]) -> str | None:
     corr = str(task.get("correlation_id") or "").lower()
     if corr.startswith("fixture:") or "synthetic" in corr:
         return "synthetic_correlation"
+    if str(task.get("from_agent") or "") in {"ops_quad_lane_canary", "cursor_overnight"}:
+        return "automated_smoke_producer"
+    title = str(task.get("title") or "")
+    if title.startswith("[quad-canary]") or title.startswith("[phase3]"):
+        return "quad_canary_title"
+    if str(task.get("task_class") or "") == "verification" and "solo lectura" in str(task.get("objective") or "").lower():
+        return "read_only_verification"
+    if task.get("suppress_owner_whatsapp_auth") is True:
+        return "suppress_flag"
     return None
 
 

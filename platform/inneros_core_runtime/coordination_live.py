@@ -517,7 +517,11 @@ def create_ops_task(
     try:
         from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_owner_authorization_request
 
-        notify_ops_owner_authorization_request(doc, binding=binding_preview, source_agent=from_agent)
+        suppress = bool((payload or {}).get("suppress_owner_whatsapp_auth"))
+        suppress = suppress or str(from_agent or "") in {"ops_quad_lane_canary", "cursor_overnight"}
+        suppress = suppress or str(title or "").startswith("[quad-canary]")
+        if not suppress:
+            notify_ops_owner_authorization_request(doc, binding=binding_preview, source_agent=from_agent)
     except Exception:
         pass
 

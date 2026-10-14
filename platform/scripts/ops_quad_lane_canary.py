@@ -87,7 +87,7 @@ def _create_quad(*, correlation_id: str, repo: str, dry: bool) -> list[dict[str,
             )
             out.append({"lane": lane_name, "dry_run": True, "binding": binding})
             continue
-        payload = {"canary_test_type": "git_head_only"} if lane_name == "dev_swarm" else None
+        payload = {"canary_test_type": "git_head_only", "suppress_owner_whatsapp_auth": True} if lane_name == "dev_swarm" else {"suppress_owner_whatsapp_auth": True}
         created = cl.create_ops_task(
             assignee=provider,
             title=title,

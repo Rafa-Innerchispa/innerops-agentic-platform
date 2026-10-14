@@ -107,7 +107,25 @@ def handle_owner_reply(
             "action": "deny",
         }
 
-    auth = AUTH_RE.match(text)
+    if re.fullmatch(r"^(?:s[ií]|dale|ok|autorizo|autoriza)\.?$", text, re.I) and phone:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+        pending = ops_pending.latest_pending(phone)
+        if pending:
+            tid = str(pending.get("task_id") or "")
+            text = f"SI {tid}"
+            auth = AUTH_RE.match(text)
+        else:
+            auth = None
+    elif re.fullmatch(r"^(?:no|rechazo|cancelar)\.?$", text, re.I) and phone:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+
+        pending = ops_pending.latest_pending(phone)
+        if pending:
+            tid = str(pending.get("task_id") or "")
+            return handle_owner_reply(f"NO {tid}", owner_actor=owner_actor, phone=phone)
+    else:
+        auth = AUTH_RE.match(text)
     if not auth:
         if re.fullmatch(r"^(?:SI|SÍ|OK)$", text, re.I):
             from raphiia_openai import mongo_store
