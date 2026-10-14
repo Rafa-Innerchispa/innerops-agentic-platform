@@ -12,9 +12,6 @@ from raphiia_openai import mongo_store
 
 from inneros_core_runtime import cursor_execution_plane as cep
 from inneros_core_runtime import execution_binding as eb
-from inneros_core_runtime import ops_completion_policy as ocp
-from inneros_core_runtime import ops_execution_state as oes
-from inneros_core_runtime import ops_lifecycle as ol
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL, _publish_task_event, heartbeat_ops_task
 
 CURSOR_PINNED_MODEL = os.getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
@@ -103,17 +100,28 @@ def _evidence_to_agent_result(evidence: dict[str, Any], *, status: str) -> dict[
     return out
 
 
+def _awaiting_claim_status(task: dict[str, Any] | None) -> str:
+    prov = str((task or {}).get("assignee") or (task or {}).get("preferred_provider") or "cursor").strip().lower()
+    return {
+        "cursor": "awaiting_cursor_claim",
+        "codex": "awaiting_codex_claim",
+        "antigravity": "awaiting_antigravity_claim",
+        "gemini": "awaiting_gemini_claim",
+    }.get(prov, "awaiting_ide_claim")
+
+
 def _release_claim(db, tid: str, *, reason: str) -> None:
     now = _now()
+    task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"assignee": 1, "preferred_provider": 1}) or {}
     db[OPS_TASKS_COL].update_one(
         {"task_id": tid},
         {
             "$set": {
-                "status": "awaiting_cursor_claim",
+                "status": _awaiting_claim_status(task),
                 "updated_at": now,
                 "claim_error": reason[:500],
             },
-            "$unset": {"claim_token": "", "claimed_at": "", "lease_until": ""},
+            "$unset": {"claim_token": "", "claimed_at": "", "lease_until": "", "claimed_by": ""},
             "$inc": {"revision": 1},
         },
     )
@@ -376,7 +384,10 @@ def claim_ops_task(
         "owner_authorized_at": claimed.get("owner_authorized_at"),
     }
     temporal_handoff = durable_coordination_spine.signal_task_workflow(
-        tid, "cursor_claim_handoff", handoff_payload
+        tid,
+        "cursor_claim_handoff",
+        handoff_payload,
+        workflow_id=str(claimed.get("workflow_id") or ""),
     )
 
     _publish_task_event(
@@ -465,7 +476,7 @@ def complete_ops_task(
     ev.setdefault("effective_model", task.get("effective_model") or CURSOR_PINNED_MODEL)
     ev.setdefault("host", _host())
 
-    ev_err = ocp.validate_completed_evidence(task, ev) if normalized == "completed" else _validate_completion_evidence(normalized, ev)
+    ev_err = _validate_completion_evidence(normalized, ev)
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}
 
@@ -484,20 +495,52 @@ def complete_ops_task(
         "actor": "cursor",
         "at": now,
     }
-    submitted = ol.submit_completion_with_temporal_fallback(
+    wf_id = str(task.get("workflow_id") or "")
+    temporal = durable_coordination_spine.signal_task_workflow(
         tid,
-        claim_token=tok,
-        status=normalized,
-        evidence=ev,
-        agent_result=agent_result,
-        actor="cursor",
-        signal_name="cursor_execution_complete",
+        "cursor_execution_complete",
+        signal_payload,
+        workflow_id=wf_id,
     )
-    temporal = submitted.get("temporal") or {}
-    oes.refresh_current_execution_state(
-        {**task, "status": "verification"},
-        event="cursor_execution_complete",
-        actor="cursor",
+    if not temporal.get("ok") and "already completed" in str(temporal.get("error") or "").lower():
+        from inneros_core_runtime.ops_temporal_recovery import reopen_ops_temporal_execution
+
+        reopened = reopen_ops_temporal_execution(
+            tid,
+            reason="auto_reopen_terminal_workflow_for_completion",
+            actor="cursor_ops_runner",
+        )
+        if reopened.get("ok") and not reopened.get("skipped"):
+            task = db[OPS_TASKS_COL].find_one({"task_id": tid, "claim_token": tok}) or task
+            wf_id = str(task.get("workflow_id") or wf_id)
+            temporal = durable_coordination_spine.signal_task_workflow(
+                tid,
+                "cursor_execution_complete",
+                signal_payload,
+                workflow_id=wf_id,
+            )
+    if not temporal.get("ok"):
+        return {
+            "ok": False,
+            "error": "temporal_completion_signal_failed",
+            "task_id": tid,
+            "details": temporal,
+            "hint": "El workflow Temporal debe estar vivo (handoff Cursor). No se escribió completed en Mongo.",
+        }
+
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": tid, "claim_token": tok},
+        {
+            "$set": {
+                "status": "verification",
+                "executed_at": now,
+                "updated_at": now,
+                "completion_submitted_at": now,
+                "candidate_evidence": ev,
+                "candidate_agent_result": agent_result,
+            },
+            "$inc": {"revision": 1},
+        },
     )
     heartbeat_ops_task(
         tid,
@@ -513,25 +556,11 @@ def complete_ops_task(
         status="verification",
         payload={"evidence": ev, "temporal": temporal},
     )
-    checkpoint: dict[str, Any] = {}
-    try:
-        from inneros_core_runtime import ops_owner_checkpoint
-
-        checkpoint = ops_owner_checkpoint.publish_ops_owner_checkpoint(
-            {**task, "status": "verification", "revision": int(task.get("revision") or 0) + 1},
-            phase="verification",
-            evidence=ev,
-            actor="cursor",
-            notes="Evidencia enviada a Temporal; pendiente gate (ACK ≠ DONE).",
-        )
-    except Exception:
-        checkpoint = {"ok": False, "skipped": "checkpoint_publish_failed"}
     return {
         "ok": True,
         "task_id": tid,
         "status": "verification",
         "evidence": ev,
         "temporal": temporal,
-        "owner_checkpoint": checkpoint,
         "message": "Evidencia enviada a Temporal; estado final tras gate de verificación.",
     }
