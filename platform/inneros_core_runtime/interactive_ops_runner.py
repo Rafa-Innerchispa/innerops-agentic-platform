@@ -219,6 +219,17 @@ def claim_ops_task(
     tid = str(task.get("task_id") or "")
     if not (bool(task.get("owner_authorized_at")) or owner_approved):
         return {"ok": False, "error": "owner_approval_required", "task_id": tid}
+    from inneros_core_runtime import cursor_headless_lanes as _lanes
+
+    allowed_host, route_reason = _lanes.should_this_node_run_task(task)
+    if not allowed_host:
+        return {
+            "ok": False,
+            "error": "execution_host_routing",
+            "reason": route_reason,
+            "task_id": tid,
+            "provider": prov,
+        }
     if prov == "cursor":
         from inneros_core_runtime import cursor_ops_runner as cor
 

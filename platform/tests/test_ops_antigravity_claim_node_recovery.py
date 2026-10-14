@@ -73,6 +73,18 @@ def test_orphan_interactive_recovery_to_awaiting_antigravity() -> None:
     assert out["recovered"][0]["status"] == "awaiting_antigravity_claim"
 
 
+def test_cursor_worktree_failure_still_awaiting_cursor_claim() -> None:
+    task = {"assignee": "cursor", "preferred_provider": "cursor"}
+    assert awaiting_claim_status_for_task(task) == "awaiting_cursor_claim"
+    db = MagicMock()
+    col = MagicMock()
+    db.__getitem__.return_value = col
+    col.find_one.return_value = task
+    _release_claim(db, "ops_cursor001", reason="worktree_create_failed")
+    update_doc = col.update_one.call_args[0][1]
+    assert update_doc["$set"]["status"] == "awaiting_cursor_claim"
+
+
 def test_candidate_tasks_filters_manual_dispatch() -> None:
     rows = [
         {"task_id": "a", "do_not_auto_dispatch": True, "created_at": "1"},
@@ -88,3 +100,25 @@ def test_candidate_tasks_filters_manual_dispatch() -> None:
     assert "a" not in ids
     assert "b" not in ids
     assert "c" in ids
+
+
+def test_interactive_claim_skips_wrong_execution_host() -> None:
+    from inneros_core_runtime import interactive_ops_runner as ior
+
+    db = MagicMock()
+    col = MagicMock()
+    db.__getitem__.return_value = col
+    col.find_one.return_value = {
+        "task_id": "ops_host001",
+        "assignee": "antigravity",
+        "owner_authorized_at": "2026-10-14T18:00:00+00:00",
+        "payload": {"target_node": "amd"},
+    }
+    with (
+        patch("inneros_core_runtime.interactive_ops_runner.mongo_store.get_db", return_value=db),
+        patch("inneros_core_runtime.cursor_headless_lanes.should_this_node_run_task", return_value=(False, "preferred_peer_alive:amd")),
+    ):
+        out = ior.claim_ops_task("antigravity", task_id="ops_host001")
+    assert out["ok"] is False
+    assert out["error"] == "execution_host_routing"
+    col.find_one_and_update.assert_not_called()
