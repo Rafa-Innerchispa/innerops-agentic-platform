@@ -69,3 +69,20 @@ def pending_for_phone(phone: str, *, limit: int = 5) -> list[dict[str, Any]]:
         .sort("updated_at", -1)
         .limit(max(1, limit))
     )
+
+
+def get_by_task_id(task_id: str) -> dict[str, Any] | None:
+    tid = str(task_id or "").strip()
+    if not tid:
+        return None
+    return mongo_store.get_db()[COL].find_one({"task_id": tid}, sort=[("updated_at", -1)])
+
+
+def mark_cancel_requested(task_id: str) -> None:
+    tid = str(task_id or "").strip()
+    if not tid:
+        return
+    mongo_store.get_db()[COL].update_one(
+        {"task_id": tid},
+        {"$set": {"status": "cancel_requested", "updated_at": _now()}},
+    )
