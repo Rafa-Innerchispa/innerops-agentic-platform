@@ -2457,7 +2457,7 @@ def read_worktree_file(
         cap = max(1, min(int(max_bytes or 24000), 48000))
         with target.open("rb") as handle:
             data = handle.read(cap + 1)
-        if b"\\x00" in data:
+        if b"\x00" in data:
             return {"ok": False, "error": "binary_file_denied"}
         try:
             decoded = data[:cap].decode("utf-8")
