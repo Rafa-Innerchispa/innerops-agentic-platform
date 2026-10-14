@@ -50,7 +50,7 @@ def test_denies_symlinks_into_denied_repo_paths(monkeypatch, tmp_path):
 def test_denies_binary_data_and_redacts_tokens(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
     (tmp_path / "ee").mkdir()
-    (tmp_path / "ee" / "binary.txt").write_bytes(b"hello\\x00world")
+    (tmp_path / "ee" / "binary.txt").write_bytes(b"hello\x00world")
     assert lep.read_worktree_file("rafagye/gitlab", "chatgpt/review", "ee/binary.txt")["error"] == "binary_file_denied"
     (tmp_path / "ee" / "source.txt").write_text("api_key=longsecret1234567890", encoding="utf-8")
     result = lep.read_worktree_file("rafagye/gitlab", "chatgpt/review", "ee/source.txt")
