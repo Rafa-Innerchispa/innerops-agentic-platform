@@ -983,6 +983,12 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
     elif auto_claim and enabled and capability.get("status") != "ready":
         claim = {"ok": True, "claimed": False, "reason": "provider_not_ready", "capability": capability}
     status_after = external_repair_agent_status(provider_n)
+    try:
+        from inneros_core_runtime.ops_lifecycle_reconciler import reconcile_ops_lifecycle
+
+        lifecycle = reconcile_ops_lifecycle(limit=15)
+    except Exception as exc:
+        lifecycle = {"ok": False, "error": str(exc)[:200]}
     return {
         "ok": bool(completed_runs.get("ok") and handoffs.get("ok") and recovered.get("ok") and bucket_record.get("ok") and claim.get("ok")),
         "provider": provider_n,
@@ -995,6 +1001,7 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
         "active_tasks": active_tasks,
         "claim": claim,
         "status_after": status_after,
+        "ops_lifecycle_reconcile": lifecycle,
     }
 
 
