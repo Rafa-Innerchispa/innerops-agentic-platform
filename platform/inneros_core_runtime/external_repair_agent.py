@@ -673,7 +673,14 @@ def _candidate_tasks(provider: str, limit: int) -> list[dict[str, Any]]:
         .sort("created_at", 1)
         .limit(max(1, min(int(limit or 1), 20)))
     )
-    return sorted(rows, key=_task_priority_key)
+    filtered: list[dict[str, Any]] = []
+    from inneros_core_runtime.ops_interactive_recovery import external_repair_may_auto_claim
+
+    for row in rows:
+        ok, _reason = external_repair_may_auto_claim(row)
+        if ok:
+            filtered.append(row)
+    return sorted(filtered, key=_task_priority_key)
 
 
 def _auto_claim_enabled(provider: str) -> bool:
@@ -765,6 +772,30 @@ def external_repair_agent_claim_next(provider: str = "codex", dry_run: bool = Tr
             projection={"_id": 0},
         )
         if not claimed:
+            continue
+        from inneros_core_runtime.ops_interactive_recovery import external_repair_may_auto_claim
+        from inneros_core_runtime import cursor_headless_lanes as _lanes
+
+        may, skip_reason = external_repair_may_auto_claim(claimed)
+        if not may:
+            coordination_live.update_ops_task_state(
+                str(claimed["task_id"]),
+                "proposed",
+                actor=provider,
+                expected_revision=int(claimed.get("revision") or 1),
+                force_handoff=True,
+            )
+            continue
+        allowed_host, host_reason = _lanes.should_this_node_run_task(claimed)
+        if not allowed_host:
+            coordination_live.update_ops_task_state(
+                str(claimed["task_id"]),
+                "proposed",
+                actor=provider,
+                expected_revision=int(claimed.get("revision") or 1),
+                evidence={"host_skip": host_reason},
+                force_handoff=True,
+            )
             continue
         coordination_live.bump_revision(reason=f"external_repair_agent claimed {selected['task_id']}", source="external_repair_agent")
         promoted = coordination_live.update_ops_task_state(claimed["task_id"], "in_progress", actor=provider, expected_revision=int(claimed.get("revision") or 1))
@@ -986,7 +1017,11 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
     try:
         from inneros_core_runtime.ops_lifecycle_reconciler import reconcile_ops_lifecycle
 
+        from inneros_core_runtime.ops_interactive_recovery import recover_orphan_interactive_ops_tasks
+
+        orphan = recover_orphan_interactive_ops_tasks(limit=10)
         lifecycle = reconcile_ops_lifecycle(limit=15)
+        lifecycle["orphan_interactive"] = orphan
     except Exception as exc:
         lifecycle = {"ok": False, "error": str(exc)[:200]}
     return {

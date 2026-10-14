@@ -140,6 +140,46 @@ def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
         exhausted = reap_count >= _headless_max_reaps()
 
         if exhausted:
+            full = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or {}
+            wt = full.get("worktree") or full.get("local_worktree")
+            release_instead = bool(wt) or full.get("do_not_auto_dispatch") is True
+            if release_instead:
+                from inneros_core_runtime.cursor_ops_runner import _release_claim
+
+                _release_claim(db, tid, reason="stale_headless_retry_exhausted")
+                db[OPS_TASKS_COL].update_one(
+                    {"task_id": tid},
+                    {
+                        "$set": {
+                            "headless_execution_finished_at": now,
+                            "headless_last_result": {
+                                "ok": False,
+                                "error": "stale_headless_retry_exhausted_released",
+                                "reaped_at": now,
+                                "reap_count": reap_count,
+                            },
+                            "headless_reap_count": reap_count,
+                            "updated_at": now,
+                        },
+                        "$unset": {
+                            "headless_execution_started_at": "",
+                            "headless_execution_pid": "",
+                            "headless_execution_host": "",
+                        },
+                        "$inc": {"revision": 1},
+                    },
+                )
+                reaped.append(
+                    {
+                        "task_id": tid,
+                        "reaped": True,
+                        "pid": pid,
+                        "reap_count": reap_count,
+                        "retry_exhausted": True,
+                        "released_claim": True,
+                    }
+                )
+                continue
             update = {
                 "$set": {
                     "status": "blocked",
