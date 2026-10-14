@@ -1,8 +1,8 @@
 # ADR-012–017 | InnerOS: entrega confiable y Last Known Good
 
-**Aprobado por owner:** 2026-10-10  
-**Estado:** política aprobada; despliegue de control de versiones y Golden Flow pendiente de certificar.  
-**Fuente de decisiones:** [Ledger de InnerOS](https://app.notion.com/p/eb8bb67ca63b4dfba5c34e35b92ae173).  
+**Aprobado por owner:** 2026-10-10
+**Estado:** política aprobada; despliegue de control de versiones y Golden Flow pendiente de certificar.
+**Fuente de decisiones:** [Ledger de InnerOS](https://app.notion.com/p/eb8bb67ca63b4dfba5c34e35b92ae173).
 **Correlación:** `inneros-last-known-good-release-20261010`.
 
 ## D-012 · Promoción única a producción

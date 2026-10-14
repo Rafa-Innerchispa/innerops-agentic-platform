@@ -155,9 +155,11 @@ def authorize_ops_task(
     # terminal task, or a task that already belongs to a running claim.
     owner = normalize_provider(provider)
     doc = db[OPS_TASKS_COL].find_one_and_update(
-        {"task_id": tid,
-         "assignee": owner,
-         "status": {"$nin": ["completed", "done", "failed", "cancelled", "superseded", "archived"]},
+        {
+            "task_id": tid,
+            "assignee": owner,
+            "status": {"$nin": ["completed", "done", "failed", "cancelled", "superseded", "archived"]},
+            "claim_token": {"$exists": False},
         },
         {"$set": {
             "owner_authorized_at": now,
@@ -168,8 +170,11 @@ def authorize_ops_task(
         return_document=True,
     )
     if not doc:
-        existing = db[OPS_TASKS_COL].find_one({"task_id": tid, "assignee": owner})
-        if existing and existing.get("owner_authorized_at"):
+        existing = db[OPS_TASKS_COL].find_one(
+            {"task_id": tid, "assignee": owner, "claim_token": {"$exists": False}},
+            {"owner_authorized_at": 1, "_id": 0},
+        )
+        if isinstance(existing, dict) and existing.get("owner_authorized_at"):
             try:
                 oes.refresh_current_execution_state(existing, event="owner_authorized", actor=owner_actor)
             except Exception:

@@ -319,4 +319,3 @@ Resumen: EN_HISTORIA_MAIN=52, HISTORIA_SEPARADA=35, PR_ABIERTO=7, REVISAR_SIN_PR
 
 Los detalles JSON y las muestras de archivos estan en el artefacto
 inneros-branch-ledger.json de cada ejecucion de GitHub Actions.
-
