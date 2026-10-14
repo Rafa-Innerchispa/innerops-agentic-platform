@@ -27,12 +27,22 @@ def _internal_providers() -> frozenset[str]:
 
     return frozenset(normalize_provider(p) for p in apr.internal_providers())
 INTERNAL_BOUNDED_RUNNER = "internal_bounded_local"
-EMAIL_INTELLIGENCE_RUNNER = "email_intelligence_local"
 INTERACTIVE_IDE_RUNNER = "interactive_ide_handoff"
 CURSOR_INTERACTIVE_RUNNER = "cursor_interactive"
 PEER_OPS_RUNNER = "peer_ops_a2a"
 BLOCKED_RUNNER = "blocked"
 CURSOR_PINNED_MODEL = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
+
+# WhatsApp owner gate: only external IDE agents that spend cloud/IDE credits.
+EXTERNAL_SPEND_IDE_PROVIDERS = frozenset({"cursor", "codex", "antigravity", "gemini"})
+
+
+def requires_external_owner_authorization(envelope_dict: dict[str, Any], binding: dict[str, Any] | None = None) -> bool:
+    """True when owner must CONFIRMAR before execution (Cursor/Codex/Antigravity/Gemini IDE lanes)."""
+    env = merge_task_dispatch_fields(envelope_dict)
+    binding = binding or resolve_execution_binding(env)
+    provider = str(binding.get("provider_normalized") or normalize_provider(env.get("preferred_provider") or env.get("assignee")))
+    return provider in EXTERNAL_SPEND_IDE_PROVIDERS
 
 _DISPATCH_KEYS = (
     "dispatch_mode",
@@ -92,14 +102,6 @@ def _interactive_claim_active(env: dict[str, Any], provider: str) -> bool:
 
 def _cursor_claim_active(env: dict[str, Any], provider: str) -> bool:
     return provider == "cursor" and _interactive_claim_active(env, provider)
-
-
-def _is_business_ops_email_envelope(env: dict[str, Any]) -> bool:
-    task_class = str(env.get("task_class") or "").lower()
-    lane = str(env.get("execution_lane") or "").lower()
-    if task_class == "business_ops":
-        return True
-    return lane in {"email_intelligence", "business_ops"}
 
 
 def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
@@ -221,22 +223,6 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
             "read_only": True,
             "message": "owner-authorized read-only peer_ops status routed to AG-41",
         }
-    if _is_business_ops_email_envelope(env):
-        return {
-            **base,
-            "ok": True,
-            "allowed": True,
-            "runner": EMAIL_INTELLIGENCE_RUNNER,
-            "status": "ready",
-            "error": None,
-            "read_only": True,
-            "requires_repo": False,
-            "message": (
-                "business_ops/email_intelligence: ejecutor local de correo (sin worktree Git); "
-                "reclasificación Perplexity/Dictamen 12."
-            ),
-        }
-
     if provider == "codex" and (do_not_auto or dispatch_mode in {"owner_interactive_handoff", "interactive_handoff", "manual"}):
         codex_model = str(
             __import__("os").getenv("CODEX_OPS_PINNED_MODEL", __import__("os").getenv("CODEX_WHATSAPP_MODEL", "gpt-5.6-sol"))
@@ -415,45 +401,6 @@ def _claim_error_es(provider: str) -> str:
     )
 
 
-INTERNAL_ROUTE_BLOCK_ERRORS = frozenset(
-    {
-        "bounded_runner_requires_repo",
-    }
-)
-
-_IDE_CLAIM_ERRORS = frozenset(
-    {
-        "cursor_claim_required",
-        "codex_claim_required",
-        "antigravity_claim_required",
-        "gemini_claim_required",
-        "chatgpt_claim_required",
-    }
-)
-
-
-def classify_owner_whatsapp_alert(binding: dict[str, Any]) -> str:
-    """external_spend = IDE/credits gate; internal_fix = contrato/repo sin gasto externo."""
-    if binding.get("allowed"):
-        return "internal_ready"
-    err = str(binding.get("error") or "")
-    provider = str(binding.get("provider_normalized") or "")
-    if err in INTERNAL_ROUTE_BLOCK_ERRORS:
-        return "internal_fix"
-    if err in _IDE_CLAIM_ERRORS or err in {
-        "interactive_provider_requires_ide_runner",
-        "interactive_handoff_pending",
-    }:
-        return "external_spend"
-    if provider in _ide_providers() or bool(binding.get("do_not_auto_dispatch")):
-        return "external_spend"
-    if provider in _internal_providers() or err == "execution_binding_unresolved":
-        return "internal_fix"
-    if err == "preferred_model_missing":
-        return "external_spend" if provider in _ide_providers() else "internal_fix"
-    return "internal_fix"
-
-
 _ERROR_ES: dict[str, str] = {
     "cursor_claim_required": "Requiere sesión Cursor activa y autorización owner (claim); no se usa runner interno.",
     "codex_claim_required": "Requiere claim Codex con owner_approved; no se usa runner interno.",
@@ -467,9 +414,6 @@ _ERROR_ES: dict[str, str] = {
     ),
     "interactive_handoff_pending": "Esperando handoff en sesión IDE del proveedor asignado.",
     "execution_binding_unresolved": "No hay runner confirmado para la combinación provider + lane.",
-    "bounded_runner_requires_repo": (
-        "Falta repositorio owner/repo válido para el ejecutor interno acotado (worktree)."
-    ),
 }
 
 
@@ -532,22 +476,23 @@ def owner_execution_summary(
         else f"Alternativa interna: no recomendada ({internal.get('reason', 'n/a')})."
     )
 
-    alert_kind = classify_owner_whatsapp_alert(binding)
-    requires_external = alert_kind == "external_spend"
+    external_auth = requires_external_owner_authorization(env, binding)
+    internal_ok = not external_auth and (
+        bool(binding.get("allowed"))
+        or normalize_provider(env.get("assignee") or env.get("preferred_provider") or "") in _internal_providers()
+    )
 
     return {
         "provider": provider,
         "execution_lane": lane,
         "runner": binding.get("runner"),
-        "allowed_internal_runner": bool(binding.get("allowed")),
+        "allowed_internal_runner": internal_ok,
         "expected_status": binding.get("status"),
         "error_code": err or None,
         "why_not_internal": why,
         "internal_alternative": internal_line,
         "owner_action_hint": action_detail,
         "preferred_model": model or None,
-        "owner_whatsapp_alert_kind": alert_kind,
-        "requires_external_credit_authorization": requires_external,
-        "requires_owner_authorization": requires_external,
-        "blocked_internal_route": alert_kind == "internal_fix",
+        "requires_owner_authorization": external_auth,
+        "requires_external_credit_authorization": external_auth,
     }
