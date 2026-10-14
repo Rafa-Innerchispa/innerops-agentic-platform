@@ -1,6 +1,6 @@
 # InnerOS: estado canónico, continuidad y plan de cierre
-**Corte verificado:** 2026-10-12 05:00 UTC (00:00 America/Guayaquil).  
-**Destino:** documentación persistente en `main` de `Rafa-Innerchispa/innerops-agentic-platform`.  
+**Corte verificado:** 2026-10-12 05:00 UTC (00:00 America/Guayaquil).
+**Destino:** documentación persistente en `main` de `Rafa-Innerchispa/innerops-agentic-platform`.
 **IMPORTANTE:** estados en este archivo son una instantánea, no certificación de que la situación seguirá igual. Recuperar telemetría viva antes de actuar. **No contiene credenciales.**
 
 **Inventario vivo de código pendiente:** [docs/INNEROS_BRANCH_LEDGER.md](../../docs/INNEROS_BRANCH_LEDGER.md), actualizado automáticamente cada día por GitHub Actions, y [docs/INNEROS_RELEASE_ATTESTATION.json](../../docs/INNEROS_RELEASE_ATTESTATION.json), inicialmente NO_CERTIFICADO por nodo hasta evidencia host. El registro preserva todas las ramas; no debe confundirse CI/merge con producción.

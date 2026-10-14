@@ -60,17 +60,7 @@ def _format_task_line(task: dict[str, Any]) -> str:
 
 
 def owner_auth_notified(task_id: str) -> bool:
-    tid = str(task_id or "").strip()
-    if not tid:
-        return False
-    if tid in set(_STATE.get("sent", [])):
-        return True
-    try:
-        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
-        row = ops_pending.get_by_task_id(tid)
-        return bool(row and str(row.get("status") or "").lower() in {"pending", "cancel_requested"})
-    except Exception:
-        return False
+    return str(task_id) in set(_STATE.get("sent", []))
 
 
 def notify_ops_owner_authorization_request(
@@ -84,9 +74,16 @@ def notify_ops_owner_authorization_request(
     if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
         return {"ok": False, "skipped": "notifications_disabled"}
 
-    from inneros_core_runtime.execution_binding import owner_execution_summary, resolve_execution_binding
+    from inneros_core_runtime.execution_binding import (
+        owner_execution_summary,
+        requires_external_owner_authorization,
+        resolve_execution_binding,
+    )
 
     binding = binding or resolve_execution_binding(task)
+    if not requires_external_owner_authorization(task, binding):
+        if not NOTIFY_OPS_INTERNAL_BRIEF:
+            return {"ok": False, "skipped": "internal_no_external_auth_gate"}
     summary = owner_execution_summary(task, binding)
     if summary.get("allowed_internal_runner") and not summary.get("requires_owner_authorization"):
         if not NOTIFY_OPS_INTERNAL_BRIEF:
@@ -200,6 +197,12 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
     if not NOTIFY_OPS_TASKS or not NOTIFY_CURSOR_CLAIM:
         return {"ok": False, "skipped": "notifications_disabled"}
 
+    from inneros_core_runtime.execution_binding import requires_external_owner_authorization, resolve_execution_binding
+
+    binding = resolve_execution_binding(task)
+    if not requires_external_owner_authorization(task, binding):
+        return {"ok": False, "skipped": "internal_task_no_ide_claim_gate"}
+
     status = str(task.get("status") or "").lower()
     if status not in _AWAITING_CLAIM_STATUSES:
         return {"ok": False, "skipped": f"status_not_awaiting:{status}"}
@@ -284,8 +287,14 @@ def notify_ops_transition(
     if sha or branch:
         extra = f"\nBranch: {branch or '?'} · SHA: {sha or '?'}"
 
+    fin = ""
+    if status == "completed":
+        fin = "✅ TAREA TERMINADA\n"
+    elif status in {"blocked", "failed"}:
+        fin = "⚠️ TAREA BLOQUEADA\n" if status == "blocked" else "❌ TAREA FALLIDA\n"
+
     body = (
-        f"🧠 RalfIA {icon} OPS {status.upper()}\n"
+        f"{fin}🧠 RalfIA {icon} OPS {status.upper()}\n"
         f"{_format_task_line(task)}"
         f"{actor_line}{blocker_line}{extra}\n"
         f"{ralfia_time.format_log()}"
@@ -336,20 +345,3 @@ def notify_dev_swarm_outcome(
     if result.get("ok"):
         _mark_sent("swarm", key)
     return {"ok": bool(result.get("ok")), "result": result, "task_id": task_id, "outcome": outcome_u}
-
-
-def resend_ops_owner_authorization(task_id: str) -> dict[str, Any]:
-    """Force-resend exactly one existing ops authorization card by task_id."""
-    tid = str(task_id or "").strip()
-    if not tid:
-        return {"ok": False, "error": "task_id_required"}
-    from raphiia_openai import mongo_store
-    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
-
-    task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
-    if not task:
-        return {"ok": False, "error": "task_not_found", "task_id": tid}
-    status = str(task.get("status") or "").lower()
-    if status in TERMINAL_OPS:
-        return {"ok": False, "error": "task_terminal", "task_id": tid, "status": status}
-    return notify_ops_owner_authorization_request(task, force=True)

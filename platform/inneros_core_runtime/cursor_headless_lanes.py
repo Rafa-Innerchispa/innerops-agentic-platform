@@ -93,7 +93,15 @@ def peer_is_alive(*, ttl_seconds: int = 300) -> bool:
 def task_prefers_other_node(task: dict[str, Any]) -> str | None:
     payload = dict(task.get("payload") or {})
     pref = (
-        str(payload.get("preferred_execution_host") or payload.get("execution_host") or task.get("execution_host") or "")
+        str(
+            payload.get("preferred_execution_host")
+            or payload.get("execution_host")
+            or payload.get("target_node")
+            or task.get("preferred_execution_host")
+            or task.get("execution_host")
+            or task.get("target_node")
+            or ""
+        )
         .strip()
         .lower()
     )

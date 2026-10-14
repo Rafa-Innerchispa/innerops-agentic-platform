@@ -101,19 +101,54 @@ def _evidence_to_agent_result(evidence: dict[str, Any], *, status: str) -> dict[
 
 
 def _release_claim(db, tid: str, *, reason: str) -> None:
+    from inneros_core_runtime.ops_awaiting_claim import awaiting_claim_status_for_task
+
     now = _now()
+    task = db[OPS_TASKS_COL].find_one(
+        {"task_id": tid},
+        {"assignee": 1, "assigned_to": 1, "preferred_provider": 1, "owner": 1},
+    ) or {}
     db[OPS_TASKS_COL].update_one(
         {"task_id": tid},
         {
             "$set": {
-                "status": "awaiting_cursor_claim",
+                "status": awaiting_claim_status_for_task(task),
                 "updated_at": now,
                 "claim_error": reason[:500],
             },
-            "$unset": {"claim_token": "", "claimed_at": "", "lease_until": ""},
+            "$unset": {
+                "claim_token": "",
+                "claimed_at": "",
+                "lease_until": "",
+                "claimed_by": "",
+                "claim_host": "",
+            },
             "$inc": {"revision": 1},
         },
     )
+
+
+def renew_ops_lease(task_id: str, claim_token: str, *, lease_seconds: int | None = None) -> dict[str, Any]:
+    tid = (task_id or "").strip()
+    tok = (claim_token or "").strip()
+    if not tid or not tok:
+        return {"ok": False, "error": "task_id_and_claim_token_required"}
+    db = mongo_store.get_db()
+    task = db[OPS_TASKS_COL].find_one({"task_id": tid, "claim_token": tok}, {"_id": 0})
+    if not task:
+        return {"ok": False, "error": "claim_token_mismatch_or_task_missing", "task_id": tid}
+    assignee = str(task.get("claimed_by") or task.get("assignee") or "").lower()
+    if assignee and assignee not in {"cursor", ""}:
+        return {"ok": False, "error": "renew_cursor_lease_wrong_assignee", "task_id": tid}
+    sec = int(lease_seconds or LEASE_SECONDS)
+    until = (datetime.now(timezone.utc) + timedelta(seconds=sec)).isoformat()
+    now = _now()
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": tid, "claim_token": tok},
+        {"$set": {"lease_until": until, "updated_at": now, "status": "in_progress"}, "$inc": {"revision": 1}},
+    )
+    heartbeat_ops_task(tid, actor="cursor", phase="lease_renewed", last_progress=f"lease extended {sec}s")
+    return {"ok": True, "task_id": tid, "lease_until": until}
 
 
 def list_claimable_ops_tasks(*, limit: int = 10, correlation_id: str | None = None) -> dict[str, Any]:

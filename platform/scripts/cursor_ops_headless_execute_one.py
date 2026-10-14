@@ -78,6 +78,10 @@ def main() -> int:
     }
     worktree = Path(str(claim.get("worktree") or ROOT))
     before_sha = receipts.git_head(worktree)
+    token = str(claim.get("claim_token") or task.get("claim_token") or "")
+    if token:
+        cor.renew_ops_lease(tid, token)
+        cor.heartbeat_ops_task(tid, actor="cursor", phase="headless_worker_start", last_progress="headless execute_one started")
     _notify(
         f"Cursor [{_host()}] starting {tid}: "
         f"{str(claim.get('title') or '')[:80]}"

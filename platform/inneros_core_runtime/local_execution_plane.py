@@ -1283,6 +1283,36 @@ def release_lock(repo: str, actor: str, task_id: str, correlation_id: str) -> di
         return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
 
 
+def _ensure_work_branch_ref(source: Path, branch: str) -> dict[str, Any]:
+    """Fetch origin if needed and return a local ref suitable for git worktree add."""
+    branch = str(branch or "").strip()
+    if not branch:
+        return {"ok": False, "error": "branch_missing"}
+    local = _run(["git", "rev-parse", "--verify", branch], source, timeout_seconds=20)
+    if local.get("ok"):
+        return {"ok": True, "ref": branch, "source": "local"}
+    remote_ref = f"refs/remotes/origin/{branch}"
+    remote = _run(["git", "rev-parse", "--verify", remote_ref], source, timeout_seconds=20)
+    if not remote.get("ok"):
+        fetched = _run(
+            ["git", "fetch", "origin", f"{branch}:refs/remotes/origin/{branch}"],
+            source,
+            timeout_seconds=180,
+        )
+        if not fetched.get("ok"):
+            return {"ok": False, "error": "remote_branch_fetch_failed", "branch": branch, "fetch": fetched}
+        remote = _run(["git", "rev-parse", "--verify", remote_ref], source, timeout_seconds=20)
+        if not remote.get("ok"):
+            return {"ok": False, "error": "remote_branch_missing_after_fetch", "branch": branch}
+    tracked = _run(["git", "branch", "--track", branch, f"origin/{branch}"], source, timeout_seconds=30)
+    if tracked.get("ok"):
+        return {"ok": True, "ref": branch, "source": "tracked_branch"}
+    forced = _run(["git", "branch", "-f", branch, remote_ref], source, timeout_seconds=30)
+    if forced.get("ok"):
+        return {"ok": True, "ref": branch, "source": "forced_local_branch"}
+    return {"ok": False, "error": "local_branch_materialize_failed", "branch": branch}
+
+
 def create_worktree(
     repo: str,
     base_branch: str,
@@ -1316,19 +1346,32 @@ def create_worktree(
                 "status": status,
                 "verified_exists": (worktree / ".git").exists(),
             }
-        # The source checkout can be detached or its local main can diverge
-        # after a governed bootstrap. Use the verified remote tracking ref for
-        # protected bases rather than silently branching from stale local main.
-        effective_base = base_branch
-        if base_branch in {"main", "master"}:
-            remote_ref = f"refs/remotes/origin/{base_branch}"
-            remote_check = _run(["git", "rev-parse", "--verify", remote_ref], source, timeout_seconds=20)
-            if not remote_check.get("ok"):
-                return {"ok": False, "error": "remote_base_ref_missing",
-                        "base_branch": base_branch, "remote_ref": remote_ref}
-            effective_base = remote_ref
-        add_cmd = ["git", "worktree", "add", "-b", work_branch, str(worktree), effective_base]
-        result = _run(add_cmd, source, timeout_seconds=120)
+        ensured_work = _ensure_work_branch_ref(source, work_branch)
+        if not ensured_work.get("ok"):
+            return {"ok": False, "error": "work_branch_ref_unavailable", "branch": work_branch, "details": ensured_work}
+        work_ref = str(ensured_work.get("ref") or work_branch)
+        if base_branch == work_branch:
+            add_cmd = ["git", "worktree", "add", str(worktree), work_ref]
+            result = _run(add_cmd, source, timeout_seconds=120)
+        else:
+            # The source checkout can be detached or its local main can diverge
+            # after a governed bootstrap. Use the verified remote tracking ref for
+            # protected bases rather than silently branching from stale local main.
+            effective_base = base_branch
+            if base_branch in {"main", "master"}:
+                remote_ref = f"refs/remotes/origin/{base_branch}"
+                remote_check = _run(["git", "rev-parse", "--verify", remote_ref], source, timeout_seconds=20)
+                if not remote_check.get("ok"):
+                    return {"ok": False, "error": "remote_base_ref_missing",
+                            "base_branch": base_branch, "remote_ref": remote_ref}
+                effective_base = remote_ref
+            else:
+                ensured_base = _ensure_work_branch_ref(source, base_branch)
+                if not ensured_base.get("ok"):
+                    return {"ok": False, "error": "base_branch_ref_unavailable", "branch": base_branch, "details": ensured_base}
+                effective_base = str(ensured_base.get("ref") or base_branch)
+            add_cmd = ["git", "worktree", "add", "-b", work_branch, str(worktree), effective_base]
+            result = _run(add_cmd, source, timeout_seconds=120)
         if not result.get("ok") and "already exists" in (result.get("stderr") or ""):
             result = _run(["git", "worktree", "add", str(worktree), work_branch], source, timeout_seconds=120)
         stderr = str(result.get("stderr") or "")
