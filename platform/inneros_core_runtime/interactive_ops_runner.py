@@ -22,6 +22,9 @@ from inneros_core_runtime.cursor_ops_runner import (
     _validate_completion_evidence,
 )
 from inneros_core_runtime import execution_receipts as receipts
+from inneros_core_runtime import ops_completion_policy as ocp
+from inneros_core_runtime import ops_execution_state as oes
+from inneros_core_runtime import ops_lifecycle as ol
 
 LEASE_SECONDS = int(os.getenv("INTERACTIVE_OPS_LEASE_SECONDS", os.getenv("CURSOR_OPS_LEASE_SECONDS", "3600")))
 CLAIM_STATUSES = frozenset(
@@ -155,7 +158,7 @@ def authorize_ops_task(
         {"task_id": tid,
          "assignee": owner,
          "status": {"$nin": ["completed", "done", "failed", "cancelled", "superseded", "archived"]},
-         "claim_token": {"$exists": False}},
+        },
         {"$set": {
             "owner_authorized_at": now,
             "owner_authorized_by": owner_actor,
@@ -165,8 +168,20 @@ def authorize_ops_task(
         return_document=True,
     )
     if not doc:
+        existing = db[OPS_TASKS_COL].find_one({"task_id": tid, "assignee": owner})
+        if existing and existing.get("owner_authorized_at"):
+            try:
+                oes.refresh_current_execution_state(existing, event="owner_authorized", actor=owner_actor)
+            except Exception:
+                pass
+            return {"ok": True, "task_id": tid, "provider": owner, "duplicate": True}
         return {"ok": False, "error": "task_not_found", "task_id": tid}
-    return {"ok": True, "task_id": tid, "provider": normalize_provider(provider)}
+    out = {"ok": True, "task_id": tid, "provider": normalize_provider(provider)}
+    try:
+        oes.refresh_current_execution_state(doc, event="owner_authorized", actor=owner_actor)
+    except Exception:
+        pass
+    return out
 
 
 def claim_ops_task(
@@ -284,6 +299,14 @@ def claim_ops_task(
             "worktree": worktree_path,
         },
     )
+    try:
+        oes.refresh_current_execution_state(
+            {**claimed, "worktree": worktree_path, "status": "claimed"},
+            event="claimed",
+            actor=prov,
+        )
+    except Exception:
+        pass
     heartbeat_ops_task(tid, actor=prov, phase="claimed", current_step=f"{prov}_interactive", last_progress=f"claim {_host()}")
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True})
     return {
@@ -331,22 +354,36 @@ def complete_ops_task(
             built = receipts.completion_evidence_from_worktree(Path(wt_path), base)
             if built.get("ok"):
                 ev = {**ev, **built["evidence"]}
-    ev_err = _validate_completion_evidence(normalized, ev)
+    ev_err = ocp.validate_completed_evidence(task, ev) if normalized == "completed" else _validate_completion_evidence(normalized, ev)
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}
     agent_result = _agent_result(prov, ev, status=normalized)
     from inneros_core_runtime import durable_coordination_spine
 
-    temporal = durable_coordination_spine.signal_task_workflow(
+    submitted = ol.submit_completion_with_temporal_fallback(
         tid,
-        "cursor_execution_complete",
-        {"submitted": True, "status": normalized, "agent_result": agent_result, "evidence": ev, "claim_token": tok},
+        claim_token=tok,
+        status=normalized,
+        evidence=ev,
+        agent_result=agent_result,
+        actor=prov,
+        signal_name="cursor_execution_complete",
     )
-    if not temporal.get("ok"):
-        return {"ok": False, "error": "temporal_completion_signal_failed", "details": temporal, "task_id": tid}
-    now = _now()
-    db[OPS_TASKS_COL].update_one(
-        {"task_id": tid, "claim_token": tok},
-        {"$set": {"status": "verification", "updated_at": now, "candidate_evidence": ev}, "$inc": {"revision": 1}},
-    )
-    return {"ok": True, "task_id": tid, "status": "verification", "provider": prov, "temporal": temporal, "evidence": ev}
+    try:
+        oes.refresh_current_execution_state(
+            {**task, "status": "verification"},
+            event=f"{prov}_execution_complete",
+            actor=prov,
+        )
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "task_id": tid,
+        "status": "verification",
+        "provider": prov,
+        "temporal": submitted.get("temporal"),
+        "temporal_deferred": submitted.get("temporal_deferred"),
+        "chatgpt_handoff": submitted.get("chatgpt_handoff"),
+        "evidence": ev,
+    }

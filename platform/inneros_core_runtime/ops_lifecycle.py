@@ -49,7 +49,10 @@ def emit_owner_terminal_whatsapp(task: dict[str, Any], *, previous_status: str =
     tid = str(task.get("task_id") or "")
     db = mongo_store.get_db()
     flag = f"owner_terminal_whatsapp:{tid}:{status}"
-    if db[OPS_TASKS_COL].find_one({"task_id": tid, "lifecycle_notifications": flag}):
+    notes = (db[OPS_TASKS_COL].find_one({"task_id": tid}, {"lifecycle_notifications": 1}) or {}).get("lifecycle_notifications") or []
+    if not isinstance(notes, list):
+        notes = []
+    if flag in notes:
         return {"ok": True, "duplicate": True, "task_id": tid}
     from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_transition
 
