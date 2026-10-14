@@ -36,8 +36,8 @@ def store_secret(*, category: str, key: str, secret: str, label: str = "", proje
     clean_project = _clean_name(project_id, "project_id") if project_id else ""
     if actor.upper() != _OWNER:
         return {"ok": False, "error": "owner_only", "secret_returned": False}
-    if not secret:
-        return {"ok": False, "error": "secret_required", "secret_returned": False}
+    if not secret or not secret.strip():
+        return {"ok": False, "error": "nonempty_secret_required", "secret_returned": False}
     result = owner_vault.save_owner_credential(
         key=clean_key,
         secret=secret,
@@ -46,9 +46,12 @@ def store_secret(*, category: str, key: str, secret: str, label: str = "", proje
         metadata={"project_id": clean_project, "source": "generic_owner_vault_bridge"},
         actor=actor,
     )
+    verified = bool(result.get("ok") and result.get("verified_persisted"))
     return {
-        "ok": bool(result.get("ok")),
-        "secret_ref": _secret_ref(clean_category, clean_key) if result.get("ok") else None,
+        "ok": verified,
+        "error": None if verified else (result.get("error") or "persistence_verification_failed"),
+        "verified_persisted": verified,
+        "secret_ref": _secret_ref(clean_category, clean_key) if verified else None,
         "vault_id": result.get("vault_id"),
         "category": clean_category,
         "key": clean_key,
@@ -70,12 +73,25 @@ def secret_status(*, category: str, key: str, actor: str = _OWNER) -> dict[str, 
             "key": clean_key,
             "secret_returned": False,
         }
-    result = owner_vault.get_owner_credential(clean_key, category=clean_category, reveal=False, actor=actor)
+    result = owner_vault.get_owner_credential(clean_key, category=clean_category, reveal=True, actor=actor)
     if not result.get("ok"):
-        return {"ok": False, "present": False, "error": result.get("error"), "category": clean_category, "key": clean_key, "secret_returned": False}
+        return {
+            "ok": False,
+            "present": False,
+            "recoverable": False,
+            "material_present": False,
+            "error": result.get("error"),
+            "category": clean_category,
+            "key": clean_key,
+            "secret_returned": False,
+        }
+    material_present = bool(str(result.get("secret") or ""))
     return {
-        "ok": True,
+        "ok": material_present,
         "present": True,
+        "recoverable": material_present,
+        "material_present": material_present,
+        "error": None if material_present else "secret_material_unrecoverable",
         "secret_ref": _secret_ref(clean_category, clean_key),
         "vault_id": result.get("vault_id"),
         "category": clean_category,
@@ -132,3 +148,50 @@ def materialize_project_env(*, namespace: str, bindings: dict[str, str], static_
     os.replace(temp, target)
     target.chmod(0o600)
     return {"ok": True, "path": str(target), "namespace": clean_namespace, "materialized_env_keys": materialized, "static_env_keys": static_keys, "secret_returned": False, "mode": "0600"}
+
+
+def credential_bundle_status(*, category: str, required_keys: list[str], actor: str = _OWNER) -> dict[str, Any]:
+    """Return completeness/recoverability for a provider credential bundle.
+
+    Plaintext is never returned. A bundle is ready only when every required
+    credential exists and decrypts to non-empty material.
+    """
+    clean_category = _clean_name(category, "category")
+    if actor.upper() != _OWNER:
+        return {
+            "ok": False,
+            "ready": False,
+            "error": "owner_only",
+            "category": clean_category,
+            "secret_returned": False,
+        }
+    keys = [_clean_name(key, "key") for key in required_keys if str(key or "").strip()]
+    if not keys:
+        return {
+            "ok": False,
+            "ready": False,
+            "error": "required_keys_missing",
+            "category": clean_category,
+            "secret_returned": False,
+        }
+    items = [secret_status(category=clean_category, key=key, actor=actor) for key in keys]
+    ready = all(item.get("recoverable") is True for item in items)
+    return {
+        "ok": True,
+        "ready": ready,
+        "category": clean_category,
+        "required_count": len(keys),
+        "recoverable_count": sum(1 for item in items if item.get("recoverable") is True),
+        "missing_or_unrecoverable": [item.get("key") for item in items if item.get("recoverable") is not True],
+        "items": [
+            {
+                "key": item.get("key"),
+                "present": bool(item.get("present")),
+                "recoverable": bool(item.get("recoverable")),
+                "updated_at": item.get("updated_at"),
+                "secret_ref": item.get("secret_ref"),
+            }
+            for item in items
+        ],
+        "secret_returned": False,
+    }

@@ -37,7 +37,7 @@ class OwnerVaultBridgeTests(unittest.TestCase):
         with mock.patch.object(
             bridge.owner_vault,
             "save_owner_credential",
-            return_value={"ok": True, "vault_id": "cred_alpaca_api_secret"},
+            return_value={"ok": True, "vault_id": "cred_alpaca_api_secret", "verified_persisted": True},
         ) as save:
             result = bridge.store_secret(
                 category="alpaca",
@@ -49,6 +49,7 @@ class OwnerVaultBridgeTests(unittest.TestCase):
             )
 
         self.assertTrue(result["ok"])
+        self.assertTrue(result["verified_persisted"])
         self.assertEqual(result["secret_ref"], "owner_vault:alpaca/api_secret")
         self.assertFalse(result["secret_returned"])
         self.assertNotIn("TOP-SECRET", repr(result))
@@ -56,7 +57,7 @@ class OwnerVaultBridgeTests(unittest.TestCase):
         self.assertEqual(save.call_args.kwargs["secret"], "TOP-SECRET")
         self.assertEqual(save.call_args.kwargs["metadata"]["project_id"], "inneros-alpha-alpaca")
 
-    def test_secret_status_uses_reveal_false(self) -> None:
+    def test_secret_status_checks_recoverable_material_without_returning_it(self) -> None:
         with mock.patch.object(
             bridge.owner_vault,
             "get_owner_credential",
@@ -66,6 +67,7 @@ class OwnerVaultBridgeTests(unittest.TestCase):
                 "label": "Alpaca paper secret",
                 "metadata": {"project_id": "inneros-alpha-alpaca"},
                 "updated_at": "2026-09-03T00:00:00+00:00",
+                "secret": "present-but-never-returned",
             },
         ) as get:
             result = bridge.secret_status(category="alpaca", key="api_secret", actor="RAFAEL")
@@ -74,7 +76,48 @@ class OwnerVaultBridgeTests(unittest.TestCase):
         self.assertTrue(result["present"])
         self.assertFalse(result["secret_returned"])
         self.assertNotIn("secret", {key.lower() for key in result if key != "secret_returned"})
-        get.assert_called_once_with("api_secret", category="alpaca", reveal=False, actor="RAFAEL")
+        self.assertTrue(result["recoverable"])
+        self.assertTrue(result["material_present"])
+        self.assertNotIn("present-but-never-returned", repr(result))
+        get.assert_called_once_with("api_secret", category="alpaca", reveal=True, actor="RAFAEL")
+
+    def test_store_secret_rejects_empty_whitespace_and_failed_readback(self) -> None:
+        empty = bridge.store_secret(category="ruijie_reyee", key="app_id", secret="   ", actor="RAFAEL")
+        self.assertFalse(empty["ok"])
+        self.assertEqual(empty["error"], "nonempty_secret_required")
+
+        with mock.patch.object(
+            bridge.owner_vault,
+            "save_owner_credential",
+            return_value={"ok": False, "error": "persistence_verification_failed", "vault_id": "cred_ruijie_reyee_app_id"},
+        ):
+            failed = bridge.store_secret(category="ruijie_reyee", key="app_id", secret="not-empty", actor="RAFAEL")
+        self.assertFalse(failed["ok"])
+        self.assertEqual(failed["error"], "persistence_verification_failed")
+        self.assertFalse(failed["verified_persisted"])
+        self.assertIsNone(failed["secret_ref"])
+
+    def test_credential_bundle_status_detects_phantom_secret(self) -> None:
+        def fake_get(key, *, category, reveal, actor):
+            payload = {
+                "account": {"ok": True, "secret": "acct", "updated_at": "2026-10-01T00:00:00Z"},
+                "password": {"ok": True, "secret": "pw", "updated_at": "2026-10-01T00:00:00Z"},
+                "app_id": {"ok": True, "secret": "", "updated_at": "2026-10-02T00:00:00Z"},
+                "secret_key": {"ok": False, "error": "not_found"},
+            }
+            return payload[key]
+
+        with mock.patch.object(bridge.owner_vault, "get_owner_credential", side_effect=fake_get):
+            result = bridge.credential_bundle_status(
+                category="ruijie_reyee",
+                required_keys=["app_id", "secret_key", "account", "password"],
+                actor="RAFAEL",
+            )
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["recoverable_count"], 2)
+        self.assertEqual(set(result["missing_or_unrecoverable"]), {"app_id", "secret_key"})
+        self.assertFalse(result["secret_returned"])
 
     def test_materialize_project_env_is_0600_and_does_not_echo_values(self) -> None:
         secret_value = "alpaca-paper-secret-value"
