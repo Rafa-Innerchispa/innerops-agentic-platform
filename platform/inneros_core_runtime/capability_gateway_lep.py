@@ -99,6 +99,24 @@ def register_local_execution_capabilities() -> int:
         ),
         (
             _manifest(
+                "local_exec.read_worktree_file.v1",
+                title="Read allowlisted worktree source file (read-only)",
+                description="Return bounded, redacted UTF-8 file content from one governed worktree, without arbitrary shell.",
+                keywords=["read", "file", "source code", "inspect contents"],
+                mode="read_only",
+                risk_class="low",
+                properties={
+                    "repo": {"type": "string"},
+                    "work_branch": {"type": "string"},
+                    "path": {"type": "string"},
+                    "max_bytes": {"type": "integer"},
+                },
+                required=["repo", "work_branch", "path"],
+            ),
+            _handler(lep.read_worktree_file),
+        ),
+        (
+            _manifest(
                 "local_exec.prepare_repo.v1",
                 title="Prepare repository checkout for Dev Swarm",
                 description="Fetch and hydrate an owner-approved repo for isolated work.",
@@ -398,6 +416,57 @@ def register_local_execution_capabilities() -> int:
                 required=["project_id_or_path", "job_id"],
             ),
             _handler(gl.get_job_trace),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.get_issue.v1",
+                title="Read GitLab issue and current assignees",
+                description="Get issue status, labels, description, assignees and milestone from GitLab.",
+                keywords=["issue", "ticket", "assignee", "community contribution"],
+                mode="read_only",
+                risk_class="low",
+                properties={"project_id_or_path": {"type": "string"}, "issue_iid": {"type": "integer"}},
+                required=["project_id_or_path", "issue_iid"],
+            ),
+            _handler(gl.get_issue),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.list_issues.v1",
+                title="List GitLab project issues",
+                description="List current project issues with optional state and bounded count.",
+                keywords=["issues", "backlog", "task discovery"],
+                mode="read_only",
+                risk_class="low",
+                properties={"project_id_or_path": {"type": "string"}, "state": {"type": "string"}, "limit": {"type": "integer"}},
+                required=["project_id_or_path"],
+            ),
+            _handler(gl.list_issues),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.discover_contribution_issues.v1",
+                title="Discover public GitLab contribution candidates",
+                description="Find open contribution issues with bounded search and labels. Requires independent duplicate checks before claiming.",
+                keywords=["contribute", "good first issue", "discover", "community"],
+                mode="read_only",
+                risk_class="low",
+                properties={"search": {"type": "string"}, "labels": {"type": "string"}, "limit": {"type": "integer"}},
+            ),
+            _handler(gl.discover_contribution_issues),
+        ),
+        (
+            _gitlab_manifest(
+                "local_gitlab.list_merge_requests.v1",
+                title="List GitLab project merge requests",
+                description="List current project merge requests for duplicate and status checks.",
+                keywords=["merge requests", "duplicate mr", "review"],
+                mode="read_only",
+                risk_class="low",
+                properties={"project_id_or_path": {"type": "string"}, "state": {"type": "string"}, "limit": {"type": "integer"}},
+                required=["project_id_or_path"],
+            ),
+            _handler(gl.list_merge_requests),
         ),
         (
             _gitlab_manifest(
