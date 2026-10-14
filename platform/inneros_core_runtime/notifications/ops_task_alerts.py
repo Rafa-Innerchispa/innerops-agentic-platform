@@ -60,7 +60,17 @@ def _format_task_line(task: dict[str, Any]) -> str:
 
 
 def owner_auth_notified(task_id: str) -> bool:
-    return str(task_id) in set(_STATE.get("sent", []))
+    tid = str(task_id or "").strip()
+    if not tid:
+        return False
+    if tid in set(_STATE.get("sent", [])):
+        return True
+    try:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+        row = ops_pending.get_by_task_id(tid)
+        return bool(row and str(row.get("status") or "").lower() in {"pending", "cancel_requested"})
+    except Exception:
+        return False
 
 
 def notify_ops_owner_authorization_request(
@@ -326,3 +336,20 @@ def notify_dev_swarm_outcome(
     if result.get("ok"):
         _mark_sent("swarm", key)
     return {"ok": bool(result.get("ok")), "result": result, "task_id": task_id, "outcome": outcome_u}
+
+
+def resend_ops_owner_authorization(task_id: str) -> dict[str, Any]:
+    """Force-resend exactly one existing ops authorization card by task_id."""
+    tid = str(task_id or "").strip()
+    if not tid:
+        return {"ok": False, "error": "task_id_required"}
+    from raphiia_openai import mongo_store
+    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+
+    task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+    if not task:
+        return {"ok": False, "error": "task_not_found", "task_id": tid}
+    status = str(task.get("status") or "").lower()
+    if status in TERMINAL_OPS:
+        return {"ok": False, "error": "task_terminal", "task_id": tid, "status": status}
+    return notify_ops_owner_authorization_request(task, force=True)
