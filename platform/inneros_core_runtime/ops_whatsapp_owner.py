@@ -88,23 +88,69 @@ def handle_owner_reply(
     if NUMERIC_AUTH_RE.match(text) and phone:
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
-        pending = ops_pending.latest_pending(phone)
-        if pending:
-            tid = str(pending.get("task_id") or "")
+        pending_rows = ops_pending.pending_for_phone(phone, limit=2)
+        if len(pending_rows) == 1:
+            tid = str(pending_rows[0].get("task_id") or "")
             text = f"{'SI' if text == '1' else 'NO'} {tid}"
+        elif len(pending_rows) > 1:
+            return {
+                "ok": False,
+                "text": "Hay varias autorizaciones pendientes. Usa el botón de la tarea exacta.",
+                "action": "ambiguous_numeric_auth",
+            }
     deny = DENY_RE.match(text)
     if deny:
         tid = _resolve_task_id(deny.group(1)) or deny.group(1)
+        from raphiia_openai import mongo_store
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
         from inneros_core_runtime import durable_coordination_spine
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
+        db = mongo_store.get_db()
+        task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+        if not task:
+            return {"ok": False, "text": f"No encontré la tarea {tid}.", "task_id": tid, "action": "deny"}
+        status_before = str(task.get("status") or "").lower()
+        terminal = {"completed", "done", "failed", "blocked", "partial", "cancelled", "canceled", "superseded", "archived"}
+        if status_before in terminal:
+            return {
+                "ok": False,
+                "text": f"⚠️ {tid} ya está {status_before}; no ejecuté otra cancelación.",
+                "task_id": tid,
+                "action": "deny_closed",
+            }
+
         out = durable_coordination_spine.signal_task_workflow(tid, "cancel", "owner_rejected_whatsapp")
-        ops_pending.clear_pending(tid)
+        now_marker = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        if out.get("ok"):
+            db[OPS_TASKS_COL].update_one(
+                {"task_id": tid},
+                {"$set": {
+                    "cancellation_requested_at": now_marker,
+                    "cancellation_requested_by": owner_actor,
+                    "cancellation_channel": "whatsapp",
+                }},
+            )
+            ops_pending.mark_cancel_requested(tid)
+
+        task_after = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
+        status_after = str(task_after.get("status") or "").lower()
+        if status_after in {"cancelled", "canceled", "superseded"}:
+            ops_pending.clear_pending(tid)
+            body = f"❌ Acción cancelada · {tid}"
+            action = "deny"
+        elif out.get("ok"):
+            body = f"⏳ Cancelación solicitada · {tid} · esperando confirmación del workflow"
+            action = "deny_pending"
+        else:
+            body = f"❌ No pude solicitar cancelación · {tid}"
+            action = "deny_failed"
         return {
             "ok": bool(out.get("ok")),
-            "text": f"❌ Acción cancelada · {tid}",
+            "text": body,
             "task_id": tid,
-            "action": "deny",
+            "action": action,
+            "status": status_after,
         }
 
     auth = AUTH_RE.match(text)
@@ -145,8 +191,15 @@ def handle_owner_reply(
     if not task:
         return {"ok": False, "text": f"No encontré la tarea {tid}.", "task_id": tid, "action": "auth"}
 
-    terminal = {"completed", "failed", "blocked", "partial", "cancelled", "superseded"}
+    terminal = {"completed", "failed", "blocked", "partial", "cancelled", "canceled", "superseded"}
     status_now = str(task.get("status") or "").lower()
+    if task.get("cancellation_requested_at"):
+        return {
+            "ok": False,
+            "text": f"⚠️ {tid} tiene cancelación solicitada; no se puede autorizar mientras se reconcilia.",
+            "task_id": tid,
+            "action": "auth_cancel_pending",
+        }
     if status_now in terminal:
         return {
             "ok": False,
