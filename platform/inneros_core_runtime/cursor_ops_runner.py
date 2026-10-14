@@ -100,17 +100,28 @@ def _evidence_to_agent_result(evidence: dict[str, Any], *, status: str) -> dict[
     return out
 
 
+def _awaiting_claim_status(task: dict[str, Any] | None) -> str:
+    prov = str((task or {}).get("assignee") or (task or {}).get("preferred_provider") or "cursor").strip().lower()
+    return {
+        "cursor": "awaiting_cursor_claim",
+        "codex": "awaiting_codex_claim",
+        "antigravity": "awaiting_antigravity_claim",
+        "gemini": "awaiting_gemini_claim",
+    }.get(prov, "awaiting_ide_claim")
+
+
 def _release_claim(db, tid: str, *, reason: str) -> None:
     now = _now()
+    task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"assignee": 1, "preferred_provider": 1}) or {}
     db[OPS_TASKS_COL].update_one(
         {"task_id": tid},
         {
             "$set": {
-                "status": "awaiting_cursor_claim",
+                "status": _awaiting_claim_status(task),
                 "updated_at": now,
                 "claim_error": reason[:500],
             },
-            "$unset": {"claim_token": "", "claimed_at": "", "lease_until": ""},
+            "$unset": {"claim_token": "", "claimed_at": "", "lease_until": "", "claimed_by": ""},
             "$inc": {"revision": 1},
         },
     )
@@ -465,7 +476,7 @@ def complete_ops_task(
     ev.setdefault("effective_model", task.get("effective_model") or CURSOR_PINNED_MODEL)
     ev.setdefault("host", _host())
 
-    ev_err = ocp.validate_completed_evidence(task, ev) if normalized == "completed" else _validate_completion_evidence(normalized, ev)
+    ev_err = _validate_completion_evidence(normalized, ev)
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}
 
