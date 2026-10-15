@@ -1,0 +1,33 @@
+name: Safe Worktree Reader Regression
+on:
+  pull_request:
+    paths:
+      - 'platform/inneros_core_runtime/local_execution_plane.py'
+      - 'platform/inneros_core_runtime/capability_gateway_lep.py'
+      - 'platform/tests/test_local_execution_plane_safe_source_reads.py'
+      - '.github/workflows/ci-safe-worktree-reader.yml'
+  push:
+    branches:
+      - 'fix/lep-safe-read-and-gitlab-issue-discovery-20261014'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-source-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install runtime test dependencies
+        run: |
+          python -m pip install -r platform/requirements.txt pytest
+      - name: Run focused safe source access tests
+        env:
+          PYTHONPATH: platform
+        run: |
+          python -m pytest -q platform/tests/test_local_execution_plane_safe_source_reads.py
