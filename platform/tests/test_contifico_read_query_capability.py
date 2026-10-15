@@ -84,7 +84,10 @@ def test_contifico_read_query_cruce_margen():
     assert res["ok"] is True
     assert res["cruce_margen"] is not None
     assert len(res["cruce_margen"]) > 0
-    sample_cruce = res["cruce_margen"][0]
+    # Verified margin entries must have positive price and cost
+    verified = [c for c in res["cruce_margen"] if c.get("estado") == "verificado"]
+    assert len(verified) > 0
+    sample_cruce = verified[0]
     assert "costo_unitario" in sample_cruce
     assert "precio_venta_unitario" in sample_cruce
     assert "margen_bruto_unitario" in sample_cruce
@@ -92,16 +95,70 @@ def test_contifico_read_query_cruce_margen():
     assert sample_cruce["costo_unitario"] > 0
 
 
+def test_contifico_read_query_joint_filters_cartimex_and_documento():
+    # Combined filter: proveedor + exact invoice number
+    res = crq.contifico_read_query(
+        proveedor="CARTIMEX",
+        documento="001-006-000210486",
+        cruce_margen=True,
+    )
+    assert res["ok"] is True
+    assert res["count"] == 1
+    doc = res["documentos"][0]
+    assert doc["documento"] == "001-006-000210486"
+    assert doc["fecha_emision"] == "2023-03-25"
+    assert doc["lineas_count"] == 5
+
+    # Cruce de margen verification
+    assert res["cruce_count"] == 5
+    assert res["cruce_verificados_count"] == 5
+    assert res["cruce_status"] == "verificado"
+    for c in res["cruce_margen"]:
+        assert c["estado"] == "verificado"
+        assert c["fecha_venta"] >= "2023-03-25"  # Temporal traceability: sale after purchase!
+        assert c["precio_venta_unitario"] > 0
+
+
+def test_contifico_read_query_joint_filters_unmatched_documento():
+    # Combined filter with non-matching document should return 0 docs and "sin margen verificable"
+    res = crq.contifico_read_query(
+        proveedor="CARTIMEX",
+        documento="001-006-999999999",
+        cruce_margen=True,
+    )
+    assert res["ok"] is True
+    assert res["count"] == 0
+    assert len(res["documentos"]) == 0
+    assert res["cruce_status"] == "sin margen verificable"
+
+
+def test_contifico_read_query_date_normalization():
+    # Test date formats DD/MM/YYYY vs YYYY-MM-DD
+    res_dmy = crq.contifico_read_query(proveedor="CARTIMEX", fecha="25/03/2023")
+    res_ymd = crq.contifico_read_query(proveedor="CARTIMEX", fecha="2023-03-25")
+    assert res_dmy["ok"] is True
+    assert res_ymd["ok"] is True
+    assert res_dmy["count"] == 1
+    assert res_ymd["count"] == 1
+    assert res_dmy["documentos"][0]["documento"] == "001-006-000210486"
+    assert res_ymd["documentos"][0]["documento"] == "001-006-000210486"
+
+
 def test_capability_invoke_contifico_query():
     res = cg.capability_invoke(
         capability_id="contifico.query.v1",
-        parameters={"proveedor": "CARTIMEX", "tipo": "compra", "limit": 5},
-        idempotency_key="test-contifico-query-pytest-01",
+        parameters={
+            "proveedor": "CARTIMEX",
+            "documento": "001-006-000210486",
+            "cruce_margen": True,
+        },
+        idempotency_key="test-contifico-query-pytest-joint-01",
     )
     assert res["ok"] is True
     assert res["status"] == "COMPLETED"
-    assert res["result"]["count"] > 0
-    assert res["result"]["documentos"]
+    assert res["result"]["count"] == 1
+    assert res["result"]["documentos"][0]["documento"] == "001-006-000210486"
+    assert res["result"]["cruce_verificados_count"] == 5
 
 
 def test_contifico_analytics_query_delegation():

@@ -2,7 +2,8 @@
 
 Provides unified read-only querying across Contífico accounting documents (purchases and sales),
 transactions, persons, and line items by proveedor, producto, documento, and fecha.
-Also provides price, cost, and margin cross-referencing.
+Also provides price, cost, and margin cross-referencing with verifiable SKU correspondence
+and strict temporal traceability.
 Strictly non-destructive: zero accounting mutations, zero secret leakage.
 """
 
@@ -47,6 +48,47 @@ def _log_query(query_params: dict[str, Any], count: int, t0: float, entity_id: s
         })
     except Exception:
         pass
+
+
+def parse_and_normalize_date(d_val: Any) -> Optional[datetime]:
+    """Parse date from multiple formats and return datetime object."""
+    if not d_val:
+        return None
+    if isinstance(d_val, datetime):
+        return d_val
+    s = str(d_val).strip()
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(s.split("T")[0] if "T" in s and fmt == "%Y-%m-%d" else s, fmt)
+        except Exception:
+            pass
+    m = re.search(r"(\d{1,2})/(\d{1,2})/(\d{4})", s)
+    if m:
+        try:
+            return datetime(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except Exception:
+            pass
+    m2 = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", s)
+    if m2:
+        try:
+            return datetime(int(m2.group(1)), int(m2.group(2)), int(m2.group(3)))
+        except Exception:
+            pass
+    return None
+
+
+def format_iso_date(d_val: Any) -> Optional[str]:
+    """Normalize date to standard ISO YYYY-MM-DD string."""
+    dt = parse_and_normalize_date(d_val)
+    return dt.strftime("%Y-%m-%d") if dt else (str(d_val) if d_val else None)
+
+
+def normalize_sku_name(name: str) -> str:
+    """Normalize SKU or product name for strict matching."""
+    if not name:
+        return ""
+    s = re.sub(r"[^\w\s]", " ", name.lower())
+    return " ".join(s.split())
 
 
 def resolve_persona_cached_or_live(query: str, entity_id: str = "pcdoctor") -> Optional[dict[str, Any]]:
@@ -116,50 +158,84 @@ def contifico_read_query(
     persona_info = resolve_persona_cached_or_live(target_persona, entity_id=entity_id) if target_persona else None
     pid = persona_info["persona_id"] if persona_info else None
 
-    filt: Dict[str, Any] = {}
-    if pid:
-        filt["persona_id"] = pid
-    elif target_persona:
-        filt["$or"] = [
-            {"descripcion": {"$regex": re.escape(target_persona), "$options": "i"}},
-            {"persona_id": target_persona},
-        ]
+    tipo_norm = str(tipo or "all").lower().strip()
 
+    # Build conjunction of filters (AND logic)
+    and_clauses: List[Dict[str, Any]] = []
+
+    # 1. Persona & Tipo Registro filters
+    if pid:
+        and_clauses.append({"persona_id": pid})
+    elif target_persona:
+        and_clauses.append({
+            "$or": [
+                {"descripcion": {"$regex": re.escape(target_persona), "$options": "i"}},
+                {"persona_id": target_persona},
+            ]
+        })
+
+    if proveedor or tipo_norm == "compra":
+        and_clauses.append({"tipo_registro": "PRO"})
+    elif cliente or tipo_norm == "venta":
+        and_clauses.append({"tipo_registro": {"$ne": "PRO"}})
+        and_clauses.append({"tipo_documento": {"$in": ["FAC", "COT"]}})
+
+    # 2. Document filter
     if documento:
         doc_q = documento.strip()
-        filt["$or"] = [
-            {"documento": {"$regex": re.escape(doc_q), "$options": "i"}},
-            {"contifico_id": doc_q},
-            {"ralfia_number": {"$regex": re.escape(doc_q), "$options": "i"}},
-        ]
+        and_clauses.append({
+            "$or": [
+                {"documento": {"$regex": re.escape(doc_q), "$options": "i"}},
+                {"contifico_id": doc_q},
+                {"ralfia_number": {"$regex": re.escape(doc_q), "$options": "i"}},
+            ]
+        })
 
+    # 3. Date / Year filters with normalization
     if year:
-        filt["$or"] = [
-            {"year": int(year)},
-            {"fecha_emision": {"$regex": f"/{year}$"}},
-        ]
+        y_int = int(year)
+        and_clauses.append({
+            "$or": [
+                {"year": y_int},
+                {"fecha_iso": {"$regex": f"^{y_int}-"}},
+                {"fecha_emision": {"$regex": f"/{y_int}$|/{y_int} "}},
+            ]
+        })
+
     if fecha:
-        filt["fecha_emision"] = {"$regex": re.escape(fecha), "$options": "i"}
-
-    tipo_norm = str(tipo or "all").lower().strip()
-    if proveedor or tipo_norm == "compra":
-        if "persona_id" in filt:
-            filt["$or"] = [{"tipo_registro": "PRO"}, {"persona_id": pid}]
+        dt_parsed = parse_and_normalize_date(fecha)
+        if dt_parsed:
+            d_dmY = dt_parsed.strftime("%d/%m/%Y")
+            d_Ymd = dt_parsed.strftime("%Y-%m-%d")
+            and_clauses.append({
+                "$or": [
+                    {"fecha_emision": {"$regex": re.escape(d_dmY)}},
+                    {"fecha_emision": {"$regex": re.escape(d_Ymd)}},
+                    {"fecha_iso": d_Ymd},
+                ]
+            })
         else:
-            filt["tipo_registro"] = "PRO"
-    elif cliente or tipo_norm == "venta":
-        filt["tipo_registro"] = {"$ne": "PRO"}
-        filt["tipo_documento"] = {"$in": ["FAC", "COT"]}
+            and_clauses.append({
+                "$or": [
+                    {"fecha_emision": {"$regex": re.escape(fecha), "$options": "i"}},
+                    {"fecha_iso": {"$regex": re.escape(fecha), "$options": "i"}},
+                ]
+            })
 
+    # 4. Product filter
     if producto:
         p_re = {"$regex": re.escape(producto.strip()), "$options": "i"}
-        filt["$or"] = [
-            {"lineas.producto_nombre": p_re},
-            {"lineas.descripcion": p_re},
-            {"descripcion": p_re},
-        ]
+        and_clauses.append({
+            "$or": [
+                {"lineas.producto_nombre": p_re},
+                {"lineas.descripcion": p_re},
+                {"descripcion": p_re},
+            ]
+        })
 
-    cur = db[DOCS_COL].find(filt).sort("fecha_emision", -1).limit(lim)
+    query_filter: Dict[str, Any] = {"$and": and_clauses} if and_clauses else {}
+
+    cur = db[DOCS_COL].find(query_filter).sort("fecha_emision", -1).limit(lim)
     raw_docs = list(cur)
 
     formatted_docs: List[Dict[str, Any]] = []
@@ -173,17 +249,23 @@ def contifico_read_query(
                 matching_lines.append({
                     "producto": pname,
                     "producto_id": l.get("producto_id"),
+                    "sku": l.get("codigo_bien") or l.get("serie"),
                     "cantidad": float(l.get("cantidad") or 0),
                     "precio": float(l.get("precio") or 0),
                     "total": float(l.get("total") or l.get("base_gravable") or 0),
                 })
+
+        raw_fecha = d.get("fecha_emision")
+        iso_fecha = format_iso_date(raw_fecha) or d.get("fecha_iso")
 
         formatted_docs.append({
             "contifico_id": d.get("contifico_id"),
             "documento": d.get("documento"),
             "tipo_documento": d.get("tipo_documento"),
             "tipo_registro": d.get("tipo_registro", "CLI"),
-            "fecha_emision": d.get("fecha_emision"),
+            "fecha_emision": iso_fecha or raw_fecha,
+            "fecha_emision_raw": raw_fecha,
+            "fecha_iso": iso_fecha,
             "total": float(d.get("total_num") or d.get("total") or 0),
             "subtotal": float(d.get("subtotal_num") or d.get("subtotal") or 0),
             "iva": float(d.get("iva_num") or d.get("iva") or 0),
@@ -192,76 +274,134 @@ def contifico_read_query(
             "lineas_count": len(matching_lines),
         })
 
-    # Cruce de margen si solicitado
+    # Cruce de margen con correspondencia verificable y trazabilidad temporal
     cruce_resultados: List[Dict[str, Any]] = []
     if cruce_margen or tipo_norm == "cruce":
-        # Extract purchases
+        # Extract purchase line items
         purchase_items = []
         for fd in formatted_docs:
             if fd.get("tipo_registro") == "PRO":
+                p_dt = parse_and_normalize_date(fd.get("fecha_emision_raw") or fd.get("fecha_emision"))
                 for l in (fd.get("lineas") or []):
                     purchase_items.append({
                         "doc_compra": fd["documento"],
                         "fecha_compra": fd["fecha_emision"],
+                        "fecha_compra_dt": p_dt,
                         "producto": l["producto"],
+                        "producto_id": l.get("producto_id"),
+                        "sku": l.get("sku"),
                         "costo_unitario": l["precio"],
                         "cantidad_compra": l["cantidad"],
                     })
 
-        # Pre-query candidate sales documents
-        sales_docs = list(db[DOCS_COL].find({
-            "tipo_documento": "FAC",
-            "tipo_registro": {"$ne": "PRO"},
-            "persona_id": {"$ne": pid}
-        }))
+        if purchase_items:
+            # Query candidate sales
+            sales_docs = list(db[DOCS_COL].find({
+                "tipo_documento": "FAC",
+                "tipo_registro": {"$ne": "PRO"},
+                "persona_id": {"$ne": pid}
+            }))
 
-        sales_hardware = []
-        for sd in sales_docs:
-            for sl in sd.get("lineas") or []:
-                sname = str(sl.get("producto_nombre") or "")
-                sprice = float(sl.get("precio") or 0)
-                if sprice > 0 and not any(nw in sname.lower() for nw in NOISE_WORDS):
-                    sales_hardware.append({
-                        "doc_venta": sd.get("documento"),
-                        "fecha_venta": sd.get("fecha_emision"),
-                        "producto_venta": sname,
-                        "precio_venta": sprice,
-                        "sname_lower": sname.lower(),
+            # Index sales by producto_id and by exact normalized product name
+            sales_by_pid: Dict[str, List[Dict[str, Any]]] = {}
+            sales_by_norm_name: Dict[str, List[Dict[str, Any]]] = {}
+
+            for sd in sales_docs:
+                s_dt = parse_and_normalize_date(sd.get("fecha_emision"))
+                for sl in sd.get("lineas") or []:
+                    sname = str(sl.get("producto_nombre") or "").strip()
+                    sprice = float(sl.get("precio") or 0)
+                    spid = sl.get("producto_id")
+                    if sprice > 0:
+                        sale_item = {
+                            "doc_venta": sd.get("documento"),
+                            "fecha_venta": format_iso_date(sd.get("fecha_emision")),
+                            "fecha_venta_dt": s_dt,
+                            "producto_venta": sname,
+                            "precio_venta": sprice,
+                            "producto_id": spid,
+                            "norm_name": normalize_sku_name(sname),
+                        }
+                        if spid:
+                            sales_by_pid.setdefault(spid, []).append(sale_item)
+                        if sale_item["norm_name"]:
+                            sales_by_norm_name.setdefault(sale_item["norm_name"], []).append(sale_item)
+
+            for p_item in purchase_items:
+                pid_k = p_item.get("producto_id")
+                norm_p = normalize_sku_name(p_item["producto"])
+                p_dt = p_item.get("fecha_compra_dt")
+                cost = p_item["costo_unitario"]
+
+                # 1. Look for verified matches: primary by exact producto_id
+                candidates: List[Dict[str, Any]] = []
+                match_method = "none"
+                if pid_k and pid_k in sales_by_pid:
+                    candidates = sales_by_pid[pid_k]
+                    match_method = "sku_producto_id"
+                elif norm_p and norm_p in sales_by_norm_name:
+                    candidates = sales_by_norm_name[norm_p]
+                    match_method = "sku_exact_name"
+
+                # 2. Enforce temporal traceability: sale must occur on or after purchase
+                valid_sales = [
+                    c for c in candidates
+                    if c.get("fecha_venta_dt") and p_dt and c["fecha_venta_dt"] >= p_dt
+                ]
+
+                if valid_sales:
+                    # Pick the closest chronological sale on or after purchase date
+                    valid_sales.sort(key=lambda x: x["fecha_venta_dt"])
+                    best_sale = valid_sales[0]
+                    price = best_sale["precio_venta"]
+                    margen = round(price - cost, 2)
+                    pct_margen = round((margen / price) * 100, 1) if price > 0 else 0.0
+                    markup = round((margen / cost) * 100, 1) if cost > 0 else 0.0
+                    days_diff = (best_sale["fecha_venta_dt"] - p_dt).days if p_dt else None
+
+                    cruce_resultados.append({
+                        "categoria": p_item["producto"].split()[0].upper() if p_item["producto"] else "GENERAL",
+                        "producto_compra": p_item["producto"],
+                        "producto_id": pid_k,
+                        "doc_compra": p_item["doc_compra"],
+                        "fecha_compra": p_item["fecha_compra"],
+                        "costo_unitario": cost,
+                        "producto_venta": best_sale["producto_venta"],
+                        "doc_venta": best_sale["doc_venta"],
+                        "fecha_venta": best_sale["fecha_venta"],
+                        "precio_venta_unitario": price,
+                        "margen_bruto_unitario": margen,
+                        "margen_pct": pct_margen,
+                        "markup_pct": markup,
+                        "estado": "verificado",
+                        "correspondencia": match_method,
+                        "trazabilidad_temporal": f"valida (+{days_diff}d)" if days_diff is not None else "valida",
+                        "dias_hasta_venta": days_diff,
+                    })
+                else:
+                    # Insufficient verifiable correspondence or no sale after purchase
+                    cruce_resultados.append({
+                        "categoria": p_item["producto"].split()[0].upper() if p_item["producto"] else "GENERAL",
+                        "producto_compra": p_item["producto"],
+                        "producto_id": pid_k,
+                        "doc_compra": p_item["doc_compra"],
+                        "fecha_compra": p_item["fecha_compra"],
+                        "costo_unitario": cost,
+                        "producto_venta": None,
+                        "doc_venta": None,
+                        "fecha_venta": None,
+                        "precio_venta_unitario": None,
+                        "margen_bruto_unitario": "sin margen verificable",
+                        "margen_pct": "sin margen verificable",
+                        "markup_pct": "sin margen verificable",
+                        "estado": "sin margen verificable",
+                        "correspondencia": match_method if candidates else "no_match",
+                        "trazabilidad_temporal": "sin venta posterior verificable",
+                        "dias_hasta_venta": None,
                     })
 
-        for p_item in purchase_items:
-            tokens = [
-                w.lower() for w in re.findall(r"[A-Za-z0-9]+", p_item["producto"])
-                if len(w) >= 3 and w.lower() not in NOISE_WORDS
-            ]
-            if not tokens:
-                continue
-
-            # Look for sale match containing key product descriptors
-            for s in sales_hardware:
-                match_count = sum(1 for t in tokens[:3] if t in s["sname_lower"])
-                if match_count >= min(2, len(tokens)):
-                    cost = p_item["costo_unitario"]
-                    price = s["precio_venta"]
-                    if price > cost:
-                        margen = round(price - cost, 2)
-                        pct_margen = round((margen / price) * 100, 1)
-                        markup = round((margen / cost) * 100, 1)
-                        cruce_resultados.append({
-                            "categoria": tokens[0].upper(),
-                            "producto_compra": p_item["producto"],
-                            "doc_compra": p_item["doc_compra"],
-                            "fecha_compra": p_item["fecha_compra"],
-                            "costo_unitario": cost,
-                            "producto_venta": s["producto_venta"],
-                            "doc_venta": s["doc_venta"],
-                            "fecha_venta": s["fecha_venta"],
-                            "precio_venta_unitario": price,
-                            "margen_bruto_unitario": margen,
-                            "margen_pct": pct_margen,
-                            "markup_pct": markup,
-                        })
-                        break
+    has_cruce = bool(cruce_margen or tipo_norm == "cruce")
+    verified_cruces = [c for c in cruce_resultados if c.get("estado") == "verificado"]
 
     response_payload = {
         "ok": True,
@@ -277,12 +417,19 @@ def contifico_read_query(
         },
         "count": len(formatted_docs),
         "documentos": formatted_docs,
-        "cruce_margen": cruce_resultados if (cruce_margen or tipo_norm == "cruce") else None,
-        "cruce_count": len(cruce_resultados) if (cruce_margen or tipo_norm == "cruce") else 0,
+        "cruce_margen": cruce_resultados if has_cruce else None,
+        "cruce_count": len(cruce_resultados) if has_cruce else 0,
+        "cruce_verificados_count": len(verified_cruces) if has_cruce else 0,
+        "cruce_status": (
+            "verificado" if verified_cruces else "sin margen verificable"
+        ) if has_cruce else None,
         "provenance": {
             "source": f"pcdoctor_swarm.{DOCS_COL} + live_api",
             "read_only": True,
             "mode": "verified_accounting_records",
+            "date_normalized": True,
+            "temporal_traceability_enforced": True,
+            "sku_correspondence_enforced": True,
         },
     }
 
