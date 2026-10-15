@@ -1,0 +1,20 @@
+{
+  "monolith": {
+    "default": true,
+    "enabled": true,
+    "url": "http://127.0.0.1:8102/mcp"
+  },
+  "mcp-gitlab": {
+    "enabled": false,
+    "parity_verified": false,
+    "prefixes": [
+      "local_gitlab_"
+    ]
+  },
+  "mcp-infra-docker": {
+    "enabled": false,
+    "parity_verified": false,
+    "tools": [],
+    "prefixes": []
+  }
+}
