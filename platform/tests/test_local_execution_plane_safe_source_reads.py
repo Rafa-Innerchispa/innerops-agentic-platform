@@ -1,0 +1,64 @@
+"""Security checks for the read-only, allowlisted worktree source capability."""
+
+from pathlib import Path
+
+from inneros_core_runtime import local_execution_plane as lep
+
+
+def _configure(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        lep,
+        "_repo_config",
+        lambda _repo: {"allowed_paths": ["ee", "doc"], "worktrees_path": str(tmp_path)},
+    )
+    monkeypatch.setattr(lep, "_worktree_path", lambda _repo, _branch, _conf: tmp_path)
+
+
+def test_reads_valid_source_file(monkeypatch, tmp_path):
+    _configure(monkeypatch, tmp_path)
+    (tmp_path / "ee").mkdir()
+    (tmp_path / "ee" / "search_spec.rb").write_text("expect(true).to eq(true)\n", encoding="utf-8")
+    result = lep.read_worktree_file("rafagye/gitlab", "chatgpt/review", "ee/search_spec.rb")
+    assert result["ok"] is True
+    assert result["content"] == "expect(true).to eq(true)\n"
+    assert result["truncated"] is False
+
+
+def test_limits_content_without_host_file_reads(monkeypatch, tmp_path):
+    _configure(monkeypatch, tmp_path)
+    (tmp_path / "doc").mkdir()
+    (tmp_path / "doc" / "sample.txt").write_text("abcdef", encoding="utf-8")
+    result = lep.read_worktree_file("rafagye/gitlab", "chatgpt/review", "doc/sample.txt", max_bytes=3)
+    assert result["content"] == "abc"
+    assert result["truncated"] is True
+
+
+def test_denies_secret_and_traversal_paths(monkeypatch, tmp_path):
+    _configure(monkeypatch, tmp_path)
+    for path in ("../secrets.txt", "ee/.env", "ee/../.ssh/id_rsa", "/etc/passwd"):
+        assert lep.read_worktree_file("rafagye/gitlab", "chatgpt/review", path)["ok"] is False
+
+
+def test_denies_symlinks_into_denied_repo_paths(monkeypatch, tmp_path):
+    _configure(monkeypatch, tmp_path)
+    (tmp_path / "ee").mkdir()
+    (tmp_path / ".env").write_text("SECRET_TOKEN=hidden", encoding="utf-8")
+    (tmp_path / "ee" / "secret_link").symlink_to(tmp_path / ".env")
+    assert lep.read_worktree_file("rafagye/gitlab", "chatgpt/review", "ee/secret_link")["ok"] is False
+
+
+def test_denies_binary_data_and_redacts_tokens(monkeypatch, tmp_path):
+    _configure(monkeypatch, tmp_path)
+    (tmp_path / "ee").mkdir()
+    (tmp_path / "ee" / "binary.txt").write_bytes(b"hello\x00world")
+    assert lep.read_worktree_file("rafagye/gitlab", "chatgpt/review", "ee/binary.txt")["error"] == "binary_file_denied"
+    (tmp_path / "ee" / "source.txt").write_text("api_key=longsecret1234567890", encoding="utf-8")
+    result = lep.read_worktree_file("rafagye/gitlab", "chatgpt/review", "ee/source.txt")
+    assert result["ok"] is True
+    assert result["redacted"] is True
+    assert "longsecret" not in result["content"]
+
+
+def test_requires_governed_worktree_branch(monkeypatch, tmp_path):
+    _configure(monkeypatch, tmp_path)
+    assert lep.read_worktree_file("rafagye/gitlab", "main", "ee/spec.rb")["ok"] is False

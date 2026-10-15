@@ -2471,3 +2471,52 @@ ALLOWLISTED_COMMANDS["ruby-tests-local-only"] = [
 # ContributorOps bounded command extension (2026-09-22)
 if ("python3", "platform/scripts/gitlab_contributorops_mr.py") not in ALLOWLISTED_COMMANDS.get("python-tests", []):
     ALLOWLISTED_COMMANDS.setdefault("python-tests", []).append(("python3", "platform/scripts/gitlab_contributorops_mr.py"))
+
+
+def read_worktree_file(
+    repo: str,
+    work_branch: str,
+    path: str,
+    max_bytes: int = 24000,
+) -> dict[str, Any]:
+    """Read a bounded UTF-8 source file from a governed, isolated worktree.
+
+    Unlike shell-based git show/cat, this is deliberately constrained to the
+    repository's explicit allowlisted paths. It never reads an arbitrary host
+    file and always redacts recognized secrets before returning content.
+    """
+    try:
+        _validate_branch(work_branch, require_work_branch=True)
+        conf = _repo_config(repo)
+        allowed_paths = list(conf.get("allowed_paths") or ["."])
+        relative = _validate_relative_path(path, allowed_paths)
+        worktree = _worktree_path(repo, work_branch, conf)
+        if not worktree.is_dir():
+            return {"ok": False, "error": "worktree_missing"}
+        target = _resolve_under(worktree, relative)
+        resolved_relative = target.relative_to(worktree.resolve()).as_posix()
+        _validate_relative_path(resolved_relative, allowed_paths)
+        if not target.is_file():
+            return {"ok": False, "error": "file_missing_or_not_regular"}
+        cap = max(1, min(int(max_bytes or 24000), 48000))
+        with target.open("rb") as handle:
+            data = handle.read(cap + 1)
+        if b"\x00" in data:
+            return {"ok": False, "error": "binary_file_denied"}
+        try:
+            decoded = data[:cap].decode("utf-8")
+        except UnicodeDecodeError:
+            return {"ok": False, "error": "utf8_decode_failed"}
+        content = _redact(decoded)
+        return {
+            "ok": True,
+            "repo": repo,
+            "work_branch": work_branch,
+            "path": relative,
+            "content": content,
+            "bytes_read": len(data[:cap]),
+            "truncated": len(data) > cap,
+            "redacted": content != decoded,
+        }
+    except Exception as exc:
+        return {"ok": False, "capability": CAPABILITY, "error": str(exc)}
