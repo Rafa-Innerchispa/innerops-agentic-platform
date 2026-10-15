@@ -1,7 +1,7 @@
 # ADR propuesto: Kubernetes no sustituye la coordinación de InnerOS
 
-**Fecha:** 2026-10-12  
-**Estado:** propuesta técnica documentada, pendiente de ratificación por propietario si se decide desplegar K3s.  
+**Fecha:** 2026-10-12
+**Estado:** propuesta técnica documentada, pendiente de ratificación por propietario si se decide desplegar K3s.
 **Alcance:** InnerOS, AMD `ralfiia-amd`, Intel `ralphi-ia-ver-10`, futuros nodos.
 **Relación:** [Continuidad canónica](INNEROS_COORDINATION_CONTINUITY_20261012.md).
 
