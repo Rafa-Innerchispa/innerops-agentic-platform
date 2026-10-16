@@ -744,7 +744,7 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
         col.update_one(
             {"task_id": task_id},
             {
-                "$set": {k: v for k, v in mirror_fields.items() if v is not None, **extra_set},
+                "$set": {**{k: v for k, v in mirror_fields.items() if v is not None}, **extra_set},
                 "$inc": {"revision": 1},
             },
             upsert=True,
