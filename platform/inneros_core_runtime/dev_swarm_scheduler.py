@@ -898,6 +898,91 @@ def _expire_inactive_locks(db: Any, now: datetime, now_iso: str) -> dict[str, in
     return {"expired": expired, "preserved_active": preserved}
 
 
+
+FALSE_RUNNING_GRACE_SECONDS = int(os.getenv("DEV_SWARM_FALSE_RUNNING_GRACE_SECONDS", "180"))
+HYDRATING_ONLY_GRACE_SECONDS = int(os.getenv("DEV_SWARM_HYDRATING_GRACE_SECONDS", "120"))
+
+
+def _task_has_live_worker(db: Any, task_id: str) -> bool:
+    if not task_id:
+        return False
+    w = db[WORKERS_COL].find_one({"task_id": task_id}, {"_id": 0, "status": 1, "last_heartbeat_at": 1})
+    if not w:
+        return False
+    if str(w.get("status") or "").lower() not in {"starting", "running", "verification"}:
+        return False
+    hb = _parse_dt(w.get("last_heartbeat_at"))
+    if not hb:
+        return False
+    return (datetime.now(timezone.utc) - hb).total_seconds() <= STALE_PROGRESS_SECONDS
+
+
+def _reconcile_false_running_ops_tasks(db: Any, now: datetime, now_iso: str, reason: str) -> int:
+    """Ops tasks stuck in running/hydrating without a live Dev Swarm worker."""
+    reconciled = 0
+    rows = db[coordination_live.OPS_TASKS_COL].find(
+        {
+            "assignee": "dev_swarm",
+            "status": {"$in": ["running", "in_progress", "accepted"]},
+        },
+        {"_id": 0},
+    ).limit(300)
+    for task in rows:
+        task_id = str(task.get("task_id") or "")
+        if not task_id or _task_has_live_worker(db, task_id):
+            continue
+        phase = str((task.get("evidence") or {}).get("phase") or "")
+        pending_at = _parse_dt(task.get("worker_dispatch_pending_at") or task.get("updated_at") or task.get("created_at"))
+        if not pending_at:
+            continue
+        age = (now - pending_at).total_seconds()
+        grace = HYDRATING_ONLY_GRACE_SECONDS if phase == "hydrating" else FALSE_RUNNING_GRACE_SECONDS
+        if age < grace:
+            continue
+        prev = str(task.get("status") or "")
+        blocker = "worker_not_started_scheduler_dispatch_missed"
+        db[coordination_live.OPS_TASKS_COL].update_one(
+            {"task_id": task_id, "status": {"$in": ["running", "in_progress", "accepted"]}},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "blocker": blocker,
+                    "owner": "dev_swarm",
+                    "dev_swarm_retry_requested": True,
+                    "dev_swarm_last_skip_reason": blocker,
+                    "dev_swarm_last_skip_at": now_iso,
+                    "false_running_reconciled_at": now_iso,
+                    "updated_at": now_iso,
+                    "updated_by": "dev_swarm_false_running_watchdog",
+                },
+                "$inc": {"revision": 1},
+                "$push": {
+                    "state_history": {
+                        "from": prev,
+                        "to": "blocked",
+                        "actor": "dev_swarm_false_running_watchdog",
+                        "at": now_iso,
+                        "reason": blocker,
+                    }
+                },
+            },
+        )
+        reconciled += 1
+        try:
+            from inneros_core_runtime.ops_lifecycle_notify import notify_ops_stalled_or_failed
+
+            notify_ops_stalled_or_failed(task, reason=blocker, target_status="blocked")
+        except Exception:
+            pass
+        try:
+            from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_transition
+
+            notify_ops_transition({**task, "status": "blocked", "blocker": blocker}, previous_status=prev, blocker=blocker)
+        except Exception:
+            pass
+    return reconciled
+
+
 def _reconcile_stale_ops_tasks(db: Any, now: datetime, now_iso: str, reason: str) -> int:
     """Block active-looking ops tasks that have no live worker and no recent activity."""
     stale_before = now.timestamp() - STALE_OPS_TASK_SECONDS
@@ -1075,6 +1160,7 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
             stale_workers.append(worker)
     stale_reclaim = _reclaim_stale_workers(db, stale_workers, now_iso, reason) if stale_workers else {"retriable": 0, "exhausted": 0}
     lock_res = _expire_inactive_locks(db, now, now_iso)
+    false_running_reconciled = _reconcile_false_running_ops_tasks(db, now, now_iso, reason)
     stale_ops_reconciled = _reconcile_stale_ops_tasks(db, now, now_iso, reason)
     active = db[WORKERS_COL].count_documents(_active_worker_query())
     return {
@@ -1085,6 +1171,7 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         "stale_workers_reconciled": stale_reclaim["retriable"] + stale_reclaim["exhausted"],
         "stale_workers_retryable": stale_reclaim["retriable"],
         "stale_workers_exhausted": stale_reclaim["exhausted"],
+        "false_running_ops_reconciled": false_running_reconciled,
         "stale_ops_tasks_reconciled": stale_ops_reconciled,
         "expired_locks": lock_res["expired"],
         "preserved_active_locks": lock_res["preserved_active"],
@@ -1108,9 +1195,13 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     retry_allowed = status == "blocked" and _ops_auto_retry_allowed(task)
     if status in OPS_TERMINAL_STATUSES and not retry_allowed:
         return False, "status_not_proposed", None
-    if status not in ELIGIBLE_STATUSES and not retry_allowed and not (
-        status in {"accepted", "in_progress"} and str(task.get("owner") or "").lower() == "dev_swarm"
-    ):
+    dispatch_pending = (
+        status in {"running", "accepted", "in_progress"}
+        and str(task.get("owner") or "").lower() == "dev_swarm"
+        and bool(task.get('dev_swarm_retry_requested'))
+        and not _task_has_live_worker(_db(), str(task.get("task_id") or ""))
+    )
+    if status not in ELIGIBLE_STATUSES and not retry_allowed and not dispatch_pending:
         return False, "status_not_proposed", None
     assignee = str(task.get("assignee") or "").lower()
     if assignee not in ALLOWED_ASSIGNEES:
@@ -1358,7 +1449,16 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
     available = max(0, max_concurrent - active)
     if not state.get("enabled") and not dry_run:
         return {"ok": True, "enabled": False, "started": [], "skipped": [], "capacity": capacity, "available": available, "reconcile": reconcile}
-    query: dict[str, Any] = {"status": "proposed"}
+    query: dict[str, Any] = {
+        "$or": [
+            {"status": "proposed"},
+            {
+                "status": {"$in": ["running", "accepted", "in_progress"]},
+                "assignee": "dev_swarm",
+                "dev_swarm_retry_requested": True,
+            },
+        ]
+    }
     if include_fixtures:
         query = {
             "status": "proposed",
@@ -3333,29 +3433,58 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
         return _fail_worker_early(task_id, "worktree_missing")
     worktree = Path(worktree_raw)
 
+    import socket
+
+    node = "amd" if "amd" in socket.gethostname().lower() else "intel"
+    branch = str(task.get("work_branch") or branch)
     worker = {
         "worker_id": f"worker_{secrets.token_hex(6)}",
         "task_id": task_id,
         "repo": repo,
         "branch": branch,
-        "node": "amd",
-        "status": "running",
+        "node": node,
+        "status": "starting",
         "launch": launch,
         "created_at": _now(),
         "updated_at": _now(),
         "last_heartbeat_at": _now(),
-        "executor": {"version": EXECUTOR_VERSION, "status": "running", "phase": "queued"},
+        "executor": {"version": EXECUTOR_VERSION, "status": "starting", "phase": "boot"},
     }
     db = _db()
     db[WORKERS_COL].update_one({"task_id": task_id}, {"$set": worker}, upsert=True)
+    now_iso = _now()
+    db[coordination_live.OPS_TASKS_COL].update_one(
+        {"task_id": task_id},
+        {
+            "$set": {
+                "status": "running",
+                "worker_started_at": now_iso,
+                "worker_id": worker["worker_id"],
+                "worker_host": node,
+                "dev_swarm_retry_requested": False,
+                "updated_at": now_iso,
+            },
+            "$inc": {"revision": 1},
+        },
+    )
+    task2 = _task_doc(task_id) or task
+    try:
+        from inneros_core_runtime.ops_lifecycle_notify import notify_ops_worker_started
+
+        notify_ops_worker_started(task2, worker=worker)
+    except Exception:
+        pass
+    worker["status"] = "running"
+    worker["executor"] = {"version": EXECUTOR_VERSION, "status": "running", "phase": "queued", "last_progress_at": now_iso}
+    db[WORKERS_COL].update_one({"task_id": task_id}, {"$set": worker})
     _publish_dev_swarm_event(
         "provider.dispatched",
-        task=task,
+        task=task2,
         worker=worker,
         task_id=task_id,
         repo=repo,
         status="running",
-        payload={"branch": branch, "worktree": worktree_raw, "node": "amd", "executor_version": EXECUTOR_VERSION},
+        payload={"branch": branch, "worktree": worktree_raw, "node": node, "executor_version": EXECUTOR_VERSION},
     )
     return _execute_existing_worker_generic(worker, run_tests=True)
 

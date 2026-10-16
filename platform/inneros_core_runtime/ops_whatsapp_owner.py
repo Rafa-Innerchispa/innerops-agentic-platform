@@ -238,7 +238,11 @@ def handle_owner_reply(
         owner_approved=True,
     )
     claim = out.get("claim") or {}
-    if not out.get("ok") and str((out.get("claim") or {}).get("error") or "") == "worktree_required":
+    attempts = 0
+    while not out.get("ok") and str((out.get("claim") or {}).get("error") or "") == "worktree_required" and attempts < 3:
+        attempts += 1
+        import time
+        time.sleep(min(2 ** attempts, 8))
         out = owner_order_execute(provider, task_id=tid, owner_actor=owner_actor, channel="whatsapp", owner_approved=True)
     claim = out.get("claim") or {}
     if not out.get("ok"):
