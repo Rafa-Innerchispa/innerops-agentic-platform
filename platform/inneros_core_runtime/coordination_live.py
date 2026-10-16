@@ -502,6 +502,15 @@ def create_ops_task(
     owner_summary = owner_execution_summary(doc, binding_preview)
     doc["execution_binding_preview"] = binding_preview
     doc["owner_execution_summary"] = owner_summary
+    auth_fields: dict[str, Any] = {}
+    if binding_preview.get("allowed") and binding_preview.get("runner") == "internal_bounded_local":
+        auth_ts = _now()
+        auth_fields = {
+            "owner_authorized_at": auth_ts,
+            "owner_authorization_channel": "auto_internal_bounded",
+            "owner_approved": True,
+        }
+        doc.update(auth_fields)
     try:
         mongo_store.get_db()[OPS_TASKS_COL].update_one(
             {"task_id": tid},
@@ -509,6 +518,7 @@ def create_ops_task(
                 "$set": {
                     "execution_binding_preview": binding_preview,
                     "owner_execution_summary": owner_summary,
+                    **auth_fields,
                 }
             },
         )
