@@ -63,6 +63,49 @@ def owner_auth_notified(task_id: str) -> bool:
     return str(task_id) in set(_STATE.get("sent", []))
 
 
+
+def _notify_ops_auth_email_fallback(
+    task: dict[str, Any],
+    *,
+    body: str,
+    provider: str,
+    tid: str,
+) -> dict[str, Any]:
+    """When Evolution/WhatsApp is down, reach owner via email (same CONFIRMAR/CANCELAR semantics)."""
+    import os
+
+    if os.getenv("NOTIFY_OPS_AUTH_EMAIL_FALLBACK", "1").strip().lower() in {"0", "false", "no", "off"}:
+        return {"ok": False, "skipped": "email_fallback_disabled"}
+    raw = (
+        os.getenv("RALFIA_OPS_AUTH_EMAIL_TO")
+        or os.getenv("INNEROS_ADMIN_EMAILS")
+        or os.getenv("NOTIFY_EMAIL_TO")
+        or ""
+    ).strip()
+    to_addr = raw.split(",")[0].strip() if raw else ""
+    if not to_addr:
+        return {"ok": False, "skipped": "no_owner_email_configured"}
+    short = tid.replace("ops_", "")[:6]
+    subject = f"[RalfIA OPS] Autorización {provider.upper()} · {short}"
+    email_body = (
+        f"{body}\n\n"
+        f"---\n"
+        f"WhatsApp no disponible; responde a este correo o usa MCP:\n"
+        f"• CONFIRMAR {short}\n"
+        f"• CANCELAR {short}\n"
+        f'• cursor_authorize_ops_task(task_id="{tid}")\n'
+    )
+    from inneros_core_runtime.notifications.email_client import send_email
+
+    sent = send_email(
+        to_addr=to_addr,
+        subject=subject,
+        body=email_body,
+        idempotency_key=f"ops_auth_email:{tid}",
+        dedupe_window_seconds=3600,
+    )
+    return {"ok": bool(sent.get("ok")), "channel": "email", "email": sent, "task_id": tid}
+
 def notify_ops_owner_authorization_request(
     task: dict[str, Any],
     *,
@@ -73,6 +116,11 @@ def notify_ops_owner_authorization_request(
     """WhatsApp al crear ops task: motivo externo vs interno y cómo autorizar."""
     if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
         return {"ok": False, "skipped": "notifications_disabled"}
+
+    title = str(task.get("title") or "")
+    lane = str(task.get("execution_lane") or "").strip().lower()
+    if title.startswith("[Correo/") or lane == "email_intelligence":
+        return {"ok": False, "skipped": "email_intelligence_no_ide_auth", "task_id": str(task.get("task_id") or "")}
 
     from inneros_core_runtime.execution_binding import (
         owner_execution_summary,
@@ -122,13 +170,28 @@ def notify_ops_owner_authorization_request(
 
     import os
 
+    from inneros_core_runtime.notifications.ops_owner_delivery import deliver_ops_auth
     from raphiia_openai.notifications.evolution_client import send_alert_whatsapp, send_whatsapp_interactive
     from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+    from inneros_core_runtime.notifications import telegram_client as tg
 
     owner_phone = (
         os.getenv("RALFIA_ALERTS_TO") or os.getenv("NOTIFY_WHATSAPP_TO") or ""
     ).strip()
     auth_ui = (os.getenv("NOTIFY_OPS_AUTH_UI") or "buttons").strip().lower()
+    if tg.telegram_enabled() and tg.configured():
+        tg_result = deliver_ops_auth(body, task_id=tid, provider=provider)
+        if tg_result.get("ok"):
+            _mark_sent("owner_auth", tid)
+            return {
+                "ok": True,
+                "result": tg_result,
+                "task_id": tid,
+                "summary": summary,
+                "delivery_mode": "telegram_multichannel",
+                "poll_message_id": "",
+                "email_fallback": None,
+            }
     poll_message_id = ""
     buttons = [
         {"id": f"ops.auth.yes.{tid}", "label": "Confirmar"},
@@ -168,6 +231,13 @@ def notify_ops_owner_authorization_request(
     if not result.get("ok"):
         result = send_alert_whatsapp(body, prefix_node=True)
         delivery_mode = "text"
+    email_fallback = None
+    if not result.get("ok"):
+        email_fallback = _notify_ops_auth_email_fallback(
+            task, body=body, provider=provider, tid=tid
+        )
+        if email_fallback.get("ok"):
+            result = {"ok": True, "status": "sent", "channel": "email_fallback", "email": email_fallback}
     if result.get("ok"):
         _mark_sent("owner_auth", tid)
     return {
@@ -177,6 +247,7 @@ def notify_ops_owner_authorization_request(
         "summary": summary,
         "delivery_mode": delivery_mode,
         "poll_message_id": poll_message_id,
+        "email_fallback": email_fallback,
     }
 
 
@@ -303,7 +374,12 @@ def notify_ops_transition(
     if not _can_send("ops", key):
         return {"ok": False, "skipped": "cooldown_or_dedupe"}
 
-    result = send_alert_whatsapp(body, prefix_node=False)
+    from inneros_core_runtime.notifications.ops_owner_delivery import deliver_text
+
+    delivered = deliver_text(body, kind=f"ops_{status}", dedupe_key=tid)
+    result = delivered.get("channels", {}).get(delivered.get("via", ""), delivered)
+    if not delivered.get("ok"):
+        result = send_alert_whatsapp(body, prefix_node=False)
     if result.get("ok"):
         _mark_sent("ops", key)
     return {"ok": bool(result.get("ok")), "result": result, "task_id": task.get("task_id"), "status": status}

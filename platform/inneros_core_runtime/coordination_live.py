@@ -392,6 +392,15 @@ def create_ops_task(
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
+    title_s = (title or "").strip()
+    if title_s.startswith("[Correo/"):
+        assignee = "ralfia"
+        preferred_provider = preferred_provider or "ralfia"
+        task_class = task_class or "business_ops"
+        execution_lane = execution_lane or "email_intelligence"
+        dispatch_mode = dispatch_mode or "business_handoff"
+        if do_not_auto_dispatch is None:
+            do_not_auto_dispatch = True
     from inneros_core_runtime import agent_provider_registry as apr
     from inneros_core_runtime.execution_binding import INTERACTIVE_IDE_PROVIDERS, normalize_provider
 
@@ -502,6 +511,15 @@ def create_ops_task(
     owner_summary = owner_execution_summary(doc, binding_preview)
     doc["execution_binding_preview"] = binding_preview
     doc["owner_execution_summary"] = owner_summary
+    auth_fields: dict[str, Any] = {}
+    if binding_preview.get("allowed") and binding_preview.get("runner") == "internal_bounded_local":
+        auth_ts = _now()
+        auth_fields = {
+            "owner_authorized_at": auth_ts,
+            "owner_authorization_channel": "auto_internal_bounded",
+            "owner_approved": True,
+        }
+        doc.update(auth_fields)
     try:
         mongo_store.get_db()[OPS_TASKS_COL].update_one(
             {"task_id": tid},
@@ -509,6 +527,7 @@ def create_ops_task(
                 "$set": {
                     "execution_binding_preview": binding_preview,
                     "owner_execution_summary": owner_summary,
+                    **auth_fields,
                 }
             },
         )
@@ -517,11 +536,7 @@ def create_ops_task(
     try:
         from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_owner_authorization_request
 
-        suppress = bool((payload or {}).get("suppress_owner_whatsapp_auth"))
-        suppress = suppress or str(from_agent or "") in {"ops_quad_lane_canary", "cursor_overnight"}
-        suppress = suppress or str(title or "").startswith("[quad-canary]")
-        if not suppress:
-            notify_ops_owner_authorization_request(doc, binding=binding_preview, source_agent=from_agent)
+        notify_ops_owner_authorization_request(doc, binding=binding_preview, source_agent=from_agent)
     except Exception:
         pass
 

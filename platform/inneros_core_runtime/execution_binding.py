@@ -168,6 +168,21 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
 
     owner_approved = bool(env.get("owner_approved") or env.get("owner_authorized_at"))
 
+    title = str(env.get("title") or "")
+    task_class_l = str(env.get("task_class") or "").lower()
+    if lane == "email_intelligence" or (
+        title.startswith("[Correo/") and task_class_l in {"business_ops", "email_intelligence", ""}
+    ):
+        return {
+            **base,
+            "ok": True,
+            "allowed": False,
+            "runner": BLOCKED_RUNNER,
+            "status": "accepted",
+            "error": "email_intelligence_no_auto_dispatch",
+            "message": "Seguimiento de correo (email_intelligence); no requiere IDE ni Dev Swarm.",
+        }
+
     task_kind = str(env.get("task_kind") or "").strip().lower()
     if lane == "peer_ops" or task_kind == "peer_ops":
         requested_agent = str(env.get("requested_agent") or "").strip().upper().replace("_", "-")
@@ -447,6 +462,23 @@ def owner_execution_summary(
 ) -> dict[str, Any]:
     """Texto owner: por qué no interno, alternativa interna, siguiente acción WhatsApp."""
     env = merge_task_dispatch_fields(envelope_dict)
+    lane0 = str(env.get("execution_lane") or "").strip().lower()
+    title0 = str(env.get("title") or "")
+    if lane0 == "email_intelligence" or title0.startswith("[Correo/"):
+        return {
+            "provider": str(env.get("preferred_provider") or env.get("assignee") or "ralfia"),
+            "execution_lane": lane0 or "email_intelligence",
+            "runner": "email_intelligence_handoff",
+            "allowed_internal_runner": False,
+            "expected_status": "accepted",
+            "error_code": None,
+            "why_not_internal": "Correo en carril email_intelligence; sin dispatch automático.",
+            "internal_alternative": "No aplica Dev Swarm para este seguimiento.",
+            "owner_action_hint": "Revisar en bandeja OPS/correo; no requiere CONFIRMAR IDE.",
+            "preferred_model": None,
+            "requires_owner_authorization": False,
+            "requires_external_credit_authorization": False,
+        }
     binding = binding or resolve_execution_binding(env)
     provider = str(binding.get("provider_normalized") or normalize_provider(env.get("preferred_provider")) or "?")
     lane = str(binding.get("execution_lane") or env.get("execution_lane") or "—")

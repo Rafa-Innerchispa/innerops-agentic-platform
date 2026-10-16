@@ -175,41 +175,6 @@ def backfill_pending_email_actions(*, limit: int = 8000, dry_run: bool = True) -
     return {"ok": True, "dry_run": dry_run, "scanned": len(rows), "updated": updated, "dismissed": dismissed}
 
 
-def reconcile_email_binding_status(*, dry_run: bool = True, limit: int = 200) -> dict[str, Any]:
-    """Dictamen 12: Mongo waiting_for_binding pero binding email_intelligence ya allowed."""
-    from inneros_core_runtime import execution_binding as eb
-
-    db = mongo_store.get_db()
-    filt = {
-        "status": {"$in": ["waiting_for_binding", "queued", "proposed"]},
-        "$or": [
-            {"task_class": "business_ops"},
-            {"execution_lane": "email_intelligence"},
-            {"title": {"$regex": r"^\[Correo/"}},
-        ],
-    }
-    rows = list(db[OPS_COL].find(filt, {"_id": 0}).sort("updated_at", -1).limit(max(10, min(limit, 500))))
-    synced: list[dict[str, Any]] = []
-    for task in rows:
-        binding = eb.resolve_execution_binding(task)
-        if binding.get("runner") != eb.EMAIL_INTELLIGENCE_RUNNER or not binding.get("allowed"):
-            continue
-        tid = str(task.get("task_id") or "")
-        summary = eb.owner_execution_summary(task, binding)
-        patch = {
-            "status": "ready",
-            "execution_binding_preview": binding,
-            "owner_execution_summary": summary,
-            "updated_at": _now(),
-            "binding_reconciled_at": _now(),
-            "binding_reconcile_reason": "email_intelligence_allowed",
-        }
-        synced.append({"task_id": tid, "from_status": task.get("status"), "runner": binding.get("runner")})
-        if not dry_run and tid:
-            db[OPS_COL].update_one({"task_id": tid}, {"$set": patch, "$inc": {"revision": 1}})
-    return {"ok": True, "dry_run": dry_run, "reviewed": len(rows), "synced": synced}
-
-
 def reconcile_misclassified_email_ops(*, dry_run: bool = True, limit: int = 200) -> dict[str, Any]:
     """Correos en waiting_for_binding/coding sin repo → business_ops o cancel noise."""
     db = mongo_store.get_db()
@@ -247,6 +212,10 @@ def reconcile_misclassified_email_ops(*, dry_run: bool = True, limit: int = 200)
                 "routing_repaired_at": _now(),
                 "routing_repair_reason": "email_not_coding_without_repo",
             }
+            if str(task.get("status") or "") in {"waiting_for_binding", "queued", "proposed"}:
+                patch["status"] = "accepted"
+                patch["last_error"] = None
+                patch["binding_error"] = None
             action = "reclassify"
         fixed.append({"task_id": tid, "action": action, "reason": reason if noisy else "missing_repo"})
         if not dry_run and tid:
@@ -264,7 +233,6 @@ def run_email_ops_alignment(
     from inneros_core_runtime import dev_swarm_scheduler
 
     hygiene = dev_swarm_scheduler.reconcile_coordination_backlog_hygiene(limit=hygiene_limit, dry_run=dry_run)
-    binding_sync = reconcile_email_binding_status(dry_run=dry_run)
     reclassify = reconcile_misclassified_email_ops(dry_run=dry_run)
     cancel = cancel_queued_email_ops(dry_run=dry_run)
     dismiss = dismiss_noise_email_actions(dry_run=dry_run)
@@ -276,7 +244,6 @@ def run_email_ops_alignment(
         "ok": True,
         "dry_run": dry_run,
         "hygiene": hygiene,
-        "reconcile_email_binding_status": binding_sync,
         "reconcile_misclassified_email_ops": reclassify,
         "cancel_queued_email_ops": cancel,
         "dismiss_noise_actions": dismiss,
