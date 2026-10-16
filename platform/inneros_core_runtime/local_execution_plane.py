@@ -2237,6 +2237,13 @@ def _bind_existing_ops_task_for_dev_swarm(
             update.update(
                 {
                     "dev_swarm_retry_requested": True,
+                    "dev_swarm_launch_pending_at": now,
+                    "status": "accepted",
+                    "evidence": {
+                        "phase": "launch_pending_worker",
+                        "binding_stage": binding_stage,
+                        "work_branch": work_branch,
+                    },
                 }
             )
         db = mongo_store.get_db()

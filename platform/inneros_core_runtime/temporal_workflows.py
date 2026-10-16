@@ -246,15 +246,22 @@ class OpsTaskWorkflow:
             retry_policy=STANDARD_RETRY_POLICY,
         )
 
-        # 3. Transition to running state with real parameters
-        self.status = "running"
-        self.phase = "worktree_hydration"
+        # 3. Worker admission pending — do not mark authoritative running without a lease.
+        lane = str(envelope_dict.get("execution_lane") or "").lower()
         self.worker_id = envelope_dict.get("preferred_provider") or envelope_dict.get("assignee") or "dev_swarm_worker"
         self.provider = envelope_dict.get("preferred_provider") or "local"
+        if lane in {"local_dev_swarm", "dev_swarm", "internal"}:
+            self.status = "worker_starting"
+            self.phase = "worktree_hydration"
+            mirror_status = "worker_starting"
+        else:
+            self.status = "running"
+            self.phase = "worktree_hydration"
+            mirror_status = "running"
 
         await workflow.execute_activity(
             activity_publish_nats_event,
-            args=["task.running", envelope_dict, "running", {
+            args=[f"task.{mirror_status}", envelope_dict, mirror_status, {
                 "worker_id": self.worker_id,
                 "provider": self.provider,
                 "workflow_id": workflow.info().workflow_id,
@@ -266,7 +273,7 @@ class OpsTaskWorkflow:
         )
         await workflow.execute_activity(
             activity_sync_mongo_mirror,
-            args=[envelope_dict, "running", {
+            args=[envelope_dict, mirror_status, {
                 "phase": "hydrating",
                 "worker_id": self.worker_id,
                 "provider": self.provider,

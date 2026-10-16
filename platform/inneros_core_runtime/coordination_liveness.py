@@ -365,7 +365,20 @@ def reconcile_coordination_liveness(
     # 1. Scan all non-terminal tasks
     active_tasks = list(
         db[OPS_TASKS_COL].find(
-            {"status": {"$in": ["accepted", "claimed", "in_progress", "verification", "blocked"]}},
+            {
+                "status": {
+                    "$in": [
+                        "accepted",
+                        "claimed",
+                        "in_progress",
+                        "verification",
+                        "blocked",
+                        "running",
+                        "worker_starting",
+                        "dispatched",
+                    ]
+                }
+            },
             {"_id": 0},
         )
     )
