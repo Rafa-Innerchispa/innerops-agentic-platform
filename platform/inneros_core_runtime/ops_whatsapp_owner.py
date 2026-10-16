@@ -85,7 +85,7 @@ def _format_claim_failure(tid: str, provider: str, out: dict, claim: dict) -> st
         return (
             f"❌ Claim `{tid}` ({provider}): no se pudo crear *worktree* (Git). "
             f"Si escuchaste work three required, es este error. "
-            f"Detalle: {inner or details or worktree_create_failed}. Reintenta Confirmar en 30s."
+            f"Detalle: {inner or details}. Reintenta Confirmar en 30s."
         )
     return f"❌ No pude autorizar/claim `{tid}` ({provider}): {err}"
 
@@ -215,11 +215,19 @@ def handle_owner_reply(
             ops_pending.clear_pending(tid)
         except Exception:
             pass
+        try:
+            from inneros_core_runtime import competition_lane_dispatch as cld
+
+            spawn = cld.spawn_competition_execute(tid)
+        except Exception as exc:
+            spawn = {"ok": False, "error": str(exc)[:120]}
+        extra = " Alexa en curso." if spawn.get("ok") else ""
         return {
             "ok": True,
-            "text": f"✅ {tid} · carril interno (no requiere claim IDE). Sigue en ejecución automática.",
+            "text": f"✅ {tid} · carril interno.{extra}",
             "task_id": tid,
             "action": "auth_internal_no_gate",
+            "competition_spawn": spawn,
         }
 
     out = owner_order_execute(
@@ -244,6 +252,16 @@ def handle_owner_reply(
 
     # WhatsApp: confirmar la acción del owner; no auto-cerrar canary (evita failed inmediato en Temporal).
     auto = None
+    comp_spawn = None
+    if provider in {"codex", "antigravity", "gemini"}:
+        try:
+            from inneros_core_runtime import competition_lane_dispatch as cld
+
+            task_now = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}) or task
+            comp_spawn = cld.maybe_spawn_after_claim(task_now)
+        except Exception:
+            comp_spawn = None
+
     lines = [
         f"✅ Acción confirmada · {provider.upper()} · `{tid}`",
         f"Modelo: {claim.get('pinned_model') or 'env'}",
