@@ -16,7 +16,7 @@ from raphiia_openai import mongo_store
 
 ROOT = Path(__file__).resolve().parents[1]
 
-_CARRIL_RE = re.compile(r"\[Carril\s+([A-D])\s*·\s*interno\]", re.I)
+_CARRIL_RE = re.compile(r"\[Carril\s+([A-H])\s*·\s*interno\]", re.I)
 _EXT_RE = re.compile(r"\[Competencia/Externo/([A-Z]+)\]", re.I)
 
 
@@ -148,10 +148,20 @@ def spawn_competition_execute(task_id: str) -> dict[str, Any]:
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
-    mongo_store.get_db()[OPS_TASKS_COL].update_one(
-        {"task_id": tid},
-        {"$set": {"competition_spawn_pid": proc.pid, "competition_log_path": str(log_path), "updated_at": _now()}},
-    )
+    import socket
+
+    host = socket.gethostname().lower()
+    task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}) or {}
+    prov = str(task.get("assignee") or task.get("preferred_provider") or "").lower()
+    patch: dict[str, Any] = {
+        "competition_spawn_pid": proc.pid,
+        "competition_log_path": str(log_path),
+        "updated_at": _now(),
+    }
+    if prov in {"codex", "antigravity"}:
+        patch["provider_execution_started_at"] = _now()
+        patch["provider_execution_host"] = host
+    mongo_store.get_db()[OPS_TASKS_COL].update_one({"task_id": tid}, {"$set": patch})
     return {"ok": True, "task_id": tid, "pid": proc.pid, "log_path": str(log_path)}
 
 

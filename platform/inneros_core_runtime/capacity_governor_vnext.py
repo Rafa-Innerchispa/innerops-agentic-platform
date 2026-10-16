@@ -125,7 +125,7 @@ def classify_capacity(
     else:
         state = BASELINE if not soft_reasons else WORKLOAD
 
-    base_workers = 4
+    base_workers = max(1, min(int(os.getenv("INNEROS_CAPACITY_BASE_WORKERS", "8")), 12))
     if hard_reasons:
         budget = 0
     elif soft_reasons and all(reason.endswith("no_throttle") for reason in soft_reasons):
