@@ -15,7 +15,7 @@ NOTIFY_OPS_TASKS = os.getenv("NOTIFY_OPS_TASKS", "1") == "1"
 TERMINAL_OPS = frozenset({"completed", "failed", "blocked", "partial", "cancelled", "superseded"})
 NOTIFY_CURSOR_CLAIM = os.getenv("NOTIFY_CURSOR_AWAITING_CLAIM", "1") == "1"
 NOTIFY_OPS_CREATE_AUTH = os.getenv("NOTIFY_OPS_CREATE_AUTHORIZATION", "1") == "1"
-NOTIFY_OPS_INTERNAL_BRIEF = os.getenv("NOTIFY_OPS_INTERNAL_CREATE", "0") == "1"
+NOTIFY_OPS_INTERNAL_BRIEF = os.getenv("NOTIFY_OPS_INTERNAL_CREATE", "0") == "1"  # reload via _internal_brief_enabled()
 NOTIFY_VERIFICATION = os.getenv("NOTIFY_OPS_VERIFICATION", "1") == "1"
 
 _STATE: dict[str, Any] = {"cooldowns": {}, "sent": []}
@@ -106,6 +106,11 @@ def _notify_ops_auth_email_fallback(
     )
     return {"ok": bool(sent.get("ok")), "channel": "email", "email": sent, "task_id": tid}
 
+def _internal_brief_enabled() -> bool:
+    import os
+    return os.getenv("NOTIFY_OPS_INTERNAL_CREATE", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def notify_ops_owner_authorization_request(
     task: dict[str, Any],
     *,
@@ -129,14 +134,22 @@ def notify_ops_owner_authorization_request(
     )
 
     binding = binding or resolve_execution_binding(task)
+    is_internal_carril = title.startswith("[Carril ") and "· interno" in title
     if not requires_external_owner_authorization(task, binding):
-        if not NOTIFY_OPS_INTERNAL_BRIEF:
+        if not is_internal_carril and not _internal_brief_enabled() and not NOTIFY_OPS_INTERNAL_BRIEF:
             return {"ok": False, "skipped": "internal_no_external_auth_gate"}
     summary = owner_execution_summary(task, binding)
+    provider = str(summary.get("provider") or task.get("assignee") or "?")
     if summary.get("allowed_internal_runner") and not summary.get("requires_owner_authorization"):
-        if not NOTIFY_OPS_INTERNAL_BRIEF:
+        if not is_internal_carril and not _internal_brief_enabled() and not NOTIFY_OPS_INTERNAL_BRIEF:
             return {"ok": False, "skipped": "internal_runner_no_owner_gate"}
-    if summary.get("allowed_internal_runner") and not summary.get("requires_owner_authorization"):
+    if is_internal_carril:
+        icon = "🏠"
+        headline = title.split("]")[0].replace("[", "").strip()
+    elif title.startswith("[Competencia/Externo"):
+        icon = "🛂"
+        headline = f"EXTERNO · {provider.upper()}"
+    elif summary.get("allowed_internal_runner") and not summary.get("requires_owner_authorization"):
         icon = "⚙️"
         headline = "OPS interna (Dev Swarm/local)"
     else:
@@ -147,7 +160,6 @@ def notify_ops_owner_authorization_request(
     model_line = f"\nModelo: {summary['preferred_model']}" if summary.get("preferred_model") else ""
     tid = str(task.get("task_id") or "")
     objective = str(task.get("objective") or task.get("title") or "")[:280]
-    provider = str(summary.get("provider") or "?")
     spends = (
         "Esta tarea *gasta créditos* del agente IDE al ejecutar."
         if summary.get("requires_owner_authorization") and not summary.get("allowed_internal_runner")
@@ -179,7 +191,9 @@ def notify_ops_owner_authorization_request(
         os.getenv("RALFIA_ALERTS_TO") or os.getenv("NOTIFY_WHATSAPP_TO") or ""
     ).strip()
     auth_ui = (os.getenv("NOTIFY_OPS_AUTH_UI") or "buttons").strip().lower()
-    if tg.telegram_enabled() and tg.configured():
+    wa_channels = (os.getenv("NOTIFY_OPS_CHANNELS") or "whatsapp").lower()
+    tg_only = tg.telegram_enabled() and tg.configured() and "whatsapp" not in wa_channels
+    if tg_only:
         tg_result = deliver_ops_auth(body, task_id=tid, provider=provider)
         if tg_result.get("ok"):
             _mark_sent("owner_auth", tid)
@@ -218,7 +232,7 @@ def notify_ops_owner_authorization_request(
             buttons,
             number=owner_phone or None,
             footer="RalfIA · operaciones",
-            fallback_text=body,
+            fallback_text=None,
         )
         delivery_mode = "buttons_plus_text"
     if result.get("ok") and owner_phone:
