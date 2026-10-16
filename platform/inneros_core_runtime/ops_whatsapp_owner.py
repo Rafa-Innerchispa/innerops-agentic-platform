@@ -75,6 +75,21 @@ def _maybe_auto_complete_verification(provider: str, task: dict[str, Any], claim
     )
 
 
+
+
+def _format_claim_failure(tid: str, provider: str, out: dict, claim: dict) -> str:
+    err = str(out.get("error") or claim.get("error") or "unknown")
+    details = claim.get("details") or {}
+    inner = details.get("error") if isinstance(details, dict) else None
+    if err == "worktree_required":
+        return (
+            f"❌ Claim `{tid}` ({provider}): no se pudo crear *worktree* (Git). "
+            f"Si escuchaste work three required, es este error. "
+            f"Detalle: {inner or details or worktree_create_failed}. Reintenta Confirmar en 30s."
+        )
+    return f"❌ No pude autorizar/claim `{tid}` ({provider}): {err}"
+
+
 def handle_owner_reply(
     message: str,
     *,
@@ -214,6 +229,9 @@ def handle_owner_reply(
         channel="whatsapp",
         owner_approved=True,
     )
+    claim = out.get("claim") or {}
+    if not out.get("ok") and str((out.get("claim") or {}).get("error") or "") == "worktree_required":
+        out = owner_order_execute(provider, task_id=tid, owner_actor=owner_actor, channel="whatsapp", owner_approved=True)
     claim = out.get("claim") or {}
     if not out.get("ok"):
         return {
