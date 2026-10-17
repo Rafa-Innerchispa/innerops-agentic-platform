@@ -32,6 +32,8 @@ def _search_text(task: dict[str, Any]) -> str:
 
 def is_gitlab_contributor_ops_task(task: dict[str, Any]) -> bool:
     cid = str(task.get("correlation_id") or "").lower()
+    if "worktree-claim-repair" in cid or cid.startswith("cursor-worktree"):
+        return False
     if "gitlab-contributorops" in cid or cid.startswith("contributorops"):
         return True
     text = _search_text(task)
@@ -180,6 +182,21 @@ def resolve_executable_repo(task: dict[str, Any]) -> dict[str, Any]:
             return {**gl, "task_id": tid}
         return {**gl, "task_id": tid, "warnings": warnings, "source": "gitlab_fork_policy"}
 
+    text = _search_text(task)
+    if "innerops-agentic-platform" in text:
+        base = str(task.get("base_ref") or pl.get("base_ref") or "main")
+        if base == "master":
+            base = "main"
+        return {
+            "ok": True,
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "base_ref": base,
+            "task_id": tid,
+            "materializer_lane": "github",
+            "source": "objective_platform_repo",
+            "warnings": warnings,
+        }
+
     for candidate in (
         str(task.get("executable_repo") or ""),
         str(task.get("repo") or ""),
@@ -226,16 +243,30 @@ def resolve_executable_repo(task: dict[str, Any]) -> dict[str, Any]:
 
 
 def resolve_work_branch(task: dict[str, Any], *, repo: str, provider: str = "cursor") -> str:
-    branch = str(task.get("work_branch") or "").strip()
-    if branch:
-        return branch
     pl = _payload(task)
+    prov = (provider or "cursor").strip().lower()
+    allowed_prefixes = (f"{prov}/", "cursor/", "codex/", "antigravity/", "gemini/")
+    if is_gitlab_contributor_ops_task(task):
+        allowed_prefixes = (*allowed_prefixes, "chatgpt/")
+
+    def _acceptable(branch_name: str) -> bool:
+        item = (branch_name or "").strip()
+        if not item:
+            return False
+        if is_gitlab_contributor_ops_task(task):
+            return True
+        return item.startswith(allowed_prefixes)
+
     branch = str(pl.get("work_branch") or "").strip()
-    if branch:
+    if _acceptable(branch):
         return branch
-    ref_branch = _work_branch_reference_from_related_ops(task)
-    if ref_branch:
-        return ref_branch
+    branch = str(task.get("work_branch") or "").strip()
+    if _acceptable(branch):
+        return branch
+    if is_gitlab_contributor_ops_task(task):
+        ref_branch = _work_branch_reference_from_related_ops(task)
+        if ref_branch:
+            return ref_branch
     tid = str(task.get("task_id") or "task")
     slug = tid.replace("ops_", "")
     prov = (provider or "cursor").strip().lower()
