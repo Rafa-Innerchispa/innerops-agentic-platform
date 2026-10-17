@@ -206,6 +206,28 @@ def authorize_ops_task_for_cursor(
     if not tid:
         return {"ok": False, "error": "task_id_required"}
     db = mongo_store.get_db()
+    existing = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+    if existing and existing.get("owner_authorized_at"):
+        return {
+            "ok": True,
+            "task_id": tid,
+            "owner_authorized_at": existing.get("owner_authorized_at"),
+            "message": "Autorización vigente; reintento de claim sin nueva aprobación.",
+            "authorization_reused": True,
+        }
+    if existing:
+        from inneros_core_runtime import ops_task_materializer as otm
+
+        gate = otm.authorization_blockers(existing, provider="cursor")
+        if not gate.get("ok"):
+            return {
+                "ok": False,
+                "error": gate.get("error"),
+                "task_id": tid,
+                "preflight": gate.get("preflight"),
+                "message": gate.get("message"),
+            }
+        otm.persist_materialization(db, tid, gate["preflight"]["materialization"])
     now = _now()
     # Scoped, idempotent owner grant: never authorize another provider's task,
     # terminal task, or a task that already belongs to a running claim.
@@ -363,16 +385,22 @@ def claim_ops_task(
 
     worktree_path = ""
     worktree_error: dict[str, Any] | None = None
-    repo = str(claimed.get("repo") or "").strip()
+    from inneros_core_runtime import ops_task_materializer as otm
+
+    mat = otm.materialize_ops_task_execution(claimed, provider="cursor")
+    repo = str(mat.get("repo") or "").strip()
+    if mat.get("ok"):
+        otm.persist_materialization(db, tid, mat)
+        claimed = {**claimed, **mat}
     if repo:
         from inneros_core_runtime import local_execution_plane as lep
 
-        branch = str(claimed.get("work_branch") or f"cursor/ops-{tid.replace('ops_', '')}")
+        branch = str(mat.get("work_branch") or claimed.get("work_branch") or f"cursor/ops-{tid.replace('ops_', '')}")
         from inneros_core_runtime.interactive_ops_runner import _claim_worktree_with_retry
 
         wt = _claim_worktree_with_retry(
             repo=repo,
-            base_branch=str(claimed.get("base_ref") or "main"),
+            base_branch=str(mat.get("base_ref") or claimed.get("base_ref") or "main"),
             work_branch=branch,
             actor="cursor",
             task_id=tid,
