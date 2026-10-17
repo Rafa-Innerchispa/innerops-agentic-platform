@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
-from raphiia_openai.mcp_catalog import tool_catalog
+from inneros_core_runtime.capability_registry import catalog_fingerprint, log_routing_trace
+from inneros_core_runtime.mcp_catalog import tool_catalog
 
 PROFILES_VERSION = "1.4.11"
 

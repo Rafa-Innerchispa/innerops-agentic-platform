@@ -114,6 +114,12 @@ class _FakeDb:
             return self._workers
         return _FakeCol()
 
+    def __bool__(self) -> bool:
+        """Match PyMongo Database, which rejects truth-value testing."""
+        raise NotImplementedError(
+            "Database objects do not implement truth value testing or bool()"
+        )
+
 
 @pytest.fixture
 def incident_task() -> dict:

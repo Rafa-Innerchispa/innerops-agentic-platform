@@ -3352,7 +3352,7 @@ def list_inventory(entity_id: str | None = None, limit: int = 100) -> dict[str, 
 @mcp.tool
 def list_mcp_tool_profiles(for_model: str | None = None) -> dict[str, Any]:
     """Perfiles versionados (Capability Router F0). Proyección recomendada; legacy tools/list intacto."""
-    from raphiia_openai import mcp_profiles
+    from inneros_core_runtime import mcp_profiles
 
     return mcp_profiles.list_profiles(for_model=for_model)
 
@@ -5295,7 +5295,7 @@ def get_capability_registry_summary() -> dict[str, Any]:
 @mcp.tool
 def get_mcp_profile(name: str) -> dict[str, Any]:
     """Devuelve un perfil versionado (toolset pinneable)."""
-    from raphiia_openai import mcp_profiles
+    from inneros_core_runtime import mcp_profiles
 
     return mcp_profiles.get_profile(name)
 
@@ -8365,7 +8365,7 @@ def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
     import asyncio
 
     from fastmcp.server.transforms import Visibility
-    from raphiia_openai import mcp_profiles
+    from inneros_core_runtime import mcp_profiles
 
     profile = mcp_profiles.get_profile(profile_name)
     if not profile.get("ok"):

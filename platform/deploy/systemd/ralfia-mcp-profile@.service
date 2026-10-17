@@ -12,7 +12,7 @@ EnvironmentFile=/home/rlopez/inneros/inneros_core/platform/.env
 EnvironmentFile=/home/rlopez/.config/ralphiia/mcp-profiles/%i.env
 ExecStartPre=/bin/bash -c 'if [[ "${MCP_PORT:-}" == "8102" ]]; then echo "Refusing bounded MCP profile on canonical port 8102" >&2; exit 64; fi'
 ExecStartPre=/bin/bash /home/rlopez/inneros/inneros_core/platform/scripts/free_port.sh ${MCP_PORT}
-ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m inneros_core_runtime.mcp_server
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/run_mcp_runtime.py
 Restart=on-failure
 RestartSec=5
 
