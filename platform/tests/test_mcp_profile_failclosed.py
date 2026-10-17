@@ -28,7 +28,8 @@ class McpProfileFailClosedTests(unittest.TestCase):
 
     def test_profile_uses_current_inneros_mcp_runtime(self) -> None:
         text = UNIT.read_text(encoding="utf-8")
-        self.assertIn("-m inneros_core_runtime.mcp_server", text)
+        self.assertIn("scripts/run_mcp_runtime.py", text)
+        self.assertNotIn("-m inneros_core_runtime.mcp_server", text)
         self.assertNotIn("-m raphiia_openai.mcp_server", text)
 
     def test_installer_rejects_canonical_port_before_any_apply(self) -> None:

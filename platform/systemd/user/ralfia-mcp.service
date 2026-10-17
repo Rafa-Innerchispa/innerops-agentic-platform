@@ -13,7 +13,7 @@ Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
 Environment=MCP_PORT=8102
 Environment=MCP_HOST=0.0.0.0
 ExecStartPre=/bin/bash /home/rlopez/inneros/inneros_core/platform/scripts/free_port.sh 8102
-ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 -m inneros_core_runtime.mcp_server
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/run_mcp_runtime.py
 Restart=always
 RestartSec=15
 

@@ -113,7 +113,8 @@ def reconcile_launch_dispatch_gaps(
     publish_event: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     """Requeue or fail Dev Swarm tasks that look active but have no worker."""
-    db = db or mongo_store.get_db()
+    if db is None:
+        db = mongo_store.get_db()
     now_dt = now or datetime.now(timezone.utc)
     now_iso = now_iso or now_dt.isoformat()
     stall_before = now_dt.timestamp() - LAUNCH_DISPATCH_STALL_SECONDS
