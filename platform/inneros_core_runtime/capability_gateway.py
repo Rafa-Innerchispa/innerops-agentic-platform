@@ -35,6 +35,8 @@ _LEGACY_CAPABILITY_ALIASES: Dict[str, str] = {
     "local_gitlab_list_merge_request_pipelines": "local_gitlab.list_merge_request_pipelines.v1",
     "local_gitlab_list_pipeline_jobs": "local_gitlab.list_pipeline_jobs.v1",
     "local_gitlab_get_job_trace": "local_gitlab.get_job_trace.v1",
+    "cloudflare_status": "cloudflare.zone.status.read.v1",
+    "cloudflare_tunnel_ingress_status": "cloudflare.tunnel.status.read.v1",
 }
 
 
@@ -578,3 +580,8 @@ register_peer_capabilities()
 from inneros_core_runtime.capability_gateway_contifico import register_contifico_capabilities
 
 register_contifico_capabilities()
+
+# Cloudflare AG-44: only sanitized reads, never DNS/WAF mutations in MCP Small.
+from inneros_core_runtime.capability_gateway_cloudflare import register_cloudflare_read_capabilities
+
+register_cloudflare_read_capabilities()
