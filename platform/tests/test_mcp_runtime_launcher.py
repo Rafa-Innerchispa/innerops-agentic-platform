@@ -12,6 +12,8 @@ LAUNCHER = PLATFORM_ROOT / "scripts" / "run_mcp_runtime.py"
 def test_launcher_imports_server_under_its_canonical_module_name() -> None:
     source = LAUNCHER.read_text(encoding="utf-8")
     assert "from inneros_core_runtime import mcp_server as server" in source
+    assert "Path(__file__).resolve().parents[1]" in source
+    assert "sys.path.insert(0, str(PLATFORM_ROOT))" in source
     assert "runpy.run_module" not in source
 
 
