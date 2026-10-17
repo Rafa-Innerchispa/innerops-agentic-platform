@@ -725,16 +725,48 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
         correlation_id = str(envelope_dict.get("correlation_id") or "").strip()
         if correlation_id:
             mirror_fields["correlation_id"] = correlation_id
-        existing = col.find_one({"task_id": task_id}, {"status": 1})
+        lane = str(envelope_dict.get("execution_lane") or "").lower()
+        mirror_status = status
+        evidence = dict(evidence or {})
+        if (
+            lane in {"local_dev_swarm", "dev_swarm", "internal"}
+            and status == "running"
+            and str(evidence.get("phase") or "").lower() in {"hydrating", "worktree_hydration", "launch_pending_worker"}
+        ):
+            mirror_status = "worker_starting"
+            mirror_fields["status"] = mirror_status
+        existing = col.find_one({"task_id": task_id}, {"status": 1, "revision": 1})
         previous_status = str((existing or {}).get("status") or "")
+        assignee_l = str(envelope_dict.get("assignee") or envelope_dict.get("assigned_to") or "").lower()
+        phase_l = str(evidence.get("phase") or "")
+        effective_status = status
+        extra_set: dict[str, Any] = {}
+        if (
+            status == "running"
+            and assignee_l == "dev_swarm"
+            and phase_l in {"hydrating", "worktree_hydration", "dispatched"}
+        ):
+            # Do not claim true running until Dev Swarm scheduler admits a worker.
+            effective_status = "accepted"
+            extra_set["dev_swarm_retry_requested"] = True
+            extra_set["worker_dispatch_pending_at"] = now
+        mirror_fields["status"] = effective_status
         col.update_one(
             {"task_id": task_id},
             {
-                "$set": {k: v for k, v in mirror_fields.items() if v is not None},
+                "$set": {**{k: v for k, v in mirror_fields.items() if v is not None}, **extra_set},
                 "$inc": {"revision": 1},
             },
             upsert=True,
         )
+        if mirror_status in {"blocked", "failed", "completed", "partial", "cancelled"}:
+            try:
+                from inneros_core_runtime import ops_lifecycle
+
+                task_row = col.find_one({"task_id": task_id}, {"_id": 0}) or {**mirror_fields, "task_id": task_id}
+                ops_lifecycle.emit_owner_terminal_whatsapp(task_row, previous_status=previous_status)
+            except Exception:
+                logger.debug("ops lifecycle notify skipped", exc_info=True)
         if status == "awaiting_cursor_claim":
             try:
                 from inneros_core_runtime.notifications.ops_task_alerts import notify_cursor_awaiting_claim

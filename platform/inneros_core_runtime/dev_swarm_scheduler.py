@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, durable_coordination_spine, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
-from inneros_core_runtime import coordination_liveness
+from inneros_core_runtime import coordination_liveness, dev_swarm_dispatch_reconcile
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -901,7 +901,7 @@ def _expire_inactive_locks(db: Any, now: datetime, now_iso: str) -> dict[str, in
 def _reconcile_stale_ops_tasks(db: Any, now: datetime, now_iso: str, reason: str) -> int:
     """Block active-looking ops tasks that have no live worker and no recent activity."""
     stale_before = now.timestamp() - STALE_OPS_TASK_SECONDS
-    statuses = ["accepted", "in_progress", "verification", "awaiting_approval"]
+    statuses = ["accepted", "in_progress", "verification", "awaiting_approval", "running", "worker_starting", "dispatched"]
     reconciled = 0
     rows = db[coordination_live.OPS_TASKS_COL].find({"status": {"$in": statuses}}, {"_id": 0}).limit(200)
     for task in rows:
@@ -946,6 +946,15 @@ def _reconcile_stale_ops_tasks(db: Any, now: datetime, now_iso: str, reason: str
         changed = int(getattr(result, "modified_count", 0) or 0)
         reconciled += changed
         if changed:
+            try:
+                from inneros_core_runtime import ops_lifecycle
+
+                ops_lifecycle.emit_owner_terminal_whatsapp(
+                    {**task, "status": "blocked", "blocker": blocker},
+                    previous_status=previous_status,
+                )
+            except Exception:
+                pass
             _publish_dev_swarm_event(
                 "task.blocked",
                 task=task,
@@ -1076,6 +1085,14 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
     stale_reclaim = _reclaim_stale_workers(db, stale_workers, now_iso, reason) if stale_workers else {"retriable": 0, "exhausted": 0}
     lock_res = _expire_inactive_locks(db, now, now_iso)
     stale_ops_reconciled = _reconcile_stale_ops_tasks(db, now, now_iso, reason)
+    dispatch_rec = dev_swarm_dispatch_reconcile.reconcile_launch_dispatch_gaps(
+        db,
+        now=now,
+        now_iso=now_iso,
+        reason=reason,
+        workers_col=WORKERS_COL,
+        publish_event=_publish_dev_swarm_event,
+    )
     active = db[WORKERS_COL].count_documents(_active_worker_query())
     return {
         "ok": True,
@@ -1086,6 +1103,7 @@ def reconcile_capacity_state(reason: str = "scheduler_tick") -> dict[str, Any]:
         "stale_workers_retryable": stale_reclaim["retriable"],
         "stale_workers_exhausted": stale_reclaim["exhausted"],
         "stale_ops_tasks_reconciled": stale_ops_reconciled,
+        "launch_dispatch_reconcile": dispatch_rec,
         "expired_locks": lock_res["expired"],
         "preserved_active_locks": lock_res["preserved_active"],
         "active_worker_count": active,
@@ -1097,7 +1115,8 @@ def _ops_auto_retry_allowed(task: dict[str, Any]) -> bool:
     if not task.get("dev_swarm_retry_requested"):
         return False
     owner = str(task.get("owner") or "").lower()
-    return owner == "dev_swarm"
+    assignee = str(task.get("assignee") or "").lower()
+    return owner == "dev_swarm" or assignee == "dev_swarm" or dev_swarm_dispatch_reconcile.is_dev_swarm_managed_task(task)
 
 
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
@@ -1106,10 +1125,21 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     if cooldown and cooldown > datetime.now(timezone.utc):
         return False, "coordination_liveness_cooldown_active", None
     retry_allowed = status == "blocked" and _ops_auto_retry_allowed(task)
-    if status in OPS_TERMINAL_STATUSES and not retry_allowed:
+    dispatch_retry = (
+        task.get("dev_swarm_retry_requested")
+        and status in dev_swarm_dispatch_reconcile.DISPATCH_PENDING_STATUSES
+        and dev_swarm_dispatch_reconcile.is_dev_swarm_managed_task(task)
+    )
+    if status in OPS_TERMINAL_STATUSES and not retry_allowed and not dispatch_retry:
         return False, "status_not_proposed", None
-    if status not in ELIGIBLE_STATUSES and not retry_allowed and not (
-        status in {"accepted", "in_progress"} and str(task.get("owner") or "").lower() == "dev_swarm"
+    if (
+        status not in ELIGIBLE_STATUSES
+        and not retry_allowed
+        and not dispatch_retry
+        and not (
+            status in {"accepted", "in_progress", "running", "worker_starting", "dispatched"}
+            and str(task.get("owner") or "").lower() == "dev_swarm"
+        )
     ):
         return False, "status_not_proposed", None
     assignee = str(task.get("assignee") or "").lower()
@@ -1398,7 +1428,25 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
             row["task_id"]
             for row in db[coordination_live.OPS_TASKS_COL]
             .find(
-                {"status": "blocked", "owner": "dev_swarm", "dev_swarm_retry_requested": True},
+                {
+                    "dev_swarm_retry_requested": True,
+                    "$or": [
+                        {"owner": "dev_swarm"},
+                        {"assignee": "dev_swarm"},
+                        {"execution_lane": "local_dev_swarm"},
+                    ],
+                    "status": {
+                        "$in": [
+                            "accepted",
+                            "in_progress",
+                            "blocked",
+                            "running",
+                            "worker_starting",
+                            "dispatched",
+                            "proposed",
+                        ]
+                    },
+                },
                 {"_id": 0, "task_id": 1},
             )
             .limit(max(1, min(limit, 25)))
@@ -1412,12 +1460,17 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
             for tid in retry_ids
             if (doc := db[coordination_live.OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "dev_swarm_retry_requested": 1, "status": 1}))
             and doc.get("dev_swarm_retry_requested")
-            and str(doc.get("status") or "").lower() in {"accepted", "in_progress", "blocked"}
+            and str(doc.get("status") or "").lower()
+            in {"accepted", "in_progress", "blocked", "running", "worker_starting", "dispatched", "proposed"}
         ]
     if retry_ids:
         seen = {task.get("task_id") for task in tasks}
         retry_tasks = db[coordination_live.OPS_TASKS_COL].find(
-            {"task_id": {"$in": retry_ids}, "owner": "dev_swarm", "status": {"$in": ["accepted", "in_progress", "blocked"]}},
+            {
+                "task_id": {"$in": retry_ids},
+                "dev_swarm_retry_requested": True,
+                "status": {"$in": ["accepted", "in_progress", "blocked", "running", "worker_starting", "dispatched", "proposed"]},
+            },
             {"_id": 0},
         )
         tasks.extend(task for task in retry_tasks if task.get("task_id") not in seen)
@@ -3348,6 +3401,25 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
     }
     db = _db()
     db[WORKERS_COL].update_one({"task_id": task_id}, {"$set": worker}, upsert=True)
+    coordination_liveness.acquire_task_lease(
+        task_id,
+        str(worker.get("worker_id") or task_id),
+        "dev_swarm",
+        repo=repo,
+    )
+    db[coordination_live.OPS_TASKS_COL].update_one(
+        {"task_id": task_id},
+        {
+            "$set": {
+                "status": "in_progress",
+                "owner": "dev_swarm",
+                "dev_swarm_worker_id": worker.get("worker_id"),
+                "dev_swarm_worker_started_at": _now(),
+                "evidence.phase": "worker_running",
+                "updated_at": _now(),
+            }
+        },
+    )
     _publish_dev_swarm_event(
         "provider.dispatched",
         task=task,

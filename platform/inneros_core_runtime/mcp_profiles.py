@@ -7,7 +7,7 @@ from typing import Any
 from raphiia_openai.capability_registry import catalog_fingerprint, log_routing_trace
 from raphiia_openai.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.8"
+PROFILES_VERSION = "1.4.11"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -42,6 +42,39 @@ PROFILES: dict[str, dict[str, Any]] = {
             "device_fabric_discover",
             "device_fabric_providers",
             "bellini_guardian_status",
+        ],
+    },
+
+
+    "ide_ops": {
+        "label": "IDE externos",
+        "model_minimum": "medium",
+        "max_tools": 25,
+        "tools": [
+            "mcp_version",
+            "diagnose_mcp_session",
+            "list_ops_tasks",
+            "get_coordination_live",
+            "create_agent_message",
+            "poll_agent_inbox",
+            "identify_agent_session",
+            "cursor_list_claimable_ops_tasks",
+            "cursor_authorize_ops_task",
+            "cursor_claim_ops_task",
+            "cursor_complete_ops_task",
+            "cursor_owner_order",
+            "codex_list_claimable_ops_tasks",
+            "codex_claim_ops_task",
+            "codex_complete_ops_task",
+            "codex_owner_order",
+            "antigravity_list_claimable_ops_tasks",
+            "antigravity_claim_ops_task",
+            "antigravity_complete_ops_task",
+            "antigravity_owner_order",
+            "gemini_list_claimable_ops_tasks",
+            "gemini_claim_ops_task",
+            "gemini_complete_ops_task",
+            "gemini_owner_order",
         ],
     },
 

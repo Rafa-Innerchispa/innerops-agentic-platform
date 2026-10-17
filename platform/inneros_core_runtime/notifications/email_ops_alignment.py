@@ -175,6 +175,54 @@ def backfill_pending_email_actions(*, limit: int = 8000, dry_run: bool = True) -
     return {"ok": True, "dry_run": dry_run, "scanned": len(rows), "updated": updated, "dismissed": dismissed}
 
 
+def reconcile_misclassified_email_ops(*, dry_run: bool = True, limit: int = 200) -> dict[str, Any]:
+    """Correos en waiting_for_binding/coding sin repo → business_ops o cancel noise."""
+    db = mongo_store.get_db()
+    filt = {
+        "title": {"$regex": r"^\[Correo/"},
+        "status": {"$in": ["queued", "waiting_for_binding", "proposed", "running", "in_progress"]},
+    }
+    rows = list(db[OPS_COL].find(filt, {"_id": 0}).sort("updated_at", -1).limit(max(10, min(limit, 500))))
+    fixed: list[dict[str, Any]] = []
+    for task in rows:
+        tid = str(task.get("task_id") or "")
+        repo = str(task.get("repo") or task.get("related_project") or "").strip()
+        tc = str(task.get("task_class") or "coding").lower()
+        if repo and tc == "coding":
+            continue
+        noisy, reason = classify_queued_email_op_noise(task)
+        if noisy:
+            patch = {
+                "status": "cancelled",
+                "cleanup_bucket": "email_ops_noise",
+                "updated_at": _now(),
+                "updated_by": "reconcile_misclassified_email_ops",
+            }
+            action = "cancel"
+        else:
+            patch = {
+                "task_class": "business_ops",
+                "execution_lane": "email_intelligence",
+                "do_not_auto_dispatch": True,
+                "dispatch_mode": "business_handoff",
+                "assignee": "ralfia",
+                "assigned_to": "ralfia",
+                "preferred_provider": "ralfia",
+                "updated_at": _now(),
+                "routing_repaired_at": _now(),
+                "routing_repair_reason": "email_not_coding_without_repo",
+            }
+            if str(task.get("status") or "") in {"waiting_for_binding", "queued", "proposed"}:
+                patch["status"] = "accepted"
+                patch["last_error"] = None
+                patch["binding_error"] = None
+            action = "reclassify"
+        fixed.append({"task_id": tid, "action": action, "reason": reason if noisy else "missing_repo"})
+        if not dry_run and tid:
+            db[OPS_COL].update_one({"task_id": tid}, {"$set": patch, "$inc": {"revision": 1}})
+    return {"ok": True, "dry_run": dry_run, "reviewed": len(rows), "fixed": fixed}
+
+
 def run_email_ops_alignment(
     *,
     dry_run: bool = False,
@@ -185,6 +233,7 @@ def run_email_ops_alignment(
     from inneros_core_runtime import dev_swarm_scheduler
 
     hygiene = dev_swarm_scheduler.reconcile_coordination_backlog_hygiene(limit=hygiene_limit, dry_run=dry_run)
+    reclassify = reconcile_misclassified_email_ops(dry_run=dry_run)
     cancel = cancel_queued_email_ops(dry_run=dry_run)
     dismiss = dismiss_noise_email_actions(dry_run=dry_run)
     backfill = backfill_pending_email_actions(limit=12000, dry_run=dry_run)
@@ -195,6 +244,7 @@ def run_email_ops_alignment(
         "ok": True,
         "dry_run": dry_run,
         "hygiene": hygiene,
+        "reconcile_misclassified_email_ops": reclassify,
         "cancel_queued_email_ops": cancel,
         "dismiss_noise_actions": dismiss,
         "backfill_pending_actions": backfill,

@@ -27,6 +27,7 @@ def _internal_providers() -> frozenset[str]:
 
     return frozenset(normalize_provider(p) for p in apr.internal_providers())
 INTERNAL_BOUNDED_RUNNER = "internal_bounded_local"
+EMAIL_INTELLIGENCE_RUNNER = "email_intelligence_local"
 INTERACTIVE_IDE_RUNNER = "interactive_ide_handoff"
 CURSOR_INTERACTIVE_RUNNER = "cursor_interactive"
 PEER_OPS_RUNNER = "peer_ops_a2a"
@@ -104,6 +105,13 @@ def _cursor_claim_active(env: dict[str, Any], provider: str) -> bool:
     return provider == "cursor" and _interactive_claim_active(env, provider)
 
 
+def _is_business_ops_email_envelope(env: dict[str, Any]) -> bool:
+    task_class = str(env.get("task_class") or "").lower()
+    lane = str(env.get("execution_lane") or "").lower()
+    title = str(env.get("title") or "")
+    return task_class == "business_ops" or lane in {"email_intelligence", "business_ops"} or title.startswith("[Correo/")
+
+
 def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
     """Decide whether Temporal may run the internal bounded local path."""
     env = merge_task_dispatch_fields(envelope_dict)
@@ -167,6 +175,19 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
         }
 
     owner_approved = bool(env.get("owner_approved") or env.get("owner_authorized_at"))
+
+    if _is_business_ops_email_envelope(env):
+        return {
+            **base,
+            "ok": True,
+            "allowed": True,
+            "runner": EMAIL_INTELLIGENCE_RUNNER,
+            "status": "ready",
+            "error": None,
+            "read_only": True,
+            "requires_repo": False,
+            "message": "business_ops/email_intelligence: ejecutor local de correo sin worktree Git.",
+        }
 
     task_kind = str(env.get("task_kind") or "").strip().lower()
     if lane == "peer_ops" or task_kind == "peer_ops":
@@ -401,6 +422,37 @@ def _claim_error_es(provider: str) -> str:
     )
 
 
+INTERNAL_ROUTE_BLOCK_ERRORS = frozenset({"bounded_runner_requires_repo"})
+
+_IDE_CLAIM_ERRORS = frozenset(
+    {
+        "cursor_claim_required",
+        "codex_claim_required",
+        "antigravity_claim_required",
+        "gemini_claim_required",
+        "chatgpt_claim_required",
+    }
+)
+
+
+def classify_owner_whatsapp_alert(binding: dict[str, Any]) -> str:
+    """Classify owner messaging without turning internal repair into an IDE credit gate."""
+    if binding.get("allowed"):
+        return "internal_ready"
+    error = str(binding.get("error") or "")
+    provider = str(binding.get("provider_normalized") or "")
+    if error in INTERNAL_ROUTE_BLOCK_ERRORS:
+        return "internal_fix"
+    if error in _IDE_CLAIM_ERRORS or error in {
+        "interactive_provider_requires_ide_runner",
+        "interactive_handoff_pending",
+    }:
+        return "external_spend"
+    if provider in _ide_providers() or bool(binding.get("do_not_auto_dispatch")):
+        return "external_spend"
+    return "internal_fix"
+
+
 _ERROR_ES: dict[str, str] = {
     "cursor_claim_required": "Requiere sesión Cursor activa y autorización owner (claim); no se usa runner interno.",
     "codex_claim_required": "Requiere claim Codex con owner_approved; no se usa runner interno.",
@@ -414,6 +466,7 @@ _ERROR_ES: dict[str, str] = {
     ),
     "interactive_handoff_pending": "Esperando handoff en sesión IDE del proveedor asignado.",
     "execution_binding_unresolved": "No hay runner confirmado para la combinación provider + lane.",
+    "bounded_runner_requires_repo": "Falta repositorio owner/repo válido para el ejecutor interno acotado.",
 }
 
 
@@ -447,6 +500,23 @@ def owner_execution_summary(
 ) -> dict[str, Any]:
     """Texto owner: por qué no interno, alternativa interna, siguiente acción WhatsApp."""
     env = merge_task_dispatch_fields(envelope_dict)
+    lane0 = str(env.get("execution_lane") or "").strip().lower()
+    title0 = str(env.get("title") or "")
+    if lane0 == "email_intelligence" or title0.startswith("[Correo/"):
+        return {
+            "provider": str(env.get("preferred_provider") or env.get("assignee") or "ralfia"),
+            "execution_lane": lane0 or "email_intelligence",
+            "runner": "email_intelligence_handoff",
+            "allowed_internal_runner": False,
+            "expected_status": "accepted",
+            "error_code": None,
+            "why_not_internal": "Correo en carril email_intelligence; sin dispatch automático.",
+            "internal_alternative": "No aplica Dev Swarm para este seguimiento.",
+            "owner_action_hint": "Revisar en bandeja OPS/correo; no requiere CONFIRMAR IDE.",
+            "preferred_model": None,
+            "requires_owner_authorization": False,
+            "requires_external_credit_authorization": False,
+        }
     binding = binding or resolve_execution_binding(env)
     provider = str(binding.get("provider_normalized") or normalize_provider(env.get("preferred_provider")) or "?")
     lane = str(binding.get("execution_lane") or env.get("execution_lane") or "—")
@@ -476,7 +546,8 @@ def owner_execution_summary(
         else f"Alternativa interna: no recomendada ({internal.get('reason', 'n/a')})."
     )
 
-    external_auth = requires_external_owner_authorization(env, binding)
+    alert_kind = classify_owner_whatsapp_alert(binding)
+    external_auth = alert_kind == "external_spend"
     internal_ok = not external_auth and (
         bool(binding.get("allowed"))
         or normalize_provider(env.get("assignee") or env.get("preferred_provider") or "") in _internal_providers()
@@ -493,6 +564,8 @@ def owner_execution_summary(
         "internal_alternative": internal_line,
         "owner_action_hint": action_detail,
         "preferred_model": model or None,
+        "owner_whatsapp_alert_kind": alert_kind,
         "requires_owner_authorization": external_auth,
         "requires_external_credit_authorization": external_auth,
+        "blocked_internal_route": alert_kind == "internal_fix",
     }

@@ -45,7 +45,14 @@ def _reference_head_sha(repo_slug: str) -> tuple[str, str]:
     from inneros_core_runtime import local_execution_plane as lep
 
     inspected = lep.inspect_repo(repo_slug)
-    base = Path(str(inspected.get("path") or inspected.get("repo_path") or ROOT))
+    base = Path(
+        str(
+            inspected.get("source_path")
+            or inspected.get("path")
+            or inspected.get("repo_path")
+            or ROOT
+        )
+    )
     if not (base / ".git").exists() and (ROOT / ".git").exists():
         base = ROOT
     proc = subprocess.run(
@@ -80,7 +87,7 @@ def _create_quad(*, correlation_id: str, repo: str, dry: bool) -> list[dict[str,
             )
             out.append({"lane": lane_name, "dry_run": True, "binding": binding})
             continue
-        payload = {"canary_test_type": "git_head_only"} if lane_name == "dev_swarm" else None
+        payload = {"canary_test_type": "git_head_only", "suppress_owner_whatsapp_auth": True} if lane_name == "dev_swarm" else {"suppress_owner_whatsapp_auth": True}
         created = cl.create_ops_task(
             assignee=provider,
             title=title,
