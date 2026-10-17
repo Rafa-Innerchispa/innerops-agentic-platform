@@ -189,6 +189,44 @@ def authorize_ops_task(
     return out
 
 
+
+
+def _claim_worktree_with_retry(
+    *,
+    repo: str,
+    base_branch: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    attempts: int = 4,
+) -> dict[str, Any]:
+    import time
+    from inneros_core_runtime import local_execution_plane as lep
+
+    lock = lep.acquire_lock(repo, actor, task_id, correlation_id, ttl_seconds=600)
+    last: dict[str, Any] = {"ok": False, "error": "worktree_not_attempted"}
+    try:
+        for attempt in range(max(1, attempts)):
+            last = lep.create_worktree(
+                repo=repo,
+                base_branch=base_branch,
+                work_branch=work_branch,
+                actor=actor,
+                task_id=task_id,
+                correlation_id=correlation_id,
+                idempotency_key=f"{idempotency_key}-a{attempt}",
+            )
+            if last.get("ok") and str(last.get("worktree") or "").strip():
+                return last
+            time.sleep(min(2 ** attempt, 8))
+    finally:
+        if lock.get("ok"):
+            lep.release_lock(repo, actor, task_id, correlation_id)
+    return last
+
+
 def claim_ops_task(
     provider: str,
     *,
@@ -280,9 +318,7 @@ def claim_ops_task(
     worktree_path = ""
     repo = str(claimed.get("repo") or "").strip()
     if repo:
-        from inneros_core_runtime import local_execution_plane as lep
-
-        wt = lep.create_worktree(
+        wt = _claim_worktree_with_retry(
             repo=repo,
             base_branch=str(claimed.get("base_ref") or "main"),
             work_branch=str(claimed.get("work_branch") or f"{prov}/ops-{tid.replace('ops_', '')}"),
@@ -299,7 +335,7 @@ def claim_ops_task(
         baseline_sha = receipts.git_head(Path(worktree_path))
         db[OPS_TASKS_COL].update_one(
             {"task_id": tid, "claim_token": token},
-            {"$set": {"worktree": worktree_path, "git_baseline_sha": baseline_sha}},
+            {"$set": {"worktree": worktree_path, "git_baseline_sha": baseline_sha}, "$unset": {"claim_error": ""}},
         )
     from inneros_core_runtime import durable_coordination_spine
 
@@ -325,6 +361,13 @@ def claim_ops_task(
         pass
     heartbeat_ops_task(tid, actor=prov, phase="claimed", current_step=f"{prov}_interactive", last_progress=f"claim {_host()}")
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True})
+    try:
+        from inneros_core_runtime import competition_lane_dispatch as cld
+
+        task_now = db[OPS_TASKS_COL].find_one({"task_id": tid}) or claimed
+        cld.maybe_spawn_after_claim({**task_now, "worktree": worktree_path})
+    except Exception:
+        pass
     return {
         "ok": True,
         "provider": prov,

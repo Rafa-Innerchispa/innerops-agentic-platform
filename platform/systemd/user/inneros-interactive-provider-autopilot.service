@@ -1,0 +1,13 @@
+[Unit]
+Description=InnerOS Codex/Antigravity dual-node autopilot (1 lane per provider)
+ConditionPathExists=/home/rlopez/inneros/inneros_core/platform/scripts/interactive_provider_autopilot.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+Environment=INNEROS_CODEX_MAX_CONCURRENT=1
+Environment=INNEROS_ANTIGRAVITY_MAX_CONCURRENT=1
+EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/interactive_provider_autopilot.py
+TimeoutStartSec=120

@@ -737,10 +737,24 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
             mirror_fields["status"] = mirror_status
         existing = col.find_one({"task_id": task_id}, {"status": 1, "revision": 1})
         previous_status = str((existing or {}).get("status") or "")
+        assignee_l = str(envelope_dict.get("assignee") or envelope_dict.get("assigned_to") or "").lower()
+        phase_l = str(evidence.get("phase") or "")
+        effective_status = status
+        extra_set: dict[str, Any] = {}
+        if (
+            status == "running"
+            and assignee_l == "dev_swarm"
+            and phase_l in {"hydrating", "worktree_hydration", "dispatched"}
+        ):
+            # Do not claim true running until Dev Swarm scheduler admits a worker.
+            effective_status = "accepted"
+            extra_set["dev_swarm_retry_requested"] = True
+            extra_set["worker_dispatch_pending_at"] = now
+        mirror_fields["status"] = effective_status
         col.update_one(
             {"task_id": task_id},
             {
-                "$set": {k: v for k, v in mirror_fields.items() if v is not None},
+                "$set": {**{k: v for k, v in mirror_fields.items() if v is not None}, **extra_set},
                 "$inc": {"revision": 1},
             },
             upsert=True,

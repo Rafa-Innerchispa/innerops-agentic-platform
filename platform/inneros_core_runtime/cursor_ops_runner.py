@@ -368,7 +368,9 @@ def claim_ops_task(
         from inneros_core_runtime import local_execution_plane as lep
 
         branch = str(claimed.get("work_branch") or f"cursor/ops-{tid.replace('ops_', '')}")
-        wt = lep.create_worktree(
+        from inneros_core_runtime.interactive_ops_runner import _claim_worktree_with_retry
+
+        wt = _claim_worktree_with_retry(
             repo=repo,
             base_branch=str(claimed.get("base_ref") or "main"),
             work_branch=branch,

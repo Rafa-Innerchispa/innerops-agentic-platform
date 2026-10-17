@@ -135,6 +135,23 @@ class ExecutionBindingTests(unittest.TestCase):
         self.assertFalse(binding["allowed"])
         self.assertEqual(binding["error"], "do_not_auto_dispatch")
 
+    def test_business_ops_email_intelligence_allowed_without_repo(self) -> None:
+        binding = eb.resolve_execution_binding(
+            {
+                "task_id": "ops_email_binding",
+                "task_class": "business_ops",
+                "execution_lane": "email_intelligence",
+                "do_not_auto_dispatch": True,
+                "dispatch_mode": "business_handoff",
+                "assignee": "ralfia",
+                "preferred_provider": "ralfia",
+                "correlation_id": "email:mail_test_001",
+            }
+        )
+        self.assertTrue(binding["allowed"], binding)
+        self.assertEqual(binding["runner"], eb.EMAIL_INTELLIGENCE_RUNNER)
+        self.assertTrue(binding.get("read_only"))
+
     def test_internal_dev_swarm_allowed(self) -> None:
         binding = eb.resolve_execution_binding(
             {
