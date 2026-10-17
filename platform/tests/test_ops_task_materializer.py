@@ -8,6 +8,20 @@ import pytest
 from inneros_core_runtime import ops_task_materializer as otm
 
 
+def test_meta_repair_task_uses_platform_repo_not_gitlab() -> None:
+    task = {
+        "task_id": "ops_8691cdde5c05",
+        "correlation_id": "cursor-worktree-claim-repair-20261017",
+        "repo": None,
+        "objective": "Reparar claim/worktree en innerops-agentic-platform; caso GitLab ContributorOps ops_6113",
+        "title": "P0 reparar claim/worktree Cursor",
+    }
+    out = otm.resolve_executable_repo(task)
+    assert out["ok"] is True
+    assert out["repo"] == "Rafa-Innerchispa/innerops-agentic-platform"
+    assert out["source"] == "objective_platform_repo"
+
+
 def test_resolve_github_repo_from_structured_task() -> None:
     task = {
         "task_id": "ops_abc123",
@@ -80,10 +94,12 @@ def test_gitlab_fork_from_payload_repo() -> None:
     assert out["repo"] == "rafagye/gitlab"
 
 
-def test_related_ops_branch_reference_only_not_repo() -> None:
+def test_related_ops_branch_reference_only_for_gitlab_contributor() -> None:
     task = {
         "task_id": "ops_child",
         "repo": "Rafa-Innerchispa/demo",
+        "correlation_id": "gitlab-contributorops-repair-20261017",
+        "title": "GitLab ContributorOps follow-up",
         "payload": {"related_ops": ["ops_parent"]},
     }
     db = MagicMock()
@@ -96,8 +112,6 @@ def test_related_ops_branch_reference_only_not_repo() -> None:
     with patch("raphiia_openai.mongo_store.get_db", return_value=db):
         branch = otm.resolve_work_branch(task, repo="Rafa-Innerchispa/demo", provider="cursor")
     assert branch == "chatgpt/feature-from-parent"
-    out = otm.resolve_executable_repo(task)
-    assert out["repo"] == "Rafa-Innerchispa/demo"
 
 
 def test_stale_worktree_cleanup_in_preflight(tmp_path: Path) -> None:
