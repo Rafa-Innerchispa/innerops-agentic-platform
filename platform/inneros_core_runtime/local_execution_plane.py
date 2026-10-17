@@ -1335,6 +1335,17 @@ def create_worktree(
         if not (source / ".git").exists():
             return {"ok": False, "error": "source_repo_not_git", "source_path": str(source)}
         worktree.parent.mkdir(parents=True, exist_ok=True)
+        if worktree.exists() and not (worktree / ".git").exists():
+            try:
+                import shutil
+
+                shutil.rmtree(worktree)
+            except OSError:
+                return {
+                    "ok": False,
+                    "error": "stale_worktree_path_without_git",
+                    "worktree": str(worktree),
+                }
         if worktree.exists():
             status = _run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30)
             return {

@@ -159,6 +159,12 @@ def notify_ops_owner_authorization_request(
     from_agent = (source_agent or task.get("from_agent") or "?").strip()
     model_line = f"\nModelo: {summary['preferred_model']}" if summary.get("preferred_model") else ""
     tid = str(task.get("task_id") or "")
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    related_ops = payload.get("related_ops") or task.get("related_ops")
+    if isinstance(related_ops, list) and related_ops:
+        related_ops = [str(x) for x in related_ops if str(x).strip() and str(x).strip() != tid]
+    else:
+        related_ops = []
     objective = str(task.get("objective") or task.get("title") or "")[:280]
     spends = (
         "Esta tarea *gasta créditos* del agente IDE al ejecutar."
@@ -166,11 +172,18 @@ def notify_ops_owner_authorization_request(
         else "Carril *interno* (no gasta Cursor/Codex/Antigravity)."
     )
     short = tid.replace("ops_", "")[:6]
+    related_line = ""
+    if related_ops:
+        related_line = (
+            "\nReferencia histórica (no requiere segunda autorización): "
+            + ", ".join(f"`{x}`" for x in related_ops[:3])
+            + "\n"
+        )
     body = (
         f"{icon} *Autorización requerida* · {provider.upper()}\n"
         f"Referencia: `{tid}`\n"
         f"{objective[:140]}\n"
-        f"{spends}\n\n"
+        f"{spends}{related_line}\n"
         f"Usa los botones *Confirmar* / *Cancelar* si aparecen.\n"
         f"Si no ves botones, responde:\n"
         f"• *CONFIRMAR {short}*\n"

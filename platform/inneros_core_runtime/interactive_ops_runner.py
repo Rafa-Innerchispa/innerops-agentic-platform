@@ -151,6 +151,29 @@ def authorize_ops_task(
     # Scoped, idempotent owner grant: never authorize another provider's task,
     # terminal task, or a task that already belongs to a running claim.
     owner = normalize_provider(provider)
+    existing = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+    if existing and existing.get("owner_authorized_at"):
+        return {
+            "ok": True,
+            "task_id": tid,
+            "provider": owner,
+            "authorization_reused": True,
+            "owner_authorized_at": existing.get("owner_authorized_at"),
+        }
+    if existing:
+        from inneros_core_runtime import ops_task_materializer as otm
+
+        gate = otm.authorization_blockers(existing, provider=owner)
+        if not gate.get("ok"):
+            return {
+                "ok": False,
+                "error": gate.get("error"),
+                "task_id": tid,
+                "provider": owner,
+                "preflight": gate.get("preflight"),
+                "message": gate.get("message"),
+            }
+        otm.persist_materialization(db, tid, gate["preflight"]["materialization"])
     doc = db[OPS_TASKS_COL].find_one_and_update(
         {"task_id": tid,
          "assignee": owner,
@@ -285,12 +308,18 @@ def claim_ops_task(
         _release_claim(db, tid, reason=str(model_err.get("error")))
         return {**model_err, "task_id": tid}
     worktree_path = ""
-    repo = str(claimed.get("repo") or "").strip()
+    from inneros_core_runtime import ops_task_materializer as otm
+
+    mat = otm.materialize_ops_task_execution(claimed, provider=prov)
+    repo = str(mat.get("repo") or "").strip()
+    if mat.get("ok"):
+        otm.persist_materialization(db, tid, mat)
+        claimed = {**claimed, **mat}
     if repo:
         wt = _claim_worktree_with_retry(
             repo=repo,
-            base_branch=str(claimed.get("base_ref") or "main"),
-            work_branch=str(claimed.get("work_branch") or f"{prov}/ops-{tid.replace('ops_', '')}"),
+            base_branch=str(mat.get("base_ref") or claimed.get("base_ref") or "main"),
+            work_branch=str(mat.get("work_branch") or claimed.get("work_branch") or f"{prov}/ops-{tid.replace('ops_', '')}"),
             actor=prov,
             task_id=tid,
             correlation_id=str(claimed.get("correlation_id") or tid),
