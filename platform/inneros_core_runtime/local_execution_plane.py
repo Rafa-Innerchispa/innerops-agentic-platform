@@ -1346,11 +1346,11 @@ def create_worktree(
                 "status": status,
                 "verified_exists": (worktree / ".git").exists(),
             }
-        ensured_work = _ensure_work_branch_ref(source, work_branch)
-        if not ensured_work.get("ok"):
-            return {"ok": False, "error": "work_branch_ref_unavailable", "branch": work_branch, "details": ensured_work}
-        work_ref = str(ensured_work.get("ref") or work_branch)
         if base_branch == work_branch:
+            ensured_work = _ensure_work_branch_ref(source, work_branch)
+            if not ensured_work.get("ok"):
+                return {"ok": False, "error": "work_branch_ref_unavailable", "branch": work_branch, "details": ensured_work}
+            work_ref = str(ensured_work.get("ref") or work_branch)
             add_cmd = ["git", "worktree", "add", str(worktree), work_ref]
             result = _run(add_cmd, source, timeout_seconds=120)
         else:
@@ -2237,6 +2237,13 @@ def _bind_existing_ops_task_for_dev_swarm(
             update.update(
                 {
                     "dev_swarm_retry_requested": True,
+                    "dev_swarm_launch_pending_at": now,
+                    "status": "accepted",
+                    "evidence": {
+                        "phase": "launch_pending_worker",
+                        "binding_stage": binding_stage,
+                        "work_branch": work_branch,
+                    },
                 }
             )
         db = mongo_store.get_db()

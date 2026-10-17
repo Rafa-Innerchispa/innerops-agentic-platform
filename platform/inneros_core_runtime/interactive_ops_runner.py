@@ -22,9 +22,6 @@ from inneros_core_runtime.cursor_ops_runner import (
     _validate_completion_evidence,
 )
 from inneros_core_runtime import execution_receipts as receipts
-from inneros_core_runtime import ops_completion_policy as ocp
-from inneros_core_runtime import ops_execution_state as oes
-from inneros_core_runtime import ops_lifecycle as ol
 
 LEASE_SECONDS = int(os.getenv("INTERACTIVE_OPS_LEASE_SECONDS", os.getenv("CURSOR_OPS_LEASE_SECONDS", "3600")))
 CLAIM_STATUSES = frozenset(
@@ -154,39 +151,69 @@ def authorize_ops_task(
     # Scoped, idempotent owner grant: never authorize another provider's task,
     # terminal task, or a task that already belongs to a running claim.
     owner = normalize_provider(provider)
+    from inneros_core_runtime import ops_awaiting_claim as oac
+
+    awaiting = oac.awaiting_claim_status_for_provider(owner)
     doc = db[OPS_TASKS_COL].find_one_and_update(
         {
             "task_id": tid,
-            "assignee": owner,
-            "status": {"$nin": ["completed", "done", "failed", "cancelled", "superseded", "archived"]},
+            "$or": [{"assignee": owner}, {"preferred_provider": owner}],
+            "status": {"$nin": ["completed", "done", "cancelled", "superseded", "archived", "claimed", "running"]},
             "claim_token": {"$exists": False},
         },
-        {"$set": {
-            "owner_authorized_at": now,
-            "owner_authorized_by": owner_actor,
-            "owner_authorization_channel": channel,
-            "updated_at": now,
-        }},
+        {
+            "$set": {
+                "owner_authorized_at": now,
+                "owner_authorized_by": owner_actor,
+                "owner_authorization_channel": channel,
+                "updated_at": now,
+                "status": awaiting,
+                "assignee": owner,
+            }
+        },
         return_document=True,
     )
     if not doc:
-        existing = db[OPS_TASKS_COL].find_one(
-            {"task_id": tid, "assignee": owner, "claim_token": {"$exists": False}},
-            {"owner_authorized_at": 1, "_id": 0},
-        )
-        if isinstance(existing, dict) and existing.get("owner_authorized_at"):
-            try:
-                oes.refresh_current_execution_state(existing, event="owner_authorized", actor=owner_actor)
-            except Exception:
-                pass
-            return {"ok": True, "task_id": tid, "provider": owner, "duplicate": True}
         return {"ok": False, "error": "task_not_found", "task_id": tid}
-    out = {"ok": True, "task_id": tid, "provider": normalize_provider(provider)}
+    return {"ok": True, "task_id": tid, "provider": normalize_provider(provider)}
+
+
+
+
+def _claim_worktree_with_retry(
+    *,
+    repo: str,
+    base_branch: str,
+    work_branch: str,
+    actor: str,
+    task_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+    attempts: int = 4,
+) -> dict[str, Any]:
+    import time
+    from inneros_core_runtime import local_execution_plane as lep
+
+    lock = lep.acquire_lock(repo, actor, task_id, correlation_id, ttl_seconds=600)
+    last: dict[str, Any] = {"ok": False, "error": "worktree_not_attempted"}
     try:
-        oes.refresh_current_execution_state(doc, event="owner_authorized", actor=owner_actor)
-    except Exception:
-        pass
-    return out
+        for attempt in range(max(1, attempts)):
+            last = lep.create_worktree(
+                repo=repo,
+                base_branch=base_branch,
+                work_branch=work_branch,
+                actor=actor,
+                task_id=task_id,
+                correlation_id=correlation_id,
+                idempotency_key=f"{idempotency_key}-a{attempt}",
+            )
+            if last.get("ok") and str(last.get("worktree") or "").strip():
+                return last
+            time.sleep(min(2 ** attempt, 8))
+    finally:
+        if lock.get("ok"):
+            lep.release_lock(repo, actor, task_id, correlation_id)
+    return last
 
 
 def claim_ops_task(
@@ -224,17 +251,6 @@ def claim_ops_task(
     tid = str(task.get("task_id") or "")
     if not (bool(task.get("owner_authorized_at")) or owner_approved):
         return {"ok": False, "error": "owner_approval_required", "task_id": tid}
-    from inneros_core_runtime import cursor_headless_lanes as _lanes
-
-    allowed_host, route_reason = _lanes.should_this_node_run_task(task)
-    if not allowed_host:
-        return {
-            "ok": False,
-            "error": "execution_host_routing",
-            "reason": route_reason,
-            "task_id": tid,
-            "provider": prov,
-        }
     if prov == "cursor":
         from inneros_core_runtime import cursor_ops_runner as cor
 
@@ -280,9 +296,7 @@ def claim_ops_task(
     worktree_path = ""
     repo = str(claimed.get("repo") or "").strip()
     if repo:
-        from inneros_core_runtime import local_execution_plane as lep
-
-        wt = lep.create_worktree(
+        wt = _claim_worktree_with_retry(
             repo=repo,
             base_branch=str(claimed.get("base_ref") or "main"),
             work_branch=str(claimed.get("work_branch") or f"{prov}/ops-{tid.replace('ops_', '')}"),
@@ -299,7 +313,7 @@ def claim_ops_task(
         baseline_sha = receipts.git_head(Path(worktree_path))
         db[OPS_TASKS_COL].update_one(
             {"task_id": tid, "claim_token": token},
-            {"$set": {"worktree": worktree_path, "git_baseline_sha": baseline_sha}},
+            {"$set": {"worktree": worktree_path, "git_baseline_sha": baseline_sha}, "$unset": {"claim_error": ""}},
         )
     from inneros_core_runtime import durable_coordination_spine
 
@@ -315,16 +329,15 @@ def claim_ops_task(
             "worktree": worktree_path,
         },
     )
-    try:
-        oes.refresh_current_execution_state(
-            {**claimed, "worktree": worktree_path, "status": "claimed"},
-            event="claimed",
-            actor=prov,
-        )
-    except Exception:
-        pass
     heartbeat_ops_task(tid, actor=prov, phase="claimed", current_step=f"{prov}_interactive", last_progress=f"claim {_host()}")
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True})
+    try:
+        from inneros_core_runtime import competition_lane_dispatch as cld
+
+        task_now = db[OPS_TASKS_COL].find_one({"task_id": tid}) or claimed
+        cld.maybe_spawn_after_claim({**task_now, "worktree": worktree_path})
+    except Exception:
+        pass
     return {
         "ok": True,
         "provider": prov,
@@ -370,36 +383,22 @@ def complete_ops_task(
             built = receipts.completion_evidence_from_worktree(Path(wt_path), base)
             if built.get("ok"):
                 ev = {**ev, **built["evidence"]}
-    ev_err = ocp.validate_completed_evidence(task, ev) if normalized == "completed" else _validate_completion_evidence(normalized, ev)
+    ev_err = _validate_completion_evidence(normalized, ev)
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}
     agent_result = _agent_result(prov, ev, status=normalized)
     from inneros_core_runtime import durable_coordination_spine
 
-    submitted = ol.submit_completion_with_temporal_fallback(
+    temporal = durable_coordination_spine.signal_task_workflow(
         tid,
-        claim_token=tok,
-        status=normalized,
-        evidence=ev,
-        agent_result=agent_result,
-        actor=prov,
-        signal_name="cursor_execution_complete",
+        "cursor_execution_complete",
+        {"submitted": True, "status": normalized, "agent_result": agent_result, "evidence": ev, "claim_token": tok},
     )
-    try:
-        oes.refresh_current_execution_state(
-            {**task, "status": "verification"},
-            event=f"{prov}_execution_complete",
-            actor=prov,
-        )
-    except Exception:
-        pass
-    return {
-        "ok": True,
-        "task_id": tid,
-        "status": "verification",
-        "provider": prov,
-        "temporal": submitted.get("temporal"),
-        "temporal_deferred": submitted.get("temporal_deferred"),
-        "chatgpt_handoff": submitted.get("chatgpt_handoff"),
-        "evidence": ev,
-    }
+    if not temporal.get("ok"):
+        return {"ok": False, "error": "temporal_completion_signal_failed", "details": temporal, "task_id": tid}
+    now = _now()
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": tid, "claim_token": tok},
+        {"$set": {"status": "verification", "updated_at": now, "candidate_evidence": ev}, "$inc": {"revision": 1}},
+    )
+    return {"ok": True, "task_id": tid, "status": "verification", "provider": prov, "temporal": temporal, "evidence": ev}
