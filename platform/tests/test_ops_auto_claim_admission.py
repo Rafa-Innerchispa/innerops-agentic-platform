@@ -106,7 +106,7 @@ def test_spawn_failure_does_not_leave_fake_running_reservation():
         ),
         patch.object(
             dispatch.subprocess,
-            "Popen",
+            "run",
             side_effect=FileNotFoundError("worker missing"),
         ),
     ):
@@ -114,6 +114,41 @@ def test_spawn_failure_does_not_leave_fake_running_reservation():
     assert result["error"] == "worker_spawn_failed"
     col.update_one.assert_called_once()
     assert "$unset" in col.update_one.call_args.args[1]
+
+
+def test_spawn_uses_persistent_systemd_unit_and_records_pid():
+    import subprocess
+    from unittest.mock import MagicMock, patch
+    from inneros_core_runtime import cursor_headless_dispatch as dispatch
+
+    db = MagicMock()
+    col = MagicMock()
+    db.__getitem__.return_value = col
+    col.find_one_and_update.return_value = {"task_id": "ops_demo"}
+    launched = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    pid = subprocess.CompletedProcess([], 0, stdout="4321\n", stderr="")
+
+    with (
+        patch.object(dispatch.mongo_store, "get_db", return_value=db),
+        patch("inneros_core_runtime.cursor_headless_lanes.is_ha_execution_node", return_value=True),
+        patch("inneros_core_runtime.cursor_headless_lanes.available_slots", return_value=1),
+        patch("inneros_core_runtime.cursor_headless_lanes.hostname", return_value="ralfiia-intel"),
+        patch("inneros_core_runtime.cursor_headless_lanes.node_role", return_value="intel"),
+        patch.object(dispatch.subprocess, "run", side_effect=[launched, pid]) as run,
+    ):
+        result = dispatch.spawn_headless_execute("ops_demo")
+
+    assert result["ok"] is True
+    assert result["pid"] == 4321
+    assert result["unit"].startswith("inneros-cursor-headless-ops_demo-")
+    launch_cmd = run.call_args_list[0].args[0]
+    assert launch_cmd[:4] == ["systemd-run", "--user", "--quiet", "--collect"]
+    assert "--property=Type=exec" in launch_cmd
+    assert any(arg.startswith("--property=EnvironmentFile=-") for arg in launch_cmd)
+    assert any(arg.startswith("--property=StandardOutput=append:") for arg in launch_cmd)
+    saved = col.update_one.call_args_list[-1].args[1]["$set"]
+    assert saved["headless_execution_pid"] == 4321
+    assert saved["headless_execution_unit"] == result["unit"]
 
 
 def test_resolve_workflow_id_prefers_mongo_row():

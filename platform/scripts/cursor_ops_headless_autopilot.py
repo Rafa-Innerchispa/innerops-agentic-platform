@@ -164,6 +164,7 @@ def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
                         "$unset": {
                             "headless_execution_started_at": "",
                             "headless_execution_pid": "",
+                            "headless_execution_unit": "",
                             "headless_execution_host": "",
                         },
                         "$inc": {"revision": 1},
@@ -200,6 +201,7 @@ def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
                     "lease_until": "",
                     "headless_execution_started_at": "",
                     "headless_execution_pid": "",
+                    "headless_execution_unit": "",
                     "headless_execution_host": "",
                 },
                 "$inc": {"revision": 1},
@@ -221,6 +223,7 @@ def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
                     "headless_execution_started_at": "",
                     "headless_execution_finished_at": "",
                     "headless_execution_pid": "",
+                    "headless_execution_unit": "",
                     "headless_execution_host": "",
                 },
                 "$inc": {"revision": 1},

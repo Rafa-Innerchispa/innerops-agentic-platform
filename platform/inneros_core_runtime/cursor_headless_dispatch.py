@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +28,28 @@ def _headless_log_path(task_id: str) -> Path:
     log_dir.mkdir(parents=True, exist_ok=True)
     safe = task_id.replace("/", "_")
     return log_dir / f"{safe}-{_now().replace(':', '')}.log"
+
+
+def _headless_unit_name(task_id: str) -> str:
+    """Return a bounded, collision-resistant systemd unit name."""
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", task_id).strip("-.") or "task"
+    digest = hashlib.sha256(task_id.encode("utf-8")).hexdigest()[:10]
+    return f"inneros-cursor-headless-{safe[:96]}-{digest}.service"
+
+
+def _clear_spawn_reservation(db: Any, task_id: str, host: str) -> None:
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": task_id, "headless_execution_host": host},
+        {
+            "$unset": {
+                "headless_execution_started_at": "",
+                "headless_execution_host": "",
+                "cursor_execution_host": "",
+                "cursor_execution_role": "",
+                "headless_execution_unit": "",
+            }
+        },
+    )
 
 
 def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[str, Any]:
@@ -52,6 +76,7 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
                     "headless_execution_started_at": "",
                     "headless_execution_finished_at": "",
                     "headless_execution_pid": "",
+                    "headless_execution_unit": "",
                 },
                 "$set": {"updated_at": _now()},
             },
@@ -81,36 +106,71 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
     root = Path(__file__).resolve().parents[1]
     py = root / "venv" / "bin" / "python3"
     script = root / "scripts" / "cursor_ops_headless_execute_one.py"
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(root)
     log_path = _headless_log_path(tid)
+    unit = _headless_unit_name(tid)
+    env_file = root / ".env"
+    command = [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--collect",
+        f"--unit={unit}",
+        "--property=Type=exec",
+        f"--property=WorkingDirectory={root}",
+        f"--property=EnvironmentFile=-{env_file}",
+        f"--property=Environment=PYTHONPATH={root}",
+        f"--property=StandardOutput=append:{log_path}",
+        f"--property=StandardError=append:{log_path}",
+        str(py),
+        str(script),
+        "--task-id",
+        tid,
+    ]
     try:
-        log_fh = open(log_path, "a", encoding="utf-8")
-        proc = subprocess.Popen(
-            [str(py), str(script), "--task-id", tid],
+        launch = subprocess.run(
+            command,
             cwd=str(root),
-            env=env,
-            start_new_session=True,
-            stdout=log_fh,
-            stderr=subprocess.STDOUT,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
         )
-        # Keep log handle open in parent until child exits (closing early can truncate logs).
-    except OSError as exc:
-        db[OPS_TASKS_COL].update_one(
-            {"task_id": tid, "headless_execution_host": host},
-            {
-                "$unset": {
-                    "headless_execution_started_at": "",
-                    "headless_execution_host": "",
-                    "cursor_execution_host": "",
-                    "cursor_execution_role": "",
-                }
-            },
+        if launch.returncode != 0:
+            _clear_spawn_reservation(db, tid, host)
+            return {
+                "ok": False,
+                "task_id": tid,
+                "error": "worker_spawn_failed",
+                "detail": (launch.stderr or launch.stdout or "systemd_run_failed")[-500:],
+            }
+        pid_probe = subprocess.run(
+            ["systemctl", "--user", "show", unit, "--property=MainPID", "--value"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
+        pid_text = pid_probe.stdout.strip() if pid_probe.returncode == 0 else ""
+        pid = int(pid_text) if pid_text.isdigit() else 0
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        _clear_spawn_reservation(db, tid, host)
         return {"ok": False, "task_id": tid, "error": "worker_spawn_failed", "detail": type(exc).__name__}
 
     db[OPS_TASKS_COL].update_one(
         {"task_id": tid},
-        {"$set": {"headless_execution_pid": int(proc.pid), "headless_log_path": str(log_path)}},
+        {
+            "$set": {
+                "headless_execution_pid": pid,
+                "headless_execution_unit": unit,
+                "headless_log_path": str(log_path),
+            }
+        },
     )
-    return {"ok": True, "task_id": tid, "pid": proc.pid, "host": host, "log_path": str(log_path)}
+    return {
+        "ok": True,
+        "task_id": tid,
+        "pid": pid,
+        "unit": unit,
+        "host": host,
+        "log_path": str(log_path),
+    }
