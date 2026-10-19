@@ -6,6 +6,7 @@ state. Never treat a self-declared payload flag as owner authorization.
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 WAITING = frozenset({"queued", "waiting_for_binding", "waiting_for_model_binding", "awaiting_ide_claim"})
@@ -62,6 +63,40 @@ def claim_admission(
     if not ready:
         return denied(not_ready_reason)
     return {**result, "eligible": True, "reason": "ready_for_claim"}
+
+
+def _autopilot_owner_trust_enabled() -> bool:
+    return os.getenv("INNEROS_OPS_OWNER_AUTH_AUTOPILOT", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def maybe_record_autopilot_owner_auth(task: dict[str, Any], *, provider: str) -> dict[str, Any]:
+    """Record owner_authorized_at for private-cluster autopilot (not a WhatsApp ACK).
+
+    Gated by INNEROS_OPS_OWNER_AUTH_AUTOPILOT. Never applies to do_not_auto_dispatch tasks.
+    """
+    if not _autopilot_owner_trust_enabled():
+        return {"ok": False, "skipped": "autopilot_owner_trust_disabled"}
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if bool(task.get("do_not_auto_dispatch")) or bool(payload.get("do_not_auto_dispatch")):
+        return {"ok": False, "skipped": "manual_dispatch_only"}
+    if task.get("owner_authorized_at"):
+        return {"ok": True, "skipped": "already_authorized", "task_id": str(task.get("task_id") or "")}
+    from inneros_core_runtime import interactive_ops_runner as ior
+
+    tid = str(task.get("task_id") or "").strip()
+    if not tid:
+        return {"ok": False, "error": "task_id_required"}
+    return ior.authorize_ops_task(
+        provider,
+        tid,
+        owner_actor=str(os.getenv("RALFIA_OWNER_ID") or "INNEROS_AUTOPILOT"),
+        channel="autopilot_trust",
+    )
 
 
 def pending_admission_summary(

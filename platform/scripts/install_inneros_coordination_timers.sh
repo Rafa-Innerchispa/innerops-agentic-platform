@@ -18,6 +18,7 @@ UNITS=(
   inneros-cursor-inbox-consumer.timer
   inneros-ag25-project-cycle.service
   inneros-ag25-project-cycle.timer
+  ralfia-external-repair-agent.service
 )
 
 for u in "${UNITS[@]}"; do
@@ -50,8 +51,15 @@ fi
 
 for t in "${TIMERS[@]}"; do
   systemctl --user enable --now "$t"
+  systemctl --user restart "$t" 2>/dev/null || true
   echo "enabled $t"
 done
+
+if systemctl --user cat ralfia-external-repair-agent.service >/dev/null 2>&1; then
+  systemctl --user enable --now ralfia-external-repair-agent.service || true
+  systemctl --user restart ralfia-external-repair-agent.service || true
+  echo "enabled ralfia-external-repair-agent.service"
+fi
 
 systemctl --user list-timers "${TIMERS[@]}" --no-pager || true
 echo "coordination timers installed from $ROOT"
