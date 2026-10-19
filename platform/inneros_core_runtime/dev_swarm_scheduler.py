@@ -328,7 +328,7 @@ def _structured_repo_binding(task: dict[str, Any]) -> str | None:
     repo = str(task.get("repo") or task.get("repository") or "").strip()
     project_id = str(task.get("project_id") or "").strip()
     if repo:
-        if repo.startswith("Rafa-Innerchispa/"):
+        if re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+){1,2}", repo):
             return repo
         resolved = _registry_resolve_repo(repo=repo, project_id=project_id)
         if resolved:
@@ -348,7 +348,7 @@ def _structured_repo_binding(task: dict[str, Any]) -> str | None:
         repo = str(payload.get("repo") or payload.get("repository") or "").strip()
         project_id = str(payload.get("project_id") or "").strip()
         if repo:
-            if repo.startswith("Rafa-Innerchispa/"):
+            if re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+){1,2}", repo):
                 return repo
             resolved = _registry_resolve_repo(repo=repo, project_id=project_id)
             if resolved:
@@ -1119,7 +1119,39 @@ def _ops_auto_retry_allowed(task: dict[str, Any]) -> bool:
     return owner == "dev_swarm" or assignee == "dev_swarm" or dev_swarm_dispatch_reconcile.is_dev_swarm_managed_task(task)
 
 
+def _contributor_repo_gate(task: dict[str, Any]) -> tuple[bool, str | None, str | None]:
+    """Protect externally-targeted GitLab MRs from a contaminated InnerOS binding.
+
+    Project 'gitlab' is an umbrella label, not an executable repository.  Only
+    apply this narrow rule when an actual upstream GitLab MR URL/reference is
+    present.  Unrelated InnerOS connector-development tasks are unaffected.
+    """
+    if str(task.get("project_id") or "").strip().lower() != "gitlab":
+        return True, None, None
+    text = _task_search_text(task) + " " + str(task.get("objective") or "").lower()
+    external_mr = bool(
+        re.search(r"gitlab-org/gitlab/-/merge_requests/[0-9]+", text)
+        or re.search(r"gitlab-org/gitlab\\s*![0-9]+", text)
+    )
+    if not external_mr:
+        return True, None, None
+    expected = "rafagye/gitlab"
+    current = _structured_repo_binding(task) or _repo_from_related_project(task)
+    if not current:
+        return False, "external_mr_requires_explicit_repo_binding", expected
+    if current.lower() != expected.lower():
+        return False, "external_mr_repo_binding_mismatch", expected
+    return True, None, expected
+
+
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
+    gate_ok, gate_reason, gate_repo = _contributor_repo_gate(task)
+    if not gate_ok:
+        return False, str(gate_reason), gate_repo
+    # Explicit human/IDE handoffs are never eligible for unattended re-dispatch,
+    # even if older coordination projections retain owner=dev_swarm.
+    if task.get("do_not_auto_dispatch") is True:
+        return False, "do_not_auto_dispatch", gate_repo
     status = str(task.get("status") or "").lower()
     cooldown = _parse_dt(task.get("cooldown_until"))
     if cooldown and cooldown > datetime.now(timezone.utc):
