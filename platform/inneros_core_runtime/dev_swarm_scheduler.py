@@ -1131,7 +1131,7 @@ def _contributor_repo_gate(task: dict[str, Any]) -> tuple[bool, str | None, str 
     text = _task_search_text(task) + " " + str(task.get("objective") or "").lower()
     external_mr = bool(
         re.search(r"gitlab-org/gitlab/-/merge_requests/[0-9]+", text)
-        or re.search(r"gitlab-org/gitlab\\s*![0-9]+", text)
+        or re.search(r"gitlab-org/gitlab\s*![0-9]+", text)
     )
     if not external_mr:
         return True, None, None
