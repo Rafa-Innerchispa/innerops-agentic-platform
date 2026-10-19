@@ -88,3 +88,69 @@ def test_gitlab_ruby_preflight_fails_closed_before_running(monkeypatch, tmp_path
     assert result["error"] == "ruby_runtime_missing"
     assert result["ruby_available"] is False
     assert result["bundler_available"] is False
+
+
+def _gitlab_mr_task(repo: str) -> dict:
+    return {
+        "task_id": "ops_regression_gitlab_mr",
+        "status": "proposed",
+        "assignee": "dev_swarm",
+        "owner": "dev_swarm",
+        "execution_lane": "local_dev_swarm",
+        "task_class": "coding",
+        "project_id": "gitlab",
+        "repo": repo,
+        "title": "GitLab ContributorOps MR repair",
+        "checklist": [
+            "Fix actual upstream MR https://gitlab.com/gitlab-org/gitlab/-/merge_requests/257991",
+        ],
+    }
+
+
+def test_contributor_mr_never_runs_against_unrelated_inneros_repo():
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    task = _gitlab_mr_task("Rafa-Innerchispa/innerops-agentic-platform")
+    eligible, reason, expected = scheduler._eligible_reason(task)
+    assert eligible is False
+    assert reason == "external_mr_repo_binding_mismatch"
+    assert expected == "rafagye/gitlab"
+
+
+def test_external_gitlab_repo_binding_keeps_explicit_owner(monkeypatch):
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    task = _gitlab_mr_task("rafagye/gitlab")
+    assert scheduler._structured_repo_binding(task) == "rafagye/gitlab"
+    monkeypatch.setattr(
+        scheduler.local_execution_plane,
+        "repo_policy_status",
+        lambda repo: {"ok": repo == "rafagye/gitlab", "write_scope": "worktree"},
+    )
+    eligible, reason, resolved = scheduler._eligible_reason(task)
+    assert (eligible, reason, resolved) == (True, "eligible", "rafagye/gitlab")
+
+
+def test_explicit_no_auto_dispatch_blocks_even_dev_swarm_retry():
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    task = _gitlab_mr_task("rafagye/gitlab")
+    task.update({"do_not_auto_dispatch": True, "dev_swarm_retry_requested": True})
+    eligible, reason, _ = scheduler._eligible_reason(task)
+    assert eligible is False
+    assert reason == "do_not_auto_dispatch"
+
+
+def test_gitlab_platform_integration_without_external_mr_is_not_misclassified():
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    task = {
+        "project_id": "gitlab",
+        "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+        "title": "Implement internal GitLab MCP broker handler",
+        "checklist": ["Update local broker tests only"],
+    }
+    allowed, reason, expected = scheduler._contributor_repo_gate(task)
+    assert allowed is True
+    assert reason is None
+    assert expected is None
