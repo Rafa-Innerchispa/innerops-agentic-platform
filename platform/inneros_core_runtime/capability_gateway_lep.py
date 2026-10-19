@@ -117,6 +117,32 @@ def register_local_execution_capabilities() -> int:
         ),
         (
             _manifest(
+                "local_exec.authorize_repo.v1",
+                title="Authorize owner-approved repository",
+                description="Register an owner-approved repository in the canonical Project Runtime Registry before governed local execution.",
+                keywords=["authorize", "register", "project runtime", "allowlist", "owner approved"],
+                mode="mutation",
+                risk_class="high",
+                properties={
+                    "repo": {"type": "string"},
+                    "repo_class": {"type": "string"},
+                    "write_scope": {"type": "string"},
+                    "allowed_paths": {"type": "array", "items": {"type": "string"}},
+                    "allowed_commands_profile": {"type": "string"},
+                    "package_roots": {"type": "array", "items": {"type": "string"}},
+                    "approval_id": {"type": "string"},
+                    "actor": {"type": "string"},
+                    "task_id": {"type": "string"},
+                    "correlation_id": {"type": "string"},
+                    "dry_run": {"type": "boolean"},
+                },
+                required=["repo", "approval_id", "actor", "task_id", "correlation_id"],
+                required_scopes=["ralfia:agents"],
+            ),
+            _handler(lep.repo_authorize),
+        ),
+        (
+            _manifest(
                 "local_exec.prepare_repo.v1",
                 title="Prepare repository checkout for Dev Swarm",
                 description="Fetch and hydrate an owner-approved repo for isolated work.",
