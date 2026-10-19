@@ -1,0 +1,10 @@
+[Unit]
+Description=AG-25 Dev Swarm project cycle every 5 minutes (AMD primary)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
