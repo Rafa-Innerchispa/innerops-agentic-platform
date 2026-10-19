@@ -185,6 +185,68 @@ def test_gitlab_runner_go_profile_allows_only_safe_go_and_gitlab_reads() -> None
     assert lep._command_allowed(["glab", "mr", "merge", "1"], "go_gitlab_runner") is False
 
 
+def test_docker_build_profile_allows_only_bounded_container_commands() -> None:
+    profile = "docker-build"
+
+    allowed = [
+        ["docker", "build", "-f", "docker/Dockerfile.contract-baseline", "-t", "amd-mc4:local", "."],
+        ["docker", "history", "--no-trunc", "--format", "{{.Size}}", "amd-mc4:local"],
+        ["docker", "image", "inspect", "amd-mc4:local"],
+        ["docker", "run", "-d", "--network", "none", "--name", "mc4-preflight-ab12", "amd-mc4:local"],
+        ["docker", "exec", "mc4-preflight-ab12", "python3", "-c", "print('ok')"],
+        ["docker", "rm", "-f", "mc4-preflight-ab12"],
+    ]
+    for command in allowed:
+        assert lep._docker_build_command_allowed(command) is True
+        assert lep._command_allowed(command, profile) is False
+
+    denied = [
+        ["docker", "push", "amd-mc4:local"],
+        ["docker", "build", "-f", "../Dockerfile", "-t", "amd-mc4:local", "."],
+        ["docker", "build", "-f", "Dockerfile", "-t", "amd-mc4:local", ".."],
+        ["docker", "run", "--privileged", "amd-mc4:local"],
+        ["docker", "run", "-v", "/:/host", "amd-mc4:local"],
+        ["docker", "run", "-d", "--network", "host", "--name", "mc4", "amd-mc4:local"],
+        ["docker", "rm", "-f", "../bad"],
+    ]
+    for command in denied:
+        assert lep._docker_build_command_allowed(command) is False
+
+
+def test_run_command_allowlisted_accepts_bounded_docker_profile(monkeypatch, tmp_path: Path) -> None:
+    records = []
+    command = ["docker", "image", "inspect", "amd-mc4:local"]
+
+    monkeypatch.setattr(lep, "_repo_config", lambda repo: {"profile": "docker-build"})
+    monkeypatch.setattr(lep, "_worktree_path", lambda repo, branch, conf: tmp_path)
+    monkeypatch.setattr(lep, "_record_command_run", lambda command_run_id, payload: records.append((command_run_id, payload)))
+    monkeypatch.setattr(
+        lep,
+        "_run",
+        lambda command, cwd, timeout_seconds=120, max_output_bytes=lep.MAX_OUTPUT_BYTES_DEFAULT: {
+            "ok": True,
+            "returncode": 0,
+            "stdout": "[]",
+            "stderr": "",
+            "argv": command,
+        },
+    )
+
+    result = lep.run_command_allowlisted(
+        "Rafa-Innerchispa/amd-academy-mc4-web-retrieval",
+        "chatgpt/mc4-core-20261019",
+        command,
+        "chatgpt",
+        "ops_aaf90e4e3807",
+        "amd-ai-league-match4-20261019",
+    )
+
+    assert result["ok"] is True
+    assert result["profile"] == "docker-build"
+    assert result["command_result"]["returncode"] == 0
+    assert records
+
+
 def test_gitlab_ruby_profile_allows_targeted_tests_and_lint_only() -> None:
     profile = "ruby-tests-local-only"
     assert lep._command_allowed(
