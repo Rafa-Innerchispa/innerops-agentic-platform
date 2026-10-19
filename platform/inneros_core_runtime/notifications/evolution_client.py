@@ -89,35 +89,47 @@ def send_alert_whatsapp(text: str, number: str | None = None, *, prefix_node: bo
             origin_note = f" · tarea en {node_label(local)}"
         body = f"{body.rstrip()}\n— vía {node_label(via_node)}{origin_note}"
 
+    # 1. Dispatch WhatsApp (Primary with AMD failover)
     if alerts_via in ("primary", "intel", "4", ".4"):
         result = send_whatsapp(body, number=dest, node="primary")
         if result.get("ok"):
             result["via_node"] = "primary"
             result["origin_node"] = local
             result["alert_policy"] = "RALFIA_ALERTS_VIA_NODE=primary"
-            return result
-        if WHATSAPP_AMD_SEND_ENABLED:
+        elif WHATSAPP_AMD_SEND_ENABLED:
             second = send_whatsapp(body, number=dest, node="amd")
             second["failover_from"] = "primary"
             if second.get("ok"):
                 second["via_node"] = "amd"
                 second["origin_node"] = local
-            return second
-        return result
+            result = second
+    else:
+        remote = "primary" if local == "amd" else "amd"
+        first = send_whatsapp(body, number=dest, node=local)
+        if first.get("ok"):
+            first["via_node"] = local
+            first["origin_node"] = local
+            result = first
+        else:
+            second = send_whatsapp(body, number=dest, node=remote)
+            second["failover_from"] = local
+            if second.get("ok"):
+                second["via_node"] = remote
+                second["origin_node"] = local
+            result = second
 
-    # Legacy: nodo local primero (solo si override explícito)
-    remote = "primary" if local == "amd" else "amd"
-    first = send_whatsapp(body, number=dest, node=local)
-    if first.get("ok"):
-        first["via_node"] = local
-        first["origin_node"] = local
-        return first
-    second = send_whatsapp(body, number=dest, node=remote)
-    second["failover_from"] = local
-    if second.get("ok"):
-        second["via_node"] = remote
-        second["origin_node"] = local
-    return second
+    # 2. Dispatch Telegram parallel channel (independent of WhatsApp session state)
+    try:
+        from inneros_core_runtime.notifications.telegram_client import send_alert_telegram
+        tg_res = send_alert_telegram(body)
+        result["telegram"] = tg_res
+        if not result.get("ok") and tg_res.get("ok"):
+            result["ok"] = True
+            result["fallback_channel"] = "telegram"
+    except Exception as exc:
+        result["telegram"] = {"ok": False, "error": str(exc)}
+
+    return result
 
 
 def _node_config(node: str | None = None) -> tuple[str, str]:
