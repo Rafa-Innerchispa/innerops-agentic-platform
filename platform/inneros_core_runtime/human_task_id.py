@@ -113,7 +113,13 @@ def _inherit_from_db(
     related_ops_task_id: str | None,
 ) -> str | None:
     db = mongo_store.get_db()
-    col = db[OPS_TASKS_COL]
+    try:
+        col = db[OPS_TASKS_COL]
+    except KeyError:
+        # Minimal/offline coordination stores may omit the optional historical
+        # collection.  No alias can be inherited there; derive it from the
+        # current task without losing normal OPS admission or Temporal linkage.
+        return None
     for tid in (parent_task_id, superseded_task_id, related_ops_task_id):
         if not tid:
             continue
