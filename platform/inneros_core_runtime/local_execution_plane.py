@@ -2057,14 +2057,14 @@ def human_dev_swarm_title(repo: str, objective: str) -> str:
         line = raw_line.strip().lstrip("#>*- ").strip()
         if not line or line.startswith("```"):
             continue
-        if re.match(r"(?i)^(human task id|task id|correlation id|owner order)\\s*:", line):
+        if re.match(r"(?i)^(human task id|task id|correlation id|owner order)\s*:", line):
             continue
-        line = re.sub(r"(?i)^owner[- ]approved\\s*[,.:;-]?\\s*", "", line)
+        line = re.sub(r"(?i)^owner[- ]approved\s*[,.:;-]?\s*", "", line)
         if line.lower().rstrip(":") in {"goal", "objective", "purpose", "context", "requirements"}:
             continue
         if len(line) < 12:
             continue
-        if re.search(r"(?i)(password|secret|token|api[_ -]?key)\\s*[:=]", line):
+        if re.search(r"(?i)(password|secret|token|api[_ -]?key)\s*[:=]", line):
             continue
         summary = _redact(line).replace("\\n", " ")
         if len(summary) > 104:
