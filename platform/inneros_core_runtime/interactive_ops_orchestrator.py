@@ -26,7 +26,21 @@ def owner_order_execute(
         }
     tid = (task_id or "").strip() or None
     if tid:
-        ior.authorize_ops_task(prov, tid, owner_actor=owner_actor, channel=channel)
+        from raphiia_openai import mongo_store
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+
+        row = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"owner_authorized_at": 1})
+        if not (row or {}).get("owner_authorized_at"):
+            auth = ior.authorize_ops_task(prov, tid, owner_actor=owner_actor, channel=channel)
+            if not auth.get("ok"):
+                return {
+                    "ok": False,
+                    "provider": prov,
+                    "stage": "authorize",
+                    "error": auth.get("error"),
+                    "message": auth.get("message"),
+                    "preflight": auth.get("preflight"),
+                }
     claim = ior.claim_ops_task(
         prov,
         task_id=tid,

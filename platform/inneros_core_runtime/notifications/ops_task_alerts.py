@@ -232,6 +232,12 @@ def notify_ops_owner_authorization_request(
         headline = "OPS · autorización requerida"
 
     tid = str(task.get("task_id") or "")
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    related_ops = payload.get("related_ops") or task.get("related_ops")
+    if isinstance(related_ops, list) and related_ops:
+        related_ops = [str(x) for x in related_ops if str(x).strip() and str(x).strip() != tid]
+    else:
+        related_ops = []
     objective = str(task.get("objective") or task.get("title") or "")[:280]
     why = str(summary.get("why_not_internal") or "")[:320]
     action = str(summary.get("owner_action_hint") or "")[:240]
@@ -246,11 +252,18 @@ def notify_ops_owner_authorization_request(
         spends = "Carril *interno* (no gasta Cursor/Codex/Antigravity)."
         detail = ""
     short = tid.replace("ops_", "")[:6]
+    related_line = ""
+    if related_ops:
+        related_line = (
+            "\nReferencia histórica (no requiere segunda autorización): "
+            + ", ".join(f"`{x}`" for x in related_ops[:3])
+            + "\n"
+        )
     body = (
         f"{icon} *{headline}* · {provider.upper()}\n"
         f"Referencia: `{tid}`\n"
         f"{objective[:140]}\n"
-        f"{spends}{detail}\n"
+        f"{spends}{detail}{related_line}\n"
     )
     if alert_kind == "external_spend":
         body += (
