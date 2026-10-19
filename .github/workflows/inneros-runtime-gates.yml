@@ -92,6 +92,8 @@ jobs:
             platform/tests/test_temporal_bounded_executor.py \
             platform/tests/test_coordination_liveness.py \
             platform/tests/test_anti_freeze_scheduler.py \
+            platform/tests/test_dev_swarm_silent_stall_regression.py \
+            platform/tests/test_integration_guardian_sha.py \
             platform/tests/test_ops_auto_claim_admission.py \
             platform/tests/test_cursor_headless_retry_policy.py \
             platform/tests/test_cursor_ops_runner.py \

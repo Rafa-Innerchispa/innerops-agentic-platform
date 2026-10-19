@@ -163,10 +163,25 @@ def verify_worker(worker: dict[str, Any]) -> dict[str, Any]:
         try:
             result = local_execution_plane._run(["git", "rev-parse", "HEAD"], Path(worktree), timeout_seconds=30)
             observed_head = str(result.get("stdout") or "").strip()
-            if not result.get("ok") or not observed_head:
+            if not result.get("ok") or not re.fullmatch(r"[a-fA-F0-9]{40}", observed_head):
                 reasons.append("worktree_head_unreadable")
-            elif expected_head and observed_head != expected_head:
-                reasons.append("commit_head_mismatch")
+            elif expected_head:
+                # Executor writes a short git SHA. Resolve it inside this
+                # worktree to a UNIQUE commit object, then compare full IDs.
+                # Never use startswith(): ambiguous prefixes must fail closed.
+                if not re.fullmatch(r"[a-fA-F0-9]{7,40}", expected_head):
+                    reasons.append("expected_commit_sha_invalid")
+                else:
+                    resolved = local_execution_plane._run(
+                        ["git", "rev-parse", "--verify", f"{expected_head}^{{commit}}"],
+                        Path(worktree),
+                        timeout_seconds=30,
+                    )
+                    canonical_expected = str(resolved.get("stdout") or "").strip()
+                    if not resolved.get("ok") or not re.fullmatch(r"[a-fA-F0-9]{40}", canonical_expected):
+                        reasons.append("expected_commit_sha_unresolvable")
+                    elif observed_head.lower() != canonical_expected.lower():
+                        reasons.append("commit_head_mismatch")
         except Exception as exc:
             reasons.append(f"head_check_failed:{exc}")
 
@@ -194,7 +209,8 @@ def guardian_tick(limit: int = 4, dry_run: bool = False, db: Any | None = None) 
         verdict = verify_worker(worker)
         integration: dict[str, Any] | None = None
         if verdict.get("ok") and not dry_run:
-            integration = _integration_gate(worker, str(verdict.get("expected_head") or ""))
+            # Integrate the verified full commit ID, not an abbreviated ref.
+            integration = _integration_gate(worker, str(verdict.get("observed_head") or ""))
         checked.append({**verdict, "integration": integration})
         if dry_run:
             continue
