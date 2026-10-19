@@ -30,10 +30,35 @@ def test_device_fabric_read_normalization():
 
 
 def test_flat_product_root_counts_src_as_product():
-    from pathlib import Path
+    # Explicitly reproduce package_roots=["."]; a fake worktree alone is not
+    # sufficient because manifest discovery may return no package root.
+    from unittest import mock
 
+    repo = "Rafa-Innerchispa/innerops-service-ops"
     wt = Path("/tmp/fake-service-ops")
-    assert dss._is_product_code_path("Rafa-Innerchispa/innerops-service-ops", wt, "src/service_operations.js") is True
+    with mock.patch.object(dss, "_primary_product_root", return_value="."):
+        assert dss._is_product_code_path(repo, wt, "src/service_operations.js")
+        assert dss._is_product_code_path(repo, wt, "./src/service_operations.js")
+        classes = dss._implementation_write_classes(
+            repo, wt, ["src/service_operations.js", "tests/service_operations.test.mjs", "src/inneros_dev_swarm/debug.js"]
+        )
+        assert classes == {
+            "product": ["src/service_operations.js"],
+            "diagnostic": ["src/inneros_dev_swarm/debug.js"],
+            "other": ["tests/service_operations.test.mjs"],
+        }
+
+
+def test_nested_product_root_must_not_classify_outside_scope():
+    from unittest import mock
+
+    repo = "Rafa-Innerchispa/innerops-agentic-platform"
+    wt = Path("/tmp/fake-nested-package")
+    with mock.patch.object(dss, "_primary_product_root", return_value="services/product-a"):
+        assert dss._is_product_code_path(repo, wt, "services/product-a/src/feature.py")
+        assert not dss._is_product_code_path(repo, wt, "src/unscoped.py")
+        assert not dss._is_product_code_path(repo, wt, "services/product-b/src/feature.py")
+        assert not dss._is_product_code_path(repo, wt, "services/product-a/tests/test_feature.py")
 
 
 def test_backlog_bucket_device_fabric():
