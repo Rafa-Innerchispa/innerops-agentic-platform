@@ -66,7 +66,7 @@ echo "MODE=$MODE"
 echo "RUNTIME_PATH=$RT"
 echo "NOTE: no services are restarted by this script"
 for directory in inneros_core_runtime scripts systemd; do
-  rsync -ani --exclude='.env' --exclude='venv/' --exclude='var/' \
+  rsync -acni --exclude='.env' --exclude='venv/' --exclude='var/' \
     --exclude='__pycache__/' --exclude='*.pyc' \
     "$WS/$directory/" "$RT/$directory/"
 done
@@ -98,7 +98,7 @@ test -s "$ARCHIVE" || { echo "BLOCKED: runtime backup empty" >&2; exit 7; }
 echo "BACKUP=$ARCHIVE"
 
 for directory in inneros_core_runtime scripts systemd; do
-  rsync -a --exclude='.env' --exclude='venv/' --exclude='var/' \
+  rsync -ac --exclude='.env' --exclude='venv/' --exclude='var/' \
     --exclude='__pycache__/' --exclude='*.pyc' \
     "$WS/$directory/" "$RT/$directory/" || {
       echo "BLOCKED: rsync incomplete. Review/restore from backup before restarting services: $ARCHIVE" >&2
