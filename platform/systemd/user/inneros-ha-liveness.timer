@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Cursor HA liveness every 60s on this node
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=60s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

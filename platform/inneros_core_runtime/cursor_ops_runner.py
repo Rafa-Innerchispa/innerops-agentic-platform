@@ -528,7 +528,10 @@ def complete_ops_task(
         signal_payload,
         workflow_id=wf_id,
     )
-    if not temporal.get("ok") and "already completed" in str(temporal.get("error") or "").lower():
+    _temporal_err = str(temporal.get("error") or "").lower()
+    if not temporal.get("ok") and (
+        "already completed" in _temporal_err or "workflow not found" in _temporal_err
+    ):
         from inneros_core_runtime.ops_temporal_recovery import reopen_ops_temporal_execution
 
         reopened = reopen_ops_temporal_execution(

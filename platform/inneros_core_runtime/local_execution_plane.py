@@ -1336,16 +1336,20 @@ def create_worktree(
             return {"ok": False, "error": "source_repo_not_git", "source_path": str(source)}
         worktree.parent.mkdir(parents=True, exist_ok=True)
         if worktree.exists():
-            status = _run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30)
-            return {
-                "ok": bool(status.get("ok") and (worktree / ".git").exists()),
-                "idempotent": True,
-                "repo": repo,
-                "work_branch": work_branch,
-                "worktree": str(worktree),
-                "status": status,
-                "verified_exists": (worktree / ".git").exists(),
-            }
+            if not (worktree / ".git").exists():
+                import shutil
+                shutil.rmtree(worktree, ignore_errors=True)
+            else:
+                status = _run(["git", "status", "--short", "--branch"], worktree, timeout_seconds=30)
+                return {
+                    "ok": bool(status.get("ok") and (worktree / ".git").exists()),
+                    "idempotent": True,
+                    "repo": repo,
+                    "work_branch": work_branch,
+                    "worktree": str(worktree),
+                    "status": status,
+                    "verified_exists": (worktree / ".git").exists(),
+                }
         if base_branch == work_branch:
             ensured_work = _ensure_work_branch_ref(source, work_branch)
             if not ensured_work.get("ok"):
@@ -1359,12 +1363,20 @@ def create_worktree(
             # protected bases rather than silently branching from stale local main.
             effective_base = base_branch
             if base_branch in {"main", "master"}:
-                remote_ref = f"refs/remotes/origin/{base_branch}"
-                remote_check = _run(["git", "rev-parse", "--verify", remote_ref], source, timeout_seconds=20)
-                if not remote_check.get("ok"):
-                    return {"ok": False, "error": "remote_base_ref_missing",
-                            "base_branch": base_branch, "remote_ref": remote_ref}
-                effective_base = remote_ref
+                effective_base = None
+                for candidate in (base_branch, "main", "master"):
+                    remote_ref = f"refs/remotes/origin/{candidate}"
+                    remote_check = _run(["git", "rev-parse", "--verify", remote_ref], source, timeout_seconds=20)
+                    if remote_check.get("ok"):
+                        effective_base = remote_ref
+                        break
+                if not effective_base:
+                    head_check = _run(["git", "rev-parse", "--verify", "HEAD"], source, timeout_seconds=20)
+                    if head_check.get("ok"):
+                        effective_base = "HEAD"
+                    else:
+                        return {"ok": False, "error": "remote_base_ref_missing",
+                                "base_branch": base_branch, "remote_ref": "refs/remotes/origin/main|master"}
             else:
                 ensured_base = _ensure_work_branch_ref(source, base_branch)
                 if not ensured_base.get("ok"):

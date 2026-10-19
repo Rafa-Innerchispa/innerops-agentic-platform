@@ -27,6 +27,31 @@ def _host() -> str:
     return socket.gethostname().lower()
 
 
+
+def _reload_task(tid: str) -> dict:
+    return mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or {}
+
+
+def _complete_with_live_token(
+    tid: str,
+    *,
+    status: str,
+    evidence: dict | None = None,
+    commit_sha: str | None = None,
+) -> dict:
+    task = _reload_task(tid)
+    token = str(task.get("claim_token") or "").strip()
+    if not token:
+        return {"ok": False, "error": "claim_token_missing_for_complete", "task_id": tid}
+    cor.renew_ops_lease(tid, token)
+    return cor.complete_ops_task(
+        tid,
+        claim_token=token,
+        status=status,
+        evidence=evidence,
+        commit_sha=commit_sha,
+    )
+
 def _notify(text: str) -> None:
     if __import__("os").getenv("CURSOR_OPS_NOTIFY_WHATSAPP", "1") != "1":
         return
@@ -76,7 +101,12 @@ def main() -> int:
         "objective": task.get("objective") or task.get("title"),
         "pinned_model": task.get("effective_model") or cor.CURSOR_PINNED_MODEL,
     }
-    worktree = Path(str(claim.get("worktree") or ROOT))
+    worktree = Path(str(claim.get("worktree") or "")).expanduser()
+    if not worktree.is_dir() or not (worktree / ".git").exists():
+        err = f"worktree_missing_or_invalid:{worktree}"
+        _notify(f"Cursor {tid} abort: {err}")
+        print(json.dumps({"ok": False, "error": err}))
+        return 2
     before_sha = receipts.git_head(worktree)
     token = str(claim.get("claim_token") or task.get("claim_token") or "")
     if token:
@@ -100,16 +130,16 @@ def main() -> int:
                 platform_root=ROOT,
             )
         else:
-            raw_timeout = os.getenv("INNEROS_CURSOR_SDK_TIMEOUT_SECONDS", "420")
+            raw_timeout = os.getenv("INNEROS_CURSOR_SDK_TIMEOUT_SECONDS", "900")
             try:
                 timeout = int(raw_timeout)
             except ValueError:
-                timeout = 420
+                timeout = 900
             try:
                 with _bounded_sdk_run(timeout):
                     result = che.execute_claimed_task(claim)
             except TimeoutError:
-                result = {"ok": False, "error": "cursor_sdk_timeout", "primary": "local_sdk"}
+                result = {"ok": False, "error": "cursor_headless_sdk_deadline_exceeded", "primary": "local_sdk"}
             except Exception as exc:
                 result = {"ok": False, "error": "cursor_sdk_exception_" + type(exc).__name__}
 
@@ -127,9 +157,8 @@ def main() -> int:
             }
             token = str(claim.get("claim_token") or "")
             if token:
-                complete = cor.complete_ops_task(
+                complete = _complete_with_live_token(
                     tid,
-                    claim_token=token,
                     status="completed",
                     evidence=evidence,
                     commit_sha=main_sha,
@@ -169,10 +198,9 @@ def main() -> int:
             if evidence:
                 token = str(claim.get("claim_token") or "")
                 if token:
-                    complete = cor.complete_ops_task(
-                        tid,
-                        claim_token=token,
-                        status="completed",
+                    complete = _complete_with_live_token(
+                    tid,
+                    status="completed",
                         evidence=evidence,
                         commit_sha=str(evidence.get("commit_sha") or "") or None,
                     )
@@ -199,8 +227,8 @@ def main() -> int:
             # A real negative result, not an invented successful completion.
             token = str(claim.get("claim_token") or "")
             if token:
-                failed = cor.complete_ops_task(
-                    tid, claim_token=token, status="failed",
+                failed = _complete_with_live_token(
+                    tid, status="failed",
                     evidence={"notes": reason, "execution_host": _host(),
                               "headless_primary": result.get("primary"),
                               "git_before_sha": before_sha},
@@ -212,6 +240,16 @@ def main() -> int:
             _notify(f"Cursor {tid} could not verify completion: {reason[:120]}")
         else:
             _notify(f"Cursor {tid} submitted verified file evidence to Temporal")
+            try:
+                from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_transition
+                task_done = _reload_task(tid)
+                notify_ops_transition(task_done, previous_status=str(task.get("status") or ""), actor="cursor_headless")
+            except Exception:
+                pass
+        if submitted_status != "verification":
+            fail_msg = reason or str((complete or {}).get("error") or "headless_not_verified")
+            _notify(f"Cursor [{_host()}] {tid} sin cierre OK: {fail_msg[:180]}")
+
     finally:
         finished_at = __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc

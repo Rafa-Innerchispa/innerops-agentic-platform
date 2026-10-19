@@ -43,7 +43,7 @@ ELIGIBLE_STATUSES = ("proposed",)
 OPS_TERMINAL_STATUSES = frozenset({"blocked", "completed", "cancelled", "failed"})
 PRIORITY_ORDER = {"critical": 0, "p0": 1, "p1": 2, "normal": 3, "p2": 4, "low": 5}
 SAFE_INNEROS_REPO = "Rafa-Innerchispa/innerops-agentic-platform"
-ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini", "dev_swarm"}
+ALLOWED_ASSIGNEES = {"codex", "chatgpt", "antigravity", "cursor", "ralfia", "gemini", "dev_swarm", "inneros_orchestrator"}
 TERMINAL_EXECUTOR_STATUSES = {"executed", "needs_implementation", "failed", "blocked"}
 LEGACY_SAFE_TASK_IDS = {
     "ops_e7cacfc4a525",
