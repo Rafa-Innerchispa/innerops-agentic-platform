@@ -59,8 +59,42 @@ def _format_task_line(task: dict[str, Any]) -> str:
     return f"{tid}\n{title}\nOwner: {owner} · Assignee: {assignee}{repo_line}"
 
 
+def _owner_auth_sent_mongo(task_id: str) -> bool:
+    tid = (task_id or "").strip()
+    if not tid:
+        return False
+    try:
+        from raphiia_openai import mongo_store
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+
+        row = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"owner_whatsapp_auth_sent_at": 1})
+        return bool(row and row.get("owner_whatsapp_auth_sent_at"))
+    except Exception:
+        return False
+
+
+def _mark_owner_auth_sent_mongo(task_id: str) -> None:
+    tid = (task_id or "").strip()
+    if not tid:
+        return
+    try:
+        from datetime import datetime, timezone
+        from raphiia_openai import mongo_store
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+
+        mongo_store.get_db()[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {"$set": {"owner_whatsapp_auth_sent_at": datetime.now(timezone.utc).isoformat()}},
+        )
+    except Exception:
+        pass
+
+
 def owner_auth_notified(task_id: str) -> bool:
-    return str(task_id) in set(_STATE.get("sent", []))
+    tid = str(task_id or "")
+    if tid in set(_STATE.get("sent", [])):
+        return True
+    return _owner_auth_sent_mongo(tid)
 
 
 
@@ -146,6 +180,18 @@ def notify_ops_owner_authorization_request(
     """WhatsApp al crear ops task: motivo externo vs interno y cómo autorizar."""
     if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
         return {"ok": False, "skipped": "notifications_disabled"}
+
+    try:
+        from raphiia_openai.notifications.evolution_client import any_whatsapp_connected
+
+        if not any_whatsapp_connected():
+            return {
+                "ok": False,
+                "skipped": "evolution_whatsapp_down",
+                "task_id": str(task.get("task_id") or ""),
+            }
+    except Exception:
+        pass
 
     skip = _synthetic_ops_task_skip(task)
     if skip:
@@ -289,6 +335,7 @@ def notify_ops_owner_authorization_request(
             result = {"ok": True, "status": "sent", "channel": "email_fallback", "email": email_fallback}
     if result.get("ok"):
         _mark_sent("owner_auth", tid)
+        _mark_owner_auth_sent_mongo(tid)
     return {
         "ok": bool(result.get("ok")),
         "result": result,

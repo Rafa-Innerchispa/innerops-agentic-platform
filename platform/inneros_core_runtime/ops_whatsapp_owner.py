@@ -82,10 +82,14 @@ def _format_claim_failure(tid: str, provider: str, out: dict, claim: dict) -> st
     details = claim.get("details") or {}
     inner = details.get("error") if isinstance(details, dict) else None
     if err == "worktree_required":
+        detail = inner or details
+        hint = ""
+        if isinstance(details, dict) and details.get("error") == "remote_base_ref_missing":
+            hint = " El repo puede usar *master* en lugar de main; acabo de aplicar fallback en Intel."
         return (
             f"❌ Claim `{tid}` ({provider}): no se pudo crear *worktree* (Git). "
-            f"Si escuchaste work three required, es este error. "
-            f"Detalle: {inner or details}. Reintenta Confirmar en 30s."
+            f"Si escuchaste worktree required, es este error.{hint} "
+            f"Detalle: {detail}. Reintenta Confirmar en 30s."
         )
     return f"❌ No pude autorizar/claim `{tid}` ({provider}): {err}"
 
