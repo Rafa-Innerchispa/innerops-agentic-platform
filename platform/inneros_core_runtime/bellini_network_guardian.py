@@ -680,7 +680,78 @@ def get_guardian() -> BelliniNetworkGuardian:
 
 
 
-def _enrich_guardian_status(status: dict[str, Any]) -> dict[str, Any]:
+def _read_mongo_sample_evidence(
+    db: Any, current_timestamp: str | None
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Read two recent, independently stored Bellini samples, fail closed.
+
+    The latest state in bellini_guardian_state is one upserted document and
+    cannot itself demonstrate two independent measurements. We therefore
+    require distinct _id AND timestamp from bellini_telemetry.
+    """
+    try:
+        cursor = (
+            db.bellini_telemetry.find(
+                {"site_id": SITE_ID},
+                {"_id": 1, "timestamp": 1, "targets": 1},
+            )
+            .sort("created_at", -1)
+            .limit(10)
+        )
+        now = datetime.datetime.now(datetime.timezone.utc)
+        distinct: list[dict[str, Any]] = []
+        seen_times: set[str] = set()
+        seen_ids: set[str] = set()
+        previous: dict[str, Any] | None = None
+        try:
+            current_time = datetime.datetime.fromisoformat(
+                (current_timestamp or "").replace("Z", "+00:00")
+            )
+        except ValueError:
+            current_time = None
+        for item in cursor:
+            ts = item.get("timestamp")
+            sample_id = str(item.get("_id") or "")
+            if not isinstance(ts, str) or not sample_id or ts in seen_times or sample_id in seen_ids:
+                continue
+            try:
+                parsed = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                age = (now - parsed).total_seconds()
+            except (ValueError, TypeError):
+                continue
+            if parsed.tzinfo is None:
+                continue
+            seen_times.add(ts)
+            seen_ids.add(sample_id)
+            if current_time is not None and current_time.tzinfo is not None and parsed < current_time:
+                if previous is None:
+                    previous = {"timestamp": ts, "targets": item.get("targets", [])}
+            distinct.append({
+                "id": sample_id, "timestamp": ts,
+                "recent": -300 <= age <= 3600,
+            })
+            if len(distinct) >= 2:
+                break
+        two_fresh = len(distinct) >= 2 and all(x["recent"] for x in distinct[:2])
+        return {
+            "source": "bellini_telemetry",
+            "status": "VERIFIED_TWO_RECENT" if two_fresh else "INSUFFICIENT",
+            "two_recent_distinct_samples": two_fresh,
+            "samples": distinct,
+            "read_only": True,
+        }, previous
+    except Exception as exc:
+        return {
+            "source": "bellini_telemetry",
+            "status": "UNAVAILABLE",
+            "two_recent_distinct_samples": False,
+            "samples": [],
+            "error": type(exc).__name__,
+            "read_only": True,
+        }, None
+
+
+def _enrich_guardian_status(status: dict[str, Any], previous: dict[str, Any] | None = None) -> dict[str, Any]:
     """Add read-only incident diagnostics without claiming physical root causes.
 
     The TARGETS topology is configured but unverified in the physical network.
@@ -699,7 +770,7 @@ def _enrich_guardian_status(status: dict[str, Any]) -> dict[str, Any]:
             }
             for target in TARGETS if target.get("asset_id")
         }
-        status["diagnostics"] = report(status, inventory, topology=topology)
+        status["diagnostics"] = report(status, inventory, topology=topology, previous=previous)
     except Exception as exc:
         status["diagnostics"] = {"status": "UNAVAILABLE",
                                  "root_cause_verified": False,
@@ -713,9 +784,20 @@ def bellini_guardian_status() -> dict[str, Any]:
     if db is not None:
         state = db.bellini_guardian_state.find_one({"site_id": SITE_ID}, {"_id": 0})
         if state:
-            return _enrich_guardian_status({"ok": True, "source": "mongodb_guardian_state", **state})
+            evidence, previous = _read_mongo_sample_evidence(db, state.get("timestamp"))
+            enriched = _enrich_guardian_status(
+                {"ok": True, "source": "mongodb_guardian_state", **state},
+                previous=previous,
+            )
+            enriched["mongo_sample_evidence"] = evidence
+            return enriched
     g = get_guardian()
-    return _enrich_guardian_status({"ok": True, "source": "live_sweep", **g.capture_single_sweep()})
+    enriched = _enrich_guardian_status({"ok": True, "source": "live_sweep", **g.capture_single_sweep()})
+    enriched["mongo_sample_evidence"] = {
+        "status": "UNAVAILABLE", "source": "bellini_telemetry",
+        "two_recent_distinct_samples": False, "samples": [], "read_only": True,
+    }
+    return enriched
 
 
 def bellini_guardian_dashboard() -> dict[str, Any]:
@@ -764,6 +846,7 @@ def bellini_guardian_dashboard() -> dict[str, Any]:
         "device_matrix": status.get("targets", []),
         "diagnostics": status.get("diagnostics", {}),
         "source_reconciliation": source_reconciliation,
+        "mongo_sample_evidence": status.get("mongo_sample_evidence", {}),
         "recent_incidents": recent_incidents,
         "mutation_policy": MUTATION_POLICY,
         "generated_at": _now(),

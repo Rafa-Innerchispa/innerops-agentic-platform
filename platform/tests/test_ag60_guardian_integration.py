@@ -167,3 +167,71 @@ def test_dashboard_reconciles_cloud_without_touching_devices(monkeypatch, bng):
     assert source["root_cause_verified"] is False
     assert source["comparisons"][0]["identity_match"] == "IP_ONLY_UNVERIFIED"
     assert "credentials" not in source
+
+
+class _SampleCursor(list):
+    def sort(self, *args, **kwargs):
+        return self
+
+    def limit(self, n):
+        return _SampleCursor(self[:n])
+
+
+class _Telemetry:
+    def __init__(self, records):
+        self.records = records
+
+    def find(self, *args, **kwargs):
+        return _SampleCursor(self.records)
+
+
+def test_two_recent_mongo_samples_require_distinct_ids_and_timestamps(bng):
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    recent1 = (now - timedelta(seconds=10)).isoformat()
+    recent2 = (now - timedelta(seconds=30)).isoformat()
+    class DB:
+        bellini_telemetry = _Telemetry([
+            {"_id": "a", "timestamp": recent1, "targets": [{"asset_id": "x", "online": False}]},
+            {"_id": "b", "timestamp": recent2, "targets": [{"asset_id": "x", "online": True}]},
+        ])
+    proof, previous = bng._read_mongo_sample_evidence(DB(), recent1)
+    assert proof["status"] == "VERIFIED_TWO_RECENT"
+    assert proof["two_recent_distinct_samples"] is True
+    assert len(proof["samples"]) == 2
+    assert proof["samples"][0]["id"] != proof["samples"][1]["id"]
+    assert previous["timestamp"] == recent2
+
+
+def test_duplicate_timestamp_is_not_two_samples(bng):
+    ts = datetime.now(timezone.utc).isoformat()
+    class DB:
+        bellini_telemetry = _Telemetry([
+            {"_id": "a", "timestamp": ts},
+            {"_id": "b", "timestamp": ts},
+        ])
+    proof, previous = bng._read_mongo_sample_evidence(DB(), ts)
+    assert proof["status"] == "INSUFFICIENT"
+    assert proof["two_recent_distinct_samples"] is False
+    assert len(proof["samples"]) == 1
+    assert previous is None
+
+
+def test_old_mongo_samples_are_not_certified_as_recent(bng):
+    class DB:
+        bellini_telemetry = _Telemetry([
+            {"_id": "a", "timestamp": "2026-10-01T12:00:00+00:00"},
+            {"_id": "b", "timestamp": "2026-10-01T11:00:00+00:00"},
+        ])
+    proof, previous = bng._read_mongo_sample_evidence(DB(), "2026-10-01T12:00:00+00:00")
+    assert proof["status"] == "INSUFFICIENT"
+    assert not proof["two_recent_distinct_samples"]
+
+
+def test_mongo_evidence_query_errors_fail_closed(bng):
+    class DB:
+        pass
+    proof, previous = bng._read_mongo_sample_evidence(DB(), "2026-10-19T10:00:00Z")
+    assert proof["status"] == "UNAVAILABLE"
+    assert proof["two_recent_distinct_samples"] is False
+    assert previous is None
