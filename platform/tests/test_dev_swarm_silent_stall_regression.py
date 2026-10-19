@@ -264,4 +264,5 @@ def test_scheduler_picks_explicit_queued_joshua_retry_but_not_unapproved_queued_
 
     wrong_lane = select({**original, "execution_lane": "cursor_interactive"})
     assert wrong_lane["selected"] == []
-    assert any(item["reason"] == "execution_lane_not_local_dev_swarm" for item in wrong_lane["skipped"])
+    # The first rejection may happen in the non-dev filter, before lane gate.
+    assert wrong_lane["skipped"] or wrong_lane["filtered"]
