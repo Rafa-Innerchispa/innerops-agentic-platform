@@ -121,3 +121,17 @@ def test_find_by_alias_mock():
     with mock.patch.object(hti.mongo_store, "get_db", return_value=fake_db):
         rows = hti.find_tasks_by_human_task_id("AMD-LEAGUE-WRAPUP")
     assert rows[0]["task_id"] == "ops_84c81dfcc896"
+
+
+def test_offline_store_without_task_collection_still_generates_alias():
+    # CI's lightweight coordination store may deliberately omit this collection.
+    # Alias inheritance is optional, but task admission and Temporal linkage are not.
+    with mock.patch.object(hti.mongo_store, "get_db", return_value={}):
+        alias = hti.resolve_human_task_id_for_create(
+            {"correlation_id": "gitlab-ops-routing-20261019", "title": "Repair Dev Swarm task routing"}
+        )
+    assert alias.startswith("GITLAB-")
+    assert alias == hti.generate_human_task_id(
+        correlation_id="gitlab-ops-routing-20261019",
+        title="Repair Dev Swarm task routing",
+    )
