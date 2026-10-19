@@ -93,3 +93,37 @@ def test_capability_execution():
     status_res = capability_execution(execution_id=exec_id, action="status")
     assert status_res["ok"] is True
     assert status_res["execution"]["status"] == "COMPLETED"
+
+
+
+def test_local_exec_authorize_repo_capability_is_registered():
+    found = capability_search(query="authorize owner approved repo", domain="local_execution")
+    assert found["ok"] is True
+    assert any(
+        item["capability_id"] == "local_exec.authorize_repo.v1"
+        for item in found["capabilities"]
+    )
+
+    described = capability_describe("local_exec.authorize_repo.v1")
+    assert described["ok"] is True
+    manifest = described["capability"]
+    assert manifest["mode"] == "mutation"
+    assert manifest["risk_class"] == "high"
+    assert "approval_id" in manifest["parameters_schema"]["required"]
+
+
+def test_local_exec_authorize_repo_respects_read_only_guard():
+    result = capability_invoke(
+        capability_id="local_exec.authorize_repo.v1",
+        parameters={
+            "repo": "Rafa-Innerchispa/example-repo",
+            "approval_id": "owner-approved-test",
+            "actor": "chatgpt",
+            "task_id": "ops_test",
+            "correlation_id": "test-correlation",
+            "dry_run": True,
+        },
+        context={"enforce_read_only": True},
+    )
+    assert result["ok"] is False
+    assert result["error"] == "MUTATION_FORBIDDEN_IN_READ_ONLY_MODE"
