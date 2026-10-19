@@ -680,15 +680,43 @@ def get_guardian() -> BelliniNetworkGuardian:
     return _guardian_instance
 
 
+
+def _enrich_guardian_status(status: dict[str, Any]) -> dict[str, Any]:
+    """Add read-only incident diagnostics without claiming physical root causes.
+
+    The TARGETS topology is configured but unverified in the physical network.
+    """
+    try:
+        from inneros_core_runtime.ag60_causal_diagnostics import report
+        from inneros_core_runtime.device_fabric import device_fabric_inventory
+
+        inventory = device_fabric_inventory(client_id=CLIENT_ID, site_id=SITE_ID, live=False)
+        topology = {
+            target["asset_id"]: {
+                "upstream_asset_id": target.get("upstream_device"),
+                "switch_port": target.get("upstream_port"),
+                "relationship_source": "guardian_target_config_unverified",
+                "relationship_verified": False,
+            }
+            for target in TARGETS if target.get("asset_id")
+        }
+        status["diagnostics"] = report(status, inventory, topology=topology)
+    except Exception as exc:
+        status["diagnostics"] = {"status": "UNAVAILABLE",
+                                 "root_cause_verified": False,
+                                 "error": type(exc).__name__}
+    return status
+
+
 def bellini_guardian_status() -> dict[str, Any]:
     """Retorna el estado operativo en vivo y telemetría de Bellini Network Guardian."""
     db = get_mongo_db()
     if db is not None:
         state = db.bellini_guardian_state.find_one({"site_id": SITE_ID}, {"_id": 0})
         if state:
-            return {"ok": True, "source": "mongodb_guardian_state", **state}
+            return _enrich_guardian_status({"ok": True, "source": "mongodb_guardian_state", **state})
     g = get_guardian()
-    return {"ok": True, "source": "live_sweep", **g.capture_single_sweep()}
+    return _enrich_guardian_status({"ok": True, "source": "live_sweep", **g.capture_single_sweep()})
 
 
 def bellini_guardian_dashboard() -> dict[str, Any]:
@@ -718,6 +746,7 @@ def bellini_guardian_dashboard() -> dict[str, Any]:
         "tailscale": status.get("tailscale", {}),
         "summary": status.get("summary", {}),
         "device_matrix": status.get("targets", []),
+        "diagnostics": status.get("diagnostics", {}),
         "recent_incidents": recent_incidents,
         "mutation_policy": MUTATION_POLICY,
         "generated_at": _now(),

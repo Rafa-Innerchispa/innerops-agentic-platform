@@ -24,7 +24,11 @@ def test_known_switch_and_shared_upstream():
     r = report(sample(["a", "b"]), inv, topo)
     assert r["incidents"][0]["type"] == "poe_switch"
     assert r["shared_upstreams"] == {"s": ["a", "b"]}
-    assert r["incidents"][0]["hypotheses"][0]["confidence"] == "medium"
+    assert r["incidents"][0]["hypotheses"][0]["confidence"] == "low"
+    assert "unverified" in r["incidents"][0]["hypotheses"][0]["evidence"]
+    verified = {"a": {"upstream_asset_id": "s", "relationship_verified": True},
+                "b": {"upstream_asset_id": "s", "relationship_verified": True}}
+    assert report(sample(["a", "b"]), inv, verified)["incidents"][0]["hypotheses"][0]["confidence"] == "medium"
 
 
 def test_delta_and_stale():
