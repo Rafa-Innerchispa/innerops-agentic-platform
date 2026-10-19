@@ -208,3 +208,60 @@ def test_reconcile_capacity_state_runs_dispatch_watchdog(incident_task):
     ):
         out = scheduler.reconcile_capacity_state(reason="unit_test")
     assert out["launch_dispatch_reconcile"]["requeued"] == 1
+
+
+def test_scheduler_picks_explicit_queued_joshua_retry_but_not_unapproved_queued_work():
+    """A recovered internal task is not stuck after backlog hygiene queues it.
+
+    Ordinary queued work, IDE handoffs and wrong lanes stay excluded.
+    """
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    original = {
+        "task_id": "ops_9c06568886ec",
+        "title": "P0 Joshua: implement Second Brain commercial memory",
+        "objective": "Implement a tested product change in the permitted repo",
+        "status": "queued",
+        "owner": "dev_swarm",
+        "assignee": "ralfia",
+        "preferred_provider": "dev_swarm",
+        "execution_lane": "local_dev_swarm",
+        "repo": "Rafa-Innerchispa/innerops-service-ops",
+        "priority": "critical",
+        "dev_swarm_retry_requested": True,
+    }
+
+    def select(row):
+        ops = _FakeCol()
+        ops.rows[row["task_id"]] = dict(row)
+        db = _FakeDb(ops, _FakeCol())
+        with (
+            mock.patch.object(scheduler, "_db", return_value=db),
+            mock.patch.object(scheduler, "reconcile_capacity_state", return_value={"ok": True}),
+            mock.patch.object(scheduler, "_state", return_value={"enabled": True, "max_concurrent": 4}),
+            mock.patch.object(
+                scheduler,
+                "capacity_status",
+                return_value={"recommendation": {"recommended_concurrency_total": 4}},
+            ),
+            mock.patch.object(scheduler, "_load_scheduler_candidates", return_value=[]),
+            mock.patch.object(
+                scheduler.local_execution_plane,
+                "repo_policy_status",
+                return_value={"ok": True, "write_scope": "trusted"},
+            ),
+        ):
+            return scheduler.scheduler_tick(limit=4, dry_run=True)
+
+    eligible = select(original)
+    assert [item["task_id"] for item in eligible["selected"]] == ["ops_9c06568886ec"]
+
+    without_retry = select({**original, "dev_swarm_retry_requested": False})
+    assert without_retry["selected"] == []
+
+    external_handoff = select({**original, "assignee": "cursor", "execution_lane": "cursor_interactive", "do_not_auto_dispatch": True})
+    assert external_handoff["selected"] == []
+
+    wrong_lane = select({**original, "execution_lane": "cursor_interactive"})
+    assert wrong_lane["selected"] == []
+    assert any(item["reason"] == "execution_lane_not_local_dev_swarm" for item in wrong_lane["skipped"])
