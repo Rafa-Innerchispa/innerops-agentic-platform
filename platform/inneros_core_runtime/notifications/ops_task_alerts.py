@@ -246,22 +246,40 @@ def notify_ops_owner_authorization_request(
         spends = "Carril *interno* (no gasta Cursor/Codex/Antigravity)."
         detail = ""
     short = tid.replace("ops_", "")[:6]
-    body = (
-        f"{icon} *{headline}* · {provider.upper()}\n"
-        f"Referencia: `{tid}`\n"
-        f"{objective[:140]}\n"
-        f"{spends}{detail}\n"
+    related: list[dict[str, Any]] = []
+    corr = str(task.get("correlation_id") or "").strip()
+    if corr:
+        try:
+            from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+            from raphiia_openai import mongo_store
+
+            related = list(
+                mongo_store.get_db()[OPS_TASKS_COL]
+                .find({"correlation_id": corr}, {"_id": 0, "task_id": 1, "status": 1, "assignee": 1, "human_task_id": 1})
+                .sort("updated_at", -1)
+                .limit(12)
+            )
+        except Exception:
+            related = []
+    from inneros_core_runtime import human_task_id as hti
+
+    if not task.get("human_task_id"):
+        task = {**task, "human_task_id": hti.resolve_human_task_id_for_create(task), "task_alias": hti.resolve_human_task_id_for_create(task)}
+    body = hti.format_whatsapp_owner_body(
+        task=task,
+        headline=f"{icon} {headline}",
+        provider=provider,
+        objective=objective,
+        spends=spends,
+        detail=detail,
+        alert_kind=alert_kind,
+        short_ops_suffix=short,
+        related=related,
     )
-    if alert_kind == "external_spend":
-        body += (
-            "\nUsa los botones *Confirmar* / *Cancelar* si aparecen.\n"
-            "Si no ves botones, responde:\n"
-            f"• *CONFIRMAR {short}*\n"
-            f"• *CANCELAR {short}*"
-        )
-    key = _dedupe_key("owner_auth", tid)
-    if not _can_send("owner_auth", tid, force=force):
-        return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid}
+    alias = str(task.get("human_task_id") or tid)
+    key = _dedupe_key("owner_auth", alias)
+    if not _can_send("owner_auth", alias, force=force):
+        return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid, "human_task_id": alias}
 
     import os
 

@@ -25,8 +25,21 @@ def _resolve_task_id(fragment: str) -> str | None:
         return frag
     from raphiia_openai import mongo_store
     from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+    from inneros_core_runtime.human_task_id import find_tasks_by_human_task_id, normalize_human_task_id
+
+    alias_hits = find_tasks_by_human_task_id(fragment.upper(), limit=3)
+    if len(alias_hits) == 1:
+        return str(alias_hits[0]["task_id"])
+    if len(alias_hits) > 1:
+        active = [t for t in alias_hits if str(t.get("status") or "").lower() not in {"completed", "cancelled", "superseded"}]
+        if len(active) == 1:
+            return str(active[0]["task_id"])
 
     db = mongo_store.get_db()
+    alias = normalize_human_task_id(fragment)
+    alias_row = db[OPS_TASKS_COL].find_one({"human_task_id": alias}, {"task_id": 1}, sort=[("updated_at", -1)])
+    if alias_row and alias_row.get("task_id"):
+        return str(alias_row["task_id"])
     exact = f"ops_{frag}" if not frag.startswith("ops_") else frag
     if db[OPS_TASKS_COL].find_one({"task_id": exact}, {"task_id": 1}):
         return exact

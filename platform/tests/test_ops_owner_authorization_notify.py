@@ -32,11 +32,15 @@ def test_notify_ops_owner_authorization_request_cursor():
     binding = eb.resolve_execution_binding(task)
     alerts._STATE["cooldowns"] = {}
     alerts._STATE["sent"] = []
-    with mock.patch.object(alerts, "send_alert_whatsapp", return_value={"ok": True}) as send:
-        out = alerts.notify_ops_owner_authorization_request(task, binding=binding, source_agent="notion")
+    with mock.patch("raphiia_openai.notifications.evolution_client.any_whatsapp_connected", return_value=True):
+        with mock.patch(
+            "raphiia_openai.notifications.evolution_client.send_whatsapp_interactive",
+            return_value={"ok": True},
+        ) as send:
+            out = alerts.notify_ops_owner_authorization_request(task, binding=binding, source_agent="notion")
     assert out["ok"] is True
     body = send.call_args[0][0]
-    assert "autorización" in body.lower() or "Autorización" in body
-    assert "Por qué no runner interno" in body
+    assert body.splitlines()[0].startswith("[")
+    assert "OPS actual: ops_new1" in body
     assert "procede cursor" in body
     assert alerts.owner_auth_notified("ops_new1")
