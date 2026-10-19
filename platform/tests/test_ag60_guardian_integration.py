@@ -127,3 +127,43 @@ def test_multiple_aps_do_not_imply_poe_outage(monkeypatch, bng):
     assert incident["root_cause_candidate"] == "MULTIPLE_AP_NO_REPLY_CAUSE_UNKNOWN"
     assert incident["confidence_qualifier"] == "unverified_not_calibrated"
     assert incident["root_cause_verified"] is False
+
+
+def test_dashboard_reconciles_cloud_without_touching_devices(monkeypatch, bng):
+    from inneros_core_runtime import device_fabric
+    cloud_module = _local_module("inneros_core_runtime.ag60_source_reconciliation",
+                                 "ag60_source_reconciliation.py")
+    monkeypatch.setitem(sys.modules, "inneros_core_runtime.ag60_source_reconciliation",
+                        cloud_module)
+    monkeypatch.setattr(bng, "get_mongo_db", lambda: None)
+    monkeypatch.setattr(bng, "bellini_guardian_status", lambda: {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "site_id": "bellini-i-ii",
+        "targets": [{"asset_id": "bellini_ap_212", "ip": "192.168.3.212",
+                     "name": "GWN Wi-Fi AP 212", "online": False}],
+        "summary": {"offline_count": 1},
+        "diagnostics": {"root_cause_verified": False},
+    })
+    called = []
+
+    def fake_inventory(**kwargs):
+        called.append(kwargs)
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        return {"inventory": [], "cloud_live": {"ok": True, "devices": {"all": {"items": [
+            {"apType": "GWN7660", "name": "Salón Inglés",
+             "mac": "EC:74:D7:3D:27:2C", "ipv4": "192.168.3.212",
+             "status": 1, "lastSeen": now_ms},
+            {"apType": "GWN7605", "name": "Lobby Principal",
+             "mac": "EC:74:D7:1A:01:D0", "ipv4": "192.168.3.197",
+             "status": 1, "lastSeen": now_ms},
+        ]}}}}
+
+    monkeypatch.setattr(device_fabric, "device_fabric_inventory", fake_inventory)
+    dashboard = bng.bellini_guardian_dashboard()
+    assert called == [{"client_id": "bellini", "site_id": "bellini-i-ii", "live": True}]
+    source = dashboard["source_reconciliation"]
+    assert source["cloud_devices"] == 2
+    assert source["unmonitored_cloud_aps"] == 1
+    assert source["root_cause_verified"] is False
+    assert source["comparisons"][0]["identity_match"] == "IP_ONLY_UNVERIFIED"
+    assert "credentials" not in source

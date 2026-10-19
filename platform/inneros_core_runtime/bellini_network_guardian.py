@@ -721,6 +721,23 @@ def bellini_guardian_status() -> dict[str, Any]:
 def bellini_guardian_dashboard() -> dict[str, Any]:
     """Retorna el panel operativo de Bellini I-II con métricas, incidentes y telemetría."""
     status = bellini_guardian_status()
+    # Cloud is queried only on explicit dashboard access, never during
+    # periodic Guardian sampling or ordinary MCP status reads.
+    source_reconciliation: dict[str, Any]
+    try:
+        from inneros_core_runtime.device_fabric import device_fabric_inventory
+        from inneros_core_runtime.ag60_source_reconciliation import reconcile
+        inventory = device_fabric_inventory(client_id=CLIENT_ID, site_id=SITE_ID, live=True)
+        source_reconciliation = reconcile(
+            status, inventory, cloud=inventory.get("cloud_live")
+        )
+    except Exception as exc:
+        source_reconciliation = {
+            "status": "UNAVAILABLE",
+            "reason": type(exc).__name__,
+            "root_cause_verified": False,
+            "mutations_performed": False,
+        }
     db = get_mongo_db()
     recent_incidents = []
     if db is not None:
@@ -746,6 +763,7 @@ def bellini_guardian_dashboard() -> dict[str, Any]:
         "summary": status.get("summary", {}),
         "device_matrix": status.get("targets", []),
         "diagnostics": status.get("diagnostics", {}),
+        "source_reconciliation": source_reconciliation,
         "recent_incidents": recent_incidents,
         "mutation_policy": MUTATION_POLICY,
         "generated_at": _now(),
