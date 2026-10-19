@@ -180,9 +180,31 @@ def test_hackathon_projects_in_canonical_registry_json() -> None:
 def test_dev_swarm_scope_ok_for_hackathon_repos() -> None:
     for repo in (
         "Rafa-Innerchispa/amd-academy-mc3-rag",
-        "Rafa-Innerchispa/amd-academy-mc4-web-retrieval",
         "Rafa-Innerchispa/inneros-amd-act-iii",
     ):
         scope = lep.dev_swarm_scope_status(repo=repo)
         assert scope["ok"] is True, (repo, scope)
         assert scope["policy"]["ok"] is True, repo
+
+
+
+def test_dev_swarm_scope_ok_for_mc4_registered_registry(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("INNEROS_CORE_ROOT", str(tmp_path))
+    ws = tmp_path / "workspaces"
+    mc4 = ws / "amd-academy-mc4-web-retrieval"
+    mc4.mkdir(parents=True, exist_ok=True)
+    prr.register_project(
+        "amd-academy-mc4-web-retrieval",
+        "Rafa-Innerchispa/amd-academy-mc4-web-retrieval",
+        str(mc4),
+        actor="pytest",
+        source="pytest",
+        **MC4_EXTRAS,
+    )
+
+    scope = lep.dev_swarm_scope_status(
+        repo="Rafa-Innerchispa/amd-academy-mc4-web-retrieval"
+    )
+    assert scope["ok"] is True, scope
+    assert scope["policy"]["ok"] is True, scope
+    assert scope["policy"]["policy"]["profile"] == "python-tests"
