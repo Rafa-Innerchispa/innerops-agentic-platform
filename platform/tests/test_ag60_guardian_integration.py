@@ -87,3 +87,43 @@ def test_inventory_failure_fails_closed(monkeypatch, bng):
     status = bng._enrich_guardian_status({"timestamp": "2026-10-19T00:00:00Z", "targets": []})
     assert status["diagnostics"]["status"] == "UNAVAILABLE"
     assert status["diagnostics"]["root_cause_verified"] is False
+
+
+def test_root_cause_is_never_declared_by_icmp(monkeypatch, bng):
+    monkeypatch.setattr(bng, "get_mongo_db", lambda: None)
+    sample = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "gateway_online": False, "gateway_rtt_ms": 0.0, "tailscale": {},
+        "summary": {"offline_count": 1},
+        "targets": [{"ip": "192.168.3.1", "asset_id": "gw",
+                     "device_type": "gateway", "online": False}],
+    }
+    guardian = bng.BelliniNetworkGuardian()
+    guardian._analyze_incidents(sample)
+    incident = guardian.active_incident
+    assert incident["trigger"] == "GATEWAY_UNREACHABLE"
+    assert incident["root_cause_candidate"] == "GATEWAY_NO_RESPONSE_CAUSE_UNKNOWN"
+    assert incident["confidence"] is None
+    assert incident["root_cause_verified"] is False
+    assert incident["first_failed_component"] == "unknown"
+
+
+def test_multiple_aps_do_not_imply_poe_outage(monkeypatch, bng):
+    monkeypatch.setattr(bng, "get_mongo_db", lambda: None)
+    sample = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "gateway_online": True, "gateway_rtt_ms": 10.0,
+        "tailscale": {"derp": False}, "summary": {"offline_count": 2},
+        "targets": [
+            {"ip": "192.168.3.1", "asset_id": "gw", "device_type": "gateway", "online": True},
+            {"ip": "192.168.3.188", "asset_id": "ap188", "device_type": "ap", "online": False},
+            {"ip": "192.168.3.213", "asset_id": "ap213", "device_type": "ap", "online": False},
+        ],
+    }
+    guardian = bng.BelliniNetworkGuardian()
+    guardian._analyze_incidents(sample)
+    incident = guardian.active_incident
+    assert incident["trigger"] == "MULTIPLE_AP_OUTAGE"
+    assert incident["root_cause_candidate"] == "MULTIPLE_AP_NO_REPLY_CAUSE_UNKNOWN"
+    assert incident["confidence_qualifier"] == "unverified_not_calibrated"
+    assert incident["root_cause_verified"] is False

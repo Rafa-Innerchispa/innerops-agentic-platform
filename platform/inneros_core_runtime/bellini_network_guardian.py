@@ -475,30 +475,26 @@ class BelliniNetworkGuardian:
         ap_targets = [r for r in targets if r["device_type"] == "ap"]
         offline_aps = [r for r in ap_targets if not r["online"]]
 
+        # Network probes are symptoms, never calibrated physical failure proof.
         incident_trigger = None
-        root_cause = "NORMAL_OPERATION"
-        confidence = 1.0
+        root_cause = "NO_CONFIRMED_ROOT_CAUSE"
+        confidence = None
 
         if not gw_online:
             incident_trigger = "GATEWAY_UNREACHABLE"
-            root_cause = "CORE_ROUTER_OR_POWER_OUTAGE"
-            confidence = 0.98
+            root_cause = "GATEWAY_NO_RESPONSE_CAUSE_UNKNOWN"
         elif gw_rtt > 100.0 and ts.get("derp"):
             incident_trigger = "TAILSCALE_DERP_HIGH_LATENCY"
-            root_cause = "REMOTE_ACCESS_TAILSCALE_DERP_DEGRADATION"
-            confidence = 0.95
-        elif not sw185.get("online") and not ap188.get("online") and gw_online:
+            root_cause = "REMOTE_ACCESS_RELAY_LATENCY_OBSERVED"
+        elif sw185.get("online") is False and ap188.get("online") is False and gw_online:
             incident_trigger = "ADMIN_SEGMENT_DROP"
-            root_cause = "ADMIN_SEGMENT_PHYSICAL_FAILURE"
-            confidence = 0.92
+            root_cause = "ADMIN_SEGMENT_MULTIPLE_NO_REPLY_CAUSE_UNKNOWN"
         elif len(offline_aps) >= 2 and gw_online:
             incident_trigger = "MULTIPLE_AP_OUTAGE"
-            root_cause = "WIFI_DISTRIBUTION_SWITCH_OR_POE_DROP"
-            confidence = 0.88
+            root_cause = "MULTIPLE_AP_NO_REPLY_CAUSE_UNKNOWN"
         elif len(offline_aps) == 1:
             incident_trigger = f"SINGLE_AP_OUTAGE_{offline_aps[0]['asset_id']}"
-            root_cause = "SINGLE_AP_OR_POE_DROP"
-            confidence = 0.90
+            root_cause = "SINGLE_AP_NO_REPLY_CAUSE_UNKNOWN"
 
         if incident_trigger:
             if not self.active_incident:
@@ -512,8 +508,11 @@ class BelliniNetworkGuardian:
                     "trigger": incident_trigger,
                     "root_cause_candidate": root_cause,
                     "confidence": confidence,
+                    "confidence_qualifier": "unverified_not_calibrated",
+                    "root_cause_verified": False,
+                    "observation_basis": "ICMP_TCP_TAILSCALE_ONLY",
                     "affected_devices": [r["asset_id"] for r in targets if not r["online"]],
-                    "first_failed_component": targets[0]["asset_id"] if not gw_online else (offline_aps[0]["asset_id"] if offline_aps else "unknown"),
+                    "first_failed_component": "unknown",  # No timestamp-ordered component evidence
                     "timeline": [{"timestamp": sample["timestamp"], "event": f"Triggered: {incident_trigger}"}],
                     "raw_snapshot": {
                         "tailscale": ts,
