@@ -312,3 +312,42 @@ class CoordinationRecoveryP0Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+def _retryable_swarm_task() -> dict:
+    return {
+        "task_id": "ops_retry_fixture",
+        "status": "blocked",
+        "owner": "dev_swarm",
+        "assignee": "dev_swarm",
+        "execution_lane": "local_dev_swarm",
+        "task_class": "coding",
+        "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+        "title": "Repair bounded local execution",
+        "dev_swarm_requeue_count": 0,
+    }
+
+
+def test_dev_swarm_requeue_skips_task_completed_by_another_agent():
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    task = _retryable_swarm_task()
+    with patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True}):
+        assert scheduler._safe_dev_swarm_requeue_candidate(task, completed_sibling=True) is False
+
+
+def test_dev_swarm_requeue_does_not_override_owner_ide_handoff():
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    task = {**_retryable_swarm_task(), "do_not_auto_dispatch": True}
+    with patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True}):
+        assert scheduler._safe_dev_swarm_requeue_candidate(task) is False
+
+
+def test_dev_swarm_requeue_budget_is_one_validated_retry():
+    from inneros_core_runtime import dev_swarm_scheduler as scheduler
+
+    task = _retryable_swarm_task()
+    with patch.object(scheduler.local_execution_plane, "repo_policy_status", return_value={"ok": True}):
+        assert scheduler._safe_dev_swarm_requeue_candidate(task) is True
+        assert scheduler._safe_dev_swarm_requeue_candidate({**task, "dev_swarm_requeue_count": 1}) is False
+        assert scheduler._safe_dev_swarm_requeue_candidate({**task, "owner": "cursor"}) is False
