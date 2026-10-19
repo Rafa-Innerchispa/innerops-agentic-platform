@@ -1224,6 +1224,15 @@ def scheduler_status() -> dict[str, Any]:
     capacity = capacity_status()
     active_statuses = ["accepted", "in_progress", "blocked", "awaiting_approval", "verification"]
     workers = list(db[WORKERS_COL].find({}, {"_id": 0}).sort("updated_at", -1).limit(20))
+    for worker in workers:
+        launch = worker.get("launch") if isinstance(worker.get("launch"), dict) else {}
+        plan = launch.get("plan") if isinstance(launch.get("plan"), dict) else {}
+        # Compute a presentation-only label. Never rewrite historical ops task IDs
+        # or alter durable task titles during a read-only scheduler status query.
+        worker["display_title"] = local_execution_plane.human_dev_swarm_title(
+            str(worker.get("repo") or ""),
+            str(plan.get("objective") or ""),
+        )
     return {
         "ok": True,
         "executor_version": EXECUTOR_VERSION,

@@ -2046,6 +2046,33 @@ def dev_swarm_scope_status(repo: str | None = None) -> dict[str, Any]:
     }
 
 
+def human_dev_swarm_title(repo: str, objective: str) -> str:
+    """Give the owner a useful task title instead of the generic repo label.
+
+    Preserve the technical task ID and full objective in their separate fields.
+    Do not include multiline instructions or apparent credentials in titles.
+    """
+    repo_short = str(repo or "").rsplit("/", 1)[-1] or "repository"
+    for raw_line in str(objective or "").splitlines():
+        line = raw_line.strip().lstrip("#>*- ").strip()
+        if not line or line.startswith("```"):
+            continue
+        if re.match(r"(?i)^(human task id|task id|correlation id|owner order)\s*:", line):
+            continue
+        line = re.sub(r"(?i)^owner[- ]approved\s*[,.:;-]?\s*", "", line)
+        if line.lower().rstrip(":") in {"goal", "objective", "purpose", "context", "requirements"}:
+            continue
+        if len(line) < 12:
+            continue
+        if re.search(r"(?i)(password|secret|token|api[_ -]?key)\s*[:=]", line):
+            continue
+        summary = _redact(line).replace("\\n", " ")
+        if len(summary) > 104:
+            summary = summary[:101].rsplit(" ", 1)[0].rstrip(" ,.:;") + "..."
+        return f"{summary} ({repo_short})"[:150]
+    return f"Dev Swarm: {repo_short}"
+
+
 def dev_swarm_launch_task(
     repo: str,
     objective: str,
@@ -2076,7 +2103,7 @@ def dev_swarm_launch_task(
 
             generated = coordination_live.create_ops_task(
                 assignee="dev_swarm",
-                title=f"Dev Swarm local execution: {repo}",
+                title=human_dev_swarm_title(repo, objective_text),
                 checklist=[objective_text],
                 evidence_required=["task_id", "worktree", "provider/model", "tests/evidence"],
                 priority="p0",
