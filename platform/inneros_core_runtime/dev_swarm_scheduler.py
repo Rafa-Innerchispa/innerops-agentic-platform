@@ -1285,7 +1285,9 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     retry_allowed = status == "blocked" and _ops_auto_retry_allowed(task)
     dispatch_retry = (
         task.get("dev_swarm_retry_requested")
-        and status in dev_swarm_dispatch_reconcile.DISPATCH_PENDING_STATUSES
+        # Requeue hygiene parks retryable internal work in queued. Without this
+        # status the scheduler silently ignores the request forever.
+        and status in (dev_swarm_dispatch_reconcile.DISPATCH_PENDING_STATUSES | {"queued"})
         and dev_swarm_dispatch_reconcile.is_dev_swarm_managed_task(task)
     )
     if status in OPS_TERMINAL_STATUSES and not retry_allowed and not dispatch_retry:
@@ -1611,6 +1613,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
                             "worker_starting",
                             "dispatched",
                             "proposed",
+                            "queued",  # only fetched when dev_swarm_retry_requested is true
                         ]
                     },
                 },
@@ -1628,7 +1631,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
             if (doc := db[coordination_live.OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "dev_swarm_retry_requested": 1, "status": 1}))
             and doc.get("dev_swarm_retry_requested")
             and str(doc.get("status") or "").lower()
-            in {"accepted", "in_progress", "blocked", "running", "worker_starting", "dispatched", "proposed"}
+            in {"accepted", "in_progress", "blocked", "running", "worker_starting", "dispatched", "proposed", "queued"}
         ]
     if retry_ids:
         seen = {task.get("task_id") for task in tasks}
@@ -1636,7 +1639,7 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
             {
                 "task_id": {"$in": retry_ids},
                 "dev_swarm_retry_requested": True,
-                "status": {"$in": ["accepted", "in_progress", "blocked", "running", "worker_starting", "dispatched", "proposed"]},
+                "status": {"$in": ["accepted", "in_progress", "blocked", "running", "worker_starting", "dispatched", "proposed", "queued"]},
             },
             {"_id": 0},
         )
