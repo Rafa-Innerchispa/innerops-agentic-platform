@@ -790,8 +790,23 @@ def reconcile_coordination_backlog_hygiene(limit: int = 200, dry_run: bool = Tru
     return {"ok": True, "dry_run": dry_run, "reviewed": len(rows), "action_count": len(actions), "counts": counts, "actions": actions[:100]}
 
 
+def _safe_dev_swarm_requeue_candidate(task: dict[str, Any], *, completed_sibling: bool = False) -> bool:
+    """Only retry a locally owned job once and never retry work already delivered."""
+    if completed_sibling or task.get("do_not_auto_dispatch") is True:
+        return False
+    if bool(task.get("review_required")):
+        return False
+    if str(task.get("owner") or "").lower() != "dev_swarm":
+        return False
+    if int(task.get("dev_swarm_requeue_count") or 0) >= 1:
+        return False
+    candidate = {**task, "dev_swarm_retry_requested": True}
+    allowed, _reason, _repo = _eligible_reason(candidate)
+    return bool(allowed)
+
+
 def requeue_retryable_blocked_ops(*, limit: int = 80) -> dict[str, Any]:
-    """Re-admit blocked ops that failed for retryable Dev Swarm/quality-gate reasons (not one-off patches)."""
+    """Retry at most once when eligible and no completed correlated owner result exists."""
     db = _db()
     now = _now()
     retry_markers = (
@@ -826,8 +841,25 @@ def requeue_retryable_blocked_ops(*, limit: int = 80) -> dict[str, Any]:
         blob += " " + str(evidence).lower()
         if not any(marker in blob for marker in retry_markers):
             continue
-        db[coordination_live.OPS_TASKS_COL].update_one(
-            {"task_id": task_id, "status": "blocked"},
+        correlation = str(task.get("correlation_id") or "").strip()
+        completed_sibling = bool(
+            correlation
+            and db[coordination_live.OPS_TASKS_COL].find_one(
+                {
+                    "correlation_id": correlation,
+                    "task_id": {"$ne": task_id},
+                    "status": "completed",
+                },
+                {"_id": 1},
+            )
+        )
+        if not _safe_dev_swarm_requeue_candidate(task, completed_sibling=completed_sibling):
+            continue
+        selector = {"task_id": task_id, "status": "blocked"}
+        if task.get("revision") is not None:
+            selector["revision"] = task["revision"]
+        result = db[coordination_live.OPS_TASKS_COL].update_one(
+            selector,
             {
                 "$set": {
                     "status": "queued",
@@ -835,10 +867,12 @@ def requeue_retryable_blocked_ops(*, limit: int = 80) -> dict[str, Any]:
                     "dev_swarm_requeue_at": now,
                     "updated_at": now,
                     "updated_by": "requeue_retryable_blocked_ops",
-                }
+                },
+                "$inc": {"dev_swarm_requeue_count": 1},
             },
         )
-        requeued.append(task_id)
+        if getattr(result, "modified_count", 0) == 1:
+            requeued.append(task_id)
     return {"ok": True, "scanned": len(rows), "requeued": requeued}
 
 
