@@ -11,6 +11,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -896,7 +897,17 @@ def _require_metadata(actor: str, task_id: str, correlation_id: str, idempotency
 
 def _execution_env() -> dict[str, str]:
     env = dict(os.environ)
+    # Include existing user-local Ruby managers before system binaries. No installs or
+    # interactive shell activation are required for systemd/service execution.
+    home = Path.home()
+    ruby_shims = [
+        home / ".local/share/mise/shims",
+        home / ".rbenv/shims",
+        home / ".asdf/shims",
+        Path("/opt/inneros/toolchains/ruby/bin"),
+    ]
     path_parts = [
+        *(str(path) for path in ruby_shims if path.is_dir()),
         "/home/rlopez/inneros/inneros_core/platform/venv/bin",
         "/home/rlopez/inneros/inneros_core/tools/go/bin",
         "/home/rlopez/.local/opt",
@@ -1508,6 +1519,32 @@ def _record_command_run(command_run_id: str, payload: dict[str, Any]) -> None:
         pass
 
 
+def _ruby_toolchain_preflight() -> dict[str, Any]:
+    """Fail early for missing GitLab Ruby tooling without changing the host.
+
+    Only searches known local/system PATH entries. It neither installs packages
+    nor silently substitutes tests from a different interpreter/runtime.
+    """
+    env = _execution_env()
+    executable_path = env.get("PATH", "")
+    ruby = shutil.which("ruby", path=executable_path)
+    bundle = shutil.which("bundle", path=executable_path)
+    if not ruby or not bundle:
+        return {
+            "ok": False,
+            "error": "ruby_runtime_missing" if not ruby else "ruby_bundler_missing",
+            "ruby_available": bool(ruby),
+            "bundler_available": bool(bundle),
+            "remediation": (
+                "Provision project-pinned Ruby and Bundler in a local, isolated "
+                "GitLab toolchain (mise/rbenv/container) and make their bin/shims "
+                "visible to the InnerOS service; otherwise verify the exact SHA "
+                "in GitLab CI. Do not mark local RSpec PASS or install globally."
+            ),
+        }
+    return {"ok": True, "ruby_available": True, "bundler_available": True}
+
+
 def run_command_allowlisted(
     repo: str,
     work_branch: str,
@@ -1531,6 +1568,21 @@ def run_command_allowlisted(
         npm_allowed = _node_package_command_allowed(command, conf, base=worktree)
         if not (_command_allowed(command, profile) or npm_allowed):
             return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command, "command_run_id": command_run_id}
+        if profile == "ruby-tests-local-only" and command[0] != "git":
+            preflight = _ruby_toolchain_preflight()
+            if not preflight["ok"]:
+                _record_command_run(command_run_id, {
+                    "status": "blocked",
+                    "repo": repo,
+                    "work_branch": work_branch,
+                    "profile": profile,
+                    "command": command,
+                    "actor": actor,
+                    "task_id": task_id,
+                    "correlation_id": correlation_id,
+                    **preflight,
+                })
+                return {"profile": profile, "command_run_id": command_run_id, **preflight}
         _record_command_run(
             command_run_id,
             {

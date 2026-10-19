@@ -62,3 +62,29 @@ def test_denies_binary_data_and_redacts_tokens(monkeypatch, tmp_path):
 def test_requires_governed_worktree_branch(monkeypatch, tmp_path):
     _configure(monkeypatch, tmp_path)
     assert lep.read_worktree_file("rafagye/gitlab", "main", "ee/spec.rb")["ok"] is False
+
+
+def test_gitlab_ruby_preflight_fails_closed_before_running(monkeypatch, tmp_path):
+    """Existing CI for safe source reads also guards the Ruby runtime contract."""
+    monkeypatch.setattr(lep, "_repo_config", lambda _repo: {"profile": "ruby-tests-local-only"})
+    monkeypatch.setattr(lep, "_worktree_path", lambda _repo, _branch, _conf: tmp_path)
+    monkeypatch.setattr(lep, "_record_command_run", lambda *_args: None)
+    monkeypatch.setattr(lep, "_execution_env", lambda: {"PATH": "/usr/bin"})
+    monkeypatch.setattr(lep.shutil, "which", lambda binary, *, path: None)
+
+    def deny_spawn(*_args, **_kwargs):
+        raise AssertionError("Missing Ruby must not execute RSpec")
+
+    monkeypatch.setattr(lep, "_run", deny_spawn)
+    result = lep.run_command_allowlisted(
+        "rafagye/gitlab",
+        "chatgpt/gitlab-ruby-smoke",
+        ["bin/rspec", "spec/lib/api/helpers/search_helpers_spec.rb"],
+        "chatgpt",
+        "ops_6113b4f0abf7",
+        "ruby-preflight-ci-canary",
+    )
+    assert result["ok"] is False
+    assert result["error"] == "ruby_runtime_missing"
+    assert result["ruby_available"] is False
+    assert result["bundler_available"] is False
