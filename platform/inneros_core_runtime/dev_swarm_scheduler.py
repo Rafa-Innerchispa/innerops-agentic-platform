@@ -682,7 +682,22 @@ def reconcile_coordination_backlog_hygiene(limit: int = 200, dry_run: bool = Tru
     """
     db = _db()
     now = _now()
-    statuses = ["proposed", "accepted", "in_progress", "blocked", "awaiting_approval", "verification", "partial"]
+    statuses = [
+        "proposed",
+        "accepted",
+        "in_progress",
+        "blocked",
+        "awaiting_approval",
+        "verification",
+        "partial",
+        "waiting_for_binding",
+        "waiting_for_model_binding",
+        "awaiting_cursor_claim",
+        "awaiting_codex_claim",
+        "awaiting_antigravity_claim",
+        "awaiting_gemini_claim",
+        "queued",
+    ]
     rows = list(
         db[coordination_live.OPS_TASKS_COL]
         .find({"status": {"$in": statuses}}, {"_id": 0})
