@@ -1,5 +1,6 @@
 import importlib.util
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "agents" / "ag50_daily_companion.py"
@@ -37,9 +38,43 @@ class DailyCompanionTests(unittest.TestCase):
         spoken, result = ag50._polish_spoken_brief(
             "Prioridad principal: cerrar Alexa.",
             Router(),
+            now=datetime(2026, 10, 19, 8, 0),
         )
-        self.assertEqual(spoken, "Prioridad principal: cerrar Alexa.")
+        self.assertEqual(spoken, "Buenos días. Prioridad principal: cerrar Alexa.")
         self.assertFalse(result["ok"])
+
+    def test_english_snapshot_is_voice_safe_for_large_counts(self):
+        live = {
+            "open_ops_count": 143,
+            "open_ops_tasks": [
+                {"title": "Finish Alexa demo", "status": "in_progress", "priority": "p0"},
+            ],
+        }
+        text = ag50._spoken_snapshot(live, {"state": {}}, language="en-US")
+        self.assertIn("more than one hundred", text)
+        self.assertIn("Finish Alexa demo", text)
+        self.assertNotIn("143", text)
+        self.assertNotIn("Tienes", text)
+
+    def test_english_evening_fallback_uses_local_time_greeting(self):
+        class Router:
+            @staticmethod
+            def run_local_model(**kwargs):
+                return {"ok": False, "error": "offline"}
+
+        spoken, _ = ag50._polish_spoken_brief(
+            "Main priority: restore the Alexa demo.",
+            Router(),
+            language="en-US",
+            now=datetime(2026, 10, 19, 18, 0),
+        )
+        self.assertEqual(spoken, "Good evening. Main priority: restore the Alexa demo.")
+
+    def test_spanish_greeting_is_not_hardcoded_to_morning(self):
+        self.assertEqual(
+            ag50._greeting("es-US", datetime(2026, 10, 19, 18, 0)),
+            "Buenas noches",
+        )
 
 
 if __name__ == "__main__":
