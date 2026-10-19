@@ -21,6 +21,13 @@ def bng(monkeypatch):
     diagnostics = _local_module("inneros_core_runtime.ag60_causal_diagnostics",
                                 "ag60_causal_diagnostics.py")
     monkeypatch.setitem(sys.modules, "inneros_core_runtime.ag60_causal_diagnostics", diagnostics)
+    # CI intentionally installs only minimal offline test requirements.
+    # Stub the unused Mongo import, never connect to a database.
+    if "pymongo" not in sys.modules:
+        from types import ModuleType
+        stub = ModuleType("pymongo")
+        stub.database = ModuleType("pymongo.database")
+        monkeypatch.setitem(sys.modules, "pymongo", stub)
     return _local_module("bellini_network_guardian_under_test", "bellini_network_guardian.py")
 
 
