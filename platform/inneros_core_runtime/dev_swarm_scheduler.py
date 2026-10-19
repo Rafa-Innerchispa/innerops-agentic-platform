@@ -2150,14 +2150,18 @@ def _is_product_code_path(repo: str, worktree: Path, path: str) -> bool:
         return False
     product_root = _primary_product_root(repo, worktree)
     rel = str(path or "").replace("\\", "/").strip("/")
+    while rel.startswith("./"):
+        rel = rel[2:]
+    # A manifest at the repository root is represented as "."; file writes
+    # are normalized to repo-relative paths without the leading "./".
     if product_root in {".", ""}:
         return rel.startswith(PRODUCT_PREFIXES)
     prefix = product_root.rstrip("/") + "/"
-    if rel.startswith(prefix):
-        rel = rel[len(prefix) :]
-        return rel.startswith(PRODUCT_PREFIXES)
-    # Flat package root repos (e.g. innerops-service-ops) store paths as src/… not ./src/…
-    return rel.startswith(PRODUCT_PREFIXES)
+    # For nested package roots, never classify files outside the declared
+    # package as product writes. Repo write authorization is enforced separately.
+    if not rel.startswith(prefix):
+        return False
+    return rel[len(prefix) :].startswith(PRODUCT_PREFIXES)
 
 
 def _implementation_write_classes(repo: str, worktree: Path, files_touched: list[str]) -> dict[str, list[str]]:
