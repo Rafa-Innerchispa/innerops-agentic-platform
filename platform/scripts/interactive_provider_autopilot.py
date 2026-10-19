@@ -44,7 +44,7 @@ def _claimed_tasks(provider: str, limit: int = 5) -> list[dict[str, Any]]:
 
 def _auto_claim_batch(provider: str, slots: int) -> dict[str, Any]:
     db = mongo_store.get_db()
-    listed = ior.list_claimable_ops_tasks(provider, limit=max(slots * 4, 8))
+    listed = ior.list_claimable_ops_tasks(provider=provider, limit=max(slots * 4, 8))
     stubs = listed.get("tasks") or []
     claims: list[dict[str, Any]] = []
     full_tasks: list[dict[str, Any]] = []
