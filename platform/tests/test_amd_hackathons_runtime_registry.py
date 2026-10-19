@@ -43,6 +43,7 @@ MC4_EXTRAS = {
         "README.md",
         "pyproject.toml",
         "requirements.txt",
+        "requirements-runtime.txt",
         ".dockerignore",
     ],
     "package_roots": ["app", "src", "."],
@@ -140,6 +141,7 @@ def test_register_amd_academy_mc4_web_retrieval(monkeypatch, tmp_path) -> None:
     assert project["package_roots"] == ["app", "src", "."]
     assert "docker" in project["allowed_paths"]
     assert "tools" in project["allowed_paths"]
+    assert "requirements-runtime.txt" in project["allowed_paths"]
 
 
 def test_register_inneros_amd_act_iii(monkeypatch, tmp_path) -> None:
