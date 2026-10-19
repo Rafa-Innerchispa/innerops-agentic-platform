@@ -10,13 +10,15 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 DEFAULT_ECHO = "notify.echo_cuarto_speak"
+DEFAULT_LANGUAGE = "en-US"
 
 
 def main() -> int:
     from raphiia_openai import homeassistant_client as ha
     from raphiia_openai.agents import ag50_daily_companion as ag50
 
-    result = ag50.run_daily_companion("", include_brief=True)
+    language = os.getenv("RALFIA_DAILY_COMPANION_LANGUAGE", DEFAULT_LANGUAGE).strip() or DEFAULT_LANGUAGE
+    result = ag50.run_daily_companion("", include_brief=True, language=language)
     if not result.get("ok"):
         print("ok=False reason=companion_failed")
         return 1
@@ -38,6 +40,7 @@ def main() -> int:
         "ops=", result.get("open_ops_count"),
         "memory=", result.get("memory_hits"),
         "echo=", notify_entity,
+        "language=", language,
     )
     return 0 if delivery.get("ok") else 1
 
