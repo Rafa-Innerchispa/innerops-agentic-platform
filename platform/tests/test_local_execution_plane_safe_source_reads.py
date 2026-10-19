@@ -154,3 +154,35 @@ def test_gitlab_platform_integration_without_external_mr_is_not_misclassified():
     assert allowed is True
     assert reason is None
     assert expected is None
+
+
+def test_dev_swarm_title_describes_owner_approved_work():
+    title = lep.human_dev_swarm_title(
+        "Rafa-Innerchispa/innerops-agentic-platform",
+        "OWNER-APPROVED, local-first packaging task for AMD AI League submission.\nCreate docs and verify.",
+    )
+    assert "packaging task for AMD AI League submission" in title
+    assert "innerops-agentic-platform" in title
+    assert "Dev Swarm local execution:" not in title
+
+
+def test_dev_swarm_title_skips_machine_task_id_header():
+    title = lep.human_dev_swarm_title(
+        "Rafa-Innerchispa/amd-academy-mc4-web-retrieval",
+        "HUMAN TASK ID: MATCH4-WEB-RETRIEVAL\nValidate the current Match 4 branch with pytest",
+    )
+    assert title.startswith("Validate the current Match 4 branch")
+    assert "MATCH4-WEB-RETRIEVAL" not in title
+
+
+def test_dev_swarm_title_does_not_copy_apparent_credentials():
+    title = lep.human_dev_swarm_title(
+        "Rafa-Innerchispa/demo",
+        "api_key: top-secret-value\nUpdate the local Python test suite",
+    )
+    assert "top-secret-value" not in title
+    assert "Update the local Python test suite" in title
+
+
+def test_dev_swarm_title_falls_back_safely():
+    assert lep.human_dev_swarm_title("Rafa-Innerchispa/demo", "  ") == "Dev Swarm: demo"
