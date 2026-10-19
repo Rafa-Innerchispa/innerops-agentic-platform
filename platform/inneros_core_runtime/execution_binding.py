@@ -32,6 +32,7 @@ INTERACTIVE_IDE_RUNNER = "interactive_ide_handoff"
 CURSOR_INTERACTIVE_RUNNER = "cursor_interactive"
 PEER_OPS_RUNNER = "peer_ops_a2a"
 BLOCKED_RUNNER = "blocked"
+DEVICE_FABRIC_RUNNER = "device_fabric_capability"
 CURSOR_PINNED_MODEL = __import__("os").getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
 
 # WhatsApp owner gate: only external IDE agents that spend cloud/IDE credits.
@@ -187,6 +188,21 @@ def resolve_execution_binding(envelope_dict: dict[str, Any]) -> dict[str, Any]:
             "read_only": True,
             "requires_repo": False,
             "message": "business_ops/email_intelligence: ejecutor local de correo sin worktree Git.",
+        }
+
+    payload = env.get("payload") if isinstance(env.get("payload"), dict) else {}
+    capability_plane = str(payload.get("capability_plane") or env.get("capability_plane") or "").strip().lower()
+    if lane in {"device_fabric", "operational_device_fabric"} or capability_plane == "device_fabric":
+        return {
+            **base,
+            "ok": True,
+            "allowed": True,
+            "runner": DEVICE_FABRIC_RUNNER,
+            "status": "ready",
+            "error": None,
+            "read_only": True,
+            "requires_repo": False,
+            "message": "device_fabric read/capability plane (repo not required)",
         }
 
     task_kind = str(env.get("task_kind") or "").strip().lower()

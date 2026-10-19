@@ -485,6 +485,10 @@ def create_ops_task(
             if key in payload and key not in doc:
                 doc[key] = payload[key]
 
+    from inneros_core_runtime import ops_task_admission as ota
+
+    doc = ota.normalize_ops_admission(doc)
+
     from inneros_core_runtime import durable_coordination_spine
 
     started = durable_coordination_spine.start_task_workflow(doc)
