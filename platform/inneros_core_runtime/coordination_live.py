@@ -320,6 +320,7 @@ def ack_coordination_revision(agent: str, revision: int) -> dict[str, Any]:
 def list_ops_tasks(
     *,
     task_id: str | None = None,
+    human_task_id: str | None = None,
     correlation_id: str | None = None,
     project: str | None = None,
     repo: str | None = None,
@@ -328,11 +329,17 @@ def list_ops_tasks(
     date: str | None = None,
     workflow_id: str | None = None,
     run_id: str | None = None,
+    group_by_human: bool = False,
     limit: int = 50,
 ) -> dict[str, Any]:
     """Superficie canónica de búsqueda de tareas en la proyección de MongoDB."""
     db = mongo_store.get_db()
     query: dict[str, Any] = {}
+    if human_task_id:
+        from inneros_core_runtime.human_task_id import normalize_human_task_id
+
+        alias = normalize_human_task_id(human_task_id)
+        query["$or"] = [{"human_task_id": alias}, {"task_alias": alias}]
     if task_id:
         query["task_id"] = task_id
     if correlation_id:
@@ -353,12 +360,23 @@ def list_ops_tasks(
         query["$or"] = [{"run_id": run_id}, {"evidence.run_id": run_id}]
 
     tasks = list(db[OPS_TASKS_COL].find(query, {"_id": 0}).sort("created_at", -1).limit(limit))
-    return {
+    from inneros_core_runtime import human_task_id as hti
+
+    enriched = []
+    for row in tasks:
+        if not row.get("human_task_id"):
+            row = {**row, "human_task_id": hti.resolve_human_task_id_for_create(row), "task_alias": hti.resolve_human_task_id_for_create(row)}
+        enriched.append({**row, "owner_list_line": hti.format_list_line(row)})
+    payload: dict[str, Any] = {
         "ok": True,
-        "count": len(tasks),
-        "tasks": tasks,
+        "count": len(enriched),
+        "tasks": enriched,
         "query": query,
     }
+    if group_by_human:
+        payload["groups"] = hti.group_tasks_by_human_id(enriched)
+        payload["group_count"] = len(payload["groups"])
+    return payload
 
 
 def create_ops_task(
@@ -390,6 +408,9 @@ def create_ops_task(
     do_not_auto_dispatch: bool | None = None,
     model_preflight_required: bool | None = None,
     payload: dict[str, Any] | None = None,
+    human_task_id: str | None = None,
+    parent_task_id: str | None = None,
+    supersedes_task_id: str | None = None,
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
     title_s = (title or "").strip()
@@ -481,9 +502,25 @@ def create_ops_task(
             "automatic_model_fallback_allowed",
             "contract_revision",
             "assignment_override",
+            "human_task_id",
+            "task_alias",
+            "parent_task_id",
+            "supersedes_task_id",
+            "existing_task_id",
         ):
             if key in payload and key not in doc:
                 doc[key] = payload[key]
+    if human_task_id:
+        doc["human_task_id"] = human_task_id
+        doc["task_alias"] = human_task_id
+    if parent_task_id:
+        doc["parent_task_id"] = parent_task_id
+    if supersedes_task_id:
+        doc["supersedes_task_id"] = supersedes_task_id
+
+    from inneros_core_runtime import human_task_id as hti
+
+    hti.attach_human_task_id(doc)
 
     from inneros_core_runtime import durable_coordination_spine
 
