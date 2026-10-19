@@ -646,8 +646,12 @@ def _ready_for_integration_guardian(task: dict[str, Any]) -> bool:
 
 def classify_coordination_backlog_task(task: dict[str, Any]) -> str | None:
     """Return a durable cleanup bucket for stale/non-dev coordination noise."""
+    from inneros_core_runtime import ops_task_admission as ota
+
     text = _task_search_text(task)
     status = str(task.get("status") or "").lower()
+    if ota.repair_misclassified_task(task):
+        return "needs_device_fabric_lane"
     if _is_webmcp_readonly_noise(task, text):
         return "closed_watchdog_noise"
     if _is_non_dev_ops_task(task, text):
@@ -678,7 +682,22 @@ def reconcile_coordination_backlog_hygiene(limit: int = 200, dry_run: bool = Tru
     """
     db = _db()
     now = _now()
-    statuses = ["proposed", "accepted", "in_progress", "blocked", "awaiting_approval", "verification", "partial"]
+    statuses = [
+        "proposed",
+        "accepted",
+        "in_progress",
+        "blocked",
+        "awaiting_approval",
+        "verification",
+        "partial",
+        "waiting_for_binding",
+        "waiting_for_model_binding",
+        "awaiting_cursor_claim",
+        "awaiting_codex_claim",
+        "awaiting_antigravity_claim",
+        "awaiting_gemini_claim",
+        "queued",
+    ]
     rows = list(
         db[coordination_live.OPS_TASKS_COL]
         .find({"status": {"$in": statuses}}, {"_id": 0})
@@ -742,12 +761,119 @@ def reconcile_coordination_backlog_hygiene(limit: int = 200, dry_run: bool = Tru
                 patch.update({"dev_swarm_retry_requested": False})
             elif bucket == "needs_execution_lane":
                 patch.update({"dev_swarm_retry_requested": False})
+            elif bucket == "needs_device_fabric_lane":
+                from inneros_core_runtime import ops_task_admission as ota
+
+                repair = ota.repair_misclassified_task(task) or {}
+                patch.update(
+                    {
+                        "task_class": "operational",
+                        "execution_lane": "device_fabric",
+                        "runtime_profile": "capability_read",
+                        "execution_policy": "read_only",
+                        "do_not_auto_dispatch": True,
+                        "dev_swarm_retry_requested": False,
+                        "status": "queued"
+                        if str(task.get("status") or "").lower() in {"waiting_for_binding", "blocked"}
+                        else task.get("status"),
+                    }
+                )
+                payload = dict(task.get("payload") or {})
+                payload["capability_plane"] = "device_fabric"
+                patch["payload"] = payload
+                patch.update({k: v for k, v in repair.items() if k != "payload.capability_plane"})
             if not dry_run:
                 db[coordination_live.OPS_TASKS_COL].update_one({"task_id": task_id}, {"$set": patch})
         actions.append(action)
     if not dry_run and actions:
         _save_state({"last_backlog_hygiene_at": now, "last_backlog_hygiene_counts": counts})
     return {"ok": True, "dry_run": dry_run, "reviewed": len(rows), "action_count": len(actions), "counts": counts, "actions": actions[:100]}
+
+
+def _safe_dev_swarm_requeue_candidate(task: dict[str, Any], *, completed_sibling: bool = False) -> bool:
+    """Only retry a locally owned job once and never retry work already delivered."""
+    if completed_sibling or task.get("do_not_auto_dispatch") is True:
+        return False
+    if bool(task.get("review_required")):
+        return False
+    if str(task.get("owner") or "").lower() != "dev_swarm":
+        return False
+    if int(task.get("dev_swarm_requeue_count") or 0) >= 1:
+        return False
+    candidate = {**task, "dev_swarm_retry_requested": True}
+    allowed, _reason, _repo = _eligible_reason(candidate)
+    return bool(allowed)
+
+
+def requeue_retryable_blocked_ops(*, limit: int = 80) -> dict[str, Any]:
+    """Retry at most once when eligible and no completed correlated owner result exists."""
+    db = _db()
+    now = _now()
+    retry_markers = (
+        "product_task_contract_only_not_pass",
+        "stale_worker_reclaimed_for_retry",
+        "dev_swarm_quality_gate",
+        "quality_gate_failed",
+    )
+    rows = list(
+        db[coordination_live.OPS_TASKS_COL]
+        .find({"status": "blocked"}, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(max(1, min(int(limit or 80), 300)))
+    )
+    requeued: list[str] = []
+    for task in rows:
+        task_id = str(task.get("task_id") or "")
+        if not task_id or not str(task.get("repo") or "").strip():
+            continue
+        worker = db[WORKERS_COL].find_one({"task_id": task_id}, {"_id": 0, "blocker": 1, "last_error": 1, "executor": 1}) or {}
+        executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
+        blob = " ".join(
+            [
+                str(task.get("dev_swarm_last_skip_reason") or ""),
+                str(worker.get("blocker") or ""),
+                str(worker.get("last_error") or ""),
+                str(executor.get("last_error") or ""),
+                str(executor.get("failure_reason") or ""),
+            ]
+        ).lower()
+        evidence = task.get("evidence") if isinstance(task.get("evidence"), dict) else {}
+        blob += " " + str(evidence).lower()
+        if not any(marker in blob for marker in retry_markers):
+            continue
+        correlation = str(task.get("correlation_id") or "").strip()
+        completed_sibling = bool(
+            correlation
+            and db[coordination_live.OPS_TASKS_COL].find_one(
+                {
+                    "correlation_id": correlation,
+                    "task_id": {"$ne": task_id},
+                    "status": "completed",
+                },
+                {"_id": 1},
+            )
+        )
+        if not _safe_dev_swarm_requeue_candidate(task, completed_sibling=completed_sibling):
+            continue
+        selector = {"task_id": task_id, "status": "blocked"}
+        if task.get("revision") is not None:
+            selector["revision"] = task["revision"]
+        result = db[coordination_live.OPS_TASKS_COL].update_one(
+            selector,
+            {
+                "$set": {
+                    "status": "queued",
+                    "dev_swarm_retry_requested": True,
+                    "dev_swarm_requeue_at": now,
+                    "updated_at": now,
+                    "updated_by": "requeue_retryable_blocked_ops",
+                },
+                "$inc": {"dev_swarm_requeue_count": 1},
+            },
+        )
+        if getattr(result, "modified_count", 0) == 1:
+            requeued.append(task_id)
+    return {"ok": True, "scanned": len(rows), "requeued": requeued}
 
 
 def _active_worker_query() -> dict[str, Any]:
@@ -2099,12 +2225,18 @@ def _is_product_code_path(repo: str, worktree: Path, path: str) -> bool:
         return False
     product_root = _primary_product_root(repo, worktree)
     rel = str(path or "").replace("\\", "/").strip("/")
-    if product_root:
-        prefix = product_root + "/"
-        if not rel.startswith(prefix):
-            return False
-        rel = rel[len(prefix):]
-    return rel.startswith(PRODUCT_PREFIXES)
+    while rel.startswith("./"):
+        rel = rel[2:]
+    # A manifest at the repository root is represented as "."; file writes
+    # are normalized to repo-relative paths without the leading "./".
+    if product_root in {".", ""}:
+        return rel.startswith(PRODUCT_PREFIXES)
+    prefix = product_root.rstrip("/") + "/"
+    # For nested package roots, never classify files outside the declared
+    # package as product writes. Repo write authorization is enforced separately.
+    if not rel.startswith(prefix):
+        return False
+    return rel[len(prefix) :].startswith(PRODUCT_PREFIXES)
 
 
 def _implementation_write_classes(repo: str, worktree: Path, files_touched: list[str]) -> dict[str, list[str]]:

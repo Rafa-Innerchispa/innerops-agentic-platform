@@ -22,7 +22,12 @@ def main() -> int:
     from inneros_core_runtime.agents import ag42_service_guardian as ag42
     from inneros_core_runtime import dev_swarm_scheduler as dss
 
-    dss.scheduler_start(max_concurrent=int(os.getenv("DEV_SWARM_MAX_CONCURRENT", "4")), dry_run=False)
+    if os.getenv("INNEROS_COORDINATION_HYGIENE_APPLY", "1").strip().lower() not in {"0", "false", "no"}:
+        dss.reconcile_coordination_backlog_hygiene(
+            limit=int(os.getenv("COORD_HYGIENE_LIMIT", "200")),
+            dry_run=False,
+        )
+    dss.scheduler_start(max_concurrent=int(os.getenv("DEV_SWARM_MAX_CONCURRENT", "8")), dry_run=False)
     gmail_step = None
     if os.getenv("INNEROS_GMAIL_INTEGRATION", "1").strip().lower() not in {"0", "false", "no"}:
         try:

@@ -5919,6 +5919,7 @@ def get_coordination_liveness_summary() -> dict[str, Any]:
 @mcp.tool
 def list_ops_tasks(
     task_id: str | None = None,
+    human_task_id: str | None = None,
     correlation_id: str | None = None,
     project: str | None = None,
     repo: str | None = None,
@@ -5927,13 +5928,15 @@ def list_ops_tasks(
     date: str | None = None,
     workflow_id: str | None = None,
     run_id: str | None = None,
+    group_by_human: bool = False,
     limit: int = 50,
 ) -> dict[str, Any]:
-    """Lista órdenes ops con soporte de filtros por task_id, correlation_id, project, repo, assignee, status, date, workflow_id, run_id."""
+    """Lista órdenes ops (human_task_id primero; IDs técnicos en detalle)."""
     from inneros_core_runtime import coordination_live
 
     return coordination_live.list_ops_tasks(
         task_id=task_id,
+        human_task_id=human_task_id,
         correlation_id=correlation_id,
         project=project,
         repo=repo,
@@ -5942,6 +5945,7 @@ def list_ops_tasks(
         date=date,
         workflow_id=workflow_id,
         run_id=run_id,
+        group_by_human=group_by_human,
         limit=limit,
     )
 
