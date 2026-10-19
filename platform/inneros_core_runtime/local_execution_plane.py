@@ -1037,6 +1037,68 @@ def _command_allowed(command: list[str], profile: str) -> bool:
     return False
 
 
+def _docker_build_command_allowed(command: list[str]) -> bool:
+    """Allow only bounded Docker build/inspection/smoke commands.
+
+    This profile rejects arbitrary docker flags, host mounts, privileged
+    execution, registry pushes, and build contexts outside the worktree.
+    """
+    if not command or command[0] != "docker":
+        return False
+    if any(re.search(r"[;&|`$<>]", part) for part in command):
+        return False
+
+    safe_ref = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}$")
+    safe_name = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+
+    if len(command) == 7 and command[:3] == ["docker", "build", "-f"] and command[4] == "-t":
+        dockerfile, image_ref, context = command[3], command[5], command[6]
+        dockerfile_path = dockerfile.replace("\\", "/").strip()
+        if context != "." or not safe_ref.fullmatch(image_ref):
+            return False
+        if (
+            not dockerfile_path
+            or dockerfile_path.startswith("/")
+            or dockerfile_path == ".."
+            or dockerfile_path.startswith("../")
+            or "/../" in dockerfile_path
+        ):
+            return False
+        return True
+
+    if (
+        len(command) == 6
+        and command[:4] == ["docker", "history", "--no-trunc", "--format"]
+        and command[4] == "{{.Size}}"
+    ):
+        return bool(safe_ref.fullmatch(command[5]))
+
+    if len(command) == 4 and command[:3] == ["docker", "image", "inspect"]:
+        return bool(safe_ref.fullmatch(command[3]))
+
+    if (
+        len(command) == 8
+        and command[:6] == ["docker", "run", "-d", "--network", "none", "--name"]
+    ):
+        return bool(safe_name.fullmatch(command[6]) and safe_ref.fullmatch(command[7]))
+
+    if (
+        len(command) == 6
+        and command[:2] == ["docker", "exec"]
+        and command[3:5] == ["python3", "-c"]
+    ):
+        return bool(
+            safe_name.fullmatch(command[2])
+            and len(command[5]) <= 4096
+            and "\x00" not in command[5]
+        )
+
+    if len(command) == 4 and command[:3] == ["docker", "rm", "-f"]:
+        return bool(safe_name.fullmatch(command[3]))
+
+    return False
+
+
 def _clean_package_root(root: str) -> str:
     rel = str(root or "").replace("\\", "/").strip().strip("/")
     if rel in {"", "."}:
@@ -1566,7 +1628,8 @@ def run_command_allowlisted(
         if not worktree.exists():
             return {"ok": False, "error": "worktree_missing", "worktree": str(worktree), "command_run_id": command_run_id}
         npm_allowed = _node_package_command_allowed(command, conf, base=worktree)
-        if not (_command_allowed(command, profile) or npm_allowed):
+        docker_allowed = profile == "docker-build" and _docker_build_command_allowed(command)
+        if not (_command_allowed(command, profile) or npm_allowed or docker_allowed):
             return {"ok": False, "error": "command_not_allowlisted", "profile": profile, "command": command, "command_run_id": command_run_id}
         if profile == "ruby-tests-local-only" and command[0] != "git":
             preflight = _ruby_toolchain_preflight()
