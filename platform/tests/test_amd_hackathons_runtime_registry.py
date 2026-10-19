@@ -26,6 +26,31 @@ MC3_EXTRAS = {
     "write_scope": "worktree_branch_only",
 }
 
+MC4_EXTRAS = {
+    "policy_class": "product-app",
+    "allowed_commands_profile": "python-tests",
+    "allowed_paths": [
+        "app",
+        "src",
+        "tests",
+        "scripts",
+        "docs",
+        "docker",
+        "tools",
+        "evidence",
+        "demo",
+        ".github",
+        "README.md",
+        "pyproject.toml",
+        "requirements.txt",
+        "requirements-runtime.txt",
+        ".dockerignore",
+    ],
+    "package_roots": ["app", "src", "."],
+    "write_scope": "worktree_branch_only",
+}
+
+
 ACT3_EXTRAS = {
     "policy_class": "product-app",
     "allowed_commands_profile": "python-tests",
@@ -90,6 +115,35 @@ def test_register_amd_academy_mc3_rag(monkeypatch, tmp_path) -> None:
     assert "Dockerfile" in project["allowed_paths"]
 
 
+def test_register_amd_academy_mc4_web_retrieval(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("INNEROS_CORE_ROOT", str(tmp_path))
+    ws = tmp_path / "workspaces"
+    mc4 = ws / "amd-academy-mc4-web-retrieval"
+    mc4.mkdir(parents=True, exist_ok=True)
+    prr.register_project(
+        "amd-academy-mc4-web-retrieval",
+        "Rafa-Innerchispa/amd-academy-mc4-web-retrieval",
+        str(mc4),
+        actor="pytest",
+        source="pytest",
+        **MC4_EXTRAS,
+    )
+
+    resolved = prr.resolve_project(
+        project_id="amd-academy-mc4-web-retrieval",
+        repo="Rafa-Innerchispa/amd-academy-mc4-web-retrieval",
+        node="amd",
+    )
+    assert resolved["ok"] is True
+    project = resolved["project"]
+    assert project["allowed_commands_profile"] == "python-tests"
+    assert project["write_scope"] == "worktree_branch_only"
+    assert project["package_roots"] == ["app", "src", "."]
+    assert "docker" in project["allowed_paths"]
+    assert "tools" in project["allowed_paths"]
+    assert "requirements-runtime.txt" in project["allowed_paths"]
+
+
 def test_register_inneros_amd_act_iii(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("INNEROS_CORE_ROOT", str(tmp_path))
     _register_hackathon_pair(tmp_path)
@@ -115,6 +169,11 @@ def test_hackathon_projects_in_canonical_registry_json() -> None:
     assert mc3["repo"] == "Rafa-Innerchispa/amd-academy-mc3-rag"
     assert mc3["paths"]["amd"].endswith("/workspaces/amd-academy-mc3-rag")
 
+    mc4 = registry["projects"]["amd-academy-mc4-web-retrieval"]
+    assert mc4["repo"] == "Rafa-Innerchispa/amd-academy-mc4-web-retrieval"
+    assert mc4["paths"]["amd"].endswith("/workspaces/amd-academy-mc4-web-retrieval")
+    assert mc4["allowed_commands_profile"] == "python-tests"
+
     act3 = registry["projects"]["inneros-amd-act-iii"]
     assert act3["repo"] == "Rafa-Innerchispa/inneros-amd-act-iii"
     assert act3["write_scope"] == "worktree_branch_only"
@@ -128,3 +187,26 @@ def test_dev_swarm_scope_ok_for_hackathon_repos() -> None:
         scope = lep.dev_swarm_scope_status(repo=repo)
         assert scope["ok"] is True, (repo, scope)
         assert scope["policy"]["ok"] is True, repo
+
+
+
+def test_dev_swarm_scope_ok_for_mc4_registered_registry(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("INNEROS_CORE_ROOT", str(tmp_path))
+    ws = tmp_path / "workspaces"
+    mc4 = ws / "amd-academy-mc4-web-retrieval"
+    mc4.mkdir(parents=True, exist_ok=True)
+    prr.register_project(
+        "amd-academy-mc4-web-retrieval",
+        "Rafa-Innerchispa/amd-academy-mc4-web-retrieval",
+        str(mc4),
+        actor="pytest",
+        source="pytest",
+        **MC4_EXTRAS,
+    )
+
+    scope = lep.dev_swarm_scope_status(
+        repo="Rafa-Innerchispa/amd-academy-mc4-web-retrieval"
+    )
+    assert scope["ok"] is True, scope
+    assert scope["policy"]["ok"] is True, scope
+    assert scope["policy"]["policy"]["profile"] == "python-tests"
