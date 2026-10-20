@@ -38,11 +38,23 @@ def reconcile(guardian: dict, inventory: dict, cloud: dict | None = None,
     """
     now = now or datetime.now(timezone.utc)
     cloud = cloud or inventory.get("cloud_live") or {}
-    rows = (((cloud.get("devices") or {}).get("all") or {}).get("items") or [])
-    if not cloud.get("ok") or not isinstance(rows, list):
+    devices = cloud.get("devices") or {}
+    all_devices = devices.get("all") or {}
+    rows = all_devices.get("items")
+    # A successful outer call does not establish that the nested GWN API
+    # succeeded. Never silently convert provider failure into an empty,
+    # apparently healthy inventory.
+    if (not cloud.get("ok") or not isinstance(all_devices, dict)
+            or all_devices.get("ok") is False
+            or not isinstance(rows, list) or not rows):
         return {"status": "UNAVAILABLE", "reason": "gwn_cloud_snapshot_not_available",
                 "source": "gwn_cloud", "mutations_performed": False,
                 "identity_verified_by_ip_only": False}
+    cloud_ap_macs = {
+        _mac(row.get("mac"))
+        for row in (devices.get("access_points") or {}).get("items", [])
+        if isinstance(row, dict) and _mac(row.get("mac"))
+    }
     samples = [r for r in guardian.get("targets", []) if isinstance(r, dict)]
     by_asset = {s.get("asset_id"): s for s in samples if s.get("asset_id")}
     by_ip = {}
@@ -68,12 +80,14 @@ def reconcile(guardian: dict, inventory: dict, cloud: dict | None = None,
         seen = _utc_timestamp(row.get("lastSeen"))
         cloud_fresh = bool(seen and -300 <= (now - seen).total_seconds() <= max_age_seconds)
         cloud_online = row.get("status") == 1
-        is_ap = str(row.get("apType") or "").startswith("GWN7") and (
-            row.get("apType") not in ("GWN7801P",))
-        if not matched:
-            classification = "NOT_IN_GUARDIAN" if is_ap else "NO_VERIFIED_GUARDIAN_IDENTITY"
-        elif not cloud_fresh:
+        # Prefer the provider's explicit AP family; GWN78xx and GWN77xx
+        # are switches, while GWN7052F is a router, not an AP.
+        is_ap = (mac in cloud_ap_macs if cloud_ap_macs
+                 else str(row.get("apType") or "").startswith("GWN76"))
+        if not cloud_fresh:
             classification = "CLOUD_SAMPLE_STALE"
+        elif not matched:
+            classification = "NOT_IN_GUARDIAN" if is_ap else "NO_VERIFIED_GUARDIAN_IDENTITY"
         elif not g_fresh:
             classification = "GUARDIAN_SAMPLE_STALE"
         elif match_method == "IP_ONLY_UNVERIFIED":
@@ -100,8 +114,15 @@ def reconcile(guardian: dict, inventory: dict, cloud: dict | None = None,
             "root_cause_verified": False,
         })
     missing = [r for r in results if r["classification"] == "NOT_IN_GUARDIAN"]
+    stale_cloud_count = sum(not r["cloud_fresh"] for r in results)
+    snapshot_status = (
+        "GUARDIAN_STALE" if not g_fresh
+        else "CLOUD_STALE" if stale_cloud_count == len(results)
+        else "PARTIAL_CLOUD_STALE" if stale_cloud_count else "CURRENT"
+    )
     return {
-        "status": "CURRENT" if g_fresh else "GUARDIAN_STALE",
+        "status": snapshot_status,
+        "cloud_stale_devices": stale_cloud_count,
         "source": "gwn_cloud_and_guardian",
         "guardian_sample_at": guardian.get("timestamp"),
         "cloud_devices": len(results),

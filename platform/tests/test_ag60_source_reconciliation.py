@@ -76,3 +76,72 @@ def test_fresh_mac_match_conflicting_online_is_not_physical_cause():
     r = reconcile(g, inv, snap, now=NOW)
     assert r["comparisons"][0]["classification"] == "DIFFERENT_SOURCE_CONNECTIVITY_EVIDENCE"
     assert r["comparisons"][0]["root_cause_verified"] is False
+
+
+def test_incomplete_cloud_snapshot_is_unavailable():
+    current = guardian()
+    for response in [
+        {"ok": True, "devices": {"all": {"ok": False, "items": []}}},
+        {"ok": True, "devices": {"all": {"ok": False, "items": [
+            {"name": "stale", "apType": "GWN7660", "ipv4": "192.168.3.212"}]}}},
+        {"ok": True, "devices": {"all": {}}},
+        {"ok": True, "devices": {"all": {"items": []}}},
+    ]:
+        result = reconcile(current, {"inventory": []}, response, now=NOW)
+        assert result["status"] == "UNAVAILABLE"
+        assert result["identity_verified_by_ip_only"] is False
+
+
+def test_stale_cloud_unmatched_device_not_reported_as_new_unmonitored_ap():
+    now_ms = int((NOW.timestamp() - 7200) * 1000)
+    snap = {"ok": True, "devices": {"all": {"ok": True, "items": [
+        {"apType": "GWN7660", "mac": "EC:74:D7:3D:27:2C",
+         "ipv4": "192.168.3.212", "name": "Salón Inglés",
+         "status": 1, "lastSeen": now_ms}]}}}
+    result = reconcile(guardian(), {"inventory": []}, snap, now=NOW)
+    assert result["status"] == "CLOUD_STALE"
+    assert result["cloud_stale_devices"] == 1
+    assert result["comparisons"][0]["classification"] == "CLOUD_SAMPLE_STALE"
+    assert result["unmonitored_cloud_aps"] == 0
+
+
+def test_switch_and_router_models_never_count_as_unmonitored_aps():
+    snap = cloud(
+        {"apType": "GWN7802P", "mac": "EC:74:D7:13:EE:B9",
+         "ipv4": "192.168.3.228", "name": "Switch Torre"},
+        {"apType": "GWN7052F", "mac": "EC:74:D7:13:EE:C0",
+         "ipv4": "192.168.3.207", "name": "Router WiFi"},
+        {"apType": "GWN7660", "mac": "EC:74:D7:3D:27:2C",
+         "ipv4": "192.168.3.212", "name": "Salón Inglés"},
+    )
+    result = reconcile(guardian(), {"inventory": []}, snap, now=NOW)
+    assert result["unmonitored_cloud_aps"] == 1
+    assert result["cloud_accesspoints_not_monitored"][0]["name"] == "Salón Inglés"
+
+
+def test_provider_ap_family_overrides_untrusted_model_guess():
+    snap = cloud(
+        {"apType": "OTHER", "mac": "EC:74:D7:3D:27:2C",
+         "ipv4": "192.168.3.212", "name": "AP con modelo pendiente"},
+        {"apType": "GWN7802P", "mac": "EC:74:D7:13:EE:B9",
+         "ipv4": "192.168.3.228", "name": "Switch"},
+    )
+    snap["devices"]["access_points"] = {"items": [
+        {"mac": "EC:74:D7:3D:27:2C", "apType": "OTHER"}]}
+    result = reconcile(guardian(), {"inventory": []}, snap, now=NOW)
+    assert result["unmonitored_cloud_aps"] == 1
+    assert result["cloud_accesspoints_not_monitored"][0]["name"] == "AP con modelo pendiente"
+
+
+def test_partial_stale_cloud_snapshot_not_certified_current():
+    snap = cloud(
+        {"apType": "GWN7660", "mac": "EC:74:D7:3D:27:2C",
+         "ipv4": "192.168.3.212", "name": "Salón Inglés"},
+        {"apType": "GWN7605", "mac": "EC:74:D7:1A:01:D0",
+         "ipv4": "192.168.3.197", "name": "Lobby Principal"},
+    )
+    snap["devices"]["all"]["items"][1]["lastSeen"] = int((NOW.timestamp() - 7200) * 1000)
+    result = reconcile(guardian(), {"inventory": []}, snap, now=NOW)
+    assert result["status"] == "PARTIAL_CLOUD_STALE"
+    assert result["cloud_stale_devices"] == 1
+    assert result["unmonitored_cloud_aps"] == 1
