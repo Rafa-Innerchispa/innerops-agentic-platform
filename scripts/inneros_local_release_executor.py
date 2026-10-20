@@ -27,7 +27,21 @@ FILES = (
     "dev_swarm_scheduler.py",
     "temporal_bounded_executor.py",
     "governed_model_writes.py",
+    "local_execution_plane.py",
+    "coordination_live.py",
+    "human_task_id.py",
+    "ops_task_admission.py",
+    "execution_binding.py",
+    "dev_swarm_dispatch_reconcile.py",
+    "integration_guardian.py",
+    "mcp_server.py",
+    "notifications/ops_task_alerts.py",
+    "ops_whatsapp_owner.py",
 )
+# The runtime uses a second package and a coordination timer script.
+# Explicit lists, never a recursive deployment over live secrets or venv.
+LIB_FILES = ("local_execution_plane.py",)
+SCRIPT_FILES = ("inneros_coordination_cycle.py",)
 SERVICE = "ralfia-mcp.service"
 
 
@@ -71,15 +85,39 @@ def main() -> int:
     if args.mode == "apply" and os.environ.get("RUNNER_ENVIRONMENT") != "self-hosted":
         fail("self_hosted_runner_required")
 
+    release_files = [
+        (rel,
+         REPO_ROOT / "platform" / "inneros_core_runtime" / rel,
+         RUNTIME / rel,
+         RUNTIME)
+        for rel in FILES
+    ] + [
+        ("raphiia_openai/" + rel,
+         REPO_ROOT / "platform" / "raphiia_openai" / rel,
+         RUNTIME.parent / "raphiia_openai" / rel,
+         RUNTIME.parent / "raphiia_openai")
+        for rel in LIB_FILES
+    ] + [
+        ("scripts/" + rel,
+         REPO_ROOT / "platform" / "scripts" / rel,
+         RUNTIME.parent / "scripts" / rel,
+         RUNTIME.parent / "scripts")
+        for rel in SCRIPT_FILES
+    ]
     manifest = []
-    for rel in FILES:
-        src = REPO_ROOT / "platform" / "inneros_core_runtime" / rel
-        dest = RUNTIME / rel
-        if not src.is_file() or not path_within(dest, RUNTIME):
+    for rel, src, dest, target_root in release_files:
+        if (not src.is_file() or src.is_symlink()
+                or not path_within(src, REPO_ROOT / "platform")
+                or not path_within(dest, target_root) or dest.is_symlink()):
             fail("unapproved_source_or_destination: " + rel)
         compile(src.read_bytes(), str(src), "exec")
-        manifest.append({"file": rel, "candidate_sha256": sha256(src),
-                         "current_sha256": sha256(dest) if dest.is_file() else None})
+        manifest.append({
+            "file": rel,
+            "source": str(src),
+            "destination": str(dest),
+            "candidate_sha256": sha256(src),
+            "current_sha256": sha256(dest) if dest.is_file() else None,
+        })
     output = {"mode": args.mode, "candidate_sha": head,
               "target": str(RUNTIME), "files": manifest,
               "production_mutated": False}
@@ -99,7 +137,7 @@ def main() -> int:
         # Backup all existing destinations before the first production write.
         for item in manifest:
             rel = item["file"]
-            dest = RUNTIME / rel
+            dest = Path(item["destination"])
             existing[rel] = dest.is_file()
             if dest.exists():
                 backup = snapshot / rel
@@ -107,8 +145,8 @@ def main() -> int:
                 shutil.copy2(dest, backup)
         for item in manifest:
             rel = item["file"]
-            src = REPO_ROOT / "platform" / "inneros_core_runtime" / rel
-            dest = RUNTIME / rel
+            src = Path(item["source"])
+            dest = Path(item["destination"])
             tmp = dest.with_name(dest.name + ".release-staging")
             tmp.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, tmp)
@@ -117,7 +155,7 @@ def main() -> int:
             os.replace(tmp, dest)
             changed.append(rel)
         for item in manifest:
-            if sha256(RUNTIME / item["file"]) != item["candidate_sha256"]:
+            if sha256(Path(item["destination"])) != item["candidate_sha256"]:
                 fail("deployed_hash_mismatch")
         if args.restart:
             subprocess.run(["systemctl", "--user", "restart", SERVICE], check=True, timeout=40)
@@ -127,8 +165,9 @@ def main() -> int:
         print(json.dumps(output, sort_keys=True))
         return 0
     except Exception:
+        destination_map = {item["file"]: Path(item["destination"]) for item in manifest}
         for rel in reversed(changed):
-            dest = RUNTIME / rel
+            dest = destination_map[rel]
             if existing.get(rel):
                 shutil.copy2(snapshot / rel, dest)
             else:
