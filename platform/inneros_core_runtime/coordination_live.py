@@ -301,6 +301,69 @@ def get_coordination_live() -> dict[str, Any]:
     }
 
 
+def _recent_feed_lines(limit: int = 8) -> list[str]:
+    feed = COORD_ROOT / "HUB" / "feed.md"
+    if not feed.is_file():
+        return []
+    lines = [
+        ln.strip()
+        for ln in feed.read_text(encoding="utf-8", errors="replace").splitlines()
+        if ln.strip().startswith("-")
+    ]
+    return lines[-limit:]
+
+
+def refresh_estado_vivo() -> dict[str, Any]:
+    """Regenerate HUB/ESTADO_VIVO.md for AG-25 and human/IA mandatory reads."""
+    live = get_coordination_live()
+    rev = live.get("revision", 0)
+    unread = live.get("unread_messages", {})
+    projections = live.get("projections") if isinstance(live.get("projections"), dict) else {}
+    tasks = list(projections.get("active_tasks") or []) + list(projections.get("waiting_or_blocked") or [])
+    feed = _recent_feed_lines()
+    priority = live.get("current_priority") or {}
+
+    lines = [
+        "# ESTADO VIVO — coordinación RalfIA",
+        "",
+        f"**Revisión:** `{rev}` · **Actualizado:** {live.get('updated_at_display', '—')} (auto AG-25)",
+        "",
+        "> MCP: `get_coordination_live()` · al terminar: `ack_coordination_revision(agent, revision)`.",
+        "",
+        "---",
+        "",
+        "## 1. Lectura obligatoria",
+        "",
+    ]
+    for i, path in enumerate(MANDATORY_READS, 1):
+        lines.append(f"{i}. `{path}`")
+    lines.extend(["", "## 2. Órdenes ops (muestra)", ""])
+    if tasks:
+        for t in tasks[:12]:
+            lines.append(
+                f"- **{t.get('task_id')}** → `{t.get('assignee')}` · "
+                f"{t.get('status', '?')} · {(t.get('title') or '')[:80]}"
+            )
+    else:
+        lines.append("_Sin tareas en proyección activa/blocked._")
+    lines.extend(["", "## 3. Mensajes abiertos por agente", ""])
+    if unread:
+        for agent, count in sorted(unread.items()):
+            lines.append(f"- **{agent}**: {count}")
+    else:
+        lines.append("_Sin mensajes open._")
+    lines.extend(["", "## 4. Feed reciente", ""])
+    lines.extend(feed or ["_Sin feed._"])
+    if priority:
+        lines.extend(["", "## 5. Prioridad", "", f"**{priority.get('title', '—')}**"])
+        if priority.get("summary"):
+            lines.append(str(priority["summary"]))
+    lines.extend(["", f"_Generado automáticamente · revisión {rev}_", ""])
+    ESTADO_VIVO_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ESTADO_VIVO_PATH.write_text("\n".join(lines), encoding="utf-8")
+    return {"ok": True, "path": str(ESTADO_VIVO_PATH), "revision": rev}
+
+
 def ack_coordination_revision(agent: str, revision: int) -> dict[str, Any]:
     agent_n = (agent or "").strip().lower()
     if not agent_n:

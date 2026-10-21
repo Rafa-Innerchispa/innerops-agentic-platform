@@ -42,10 +42,19 @@ def main() -> int:
     apply = os.getenv("INNEROS_COORDINATION_HYGIENE_APPLY", "1").strip().lower() not in {"0", "false", "no"}
     hygiene = dss.reconcile_coordination_backlog_hygiene(limit=int(os.getenv("COORD_HYGIENE_LIMIT", "300")), dry_run=not apply)
     requeue = dss.requeue_retryable_blocked_ops(limit=int(os.getenv("COORD_REQUEUE_LIMIT", "80")))
-    reclaim = dss.scheduler_start(
-        max_concurrent=int(os.getenv("DEV_SWARM_MAX_CONCURRENT", "8")),
-        dry_run=False,
-    )
+    max_c = int(os.getenv("DEV_SWARM_MAX_CONCURRENT", "8"))
+    dss.scheduler_start(max_concurrent=max_c, dry_run=False)
+    tick = dss.scheduler_tick(limit=int(os.getenv("DEV_SWARM_TICK_LIMIT", "6")), dry_run=False)
+    executor = dss.executor_tick(limit=int(os.getenv("DEV_SWARM_EXECUTOR_LIMIT", "2")))
+    reclaim = {
+        "ok": bool(tick.get("ok")),
+        "selected": len(tick.get("selected") or tick.get("started") or []),
+        "skipped": len(tick.get("skipped") or []),
+        "active_worker_count": tick.get("active_worker_count"),
+        "reconcile": tick.get("reconcile"),
+        "executed": len(executor.get("executed") or []),
+        "executor_skipped": len(executor.get("skipped") or []),
+    }
     interactive = _run_script("interactive_provider_autopilot.py")
     cursor = _run_script("cursor_ops_headless_autopilot.py")
     report = {

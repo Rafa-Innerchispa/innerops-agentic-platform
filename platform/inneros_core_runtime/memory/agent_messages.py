@@ -564,11 +564,13 @@ def compact_agent_mailbox(agent: str, *, max_open: int = 20, archive_days: int =
             mid = msg.get("message_id") or msg.get("_id")
             if mid and mid not in by_id:
                 by_id[mid] = msg
-    ordered = sorted(
-        by_id.values(),
-        key=lambda m: m.get("created_at") or m.get("ts") or "",
-        reverse=True,
-    )[:max_open]
+    def _msg_sort_key(msg: dict[str, Any]) -> str:
+        raw = msg.get("created_at") or msg.get("ts") or ""
+        if isinstance(raw, datetime):
+            return raw.isoformat()
+        return str(raw)
+
+    ordered = sorted(by_id.values(), key=_msg_sort_key, reverse=True)[:max_open]
 
     intro = (
         f"# {name.title()} — INBOX\n\n"
@@ -618,12 +620,16 @@ def compact_all_mailboxes(*, max_open: int = 20) -> dict[str, Any]:
 
 def update_old_messages(agent: str, older_than_days: int = 30) -> int:
     db = mongo_store.get_db()
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat()
+    cutoff_dt = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+    cutoff_iso = cutoff_dt.isoformat()
     res = db[COL_AGENT_MESSAGES].update_many(
         {
             "target_agent": _normalize_agent(agent),
             "status": "open",
-            "created_at": {"$lt": cutoff},
+            "$or": [
+                {"created_at": {"$lt": cutoff_iso}},
+                {"created_at": {"$lt": cutoff_dt}},
+            ],
         },
         {"$set": {"status": "obsolete", "updated_at": ralfia_time.now_utc_iso()}},
     )

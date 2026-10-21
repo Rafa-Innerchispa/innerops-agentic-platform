@@ -236,7 +236,23 @@ def guardian_tick(limit: int = 4, dry_run: bool = False, db: Any | None = None) 
                 "executor.final_status": "PASS",
                 "executor.finalized_by": "integration_guardian",
             }})
-            coordination_live.update_ops_task_state(task_id, "completed", actor="ralfia", evidence=evidence, force_handoff=True)
+            from inneros_core_runtime import ops_lifecycle
+
+            lifecycle = ops_lifecycle.finalize_verification_to_completed(
+                task_id, actor="ralfia", evidence=evidence
+            )
+            if not lifecycle.get("ok") and str(lifecycle.get("error") or "") == "not_in_verification":
+                coordination_live.update_ops_task_state(
+                    task_id,
+                    "verification",
+                    actor="ralfia",
+                    evidence=evidence,
+                    force_handoff=True,
+                )
+                lifecycle = ops_lifecycle.finalize_verification_to_completed(
+                    task_id, actor="ralfia", evidence=evidence
+                )
+            evidence["lifecycle"] = lifecycle
         elif verdict["ok"]:
             reason = str((integration or {}).get("reason") or "canonical_integration_pending")
             database[WORKERS_COL].update_one({"task_id": task_id}, {"$set": {
