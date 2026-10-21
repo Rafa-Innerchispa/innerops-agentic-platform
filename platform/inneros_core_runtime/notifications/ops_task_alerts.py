@@ -365,6 +365,27 @@ def notify_ops_owner_authorization_request(
     }
 
 
+
+def resend_ops_owner_authorization(task_id: str) -> dict[str, Any]:
+    """Resend one existing, nonterminal OPS challenge; never create a new task."""
+    import re
+
+    tid = str(task_id or "").strip().lower()
+    if not re.fullmatch(r"ops_[a-f0-9]{12}", tid):
+        return {"ok": False, "skipped": "invalid_exact_task_id", "task_id": tid}
+    try:
+        from raphiia_openai import mongo_store
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+
+        task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+    except Exception as exc:
+        return {"ok": False, "skipped": "task_lookup_failed", "error": type(exc).__name__, "task_id": tid}
+    if not task:
+        return {"ok": False, "skipped": "task_not_found", "task_id": tid}
+    if str(task.get("status") or "").lower() in TERMINAL_OPS:
+        return {"ok": False, "skipped": "task_terminal", "task_id": tid}
+    return notify_ops_owner_authorization_request(task, force=True)
+
 _AWAITING_CLAIM_STATUSES = frozenset(
     {
         "awaiting_cursor_claim",
@@ -397,6 +418,15 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
         return {"ok": False, "skipped": "no_status_change"}
 
     tid = str(task.get("task_id") or "")
+    # A persistent pending WhatsApp challenge outranks the volatile cooldown
+    # ledger. Do not nag the owner while Confirmar/Cancelar is unanswered.
+    try:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+        pending = ops_pending.get_by_task_id(tid)
+        if pending and pending.get("status") in {"pending", "cancel_requested"}:
+            return {"ok": False, "skipped": "already_notified_on_create", "task_id": tid}
+    except Exception:
+        pass
     if owner_auth_notified(tid):
         return {"ok": False, "skipped": "already_notified_on_create", "task_id": tid}
 
