@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -10,6 +11,13 @@ from raphiia_openai.agent_auto_log import record_agent_run
 
 AGENT_ID = "AG-50_DAILY_COMPANION"
 DEFAULT_TIMEZONE = "America/Guayaquil"
+INTERNAL_ID_RE = re.compile(r"\b(?:ops|msg)_[a-z0-9]+\b", re.IGNORECASE)
+MARKDOWN_RE = re.compile(r"(?:\*\*|__|`|^\s*[-#>]\s*)", re.MULTILINE)
+SPANISH_MARKER_RE = re.compile(
+    r"\b(?:cierre|cerrar|completar|coordinaci[oó]n|permanece|pendiente|pendientes|"
+    r"tarea|tareas|verifica|bloqueado|bloqueada|finalizar|prioridad)\b",
+    re.IGNORECASE,
+)
 
 
 def _is_english(language: str) -> bool:
@@ -39,6 +47,56 @@ def _spoken_task_count(count: int, language: str) -> str:
     return str(max(0, count))
 
 
+def _redact_internal_ids(text: str) -> str:
+    return INTERNAL_ID_RE.sub("the task", str(text or ""))
+
+
+def _speech_plaintext(text: str) -> str:
+    """Remove formatting and implementation identifiers that sound bad in TTS."""
+    cleaned = INTERNAL_ID_RE.sub("the task", str(text or ""))
+    cleaned = MARKDOWN_RE.sub("", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def _english_voice_fallback(snapshot: str, greeting: str) -> str:
+    """Return useful English even when local polishing leaks another language."""
+    parts = [greeting + "."]
+    count_match = re.search(
+        r"There (?:are|is) (more than one hundred|\d+) open development tasks?",
+        snapshot,
+        re.IGNORECASE,
+    )
+    if count_match:
+        parts.append(f"Coordination reports {count_match.group(1)} open development tasks.")
+    elif "There are no open development orders" in snapshot:
+        parts.append("There are no open development orders in coordination.")
+    elif "Main priority:" in snapshot:
+        parts.append("The current project priority is active in coordination.")
+    else:
+        parts.append("The current coordination brief is available.")
+    parts.append("Please review the coordination dashboard for the detailed task list.")
+    return " ".join(parts)
+
+
+def _finalize_spoken_brief(text: str, snapshot: str, language: str, greeting: str) -> str:
+    """Enforce one clean spoken language after non-deterministic local inference."""
+    candidate = _speech_plaintext(text)
+    if not _is_english(language):
+        return candidate
+
+    spanish_markers = SPANISH_MARKER_RE.findall(candidate)
+    unsafe = (
+        not candidate
+        or bool(INTERNAL_ID_RE.search(str(text or "")))
+        or bool(MARKDOWN_RE.search(str(text or "")))
+        or len(spanish_markers) >= 2
+    )
+    if unsafe:
+        return _english_voice_fallback(snapshot, greeting)
+    return candidate
+
+
 def _spoken_snapshot(
     live: dict[str, Any],
     current_state: dict[str, Any],
@@ -49,8 +107,8 @@ def _spoken_snapshot(
     parts: list[str] = []
 
     priority = live.get("current_priority") or {}
-    title = str(priority.get("title") or "").strip()
-    summary = str(priority.get("summary") or "").strip()
+    title = _redact_internal_ids(str(priority.get("title") or "").strip())
+    summary = _redact_internal_ids(str(priority.get("summary") or "").strip())
     english = _is_english(language)
     if title:
         label = "Main priority" if english else "Prioridad principal"
@@ -62,7 +120,7 @@ def _spoken_snapshot(
     if tasks:
         task_lines = []
         for task in tasks[:5]:
-            task_title = str(task.get("title") or "").strip()
+            task_title = _redact_internal_ids(str(task.get("title") or "").strip())
             if not task_title:
                 continue
             status = str(task.get("status") or ("pending" if english else "pendiente")).replace("_", " ")
@@ -104,7 +162,7 @@ def _spoken_snapshot(
                 else:
                     label = item
                 if label:
-                    labels.append(str(label).strip())
+                    labels.append(_redact_internal_ids(str(label).strip()))
             if labels:
                 label = "Personal reminders" if english else "Pendientes personales"
                 parts.append(label + ": " + "; ".join(labels) + ".")
@@ -136,7 +194,9 @@ def _polish_spoken_brief(
             f"Use United States English and begin exactly with '{greeting}'. Maximum 90 words. "
             "Be concrete and do not invent facts. Do not mention internal IDs, telemetry, model names, "
             "or infrastructure details unless they block the project. Avoid reading long numbers or lists; "
-            "summarize large counts naturally. Order: main priority, up to four items, and one closing focus sentence.\n\n"
+            "summarize large counts naturally. Translate every source fragment into English. Return plain "
+            "spoken text in one paragraph: no Markdown, bullets, headings, or identifiers. Order: main priority, "
+            "up to four items, and one closing focus sentence.\n\n"
             f"SNAPSHOT:\n{snapshot}"
         )
     else:
@@ -158,8 +218,12 @@ def _polish_spoken_brief(
     if result.get("ok"):
         text = str(result.get("response") or "").strip()
         if text:
-            return text[:900], result
-    return f"{greeting}. {snapshot[:820]}", result
+            finalized = _finalize_spoken_brief(text[:900], snapshot, language, greeting)
+            if finalized != _speech_plaintext(text[:900]):
+                result = {**result, "voice_guard_fallback": True}
+            return finalized, result
+    fallback = f"{greeting}. {snapshot[:820]}"
+    return _finalize_spoken_brief(fallback, snapshot, language, greeting), result
 
 
 def run_daily_companion(
