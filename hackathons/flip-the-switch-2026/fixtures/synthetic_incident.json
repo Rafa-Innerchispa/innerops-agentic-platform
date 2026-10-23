@@ -1,0 +1,11 @@
+{
+  "incident": {
+    "incident_id": "DEMO-NET-001",
+    "site_alias": "Building-A (Bellini-inspired synthetic training fixture)",
+    "symptom": "A sample camera feed is unreachable in a synthetic fixture",
+    "device_alias": "camera-demo-01",
+    "source": "synthetic",
+    "observed_at": "2026-10-22T00:00:00Z"
+  },
+  "state": {"camera-demo-01": "degraded"}
+}

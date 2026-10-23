@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inneros-incident-room"
+version = "0.1.0"
+description = "Offline-safe incident primitives for later Flip the Switch workflow integration"
+requires-python = ">=3.10"
+license = {text = "Proprietary - evaluation preparation only"}
+authors = [{name = "InnerChispa LLC"}]
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
