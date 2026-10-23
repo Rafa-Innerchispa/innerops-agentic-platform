@@ -120,24 +120,57 @@ def handle_owner_reply(
     if NUMERIC_AUTH_RE.match(text) and phone:
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
-        pending = ops_pending.latest_pending(phone)
-        if pending:
-            tid = str(pending.get("task_id") or "")
-            text = f"{'SI' if text == '1' else 'NO'} {tid}"
+        # Numeric 1/2 has no task identity. Refuse it when multiple pending
+        # requests exist rather than authorize whichever happened to be newest.
+        pending_tasks = ops_pending.pending_for_phone(phone, limit=2)
+        if len(pending_tasks) != 1:
+            return {
+                "ok": False, "action": "ambiguous_numeric_auth",
+                "text": "No puedo identificar la aprobación. Usa el botón de la tarea exacta o responde CONFIRMAR ops_<id>.",
+            }
+        tid = str(pending_tasks[0].get("task_id") or "")
+        if not re.fullmatch(r"ops_[a-f0-9]{12}", tid):
+            return {"ok": False, "action": "ambiguous_numeric_auth",
+                    "text": "Usa el botón de la tarea exacta con un ID válido."}
+        text = f"{'SI' if text == '1' else 'NO'} {tid}"
     deny = DENY_RE.match(text)
     if deny:
         tid = _resolve_task_id(deny.group(1)) or deny.group(1)
+        from datetime import datetime, timezone
+        from raphiia_openai import mongo_store
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
         from inneros_core_runtime import durable_coordination_spine
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
 
+        col = mongo_store.get_db()[OPS_TASKS_COL]
+        before = col.find_one({"task_id": tid}, {"_id": 0})
+        if not before:
+            return {"ok": False, "text": f"Tarea {tid} no encontrada.",
+                    "task_id": tid, "action": "deny_not_found"}
+        if str(before.get("status") or "").lower() in {"completed", "cancelled", "failed", "superseded"}:
+            return {"ok": False, "text": f"Tarea {tid} ya está cerrada.",
+                    "task_id": tid, "action": "deny_closed"}
         out = durable_coordination_spine.signal_task_workflow(tid, "cancel", "owner_rejected_whatsapp")
-        ops_pending.clear_pending(tid)
-        return {
-            "ok": bool(out.get("ok")),
-            "text": f"❌ Acción cancelada · {tid}",
-            "task_id": tid,
-            "action": "deny",
-        }
+        if not out.get("ok"):
+            return {"ok": False, "text": f"No se pudo solicitar la cancelación de {tid}.",
+                    "task_id": tid, "action": "deny_failed", "details": out}
+        # A Temporal signal is not durable confirmation of a terminal state.
+        col.update_one(
+            {"task_id": tid},
+            {"$set": {
+                "cancellation_requested_at": datetime.now(timezone.utc).isoformat(),
+                "cancellation_requested_by": owner_actor,
+                "cancellation_channel": "whatsapp",
+            }},
+        )
+        after = col.find_one({"task_id": tid}, {"_id": 0})
+        if str((after or {}).get("status") or "").lower() == "cancelled":
+            ops_pending.clear_pending(tid)
+            return {"ok": True, "text": f"❌ Acción cancelada · {tid}",
+                    "task_id": tid, "action": "deny"}
+        ops_pending.mark_cancel_requested(tid)
+        return {"ok": True, "text": f"⏳ Cancelación solicitada · {tid}; pendiente de confirmación de Temporal.",
+                "task_id": tid, "action": "deny_pending"}
 
     if re.fullmatch(r"^(?:s[ií]|dale|ok|autorizo|autoriza)\.?$", text, re.I) and phone:
         from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
@@ -197,6 +230,9 @@ def handle_owner_reply(
 
     terminal = {"completed", "failed", "blocked", "partial", "cancelled", "superseded"}
     status_now = str(task.get("status") or "").lower()
+    if task.get("cancellation_requested_at") or status_now == "cancel_requested":
+        return {"ok": False, "action": "auth_cancel_pending", "task_id": tid,
+                "text": "Esta tarea tiene una cancelación pendiente; no se puede confirmar."}
     if status_now in terminal:
         return {
             "ok": False,

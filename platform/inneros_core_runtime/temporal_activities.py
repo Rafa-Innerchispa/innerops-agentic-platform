@@ -34,11 +34,16 @@ logger = logging.getLogger("temporal_activities")
 
 
 def _mongo_projection_client():
-    """Use the same Mongo settings as MCP/coordination (not localhost defaults)."""
+    """Honor the isolated Temporal canary DB, without changing production defaults.
+
+    The client comes from the canonical Mongo connector. An explicit
+    INNEROS_MONGO_DB selects the event-projection database for isolated tests.
+    """
     from raphiia_openai import mongo_store
 
     db = mongo_store.get_db()
-    return db.client, db.name
+    selected_name = (os.getenv("INNEROS_MONGO_DB") or "").strip()
+    return db.client, selected_name or db.name
 WORKTREE_BASE = Path(
     os.environ.get(
         "INNEROS_WORKTREE_BASE",

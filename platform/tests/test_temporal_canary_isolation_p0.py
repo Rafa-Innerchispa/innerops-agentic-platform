@@ -33,6 +33,35 @@ class TemporalCanaryIsolationP0Tests(unittest.TestCase):
                 "pcdoctor_swarm_canary",
             )
 
+    def test_temporal_projection_client_honors_canary_db_override(self) -> None:
+        from unittest.mock import MagicMock
+
+        from inneros_core_runtime import temporal_activities
+        fake_db = MagicMock()
+        fake_db.name = "pcdoctor_swarm"
+        fake_client = object()
+        fake_db.client = fake_client
+        with (
+            patch("raphiia_openai.mongo_store.get_db", return_value=fake_db),
+            patch.dict(os.environ, {"INNEROS_MONGO_DB": "pcdoctor_swarm_canary"}),
+        ):
+            client, db_name = temporal_activities._mongo_projection_client()
+        self.assertIs(client, fake_client)
+        self.assertEqual(db_name, "pcdoctor_swarm_canary")
+
+    def test_temporal_projection_client_preserves_prod_name_without_override(self) -> None:
+        from unittest.mock import MagicMock
+
+        from inneros_core_runtime import temporal_activities
+        fake_db = MagicMock()
+        fake_db.name = "pcdoctor_swarm"
+        with (
+            patch("raphiia_openai.mongo_store.get_db", return_value=fake_db),
+            patch.dict(os.environ, {"INNEROS_MONGO_DB": ""}),
+        ):
+            _, db_name = temporal_activities._mongo_projection_client()
+        self.assertEqual(db_name, "pcdoctor_swarm")
+
     def test_mongo_event_sink_has_no_fixed_database(self) -> None:
         sink = durable_coordination_spine.MongoEventSink()
         self.assertEqual(sink.db_name, "")

@@ -145,3 +145,29 @@ def test_resend_exact_task_does_not_create_new_ops_task():
     assert out["ok"] is True
     notify.assert_called_once_with(task, force=True)
     col.insert_one.assert_not_called()
+
+
+def test_awaiting_claim_uses_email_when_both_whatsapp_sessions_are_down():
+    task = {
+        "task_id": "ops_abcdef123456",
+        "status": "awaiting_cursor_claim",
+        "assignee": "cursor",
+        "preferred_provider": "cursor",
+        "title": "Diagnosticar disco",
+    }
+    alerts._STATE["cooldowns"] = {}
+    alerts._STATE["sent"] = []
+    with (
+        patch("inneros_core_runtime.execution_binding.resolve_execution_binding", return_value={}),
+        patch("inneros_core_runtime.execution_binding.requires_external_owner_authorization", return_value=True),
+        patch("inneros_core_runtime.whatsapp_ops_auth_pending.get_by_task_id", return_value=None),
+        patch.object(alerts, "owner_auth_notified", return_value=False),
+        patch("raphiia_openai.notifications.evolution_client.any_whatsapp_connected", return_value=False),
+        patch.object(alerts, "send_alert_whatsapp") as send,
+        patch.object(alerts, "_notify_ops_auth_email_fallback", return_value={"ok": True}) as fallback,
+    ):
+        out = alerts.notify_cursor_awaiting_claim(task, previous_status="queued")
+    assert out["ok"] is True
+    assert out["result"]["channel"] == "email_fallback"
+    assert fallback.call_args.kwargs["tid"] == "ops_abcdef123456"
+    send.assert_not_called()
