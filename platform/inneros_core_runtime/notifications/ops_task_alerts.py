@@ -104,6 +104,7 @@ def _notify_ops_auth_email_fallback(
     body: str,
     provider: str,
     tid: str,
+    alert_kind: str = "external_spend",
 ) -> dict[str, Any]:
     """When Evolution/WhatsApp is down, reach owner via email (same CONFIRMAR/CANCELAR semantics)."""
     import os
@@ -120,15 +121,18 @@ def _notify_ops_auth_email_fallback(
     if not to_addr:
         return {"ok": False, "skipped": "no_owner_email_configured"}
     short = tid.replace("ops_", "")[:6]
-    subject = f"[RalfIA OPS] Autorización {provider.upper()} · {short}"
-    email_body = (
-        f"{body}\n\n"
-        f"---\n"
-        f"WhatsApp no disponible; responde a este correo o usa MCP:\n"
-        f"• CONFIRMAR {short}\n"
-        f"• CANCELAR {short}\n"
-        f'• cursor_authorize_ops_task(task_id="{tid}")\n'
+    needs_approval = alert_kind == "external_spend"
+    subject = (
+        f"[RalfIA OPS] Autorización {provider.upper()} · {short}"
+        if needs_approval else f"[RalfIA OPS] Alerta interna {provider.upper()} · {short}"
     )
+    instructions = (
+        f"Autorización pendiente para tarea EXACTA: {tid}. Usa MCP/WhatsApp autenticado cuando esté disponible.\n"
+        f"NO se procesa automáticamente una respuesta a este correo.\n"
+        if needs_approval else
+        f"Alerta informativa, tarea {tid}. No se requiere autorización de gasto externo.\n"
+    )
+    email_body = f"{body}\n\n---\nWhatsApp no disponible.\n{instructions}"
     from inneros_core_runtime.notifications.email_client import send_email
 
     sent = send_email(
@@ -181,17 +185,14 @@ def notify_ops_owner_authorization_request(
     if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
         return {"ok": False, "skipped": "notifications_disabled"}
 
+    # WhatsApp unavailable must NOT return before the SMTP fallback.
+    # A connection API failure is also treated as unavailable, not healthy.
     try:
         from raphiia_openai.notifications.evolution_client import any_whatsapp_connected
 
-        if not any_whatsapp_connected():
-            return {
-                "ok": False,
-                "skipped": "evolution_whatsapp_down",
-                "task_id": str(task.get("task_id") or ""),
-            }
+        whatsapp_connected = bool(any_whatsapp_connected())
     except Exception:
-        pass
+        whatsapp_connected = False
 
     skip = _synthetic_ops_task_skip(task)
     if skip:
@@ -286,17 +287,31 @@ def notify_ops_owner_authorization_request(
     from raphiia_openai.notifications.evolution_client import send_alert_whatsapp, send_whatsapp_interactive
 
     if alert_kind != "external_spend":
-        result = send_alert_whatsapp(body, prefix_node=True)
+        result = (send_alert_whatsapp(body, prefix_node=True) if whatsapp_connected
+                  else {"ok": False, "reason": "evolution_whatsapp_down"})
+        email_fallback = None
+        # Email for blocked/internal-fix or explicitly urgent internal tasks,
+        # not a flood for every ordinary internal-ready notification.
+        urgent = str(task.get("priority") or "").lower() in {"p0", "urgent", "critical", "high"}
+        if not result.get("ok") and (alert_kind == "internal_fix" or urgent):
+            email_fallback = _notify_ops_auth_email_fallback(
+                task, body=body, provider=provider, tid=tid,
+                alert_kind=alert_kind,
+            )
+            if email_fallback.get("ok"):
+                result = {"ok": True, "channel": "email_fallback", "email": email_fallback}
         if result.get("ok"):
             _mark_sent("owner_auth", tid)
+            _mark_owner_auth_sent_mongo(tid)
         return {
             "ok": bool(result.get("ok")),
             "result": result,
             "task_id": tid,
             "summary": summary,
-            "delivery_mode": "text_internal_fix" if alert_kind == "internal_fix" else "text_internal_brief",
+            "delivery_mode": ("email_fallback" if email_fallback and email_fallback.get("ok")
+                              else "text_internal_fix" if alert_kind == "internal_fix" else "text_internal_brief"),
             "poll_message_id": "",
-            "email_fallback": None,
+            "email_fallback": email_fallback,
         }
 
     from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
@@ -310,7 +325,10 @@ def notify_ops_owner_authorization_request(
         {"id": f"ops.auth.yes.{tid}", "label": "Confirmar"},
         {"id": f"ops.auth.no.{tid}", "label": "Cancelar"},
     ]
-    if auth_ui == "poll":
+    if not whatsapp_connected:
+        result = {"ok": False, "reason": "evolution_whatsapp_down"}
+        delivery_mode = "email_fallback"
+    elif auth_ui == "poll":
         from raphiia_openai.notifications.evolution_client import (
             OPS_AUTH_POLL_NO,
             OPS_AUTH_POLL_YES,
@@ -341,7 +359,7 @@ def notify_ops_owner_authorization_request(
             provider=provider,
             poll_message_id=poll_message_id or None,
         )
-    if not result.get("ok"):
+    if not result.get("ok") and whatsapp_connected:
         result = send_alert_whatsapp(body, prefix_node=True)
         delivery_mode = "text"
     email_fallback = None
@@ -463,10 +481,30 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
     if not _can_send("cursor_claim", key):
         return {"ok": False, "skipped": "cooldown_or_dedupe"}
 
-    result = send_alert_whatsapp(body, prefix_node=True)
+    try:
+        from raphiia_openai.notifications.evolution_client import any_whatsapp_connected
+
+        whatsapp_connected = bool(any_whatsapp_connected())
+    except Exception:
+        whatsapp_connected = False
+    result = (send_alert_whatsapp(body, prefix_node=True) if whatsapp_connected
+              else {"ok": False, "reason": "evolution_whatsapp_down"})
+    email_fallback = None
+    if not result.get("ok"):
+        # Task already exists, so this is notification only, never a new claim.
+        email_fallback = _notify_ops_auth_email_fallback(
+            task, body=body, provider=provider, tid=tid,
+            alert_kind="external_spend",
+        )
+        if email_fallback.get("ok"):
+            result = {"ok": True, "channel": "email_fallback", "email": email_fallback}
     if result.get("ok"):
         _mark_sent("cursor_claim", key)
-    return {"ok": bool(result.get("ok")), "result": result, "task_id": task.get("task_id"), "status": status}
+    return {
+        "ok": bool(result.get("ok")), "result": result,
+        "task_id": task.get("task_id"), "status": status,
+        "email_fallback": email_fallback,
+    }
 
 
 def notify_ops_transition(

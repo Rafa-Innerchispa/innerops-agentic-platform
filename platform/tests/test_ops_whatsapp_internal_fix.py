@@ -61,10 +61,12 @@ def test_internal_fix_whatsapp_no_credit_wording_no_confirm_buttons():
     binding = eb.resolve_execution_binding(task)
     alerts._STATE["cooldowns"] = {}
     alerts._STATE["sent"] = []
-    with mock.patch(
-        "raphiia_openai.notifications.evolution_client.send_alert_whatsapp",
-        return_value={"ok": True},
-    ) as send:
+    with (
+        mock.patch("raphiia_openai.notifications.evolution_client.any_whatsapp_connected",
+                   return_value=True),
+        mock.patch("raphiia_openai.notifications.evolution_client.send_alert_whatsapp",
+                   return_value={"ok": True}) as send,
+    ):
         out = alerts.notify_ops_owner_authorization_request(task, binding=binding, force=True)
     assert out["ok"] is True
     assert out["delivery_mode"] == "text_internal_fix"
@@ -103,14 +105,16 @@ def test_notify_ops_owner_authorization_request_cursor_external_spend():
     binding = eb.resolve_execution_binding(task)
     alerts._STATE["cooldowns"] = {}
     alerts._STATE["sent"] = []
-    with mock.patch(
-        "raphiia_openai.notifications.evolution_client.send_whatsapp_interactive",
-        return_value={"ok": True},
-    ) as send:
-        with mock.patch("inneros_core_runtime.whatsapp_ops_auth_pending.register_pending"):
-            out = alerts.notify_ops_owner_authorization_request(
-                task, binding=binding, source_agent="notion", force=True
-            )
+    with (
+        mock.patch("raphiia_openai.notifications.evolution_client.any_whatsapp_connected",
+                   return_value=True),
+        mock.patch("raphiia_openai.notifications.evolution_client.send_whatsapp_interactive",
+                   return_value={"ok": True}) as send,
+        mock.patch("inneros_core_runtime.whatsapp_ops_auth_pending.register_pending"),
+    ):
+        out = alerts.notify_ops_owner_authorization_request(
+            task, binding=binding, source_agent="notion", force=True
+        )
     assert out["ok"] is True
     body = send.call_args[0][0]
     assert "Por qué no runner interno" in body

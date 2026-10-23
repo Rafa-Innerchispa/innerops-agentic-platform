@@ -27,7 +27,11 @@ def test_notify_cursor_awaiting_claim_sends_whatsapp():
     }
     alerts._STATE["cooldowns"] = {}
     alerts._STATE["sent"] = []
-    with mock.patch.object(alerts, "send_alert_whatsapp", return_value={"ok": True}) as send:
+    with (
+        mock.patch("raphiia_openai.notifications.evolution_client.any_whatsapp_connected",
+                   return_value=True),
+        mock.patch.object(alerts, "send_alert_whatsapp", return_value={"ok": True}) as send,
+    ):
         out = alerts.notify_cursor_awaiting_claim(task, previous_status="queued")
     assert out["ok"] is True
     send.assert_called_once()
