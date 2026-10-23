@@ -60,3 +60,37 @@ que NO mutan, payload y senders de ntfy/Telegram con recibo provider-accepted.
 Los unit tests usan HTTP mock y no envían push ni mensajes externos.
 
 Issue de UX/autorización existente: #180. No duplicar tareas.
+
+## Orden de entrega, todos los eventos
+
+Añadido `platform/inneros_core_runtime/notifications/owner_notification_router.py`
+con orden estricto **push → WhatsApp → Telegram → email**, para clases
+approval, incident, report, task_status, test_result, service_health,
+opportunity, digest y other (incluye nuevos eventos clasificados de forma
+conservadora). Preferencias por usuario y categoría activas de forma
+predeterminada; deshabilitar un aviso ordinario NO pausa ninguna tarea.
+Alertas de aprobación, incidentes o criticidad máxima no se silencian sin
+una política de seguridad especial. Todas las notificaciones relevantes
+deben salir desde el outbox canónico, no del chat, de CI o de un timer nuevo.
+
+El router calcula intentos y recibos sin realizar ningún cambio OPS; usa
+senders inyectados, nunca credenciales fijas. Si `push` devuelve error,
+intenta WhatsApp, luego Telegram y finalmente correo. En avisos high,
+critical o aprobaciones, `provider_accepted` no se toma como leido:
+tras 120 segundos sin `owner_ack` se prueba el siguiente canal, hasta
+agotar la lista. Una alerta agotada permanece en la cola persistente para
+recuperación manual (la persistencia durable aún NO está cableada).
+Para reportes informativos, la aceptación del proveedor es un intento
+exitoso de envío, pero NO una constancia de lectura por el destinatario.
+
+**Controles por tarea:** el plan de la bandeja autenticada de InnerOS
+requiere acciones Pausar/Reanudar cuando el estado real las admita,
+además de Aprobar/Rechazar/Cerrar. La acción debe verificarse con
+passkey/owner auth, transición única Temporal, CAS y evidencia. La opción
+"desactivar avisos" es distinta de "pausar ejecución". Ningún botón
+del transporte actual modifica estados: faltan esos endpoints seguros.
+
+Pruebas aisladas del router y transportes: **32 passed** con mocks,
+incluida prioridad, failover, escalamiento, opt-out de categoría normal
+y preservación de alertas críticas. Los tests NO son evidencia de
+envío real, conexión del teléfono ni worker outbox autónomo.
