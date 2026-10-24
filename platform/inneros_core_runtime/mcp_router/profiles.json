@@ -1,0 +1,45 @@
+{
+  "profile_minimal": {
+    "source": "chatgpt_compact",
+    "scopes": [
+      "ralfia:read"
+    ],
+    "max_risk": "low",
+    "max_tools": 15,
+    "read_only": true
+  },
+  "profile_coding": {
+    "source": "owner_dev",
+    "scopes": [
+      "ralfia:read",
+      "ralfia:agents"
+    ],
+    "max_risk": "medium",
+    "max_tools": 25,
+    "exact_subset": [
+      "local_fs_list",
+      "local_fs_read_file",
+      "local_exec_inspect_repo",
+      "local_exec_inspect_remotes",
+      "local_exec_verified_git_author_status",
+      "local_exec_repo_policy_status",
+      "local_exec_prepare_repo",
+      "local_exec_acquire_lock",
+      "local_exec_release_lock",
+      "local_exec_create_worktree",
+      "local_exec_apply_patch",
+      "local_exec_write_file",
+      "local_exec_run_command_allowlisted",
+      "local_exec_commit_branch",
+      "local_exec_report_evidence"
+    ]
+  },
+  "profile_admin": {
+    "enabled_by_default": false,
+    "requires": [
+      "ALLOW_ADMIN_PROFILE=true",
+      "server_identity_admin_authorized",
+      "ralfia:admin"
+    ]
+  }
+}
