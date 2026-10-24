@@ -1,0 +1,76 @@
+{
+  "DomainInfo::domains_data": {
+    "ok": true,
+    "status": 1,
+    "count": 4,
+    "errors": null,
+    "sample": "{'main_domain': {'is_temporary': 0, 'type': 'main_domain', 'homedir': '/home/pcdoctor', 'user': 'pcdoctor', 'serveralias': 'mail.pcdoctor.com.ec www.pcdoctor.com.ec', 'port': '80', 'status': 'not redi"
+  },
+  "SSL::installed_hosts": {
+    "ok": true,
+    "status": 1,
+    "count": 24,
+    "errors": null,
+    "sample": "[{'docroot': '/home/pcdoctor/public_html', 'domains': ['pcdoctor.com.ec'], 'servername': 'pcdoctor.com.ec', 'needs_sni': 1, 'certificate_text': '-----BEGIN CERTIFICATE-----\\nMIIGaDCCBVCgAwIBAgISBjkmTa"
+  },
+  "Email::list_pops": {
+    "ok": true,
+    "status": 1,
+    "count": 96,
+    "errors": null,
+    "sample": "[{'suspended_incoming': 0, 'suspended_login': 0, 'login': 'accounting@thships.com', 'email': 'accounting@thships.com'}, {'login': 'operaciones-ec@thships.com', 'email': 'operaciones-ec@thships.com', '"
+  },
+  "Email::list_forwarders": {
+    "ok": true,
+    "status": 1,
+    "count": 0,
+    "errors": null,
+    "sample": "[]"
+  },
+  "LangPHP::php_get_vhost_versions": {
+    "ok": true,
+    "status": 1,
+    "count": 24,
+    "errors": null,
+    "sample": "[{'php_fpm_pool_parms': {}, 'documentroot': '/home/pcdoctor/public_html/fundacionaei.org', 'phpversion_source': {'domain': 'fundacionaei.org'}, 'homedir': '/home/pcdoctor', 'account_owner': 'root', 'v"
+  },
+  "Fileman::list_files": {
+    "ok": true,
+    "status": 1,
+    "count": 67,
+    "errors": null,
+    "sample": "[{'absdir': '/home/pcdoctor/public_html', 'nicemode': '0750', 'ctime': 1792817387, 'mode': 16872, 'mtime': 1792817318, 'exists': 1, 'uid': 2183, 'size': '54', 'file': 'bellcosmeec.com', 'humansize': '"
+  },
+  "Backup::list_backups": {
+    "ok": true,
+    "status": 1,
+    "count": 0,
+    "errors": null,
+    "sample": "[]"
+  },
+  "Cron::list_cron": {
+    "ok": false,
+    "status": 0,
+    "count": 1,
+    "errors": [
+      "Failed to load module \u201cCron\u201d: El sistema no pudo cargar el m\u00f3dulo \u201cCpanel::API::Cron\u201d debido a un error: Can't locate Cpanel/API/Cron.pm in @INC (you may need to install the Cpanel::API::Cron module) (@INC entries checked: /usr/local/cpanel /usr/local/cpanel/plugins /usr/local/cpanel/3rdparty/perl/542/cpanel-lib/x86_64-linux /usr/local/cpanel/3rdparty/perl/542/cpanel-lib /usr/local/cpanel/3rdparty/perl/542/lib/x86_64-linux /usr/local/cpanel/3rdparty/perl/542/lib /opt/cpanel/perl5/542/site_lib/x86_64-linux /opt/cpanel/perl5/542/site_lib) at (eval 7) line 1.\nBEGIN failed--compilation aborted at (eval 7) line 1.\n\nThe system failed to load the module \u201cCpanel::API::Cron\u201d because of an error: Can't locate Cpanel/API/Cron.pm in @INC (you may need to install the Cpanel::API::Cron module) (@INC entries checked: /usr/local/cpanel /usr/local/cpanel/plugins /usr/local/cpanel/3rdparty/perl/542/cpanel-lib/x86_64-linux /usr/local/cpanel/3rdparty/perl/542/cpanel-lib /usr/local/cpanel/3rdparty/perl/542/lib/x86_64-linux /usr/local/cpanel/3rdparty/perl/542/lib /opt/cpanel/perl5/542/site_lib/x86_64-linux /opt/cpanel/perl5/542/site_lib) at (eval 7) line 1.\nBEGIN failed--compilation aborted at (eval 7) line 1.\n"
+    ],
+    "sample": "None"
+  },
+  "Quota::get_quota_info": {
+    "ok": true,
+    "status": 1,
+    "count": 11,
+    "errors": null,
+    "sample": "{'under_quota_overall': '1', 'backup_warning_threshold_pct': 90, 'inodes_remain': '0', 'inodes_used': 442954, 'under_megabyte_limit': '1', 'under_backup_threshold': 1, 'megabyte_limit': 81920, 'inode_"
+  },
+  "Stats::get_site_status": {
+    "ok": false,
+    "status": 0,
+    "count": 1,
+    "errors": [
+      "The system could not find the function \u201cget_site_status\u201d in the module \u201cStats\u201d."
+    ],
+    "sample": "None"
+  }
+}
