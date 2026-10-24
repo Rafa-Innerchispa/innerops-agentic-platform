@@ -58,6 +58,10 @@ Expected truth labels:
 }
 ```
 
+## Endpoint reachability check
+
+An unauthenticated, non-billable request to `https://api.tokenfactory.nebius.com/v1/models` returned HTTP `401` on 2026-10-24. This proves the current authenticated route is reachable and rejects anonymous access; it does **not** prove any particular model is available. Model availability remains blocked until the owner vault key and credit authorization gates are satisfied.
+
 ## Authorized live smoke (not executed in this validation)
 
 ```bash
@@ -82,3 +86,8 @@ The script has no raw-key argument and never prints the secret. Only a successfu
 - `GET /api/guardian/evidence/{id}`
 
 `actions/plan` forcibly removes approval material and sets `dry_run=true`; live mutation remains outside this frontend contract.
+
+## Delivered commits
+
+- `e36f70d` — fail-closed runtime, Token Factory adapter, vault-only live smoke, API contract, and tests.
+- `84b6e85` — public export, complete Apache-2.0 license, reproducible demo, and truthful evidence taxonomy.
