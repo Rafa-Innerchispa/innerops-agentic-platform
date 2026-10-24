@@ -14,9 +14,9 @@
 
 Traditional infrastructure monitoring either relies on dumb static rules or risks cloud agents executing arbitrary remote shell commands on private internal networks. **InnerOS Infrastructure Guardian** solves this through a strictly partitioned architecture:
 
-1. **Cloud Intelligence:** Leverages open NVIDIA reasoning models (such as `meta-llama/Meta-Llama-3.1-70B-Instruct` or `nvidia/nemotron-4-340b-instruct`) hosted on **Nebius AI Cloud / Token Factory** to diagnose degraded physical systems from sanitized telemetry.
+1. **Cloud Intelligence:** Uses the current Nebius Token Factory OpenAI-compatible API. Live mode first checks authenticated `GET /models` and only selects an ID explicitly identified as NVIDIA/Nemotron; no hard-coded historical model is presented as current proof.
 2. **Local Authority:** Nebius has zero direct network access or credentials to private equipment. All mutation plans pass through the **InnerOS Capability Gateway**, which enforces strict ownership policy, approval gating, and dry-run safety.
-3. **Verified Physical Actions:** Every action is executed via governed local vendor adapters (UniFi, Grandstream GWN) and followed by automated post-action recovery verification, producing cryptographic evidence receipts for every operation.
+3. **Verified Physical Actions:** An action is `REAL` only when a connected vendor adapter returns a provider receipt. A recovery is `REAL` only when a connected probe confirms it. Dry-run and mock probes remain useful but are labeled `SIMULATED`.
 
 ---
 
@@ -68,8 +68,20 @@ Private network credentials **never leave the local node**.
 
 ## 5. Resilient Local Fallback
 
-If external cloud connectivity is degraded or external credits are restricted, the adapter transparently fails over to:
-- Local AMD inference node running `QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ` on `http://127.0.0.1:8000/v1`.
-- Deterministic heuristic rules engine for mission-critical operations.
+If external cloud connectivity is degraded or external credits are restricted, this branch uses a deterministic local heuristic and labels the result `LOCAL_HEURISTIC`. It does **not** claim that a local Qwen model ran unless a separate local inference receipt proves it.
 
 The local system remains 100% operational offline.
+
+---
+
+## 6. Frontend API Contract
+
+The runtime mounts a sanitized, plan-only contract:
+
+- `GET /api/guardian/overview`
+- `POST /api/guardian/diagnose`
+- `POST /api/guardian/actions/plan`
+- `POST /api/guardian/recovery/verify`
+- `GET /api/guardian/evidence/{id}`
+
+The frontend cannot submit approval credentials or invoke a live mutation through these routes. See `public-export/inneros-nebius-nvidia-physical-ai-2026/api-contract.json` and `VERIFICATION_EVIDENCE.md`.

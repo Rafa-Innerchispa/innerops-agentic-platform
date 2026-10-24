@@ -1,57 +1,84 @@
 # Verification Evidence — Nebius × NVIDIA Physical AI Runtime
 
-**Correlation ID:** `nebius-nvidia-hackathon-20261019`  
-**Task ID:** `ops_5541a2712440`  
-**Work Branch:** `chatgpt/nebius-physical-ai-runtime-20261019`  
-**Timestamp:** 2026-10-20T05:55:26Z  
+**Correlation ID:** `nebius-nvidia-hackathon-20261024`
 
----
+**Source branch:** `chatgpt/nebius-physical-ai-runtime-20261019` at `a69908d57cc40a45ae927ab13c279a209387e224`
 
-## 1. Test Execution Summary
+**Validation branch:** `codex/nebius-nvidia-validation-20261024`
 
-The test suite validates all required security, governance, and operational criteria:
+**Validation date:** 2026-10-24
+
+## Reproducible test result
 
 ```text
-============================= test session starts ==============================
-platform linux -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
-rootdir: /home/rlopez/inneros/inneros_core/var/local_execution/worktrees/Rafa-Innerchispa__innerops-agentic-platform/chatgpt__nebius-physical-ai-runtime-20261019
-collected 44 items
+python -m pytest \
+  platform/tests/test_capability_gateway.py \
+  platform/tests/test_nebius_nvidia_gateway.py \
+  tests/test_nebius_nvidia_runtime.py \
+  platform/tests/test_guardian_api_contract.py \
+  public-export/inneros-nebius-nvidia-physical-ai-2026/tests/test_public_runtime.py -q
 
-platform/tests/test_nebius_nvidia_gateway.py ..................          [ 40%]
-platform/tests/test_capability_gateway.py ........                       [ 59%]
-tests/test_nebius_nvidia_runtime.py ..................                   [100%]
-
-============================== 44 passed in 0.28s ==============================
+.........................................................                [100%]
+57 passed, 1 warning in 12.77s
 ```
 
----
+The warning is a Starlette notice about the future `httpx2` TestClient migration; it does not affect the assertions.
 
-## 2. Verified Capabilities & Invariants
+## Evidence classification
 
-| Invariant / Test | Capability / Component | Result | Detail |
+| Item | Result | Evidence mode | Meaning |
 |---|---|---|---|
-| **Registration & Search** | `network.device.reboot.v1` | **PASS** | Discoverable via Capability Gateway |
-| **Registration & Search** | `network.device.poe_cycle.v1` | **PASS** | Discoverable via Capability Gateway |
-| **Registration & Search** | `network.device.verify_recovery.v1`| **PASS** | Discoverable via Capability Gateway |
-| **Approval-Gating** | Live Reboot Mutation | **PASS** | `dry_run=False` blocked without approval (`approval_required`) |
-| **Approval-Gating** | Live PoE Cycle Mutation | **PASS** | `dry_run=False` blocked without approval (`approval_required`) |
-| **Approval-Granted** | Live Reboot Mutation | **PASS** | Dispatches cleanly when token provided |
-| **Dry-Run Safety** | `network.device.reboot.v1` | **PASS** | Stages action plan (`mutation_applied=False`) |
-| **Dry-Run Safety** | `network.device.poe_cycle.v1` | **PASS** | Stages port cycle (`mutation_applied=False`) |
-| **Idempotency** | Capability Gateway Store | **PASS** | Same idempotency_key returns identical execution record |
-| **Provider Gap** | GWN PoE Cycling | **PASS** | Returns honest `provider_gap` (GWN Cloud API limitation) |
-| **Provider Gap** | Unsupported Vendor | **PASS** | Unsupported hardware returns `provider_gap` |
-| **Post-Recovery Verification**| `network.device.verify_recovery.v1`| **PASS** | Validates ping reachability and port health |
-| **Read-Only Preservation**| `network.device.query.v1` | **PASS** | Read-only discovery remains functional |
-| **Telemetry Sanitizer**| `TelemetrySanitizer` | **PASS** | Redacts customer names, private IPs, and MACs |
-| **Cloud AI Reasoning**| `NebiusNvidiaReasoning` | **PASS** | Formulates structured diagnosis and capability plan |
-| **Local Model Fallback**| `NebiusNvidiaReasoning` | **PASS** | Transparent fallback when offline or without external key |
-| **Bounded Workflow**| 7-Stage Physical AI Runner | **PASS** | End-to-end execution from discover to evidence receipt |
+| Token Factory base URL | PASS | DOCUMENTED | Current official URL is `https://api.tokenfactory.nebius.com/v1` |
+| NVIDIA model selection | PASS | MOCKED/CONTRACT | Code validates an NVIDIA/Nemotron ID against authenticated `/models` before live use |
+| Billable Nebius inference | NOT RUN | BLOCKED | No explicit credit authorization was available; no external request was sent |
+| Default reasoning demo | PASS | LOCAL_HEURISTIC | Deterministic offline result, explicitly not an LLM claim |
+| Reboot / PoE plan | PASS | SIMULATED | Dry-run, `mutation_applied=false` |
+| Approved action without adapter | PASS | BLOCKED | `provider_adapter_unavailable`; no synthetic execution |
+| Live adapter response without receipt | PASS | BLOCKED | `provider_receipt_required` |
+| Recovery mock | PASS | SIMULATED | Cannot be promoted to physical recovery proof |
+| Recovery without real probe | PASS | BLOCKED | `provider_probe_unavailable` and `NOT_VERIFIED` |
+| Idempotency | PASS | TESTED | Reused idempotency key returns the same execution and evidence hash |
+| Telemetry sanitization | PASS | TESTED | Private IPs, MACs, tokens, passwords, and serial values removed |
+| Frontend contract | PASS | TESTED | Five `/api/guardian` routes mounted in the runtime app |
+| Public Apache-2.0 license | PASS | VERIFIED | Public export contains the complete OSI-approved license text |
 
----
-
-## 3. Reproducible Verification Command
+## Local smoke receipt
 
 ```bash
-python3 -m pytest platform/tests/test_nebius_nvidia_gateway.py platform/tests/test_capability_gateway.py tests/test_nebius_nvidia_runtime.py
+python3 platform/scripts/smoke_nebius_nvidia.py
 ```
+
+Expected truth labels:
+
+```json
+{
+  "mode": "FAKE",
+  "external_inference": {"status": "BLOCKED_NOT_AUTHORIZED"},
+  "secret_printed": false
+}
+```
+
+## Authorized live smoke (not executed in this validation)
+
+```bash
+NEBIUS_LIVE_SMOKE_AUTHORIZED=1 \
+python3 platform/scripts/smoke_nebius_nvidia.py --live
+```
+
+Requirements:
+
+1. `owner_vault:nebius_token_factory/api_key` or `owner_vault:nebius/api_key` exists.
+2. The account has owner-authorized quota/credit.
+3. Authenticated `/models` returns an NVIDIA/Nemotron model.
+
+The script has no raw-key argument and never prints the secret. Only a successful Token Factory response produces `evidence_mode=REAL` with response metadata and a SHA-256 receipt.
+
+## Sanitized frontend contract
+
+- `GET /api/guardian/overview`
+- `POST /api/guardian/diagnose`
+- `POST /api/guardian/actions/plan`
+- `POST /api/guardian/recovery/verify`
+- `GET /api/guardian/evidence/{id}`
+
+`actions/plan` forcibly removes approval material and sets `dry_run=true`; live mutation remains outside this frontend contract.

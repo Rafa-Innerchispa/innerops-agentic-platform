@@ -28,6 +28,8 @@ This document describes the three persistent capabilities added to the InnerOS C
 ### Invariants & Behaviors:
 - When `dry_run=true`: Validates payload, inspects provider capabilities, stages the action plan, and returns `status: STAGED_DRY_RUN` with `mutation_applied: false`.
 - When `dry_run=false` and unapproved: Returns `error: approval_required` and logs `status: BLOCKED_APPROVAL_REQUIRED`.
+- An arbitrary non-empty token is not approval. The server context must mark owner approval as validated (or validate the candidate through an approval callback).
+- Approval alone is insufficient: without a connected live provider executor the operation returns `provider_adapter_unavailable`; without a `REAL` provider receipt it returns `provider_receipt_required`.
 - When `provider` is unsupported (e.g. `cisco`, `huawei`): Returns `error: provider_gap` listing supported providers.
 
 ---
@@ -56,6 +58,7 @@ This document describes the three persistent capabilities added to the InnerOS C
 ### Invariants & Behaviors:
 - When requested on `grandstream_gwn`: Grandstream GWN Cloud does not expose per-port PoE cycling commands; the handler returns an honest `provider_gap` error explaining that power cycling must be triggered via an upstream managed switch (e.g. UniFi) or local PDU.
 - When `dry_run=false` without approval: Fails closed with `error: approval_required`.
+- When approved but no UniFi executor/receipt is connected: Fails closed; it never synthesizes `EXECUTED`.
 - Emits evidence receipt including port number, switch reference, and execution hash.
 
 ---
@@ -79,6 +82,7 @@ This document describes the three persistent capabilities added to the InnerOS C
 ```
 
 ### Invariants & Behaviors:
-- Read-only probe verifying ICMP ping reachability, latency, and Device Fabric telemetry state.
-- Returns `recovered: true` if device is reachable and online, or `recovered: false` if device remains unpingable after reboot.
+- `mock_probe=true` produces `verification_mode: SIMULATED` and can never prove physical recovery.
+- `mock_probe=false` requires a connected recovery probe; otherwise returns `provider_probe_unavailable` and `verification_mode: NOT_VERIFIED`.
+- A connected probe returns `verification_mode: REAL` and its actual recovery state.
 - Emits verification evidence receipt linked to the prior mutation.
