@@ -33,18 +33,41 @@ def _now() -> str:
 
 
 def _is_approved(parameters: Dict[str, Any], context: Dict[str, Any]) -> bool:
-    """Check whether explicit owner authorization has been provided."""
+    """Accept only server-validated approval, never an arbitrary token string."""
     if context.get("owner_approved") is True:
         return True
-    if str(context.get("owner_approval_ref") or "").strip():
+    if context.get("approval_validated") is True and str(context.get("owner_approval_ref") or "").strip():
         return True
-    if str(parameters.get("approval_token") or "").strip():
-        return True
-    if str(parameters.get("owner_approval_ref") or "").strip():
-        return True
-    if parameters.get("owner_approved") is True:
-        return True
+    validator = context.get("approval_validator")
+    if callable(validator):
+        candidate = str(
+            parameters.get("approval_token")
+            or parameters.get("owner_approval_ref")
+            or ""
+        ).strip()
+        if candidate:
+            validation = validator(candidate)
+            return bool(
+                validation is True
+                or (isinstance(validation, dict) and validation.get("ok") is True)
+            )
     return False
+
+
+def _sanitize_receipt_details(value: Any) -> Any:
+    """Remove credentials from receipts before they can reach logs or a frontend."""
+    if isinstance(value, dict):
+        sanitized: Dict[str, Any] = {}
+        for key, item in value.items():
+            normalized = str(key).lower().replace("-", "_")
+            if any(marker in normalized for marker in ("password", "secret", "token", "credential", "private_key")):
+                sanitized[str(key)] = "[REDACTED]"
+            else:
+                sanitized[str(key)] = _sanitize_receipt_details(item)
+        return sanitized
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_receipt_details(item) for item in value]
+    return value
 
 
 def _generate_receipt(
@@ -59,6 +82,11 @@ def _generate_receipt(
     timestamp = _now()
     raw_hash = f"{capability_id}:{action}:{device_ref}:{provider}:{dry_run}:{timestamp}"
     evidence_hash = hashlib.sha256(raw_hash.encode("utf-8")).hexdigest()
+    evidence_mode = (
+        "SIMULATED" if dry_run or status.startswith("STAGED_") or status.startswith("SIMULATED_")
+        else "REAL" if status in {"EXECUTED", "RECOVERED"}
+        else "BLOCKED"
+    )
     return {
         "receipt_id": f"rcpt_{uuid.uuid4().hex[:12]}",
         "capability_id": capability_id,
@@ -67,9 +95,10 @@ def _generate_receipt(
         "provider": provider,
         "dry_run": dry_run,
         "status": status,
+        "evidence_mode": evidence_mode,
         "evidence_hash": evidence_hash,
         "timestamp": timestamp,
-        "details": details,
+        "details": _sanitize_receipt_details(details),
     }
 
 
@@ -265,14 +294,70 @@ def network_device_reboot_handler(
                 "evidence_receipt": receipt,
             }
         elif provider == "unifi":
-            # UniFi live reboot implementation
+            executor = context.get("network_action_executor")
+            if not callable(executor):
+                receipt = _generate_receipt(
+                    capability_id="network.device.reboot.v1",
+                    action="reboot",
+                    device_ref=device_ref,
+                    provider=provider,
+                    dry_run=False,
+                    status="BLOCKED_PROVIDER_ADAPTER_REQUIRED",
+                    details={"error": "provider_adapter_unavailable"},
+                )
+                return {
+                    "ok": False,
+                    "error": "provider_adapter_unavailable",
+                    "message": "No live UniFi executor is connected; no device was restarted.",
+                    "mutation_applied": False,
+                    "provider": provider,
+                    "device_ref": device_ref,
+                    "evidence_receipt": receipt,
+                }
+            exec_details = executor(
+                action="reboot",
+                provider=provider,
+                target=device_ref,
+                parameters={"tenant_id": tenant_id, "site_id": site_id, "reason": reason},
+            )
+            if not isinstance(exec_details, dict) or exec_details.get("ok") is not True:
+                receipt = _generate_receipt(
+                    capability_id="network.device.reboot.v1",
+                    action="reboot",
+                    device_ref=device_ref,
+                    provider=provider,
+                    dry_run=False,
+                    status="PROVIDER_EXECUTION_FAILED",
+                    details=exec_details if isinstance(exec_details, dict) else {"error": "invalid_provider_response"},
+                )
+                return {
+                    "ok": False,
+                    "error": "provider_execution_failed",
+                    "mutation_applied": False,
+                    "provider": provider,
+                    "device_ref": device_ref,
+                    "evidence_receipt": receipt,
+                }
+            provider_receipt = exec_details.get("provider_receipt")
+            if not isinstance(provider_receipt, dict) or provider_receipt.get("evidence_mode") != "REAL":
+                receipt = _generate_receipt(
+                    capability_id="network.device.reboot.v1",
+                    action="reboot",
+                    device_ref=device_ref,
+                    provider=provider,
+                    dry_run=False,
+                    status="BLOCKED_PROVIDER_RECEIPT_REQUIRED",
+                    details={"error": "provider_receipt_required"},
+                )
+                return {
+                    "ok": False,
+                    "error": "provider_receipt_required",
+                    "mutation_applied": False,
+                    "provider": provider,
+                    "device_ref": device_ref,
+                    "evidence_receipt": receipt,
+                }
             live_status = "EXECUTED"
-            exec_details = {
-                "dispatched": True,
-                "command": "reboot",
-                "target": device_ref,
-                "timestamp": _now(),
-            }
             receipt = _generate_receipt(
                 capability_id="network.device.reboot.v1",
                 action="reboot",
@@ -502,15 +587,68 @@ def network_device_poe_cycle_handler(
             "evidence_receipt": receipt,
         }
 
-    # Live execution (approved)
-    exec_details = {
-        "dispatched": True,
-        "action": "poe_cycle",
-        "switch_ref": switch_ref,
-        "port": port,
-        "duration": duration,
-        "timestamp": _now(),
-    }
+    # Live execution (approved) requires a connected provider executor.  A
+    # constructed dictionary is not proof that power was actually cycled.
+    executor = context.get("network_action_executor")
+    if not callable(executor):
+        receipt = _generate_receipt(
+            capability_id="network.device.poe_cycle.v1",
+            action="poe_cycle",
+            device_ref=f"{switch_ref}:port_{port}",
+            provider="unifi",
+            dry_run=False,
+            status="BLOCKED_PROVIDER_ADAPTER_REQUIRED",
+            details={"error": "provider_adapter_unavailable"},
+        )
+        return {
+            "ok": False,
+            "error": "provider_adapter_unavailable",
+            "message": "No live UniFi PoE executor is connected; power was not changed.",
+            "mutation_applied": False,
+            "provider": "unifi",
+            "switch_ref": switch_ref,
+            "port": port,
+            "evidence_receipt": receipt,
+        }
+    exec_details = executor(
+        action="poe_cycle",
+        provider="unifi",
+        target=switch_ref,
+        parameters={"port": port, "cycle_duration_seconds": duration},
+    )
+    if not isinstance(exec_details, dict) or exec_details.get("ok") is not True:
+        receipt = _generate_receipt(
+            capability_id="network.device.poe_cycle.v1",
+            action="poe_cycle",
+            device_ref=f"{switch_ref}:port_{port}",
+            provider="unifi",
+            dry_run=False,
+            status="PROVIDER_EXECUTION_FAILED",
+            details=exec_details if isinstance(exec_details, dict) else {"error": "invalid_provider_response"},
+        )
+        return {
+            "ok": False,
+            "error": "provider_execution_failed",
+            "mutation_applied": False,
+            "evidence_receipt": receipt,
+        }
+    provider_receipt = exec_details.get("provider_receipt")
+    if not isinstance(provider_receipt, dict) or provider_receipt.get("evidence_mode") != "REAL":
+        receipt = _generate_receipt(
+            capability_id="network.device.poe_cycle.v1",
+            action="poe_cycle",
+            device_ref=f"{switch_ref}:port_{port}",
+            provider="unifi",
+            dry_run=False,
+            status="BLOCKED_PROVIDER_RECEIPT_REQUIRED",
+            details={"error": "provider_receipt_required"},
+        )
+        return {
+            "ok": False,
+            "error": "provider_receipt_required",
+            "mutation_applied": False,
+            "evidence_receipt": receipt,
+        }
     receipt = _generate_receipt(
         capability_id="network.device.poe_cycle.v1",
         action="poe_cycle",
@@ -599,46 +737,69 @@ def network_device_verify_recovery_handler(
     started_at = _now()
     checks: List[Dict[str, Any]] = []
 
-    # Check 1: Reachability probe
-    is_reachable = True if mock_probe else True
-    checks.append({
-        "check": "network_reachability",
-        "target": device_ref,
-        "status": "PASS" if is_reachable else "FAIL",
-        "latency_ms": 1.4 if is_reachable else None,
-        "timestamp": _now(),
-    })
+    if mock_probe:
+        checks.append({
+            "check": "simulated_network_reachability",
+            "target": device_ref,
+            "status": "SIMULATED_PASS",
+            "timestamp": _now(),
+        })
+        recovered = True
+        current_status = expected
+        verification_mode = "SIMULATED"
+    else:
+        probe = context.get("recovery_probe")
+        if not callable(probe):
+            receipt = _generate_receipt(
+                capability_id="network.device.verify_recovery.v1",
+                action="verify_recovery",
+                device_ref=device_ref,
+                provider=provider,
+                dry_run=False,
+                status="BLOCKED_PROVIDER_PROBE_REQUIRED",
+                details={"error": "provider_probe_unavailable", "expected_status": expected},
+            )
+            return {
+                "ok": False,
+                "error": "provider_probe_unavailable",
+                "message": "No real recovery probe is connected; recovery was not verified.",
+                "recovered": False,
+                "verification_mode": "NOT_VERIFIED",
+                "device_ref": device_ref,
+                "provider": provider,
+                "current_status": "unknown",
+                "expected_status": expected,
+                "checks": [],
+                "evidence_receipt": receipt,
+            }
+        probe_result = probe(
+            device_ref=device_ref,
+            provider=provider,
+            expected_status=expected,
+            max_wait_seconds=max_wait,
+        )
+        if not isinstance(probe_result, dict):
+            probe_result = {"ok": False, "error": "invalid_probe_response"}
+        checks = list(probe_result.get("checks") or [])
+        recovered = bool(probe_result.get("ok") and probe_result.get("recovered"))
+        current_status = str(probe_result.get("current_status") or "unknown")
+        verification_mode = "REAL"
 
-    # Check 2: Provider state query (via device_fabric or local adapters if available)
-    provider_online = True
-    if not mock_probe:
-        try:
-            from inneros_core_runtime import device_fabric
-            site_id = str(parameters.get("site_id") or "home_pcdoctor_lab")
-            h = device_fabric.device_fabric_health(site_id=site_id)
-            checks.append({
-                "check": "fabric_health",
-                "status": "PASS" if h.get("ok") else "PARTIAL",
-                "provider": h.get("provider", provider),
-            })
-        except Exception as exc:
-            checks.append({
-                "check": "fabric_health",
-                "status": "SKIPPED",
-                "detail": str(exc),
-            })
-
-    recovered = is_reachable and provider_online
     receipt = _generate_receipt(
         capability_id="network.device.verify_recovery.v1",
         action="verify_recovery",
         device_ref=device_ref,
         provider=provider,
-        dry_run=False,
-        status="RECOVERED" if recovered else "NOT_RECOVERED",
+        dry_run=(verification_mode == "SIMULATED"),
+        status=(
+            "SIMULATED_RECOVERY" if verification_mode == "SIMULATED"
+            else "RECOVERED" if recovered
+            else "NOT_RECOVERED"
+        ),
         details={
             "expected_status": expected,
             "recovered": recovered,
+            "verification_mode": verification_mode,
             "checks": checks,
             "started_at": started_at,
             "completed_at": _now(),
@@ -646,11 +807,12 @@ def network_device_verify_recovery_handler(
     )
 
     return {
-        "ok": True,
+        "ok": recovered,
         "recovered": recovered,
+        "verification_mode": verification_mode,
         "device_ref": device_ref,
         "provider": provider,
-        "current_status": "online" if recovered else "offline",
+        "current_status": current_status,
         "expected_status": expected,
         "checks": checks,
         "evidence_receipt": receipt,

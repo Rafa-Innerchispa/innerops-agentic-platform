@@ -9,14 +9,15 @@ Architecture:
   are sanitized before transmission to Nebius. Nebius never receives direct control or private credentials.
 - Local Authority: Actions are planned and executed locally through InnerOS Capability Gateway.
 - Approval Gating: Live physical mutations strictly require owner authorization.
-- Resilient Fallback: Automatically falls back to local models (e.g. QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ)
-  or deterministic heuristic rules if Nebius API is unavailable or unconfigured.
+- Resilient Fallback: Uses an explicitly labeled deterministic local heuristic
+  when Nebius is unavailable; it never claims local-model inference without a receipt.
 - Bounded 7-step Physical AI Workflow:
   Discover -> Diagnose -> Recommend -> Approval -> Execute Locally -> Verify Recovery -> Evidence Receipt.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -27,14 +28,50 @@ import urllib.request
 import urllib.error
 
 
-DEFAULT_NEBIUS_BASE_URL = "https://api.studio.nebius.ai/v1"
-DEFAULT_NEBIUS_MODEL = "meta-llama/Meta-Llama-3.1-70B-Instruct"
-DEFAULT_LOCAL_MODEL = "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ"
+DEFAULT_NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1"
+# Live inference must name a model returned by the authenticated Token Factory
+# ``GET /models`` call.  Keeping this empty prevents an old model label from
+# being presented as current evidence.
+DEFAULT_NEBIUS_MODEL = ""
+DEFAULT_LOCAL_MODEL = "deterministic_inneros_heuristic_v1"
 DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:8000/v1"
+NEBIUS_VAULT_REFS = (
+    ("nebius_token_factory", "api_key"),
+    ("nebius", "api_key"),
+)
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def load_nebius_api_key_from_vault() -> Tuple[str, str]:
+    """Load a Nebius key server-side; return ``(secret, source_ref)``.
+
+    The helper never logs or serializes the secret. Environment fallback is
+    disabled unless an operator explicitly sets ``NEBIUS_ALLOW_ENV_KEY=1``.
+    """
+    try:
+        from inneros_core_runtime import owner_vault
+
+        for category, key in NEBIUS_VAULT_REFS:
+            row = owner_vault.get_owner_credential(
+                key,
+                category=category,
+                reveal=True,
+                actor="RAFAEL",
+            )
+            secret = str(row.get("secret") or "").strip() if isinstance(row, dict) else ""
+            if row.get("ok") and secret:
+                return secret, f"owner_vault:{category}/{key}"
+    except Exception:
+        pass
+
+    if os.environ.get("NEBIUS_ALLOW_ENV_KEY", "").strip() == "1":
+        secret = os.environ.get("NEBIUS_API_KEY", "").strip()
+        if secret:
+            return secret, "environment:NEBIUS_API_KEY"
+    return "", "unavailable"
 
 
 # ----------------------------------------------------------------------
@@ -49,6 +86,31 @@ class TelemetrySanitizer:
         "bellini", "torre bellini", "danzasjazz", "ecuador", "guayaquil",
         "rafael", "lopez", "innerchispa"
     ]
+    SENSITIVE_KEYS = {
+        "access_key", "api_key", "authorization", "cookie", "credential",
+        "imei", "password", "private_key", "secret", "serial",
+        "serial_number", "session", "token",
+    }
+
+    @classmethod
+    def _redact_sensitive_fields(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            clean: Dict[str, Any] = {}
+            for key, item in value.items():
+                normalized = str(key).strip().lower().replace("-", "_")
+                if normalized in cls.SENSITIVE_KEYS or any(
+                    marker in normalized
+                    for marker in ("password", "secret", "token", "private_key", "api_key")
+                ):
+                    clean[str(key)] = "[REDACTED]"
+                else:
+                    clean[str(key)] = cls._redact_sensitive_fields(item)
+            return clean
+        if isinstance(value, list):
+            return [cls._redact_sensitive_fields(item) for item in value]
+        if isinstance(value, tuple):
+            return [cls._redact_sensitive_fields(item) for item in value]
+        return value
 
     @classmethod
     def sanitize(cls, raw_data: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
@@ -57,7 +119,7 @@ class TelemetrySanitizer:
         ip_counter = 1
         mac_counter = 1
 
-        raw_str = json.dumps(raw_data)
+        raw_str = json.dumps(cls._redact_sensitive_fields(raw_data))
 
         # 1. Mask private IPv4 addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
         ip_pattern = re.compile(r'\b(?:192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b')
@@ -78,6 +140,13 @@ class TelemetrySanitizer:
         # 3. Anonymize known customer / tenant names
         for word in cls.SENSITIVE_NAMES:
             raw_str = re.sub(re.escape(word), "Site-Alpha-01", raw_str, flags=re.IGNORECASE)
+
+        # 4. Remove common bearer/basic credential fragments from free text.
+        raw_str = re.sub(
+            r"(?i)(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}",
+            r"\1 [REDACTED]",
+            raw_str,
+        )
 
         sanitized_dict = json.loads(raw_str)
         return sanitized_dict, mapping
@@ -131,10 +200,55 @@ class NebiusNvidiaReasoning:
             "}\n"
         )
 
-    def _call_nebius_api(self, prompt: str) -> Dict[str, Any]:
-        """Call Nebius OpenAI-compatible Chat Completions endpoint."""
+    @staticmethod
+    def is_nvidia_open_model(model_id: str) -> bool:
+        """Return whether an API model identifier is explicitly NVIDIA/Nemotron."""
+        normalized = str(model_id or "").strip().lower()
+        return normalized.startswith("nvidia/") or "nemotron" in normalized
+
+    def list_models(self) -> List[str]:
+        """Return live Token Factory model IDs without exposing credentials."""
         if not self.api_key:
             raise ValueError("NEBIUS_API_KEY is not configured")
+        req = urllib.request.Request(
+            f"{self.base_url}/models",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        rows = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(rows, list):
+            raise ValueError("Token Factory /models returned an invalid payload")
+        return sorted(
+            str(row.get("id") or "").strip()
+            for row in rows
+            if isinstance(row, dict) and str(row.get("id") or "").strip()
+        )
+
+    def resolve_live_nvidia_model(self) -> str:
+        """Validate/select an NVIDIA model against the authenticated live catalog."""
+        available = self.list_models()
+        if self.model:
+            if not self.is_nvidia_open_model(self.model):
+                raise ValueError("configured_model_is_not_explicitly_nvidia")
+            if self.model not in available:
+                raise ValueError("configured_nvidia_model_not_in_live_catalog")
+            return self.model
+        candidates = [model_id for model_id in available if self.is_nvidia_open_model(model_id)]
+        if not candidates:
+            raise ValueError("no_nvidia_model_in_live_catalog")
+        self.model = candidates[0]
+        return self.model
+
+    def _call_nebius_api(self, prompt: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Call Token Factory and return diagnosis plus a sanitized provider receipt."""
+        if not self.api_key:
+            raise ValueError("NEBIUS_API_KEY is not configured")
+        if not self.model:
+            raise ValueError("NEBIUS_NVIDIA_MODEL is not configured or validated")
+        if not self.is_nvidia_open_model(self.model):
+            raise ValueError("configured_model_is_not_explicitly_nvidia")
 
         url = f"{self.base_url}/chat/completions"
         headers = {
@@ -149,6 +263,7 @@ class NebiusNvidiaReasoning:
             ],
             "temperature": 0.1,
             "response_format": {"type": "json_object"},
+            "max_tokens": 512,
         }
 
         req = urllib.request.Request(
@@ -161,7 +276,28 @@ class NebiusNvidiaReasoning:
         with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             content = data["choices"][0]["message"]["content"]
-            return json.loads(content)
+            parsed = json.loads(content)
+            response_id = str(data.get("id") or "")
+            usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+            receipt_seed = json.dumps(
+                {
+                    "response_id": response_id,
+                    "model": self.model,
+                    "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                    "usage": usage,
+                },
+                sort_keys=True,
+            )
+            return parsed, {
+                "evidence_mode": "REAL",
+                "provider": "nebius_token_factory",
+                "base_url": self.base_url,
+                "model": self.model,
+                "response_id": response_id or None,
+                "usage": usage,
+                "receipt_sha256": hashlib.sha256(receipt_seed.encode("utf-8")).hexdigest(),
+                "received_at": _now(),
+            }
 
     def _fallback_local_reasoning(self, sanitized_telemetry: Dict[str, Any]) -> Dict[str, Any]:
         """Deterministic local fallback reasoning when external AI Cloud is unreachable."""
@@ -233,33 +369,58 @@ class NebiusNvidiaReasoning:
         sanitized, mapping = TelemetrySanitizer.sanitize(telemetry)
         prompt = self._build_prompt(sanitized)
 
-        used_provider = "nebius_nvidia"
+        used_provider = "nebius_token_factory"
         used_model = self.model
         parsed: Dict[str, Any] = {}
         error_detail: Optional[str] = None
+        provider_receipt: Dict[str, Any] = {
+            "evidence_mode": "NOT_RUN",
+            "provider": "nebius_token_factory",
+            "status": "NOT_REQUESTED",
+        }
 
-        if not force_local and self.api_key:
+        if not force_local and self.api_key and self.model:
             try:
-                parsed = self._call_nebius_api(prompt)
+                parsed, provider_receipt = self._call_nebius_api(prompt)
             except Exception as exc:
-                used_provider = "local_fallback"
+                used_provider = "local_heuristic"
                 used_model = self.local_model
-                error_detail = f"Nebius call failed: {exc}; switched to local fallback"
+                error_detail = f"Token Factory call failed: {type(exc).__name__}; local heuristic used"
+                provider_receipt = {
+                    "evidence_mode": "BLOCKED",
+                    "provider": "nebius_token_factory",
+                    "status": "REMOTE_INFERENCE_FAILED",
+                    "error_type": type(exc).__name__,
+                }
                 parsed = self._fallback_local_reasoning(sanitized)
         else:
-            used_provider = "local_fallback"
+            used_provider = "local_heuristic"
             used_model = self.local_model
+            provider_receipt = {
+                "evidence_mode": "NOT_RUN",
+                "provider": "nebius_token_factory",
+                "status": (
+                    "FORCE_LOCAL" if force_local
+                    else "MISSING_API_KEY" if not self.api_key
+                    else "MISSING_VALIDATED_NVIDIA_MODEL"
+                ),
+            }
             parsed = self._fallback_local_reasoning(sanitized)
 
         return {
             "ok": True,
             "provider": used_provider,
             "model": used_model,
-            "fallback_engaged": (used_provider == "local_fallback"),
+            "inference_mode": "REAL" if used_provider == "nebius_token_factory" else "LOCAL_HEURISTIC",
+            "fallback_engaged": (used_provider == "local_heuristic"),
             "fallback_reason": error_detail,
             "diagnosis": parsed,
             "sanitized_inputs": sanitized,
-            "deobfuscation_map": mapping,
+            "sanitization": {
+                "private_identifiers_replaced": len(mapping),
+                "deobfuscation_map_exposed": False,
+            },
+            "provider_receipt": provider_receipt,
             "timestamp": _now(),
         }
 
@@ -387,27 +548,43 @@ def run_physical_ai_workflow(
     else:
         step_trail.append({"stage": "5_execute_locally", "skipped": True, "reason": "No action required"})
 
-    # Stage 6: Verify Recovery
+    # Stage 6: Verify Recovery.  Dry-runs may simulate the probe, but simulated
+    # evidence is never promoted to a real recovery claim.
     verify_res = capability_invoke(
         capability_id="network.device.verify_recovery.v1",
         parameters={
             "device_ref": device_ref,
             "provider": provider,
             "expected_status": "online",
-            "mock_probe": True,
+            "mock_probe": dry_run,
         },
     )
     step_trail.append({"stage": "6_verify_recovery", "ok": verify_res.get("ok"), "output": verify_res})
 
     # Stage 7: Evidence Receipt
     completed_at = _now()
+    exec_payload = exec_res.get("result", {}) if isinstance(exec_res, dict) else {}
+    verify_payload = verify_res.get("result", {}) if isinstance(verify_res, dict) else {}
+    verification_mode = str(verify_payload.get("verification_mode") or "NOT_VERIFIED")
+    real_recovery_verified = bool(
+        verification_mode == "REAL" and verify_payload.get("recovered") is True
+    )
+    action_status = str(exec_payload.get("status") or "NO_ACTION")
+    workflow_ok = bool(exec_res.get("ok", True)) and (dry_run or real_recovery_verified)
+    workflow_status = (
+        "COMPLETED_DRY_RUN" if dry_run and exec_res.get("ok", True)
+        else "COMPLETED_VERIFIED" if workflow_ok
+        else "FAILED_CLOSED"
+    )
     receipt = {
         "workflow_id": workflow_id,
         "thesis": "Cloud intelligence. Local authority. Verified physical actions.",
         "intelligence": {
             "reasoning_provider": diag_result.get("provider"),
             "reasoning_model": diag_result.get("model"),
+            "inference_mode": diag_result.get("inference_mode"),
             "fallback_engaged": diag_result.get("fallback_engaged"),
+            "provider_receipt": diag_result.get("provider_receipt"),
         },
         "authority": {
             "execution_plane": "InnerOS Local Capability Gateway",
@@ -418,11 +595,18 @@ def run_physical_ai_workflow(
         "action": {
             "capability_id": cap_id,
             "target": device_ref,
-            "status": exec_res.get("status", "NO_ACTION"),
+            "status": action_status,
+            "mutation_applied": bool(exec_payload.get("mutation_applied", False)),
+            "evidence_mode": "SIMULATED" if dry_run else "REAL",
         },
         "verification": {
-            "recovered": verify_res.get("result", {}).get("recovered", True),
-            "state": verify_res.get("result", {}).get("current_status", "online"),
+            "verification_mode": verification_mode,
+            "real_recovery_verified": real_recovery_verified,
+            "recovered": verify_payload.get("recovered") if verification_mode == "REAL" else None,
+            "simulated_outcome": (
+                bool(verify_payload.get("recovered")) if verification_mode == "SIMULATED" else None
+            ),
+            "state": verify_payload.get("current_status"),
         },
         "timeline": {
             "started_at": started_at,
@@ -432,9 +616,9 @@ def run_physical_ai_workflow(
     step_trail.append({"stage": "7_evidence_receipt", "receipt": receipt})
 
     return {
-        "ok": True,
+        "ok": workflow_ok,
         "workflow_id": workflow_id,
-        "status": "COMPLETED",
+        "status": workflow_status,
         "dry_run": dry_run,
         "stages_executed": len(step_trail),
         "evidence_receipt": receipt,

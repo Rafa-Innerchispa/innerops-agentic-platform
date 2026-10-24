@@ -1,5 +1,7 @@
 .venv-p0-canary/
 .canary/
+.test-deps/
+.pytest_cache/
 __pycache__/
 *.pyc
 

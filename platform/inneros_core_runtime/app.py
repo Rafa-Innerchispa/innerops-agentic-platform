@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from raphiia_openai.browser_session_routes import router as browser_session_router
 from raphiia_openai.discord_interaction_routes import router as discord_interaction_router
 from raphiia_openai.editorial_routes import router as editorial_router
+from raphiia_openai.guardian_api_routes import router as guardian_api_router
 from raphiia_openai.mongo_store import log_sync, ping_mongo
 from raphiia_openai.routes import router
 from raphiia_openai.settings import MCP_PORT, MCP_PUBLIC_URL, RAPHI_IA_OPENAI_PORT, RAPHI_IA_PUBLIC_URL
@@ -32,6 +33,7 @@ app.include_router(router)
 app.include_router(editorial_router)
 app.include_router(browser_session_router)
 app.include_router(discord_interaction_router)
+app.include_router(guardian_api_router)
 
 # A2A is additive. During rollout a missing/incompatible optional SDK must not
 # take down the existing MCP/health plane before the A2A runtime passes tests.

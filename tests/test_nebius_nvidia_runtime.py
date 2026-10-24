@@ -140,8 +140,8 @@ def test_poe_cycle_dry_run_safety():
     assert res["result"]["mutation_applied"] is False
 
 
-def test_reboot_live_with_valid_approval():
-    """Live reboot succeeds when explicit approval token is provided."""
+def test_reboot_live_with_valid_approval_still_requires_adapter():
+    """Approval is necessary but cannot substitute for a real provider adapter."""
     res = capability_invoke(
         capability_id="network.device.reboot.v1",
         parameters={
@@ -150,15 +150,30 @@ def test_reboot_live_with_valid_approval():
             "dry_run": False,
             "approval_token": "owner_approved_token_12345",
         },
+        context={"owner_approved": True},
     )
-    assert res["ok"] is True
-    assert res["status"] == "COMPLETED"
-    assert res["result"]["status"] == "EXECUTED"
-    assert res["result"]["mutation_applied"] is True
+    assert res["ok"] is False
+    assert res["status"] == "FAILED"
+    assert res["result"]["error"] == "provider_adapter_unavailable"
+    assert res["result"]["mutation_applied"] is False
 
 
-def test_poe_cycle_live_with_valid_approval():
-    """Live PoE cycle succeeds when context indicates owner approval."""
+def test_arbitrary_nonempty_approval_token_is_rejected():
+    res = capability_invoke(
+        capability_id="network.device.reboot.v1",
+        parameters={
+            "device_ref": "test_ap_01",
+            "provider": "unifi",
+            "dry_run": False,
+            "approval_token": "any-string-is-not-proof",
+        },
+    )
+    assert res["ok"] is False
+    assert res["result"]["error"] == "approval_required"
+
+
+def test_poe_cycle_live_with_valid_approval_still_requires_adapter():
+    """An approved PoE cycle fails closed when no live adapter is connected."""
     res = capability_invoke(
         capability_id="network.device.poe_cycle.v1",
         parameters={
@@ -170,9 +185,38 @@ def test_poe_cycle_live_with_valid_approval():
         },
         context={"owner_approved": True},
     )
+    assert res["ok"] is False
+    assert res["result"]["error"] == "provider_adapter_unavailable"
+    assert res["result"]["mutation_applied"] is False
+
+
+def test_reboot_live_requires_real_provider_receipt_and_redacts_secrets():
+    """A connected adapter may prove execution; its receipt is sanitized."""
+    def executor(**_kwargs):
+        return {
+            "ok": True,
+            "provider_receipt": {
+                "evidence_mode": "REAL",
+                "request_id": "unifi-request-123",
+                "api_token": "must-never-reach-evidence",
+            },
+        }
+
+    res = capability_invoke(
+        capability_id="network.device.reboot.v1",
+        parameters={
+            "device_ref": "test_ap_01",
+            "provider": "unifi",
+            "dry_run": False,
+            "approval_token": "owner-approved",
+        },
+        context={"owner_approved": True, "network_action_executor": executor},
+    )
     assert res["ok"] is True
-    assert res["result"]["status"] == "EXECUTED"
     assert res["result"]["mutation_applied"] is True
+    receipt_json = json.dumps(res["result"]["evidence_receipt"])
+    assert "must-never-reach-evidence" not in receipt_json
+    assert "[REDACTED]" in receipt_json
 
 
 def test_honest_provider_gap_for_gwn_poe_cycle():
@@ -208,7 +252,7 @@ def test_honest_provider_gap_for_unsupported_vendor():
 
 
 def test_recovery_verification_capability():
-    """Post-action recovery verification returns verified connectivity."""
+    """Mock recovery is useful test evidence but is explicitly simulated."""
     res = capability_invoke(
         capability_id="network.device.verify_recovery.v1",
         parameters={
@@ -221,8 +265,21 @@ def test_recovery_verification_capability():
     assert res["ok"] is True
     assert res["status"] == "COMPLETED"
     assert res["result"]["recovered"] is True
+    assert res["result"]["verification_mode"] == "SIMULATED"
+    assert res["result"]["evidence_receipt"]["evidence_mode"] == "SIMULATED"
     assert res["result"]["current_status"] == "online"
     assert len(res["result"]["checks"]) >= 1
+
+
+def test_recovery_without_real_probe_fails_closed():
+    res = capability_invoke(
+        capability_id="network.device.verify_recovery.v1",
+        parameters={"device_ref": "ap_01", "provider": "unifi", "mock_probe": False},
+    )
+    assert res["ok"] is False
+    assert res["result"]["error"] == "provider_probe_unavailable"
+    assert res["result"]["verification_mode"] == "NOT_VERIFIED"
+    assert res["result"]["recovered"] is False
 
 
 def test_read_only_query_stays_unchanged(monkeypatch):
@@ -265,6 +322,8 @@ def test_telemetry_sanitizer():
         "ap_ip": "192.168.3.15",
         "mac": "00:1A:2B:3C:4D:5E",
         "client_ip": "10.15.20.25",
+        "api_token": "do-not-leak-this-token",
+        "serial_number": "REAL-SERIAL-123",
         "latency_ms": 45,
     }
     sanitized, mapping = TelemetrySanitizer.sanitize(sensitive_data)
@@ -275,6 +334,8 @@ def test_telemetry_sanitizer():
     assert "192.168.3.15" not in san_str
     assert "00:1A:2B:3C:4D:5E" not in san_str
     assert "10.0.0.1" in san_str or "10.0.0.2" in san_str
+    assert "do-not-leak-this-token" not in san_str
+    assert "REAL-SERIAL-123" not in san_str
     assert len(mapping) >= 3
 
 
@@ -305,7 +366,7 @@ def test_nebius_nvidia_reasoning_mocked():
         ]
     }
 
-    reasoner = NebiusNvidiaReasoning(api_key="test_nebius_key")
+    reasoner = NebiusNvidiaReasoning(api_key="test_nebius_key", model="nvidia/test-nemotron")
     with mock.patch("urllib.request.urlopen") as mock_url:
         mock_cm = mock.MagicMock()
         mock_cm.read.return_value = json.dumps(mock_response).encode("utf-8")
@@ -313,9 +374,27 @@ def test_nebius_nvidia_reasoning_mocked():
 
         diag = reasoner.diagnose({"device_ref": "ap_main", "latency_ms": 250})
         assert diag["ok"] is True
-        assert diag["provider"] == "nebius_nvidia"
+        assert diag["provider"] == "nebius_token_factory"
+        assert diag["inference_mode"] == "REAL"
+        assert diag["provider_receipt"]["evidence_mode"] == "REAL"
         assert diag["diagnosis"]["recommended_action"] == "reboot"
         assert diag["diagnosis"]["recommended_capability"] == "network.device.reboot.v1"
+        assert "deobfuscation_map" not in diag
+
+
+def test_live_model_catalog_selects_only_nvidia_model():
+    payload = {
+        "data": [
+            {"id": "meta/other-model"},
+            {"id": "nvidia/Nemotron-Test-Open"},
+        ]
+    }
+    reasoner = NebiusNvidiaReasoning(api_key="vault-materialized-for-test", model="")
+    with mock.patch("urllib.request.urlopen") as mock_url:
+        mock_cm = mock.MagicMock()
+        mock_cm.read.return_value = json.dumps(payload).encode("utf-8")
+        mock_url.return_value.__enter__.return_value = mock_cm
+        assert reasoner.resolve_live_nvidia_model() == "nvidia/Nemotron-Test-Open"
 
 
 def test_nebius_fallback_to_local_reasoning():
@@ -324,7 +403,8 @@ def test_nebius_fallback_to_local_reasoning():
     diag = reasoner.diagnose({"device_ref": "ap_down", "offline": True})
 
     assert diag["ok"] is True
-    assert diag["provider"] == "local_fallback"
+    assert diag["provider"] == "local_heuristic"
+    assert diag["inference_mode"] == "LOCAL_HEURISTIC"
     assert diag["fallback_engaged"] is True
     assert diag["diagnosis"]["recommended_action"] == "reboot"
     assert diag["diagnosis"]["requires_approval"] is True
@@ -339,13 +419,16 @@ def test_bounded_physical_ai_workflow_dry_run():
         dry_run=True,
     )
     assert wf["ok"] is True
-    assert wf["status"] == "COMPLETED"
+    assert wf["status"] == "COMPLETED_DRY_RUN"
     assert wf["stages_executed"] == 7
     receipt = wf["evidence_receipt"]
     assert receipt["thesis"] == "Cloud intelligence. Local authority. Verified physical actions."
     assert receipt["authority"]["approved"] is False
     assert receipt["authority"]["dry_run"] is True
-    assert receipt["verification"]["recovered"] is True
+    assert receipt["verification"]["verification_mode"] == "SIMULATED"
+    assert receipt["verification"]["real_recovery_verified"] is False
+    assert receipt["verification"]["recovered"] is None
+    assert receipt["verification"]["simulated_outcome"] is True
 
 
 def test_bounded_physical_ai_workflow_blocked_without_approval():
