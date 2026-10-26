@@ -578,3 +578,6 @@ register_peer_capabilities()
 from inneros_core_runtime.capability_gateway_contifico import register_contifico_capabilities
 
 register_contifico_capabilities()
+
+from inneros_core_runtime.capability_gateway_hosting import register_hosting_capabilities
+register_hosting_capabilities()
