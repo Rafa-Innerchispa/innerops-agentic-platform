@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
+from typing import Callable
 import json
 from typing import Literal
 
@@ -100,11 +101,15 @@ def enforce(action: Action, incident: Incident, approval: HumanApproval | None =
 
 
 def execute_fixture(action: Action, incident: Incident, state: dict,
-                    approval: HumanApproval | None = None) -> ExecutionReceipt:
+                    approval: HumanApproval | None = None, *,
+                    readback: Callable[[str], str] | None = None) -> ExecutionReceipt:
     """Mutates *only* the caller-provided in-memory fixture after policy checks.
 
-    The independent verifier checks the resulting synthetic state. Never pass
-    device SDK objects or real credentials as `state`.
+    A caller may inject an independent *synthetic* readback for failure tests.
+    Default readback observes the same in-memory fixture; that is NOT
+    independent physical-device evidence. Never pass real device SDK objects
+    or credentials as `state`. HumanApproval is synthetic data, not proof of
+    an authenticated human identity.
     """
     enforce(action, incident, approval)
     before = state.get(action.target_alias, "unknown")
@@ -112,7 +117,12 @@ def execute_fixture(action: Action, incident: Incident, state: dict,
         if before != "degraded":
             raise PolicyDenied("Synthetic restart only permitted from degraded")
         state[action.target_alias] = "healthy"
-    after = state.get(action.target_alias, "unknown")
+    try:
+        after = (readback(action.target_alias) if readback is not None
+                 else state.get(action.target_alias, "unknown"))
+    except Exception:
+        # Synthetic actuator may have changed state, but cannot claim success.
+        after = "readback_unavailable"
     verified = (after == "healthy" if action.operation == "simulate_restart" else after == before)
     outcome = "verified_simulation" if verified else "unverified"
     evidence = {
