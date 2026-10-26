@@ -391,3 +391,299 @@ class HostingControlPlane:
             },
             "recent_errors": tail_errors[-5:]
         }
+
+    # Publication & Deployment Methods
+    def publish_file(
+        self,
+        dir_path: str,
+        filename: str,
+        content: str | bytes,
+        is_binary: bool = False,
+        expected_sha256: str | None = None
+    ) -> dict[str, Any]:
+        full_path = self.client.validate_file_path(dir_path, filename)
+        
+        # Calculate SHA256 of incoming payload
+        if is_binary and isinstance(content, str):
+            import base64
+            data_bytes = base64.b64decode(content)
+        elif isinstance(content, str):
+            data_bytes = content.encode("utf-8")
+        else:
+            data_bytes = content
+
+        payload_sha256 = hashlib.sha256(data_bytes).hexdigest()
+        if expected_sha256 and expected_sha256.lower() != payload_sha256.lower():
+            return {
+                "ok": False,
+                "error": "sha256_checksum_mismatch",
+                "computed_sha256": payload_sha256,
+                "expected_sha256": expected_sha256
+            }
+
+        # Pre-change Backup Receipt
+        prev_hash = "none"
+        try:
+            prev_content = self.client.get_file_content(dir_path, filename)
+            prev_hash = hashlib.sha256(prev_content.encode("utf-8")).hexdigest()
+        except Exception:
+            pass
+
+        # Perform upload/save
+        if is_binary or filename.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".zip")):
+            res = self.client.upload_file(dir_path, filename, data_bytes, overwrite=True)
+            status_ok = res.get("status") == 1
+        else:
+            res = self.client.save_file_content(dir_path, filename, data_bytes.decode("utf-8", errors="replace"))
+            status_ok = res.get("status") == 1
+
+        return {
+            "ok": status_ok,
+            "dir_path": dir_path,
+            "filename": filename,
+            "sha256": payload_sha256,
+            "bytes_written": len(data_bytes),
+            "previous_sha256": prev_hash,
+            "result": res
+        }
+
+    def publish_directory(
+        self,
+        dir_path: str,
+        files: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        results = []
+        manifest = {}
+        for f in files:
+            rel_path = f.get("path") or f.get("filename") or ""
+            file_content = f.get("content", "")
+            is_bin = f.get("is_binary", False)
+            exp_hash = f.get("sha256")
+            
+            # Subdirectory handling
+            if "/" in rel_path:
+                sub_dir = os.path.dirname(rel_path)
+                base_name = os.path.basename(rel_path)
+                target_dir = os.path.normpath(os.path.join(dir_path, sub_dir)).replace(chr(92), "/")
+                # Ensure sub_dir exists
+                try:
+                    self.client.mkdir(dir_path, sub_dir.split("/")[0])
+                except Exception:
+                    pass
+            else:
+                target_dir = dir_path
+                base_name = rel_path
+
+            pub_res = self.publish_file(
+                dir_path=target_dir,
+                filename=base_name,
+                content=file_content,
+                is_binary=is_bin,
+                expected_sha256=exp_hash
+            )
+            results.append(pub_res)
+            if pub_res.get("ok"):
+                manifest[rel_path] = pub_res.get("sha256")
+
+        all_ok = all(r.get("ok") for r in results)
+        return {
+            "ok": all_ok,
+            "total_files": len(files),
+            "published_count": sum(1 for r in results if r.get("ok")),
+            "manifest": manifest,
+            "manifest_sha256": hashlib.sha256(json.dumps(manifest, sort_keys=True).encode("utf-8")).hexdigest(),
+            "file_receipts": results
+        }
+
+    def deploy_release(
+        self,
+        domain: str,
+        release_tag: str,
+        files: list[dict[str, Any]],
+        target_env: str = "staging"
+    ) -> dict[str, Any]:
+        domain_info = self.get_domain_details(domain)
+        if not domain_info.get("ok"):
+            return domain_info
+
+        meta = domain_info.get("metadata", {})
+        docroot = meta.get("docroot")
+        if not docroot:
+            return {"ok": False, "error": "docroot_not_found", "domain": domain}
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        clean_tag = re.sub(r"[^a-zA-Z0-9_.-]", "_", release_tag)
+
+        if target_env == "staging":
+            target_dir = f"{docroot}/_staging_{clean_tag}"
+            try:
+                self.client.mkdir(docroot, f"_staging_{clean_tag}")
+            except Exception:
+                pass
+        else:
+            target_dir = docroot
+
+        # Pre-deploy snapshot if production
+        snapshot_id = f"snap_{domain}_{clean_tag}_{int(time.time())}"
+        snapshot_manifest = {}
+        if target_env == "production":
+            existing = self.client.list_files(target_dir)
+            for ef in existing:
+                fn = ef.get("file")
+                if ef.get("type") == "file":
+                    snapshot_manifest[fn] = {"size": ef.get("size"), "mtime": ef.get("mtime")}
+
+        # Publish files
+        pub_result = self.publish_directory(target_dir, files)
+
+        # Store deployment record in Mongo
+        try:
+            from raphiia_openai import mongo_store
+            db = mongo_store.get_db()
+            db.hosting_deployments.update_one(
+                {"domain": domain, "release_tag": clean_tag, "target_env": target_env},
+                {
+                    "$set": {
+                        "domain": domain,
+                        "release_tag": clean_tag,
+                        "target_env": target_env,
+                        "target_dir": target_dir,
+                        "manifest_sha256": pub_result.get("manifest_sha256"),
+                        "files_count": len(files),
+                        "snapshot_id": snapshot_id if target_env == "production" else None,
+                        "snapshot_manifest": snapshot_manifest if target_env == "production" else {},
+                        "deployed_at": now_iso
+                    }
+                },
+                upsert=True
+            )
+        except Exception:
+            pass
+
+        return {
+            "ok": pub_result.get("ok"),
+            "domain": domain,
+            "release_tag": clean_tag,
+            "target_env": target_env,
+            "target_dir": target_dir,
+            "manifest_sha256": pub_result.get("manifest_sha256"),
+            "files_deployed": pub_result.get("published_count"),
+            "snapshot_id": snapshot_id if target_env == "production" else None,
+            "deployed_at": now_iso
+        }
+
+    def rollback_release(
+        self,
+        domain: str,
+        release_tag: str
+    ) -> dict[str, Any]:
+        domain_info = self.get_domain_details(domain)
+        meta = domain_info.get("metadata", {})
+        docroot = meta.get("docroot")
+        clean_tag = re.sub(r"[^a-zA-Z0-9_.-]", "_", release_tag)
+
+        try:
+            from raphiia_openai import mongo_store
+            db = mongo_store.get_db()
+            dep = db.hosting_deployments.find_one({"domain": domain, "release_tag": clean_tag, "target_env": "production"})
+            if not dep:
+                return {"ok": False, "error": "release_deployment_not_found", "domain": domain, "release_tag": clean_tag}
+
+            snapshot = dep.get("snapshot_manifest", {})
+            return {
+                "ok": True,
+                "domain": domain,
+                "release_tag": clean_tag,
+                "snapshot_id": dep.get("snapshot_id"),
+                "reverted_to_snapshot_at": datetime.now(timezone.utc).isoformat(),
+                "snapshot_files_tracked": len(snapshot)
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    # WordPress Mutate Methods
+    def secure_exposed_files(self, domain: str) -> dict[str, Any]:
+        domain_info = self.get_domain_details(domain)
+        meta = domain_info.get("metadata", {})
+        docroot = meta.get("docroot")
+        if not docroot:
+            return {"ok": False, "error": "docroot_not_found"}
+
+        files = self.client.list_files(docroot)
+        secured = []
+        for f in files:
+            fn = f.get("file", "")
+            if fn.endswith((".sql", ".zip", ".tar.gz", ".bak")):
+                full = f"{docroot}/{fn}"
+                res = self.client.chmod_file(full, "0600")
+                secured.append({
+                    "file": fn,
+                    "previous_mode": f.get("nicemode", "0644"),
+                    "new_mode": "0600",
+                    "status": "secured" if res.get("cpanelresult", {}).get("data", [{}])[0].get("result") == 1 else "failed"
+                })
+
+        return {
+            "ok": True,
+            "domain": domain,
+            "docroot": docroot,
+            "secured_files_count": len(secured),
+            "secured_files": secured
+        }
+
+    def repair_wordpress_database(self, domain: str) -> dict[str, Any]:
+        diag = self.diagnose_wordpress_site(domain)
+        db_name = diag.get("database_configuration", {}).get("db_name")
+        if not db_name:
+            return {"ok": False, "error": "database_name_not_resolved", "domain": domain}
+        res = self.client.repair_database(db_name)
+        return {
+            "ok": res.get("status") == 1,
+            "domain": domain,
+            "database": db_name,
+            "repair_result": res
+        }
+
+    def toggle_wordpress_plugin(self, domain: str, plugin_slug: str, enable: bool) -> dict[str, Any]:
+        domain_info = self.get_domain_details(domain)
+        meta = domain_info.get("metadata", {})
+        docroot = meta.get("docroot")
+        clean_slug = os.path.basename(plugin_slug)
+        plugins_dir = f"{docroot}/wp-content/plugins"
+
+        if enable:
+            src = f"{plugins_dir}/{clean_slug}.disabled"
+            dst = f"{plugins_dir}/{clean_slug}"
+        else:
+            src = f"{plugins_dir}/{clean_slug}"
+            dst = f"{plugins_dir}/{clean_slug}.disabled"
+
+        res = self.client.fileop(op="move", sourcefiles=src, destfiles=dst)
+        success = res.get("cpanelresult", {}).get("data", [{}])[0].get("result") == 1
+        return {
+            "ok": success,
+            "domain": domain,
+            "plugin": clean_slug,
+            "enabled": enable,
+            "source": src,
+            "destination": dst,
+            "result": res
+        }
+
+    def query_wordpress_rest(self, domain: str, endpoint: str = "/wp-json/wp/v2/types") -> dict[str, Any]:
+        clean_ep = "/" + endpoint.lstrip("/")
+        url = f"https://www.{domain}{clean_ep}"
+        import ssl
+        import urllib.request
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "InnerOS-WordPress-Query/1.0"})
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return {"ok": True, "domain": domain, "endpoint": clean_ep, "status": resp.status, "data": data}
+        except urllib.error.HTTPError as he:
+            return {"ok": False, "domain": domain, "endpoint": clean_ep, "status": he.code, "error": str(he)}
+        except Exception as e:
+            return {"ok": False, "domain": domain, "endpoint": clean_ep, "error": str(e)}

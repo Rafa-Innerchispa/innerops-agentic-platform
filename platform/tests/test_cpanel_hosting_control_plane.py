@@ -2,7 +2,8 @@
 Unit and integration tests for Universal Hosting Control Plane,
 cPanel UAPI capabilities, IMAP query, and WordPress spec generator.
 Includes comprehensive adversarial security tests for path traversal,
-scope enforcement, tenant isolation, and secret redaction.
+scope enforcement, tenant isolation, secret redaction, staging release deployment,
+integrity checking, and domain boundary mutation restrictions.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ def test_capability_search_finds_imap_and_wordpress():
     assert res_wp.get("ok") is True
     cap_ids_wp = [h.get("capability_id") for h in res_wp.get("capabilities", [])]
     assert "wordpress.site.query.v1" in cap_ids_wp
+    assert "wordpress.site.mutate.v1" in cap_ids_wp
 
 
 def test_capability_describe_hosting_manifests():
@@ -60,6 +62,11 @@ def test_capability_describe_hosting_manifests():
     assert desc_wp.get("ok") is True
     cap_w = desc_wp.get("capability", {})
     assert cap_w.get("mode") == "read_only"
+
+    desc_wpm = capability_describe("wordpress.site.mutate.v1")
+    assert desc_wpm.get("ok") is True
+    cap_wm = desc_wpm.get("capability", {})
+    assert cap_wm.get("mode") == "mutation"
 
 
 def test_invoke_cpanel_get_permission_matrix():
@@ -162,7 +169,7 @@ def test_wp_config_deterministic_redaction():
 def test_mutation_rejected_without_admin_scope():
     res = capability_invoke(
         "hosting.cpanel.mutate.v1",
-        {"action": "save_file", "dir_path": "/home/pcdoctor/public_html", "filename": "test.txt", "content": "test", "approval_token": "appr_12345678"},
+        {"action": "save_file", "dir_path": "/home/pcdoctor/public_html/innerspark.live", "filename": "test.txt", "content": "test", "approval_token": "appr_12345678"},
         context={"scopes": ["ralfia:read", "ralfia:write"]},  # Missing ralfia:admin
     )
     result = res.get("result", {})
@@ -173,8 +180,42 @@ def test_mutation_rejected_without_admin_scope():
 def test_mutation_rejected_without_approval_token():
     res = capability_invoke(
         "hosting.cpanel.mutate.v1",
-        {"action": "save_file", "dir_path": "/home/pcdoctor/public_html", "filename": "test.txt", "content": "test"},
+        {"action": "save_file", "dir_path": "/home/pcdoctor/public_html/innerspark.live", "filename": "test.txt", "content": "test"},
         context={"scopes": ["ralfia:read", "ralfia:write", "ralfia:admin"]},  # Has scopes, but missing approval_token
+    )
+    result = res.get("result", {})
+    assert result.get("ok") is False
+    assert result.get("error") == "APPROVAL_TOKEN_REQUIRED"
+
+
+def test_domain_mutation_boundary_restricted():
+    # Attempting mutation on a domain other than innerspark.live or industriasolex.com
+    res = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {"action": "save_file", "dir_path": "/home/pcdoctor/public_html/danzasjazz.com", "filename": "test.txt", "content": "test", "approval_token": "appr_12345678"},
+        context={"scopes": ["ralfia:read", "ralfia:write", "ralfia:admin"]},
+    )
+    result = res.get("result", {})
+    assert result.get("ok") is False
+    assert result.get("error") == "FORBIDDEN_DOMAIN_MUTATION_RESTRICTED"
+
+
+def test_wordpress_mutate_boundary_restricted():
+    res = capability_invoke(
+        "wordpress.site.mutate.v1",
+        {"action": "secure_exposed_files", "domain": "danzasjazz.com", "approval_token": "appr_12345678"},
+        context={"scopes": ["ralfia:read", "ralfia:write", "ralfia:admin"]},
+    )
+    result = res.get("result", {})
+    assert result.get("ok") is False
+    assert result.get("error") == "FORBIDDEN_DOMAIN_MUTATION_RESTRICTED"
+
+
+def test_wordpress_mutate_rejected_without_approval_token():
+    res = capability_invoke(
+        "wordpress.site.mutate.v1",
+        {"action": "secure_exposed_files", "domain": "industriasolex.com"},
+        context={"scopes": ["ralfia:read", "ralfia:write", "ralfia:admin"]},
     )
     result = res.get("result", {})
     assert result.get("ok") is False
@@ -260,3 +301,11 @@ def test_cpanel_tail_error_log_via_capability():
     assert res.get("ok") is True
     assert "lines" in res.get("result", {})
 
+
+def test_wordpress_call_wp_rest():
+    res = capability_invoke(
+        "wordpress.site.query.v1",
+        {"action": "call_wp_rest", "domain": "danzasjazz.com", "endpoint": "/wp-json/wp/v2/types"}
+    )
+    assert res.get("ok") is True
+    assert res.get("result", {}).get("status") == 200

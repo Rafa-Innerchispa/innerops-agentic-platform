@@ -17,16 +17,28 @@ AUTHORIZED_IMAP_ACCOUNTS = {
     "contabilidad@pcdoctor.com.ec",
 }
 
+# Granular per-site write authorization: only innerspark.live and industriasolex.com
+ALLOWED_MUTATION_DOMAINS = {
+    "innerspark.live",
+    "industriasolex.com",
+}
+
+
+def _check_domain_mutation_allowed(target: str) -> bool:
+    """Verifies that the target path or domain belongs to an authorized mutation site."""
+    t_clean = (target or "").lower()
+    return any(d in t_clean for d in ALLOWED_MUTATION_DOMAINS)
+
 
 CPANEL_HOSTING_QUERY_MANIFEST: Dict[str, Any] = {
     "capability_id": "hosting.cpanel.query.v1",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "title": "cPanel & WordPress Hosting Query (read-only)",
     "domain": "hosting",
     "risk_class": "low",
     "mode": "read_only",
     "description": "Read-only query capability for primary cPanel hosting, addon domains, file inspection (traversal-safe, redacted), database inventory, MySQL health checks, SSL, PHP, disk quota, site error logs, and permission matrix.",
-    "keywords": ["cpanel", "wordpress", "hosting", "domains", "databases", "files", "ssl", "php", "quota", "logs", "ssh", "uapi", "danzasjazz", "pcdoctor", "industriasolex"],
+    "keywords": ["cpanel", "wordpress", "hosting", "domains", "databases", "files", "ssl", "php", "quota", "logs", "ssh", "uapi", "danzasjazz", "pcdoctor", "industriasolex", "innerspark"],
     "parameters_schema": {
         "type": "object",
         "properties": {
@@ -146,23 +158,41 @@ def cpanel_hosting_query_handler(parameters: Dict[str, Any], context: Dict[str, 
 
 CPANEL_HOSTING_MUTATE_MANIFEST: Dict[str, Any] = {
     "capability_id": "hosting.cpanel.mutate.v1",
-    "version": "1.2.0",
-    "title": "cPanel & WordPress Hosting Governed Mutation",
+    "version": "1.3.0",
+    "title": "cPanel & Web Hosting Governed Mutation and Release Manager",
     "domain": "hosting",
     "risk_class": "high",
     "mode": "mutation",
-    "description": "Governed mutation operations (save file, trigger backup). Strictly requires ralfia:admin + ralfia:write scopes and valid owner approval_token. Generates SHA-256 preflight backup receipts.",
-    "keywords": ["cpanel", "mutate", "save", "write", "backup", "restore"],
+    "description": "Governed mutation operations (publish files, upload images/zip, versioned releases with staging, pre-deploy snapshot, and rollback). Bounded strictly to innerspark.live and industriasolex.com. Requires ralfia:admin + ralfia:write scopes and owner approval_token for production mutations.",
+    "keywords": ["cpanel", "mutate", "save", "write", "backup", "restore", "publish", "deploy", "staging", "rollback", "innerspark"],
     "parameters_schema": {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["save_file", "trigger_backup"]
+                "enum": [
+                    "save_file",
+                    "trigger_backup",
+                    "publish_file",
+                    "publish_directory",
+                    "deploy_release",
+                    "rollback_release",
+                    "extract_archive",
+                    "repair_database"
+                ]
             },
             "dir_path": {"type": "string"},
             "filename": {"type": "string"},
             "content": {"type": "string"},
+            "files": {"type": "array"},
+            "is_binary": {"type": "boolean"},
+            "expected_sha256": {"type": "string"},
+            "domain": {"type": "string"},
+            "release_tag": {"type": "string"},
+            "target_env": {"type": "string", "enum": ["staging", "production"]},
+            "archive_file": {"type": "string"},
+            "dest_dir": {"type": "string"},
+            "database": {"type": "string"},
             "approval_token": {"type": "string"}
         },
         "required": ["action"],
@@ -185,14 +215,27 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
             "message": "Both ralfia:write and ralfia:admin scopes are strictly required for hosting mutations."
         }
 
-    # Approval Token Validation
-    token = str(parameters.get("approval_token") or context.get("approval_token") or "").strip()
-    if not token or len(token) < 8:
+    # Domain Boundary Check (Only innerspark.live and industriasolex.com allowed for mutation)
+    target_ref = str(parameters.get("domain") or parameters.get("dir_path") or "")
+    if target_ref and not _check_domain_mutation_allowed(target_ref):
         return {
             "ok": False,
-            "error": "APPROVAL_TOKEN_REQUIRED",
-            "message": "Valid non-empty owner approval_token is required for hosting mutations."
+            "error": "FORBIDDEN_DOMAIN_MUTATION_RESTRICTED",
+            "target": target_ref,
+            "allowed_domains": sorted(list(ALLOWED_MUTATION_DOMAINS)),
+            "message": "Mutations are strictly restricted to innerspark.live and industriasolex.com."
         }
+
+    # Staging vs Production approval policy
+    target_env = str(parameters.get("target_env") or "production").lower()
+    token = str(parameters.get("approval_token") or context.get("approval_token") or "").strip()
+    if target_env == "production" or action in {"save_file", "rollback_release", "repair_database"}:
+        if not token or len(token) < 8:
+            return {
+                "ok": False,
+                "error": "APPROVAL_TOKEN_REQUIRED",
+                "message": "Valid owner approval_token (min 8 chars) is required for production hosting mutations."
+            }
 
     try:
         if action == "save_file":
@@ -202,7 +245,6 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
             if not dir_path or not filename:
                 return {"ok": False, "error": "dir_path_and_filename_required"}
 
-            # Preflight & Pre-change Hash (Backup Receipt)
             try:
                 prev_content = hcp.client.get_file_content(dir_path, filename)
                 prev_hash = hashlib.sha256(prev_content.encode("utf-8")).hexdigest()
@@ -224,6 +266,47 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
                     "approval_token": token
                 }
             }
+        elif action == "publish_file":
+            dir_path = str(parameters.get("dir_path") or "")
+            filename = str(parameters.get("filename") or "")
+            content = parameters.get("content")
+            is_bin = bool(parameters.get("is_binary", False))
+            exp_sha = parameters.get("expected_sha256")
+            if not dir_path or not filename or content is None:
+                return {"ok": False, "error": "dir_path_filename_content_required"}
+            return hcp.publish_file(dir_path, filename, content, is_binary=is_bin, expected_sha256=exp_sha)
+        elif action == "publish_directory":
+            dir_path = str(parameters.get("dir_path") or "")
+            files = parameters.get("files") or []
+            if not dir_path or not files:
+                return {"ok": False, "error": "dir_path_and_files_required"}
+            return hcp.publish_directory(dir_path, files)
+        elif action == "deploy_release":
+            domain = str(parameters.get("domain") or "").strip()
+            release_tag = str(parameters.get("release_tag") or "v1.0.0").strip()
+            files = parameters.get("files") or []
+            if not domain or not files:
+                return {"ok": False, "error": "domain_and_files_required"}
+            return hcp.deploy_release(domain, release_tag, files, target_env=target_env)
+        elif action == "rollback_release":
+            domain = str(parameters.get("domain") or "").strip()
+            release_tag = str(parameters.get("release_tag") or "").strip()
+            if not domain or not release_tag:
+                return {"ok": False, "error": "domain_and_release_tag_required"}
+            return hcp.rollback_release(domain, release_tag)
+        elif action == "extract_archive":
+            archive = str(parameters.get("archive_file") or "").strip()
+            dest = str(parameters.get("dest_dir") or "").strip()
+            if not archive or not dest:
+                return {"ok": False, "error": "archive_file_and_dest_dir_required"}
+            res = hcp.client.extract_archive(archive, dest)
+            return {"ok": res.get("cpanelresult", {}).get("data", [{}])[0].get("result") == 1, "result": res}
+        elif action == "repair_database":
+            db_name = str(parameters.get("database") or "").strip()
+            if not db_name:
+                return {"ok": False, "error": "database_required"}
+            res = hcp.client.repair_database(db_name)
+            return {"ok": res.get("status") == 1, "database": db_name, "repair_result": res}
         elif action == "trigger_backup":
             res = hcp.client.trigger_backup()
             return {"ok": res.get("status") == 1, "result": res}
@@ -235,9 +318,131 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
         return {"ok": False, "error": str(exc)}
 
 
+WORDPRESS_SITE_MUTATE_MANIFEST: Dict[str, Any] = {
+    "capability_id": "wordpress.site.mutate.v1",
+    "version": "1.3.0",
+    "title": "WordPress Site Governed Mutate and Remediation",
+    "domain": "wordpress",
+    "risk_class": "high",
+    "mode": "mutation",
+    "description": "Governed WordPress mutation operations: database repair, plugin enabling/disabling (PHP crash recovery), and securing exposed backup files (chmod 0600). Requires ralfia:admin + ralfia:write scopes and valid owner approval_token.",
+    "keywords": ["wordpress", "remediation", "repair", "plugins", "security", "industriasolex"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["repair_database", "toggle_plugin", "secure_exposed_files"]
+            },
+            "domain": {"type": "string"},
+            "plugin_slug": {"type": "string"},
+            "enable": {"type": "boolean"},
+            "approval_token": {"type": "string"}
+        },
+        "required": ["action", "domain"],
+    },
+    "required_scopes": ["ralfia:write", "ralfia:admin"],
+}
+
+
+def wordpress_site_mutate_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.hosting_control_plane import HostingControlPlane
+    hcp = HostingControlPlane()
+    action = str(parameters.get("action") or "").strip().lower()
+    domain = str(parameters.get("domain") or "").strip()
+
+    caller_scopes = set(context.get("scopes") or context.get("caller_scopes") or [])
+    if "ralfia:admin" not in caller_scopes or "ralfia:write" not in caller_scopes:
+        return {
+            "ok": False,
+            "error": "FORBIDDEN_SCOPE_ADMIN_AND_WRITE_REQUIRED",
+            "message": "Both ralfia:write and ralfia:admin scopes are strictly required."
+        }
+
+    if not _check_domain_mutation_allowed(domain):
+        return {
+            "ok": False,
+            "error": "FORBIDDEN_DOMAIN_MUTATION_RESTRICTED",
+            "domain": domain,
+            "allowed_domains": sorted(list(ALLOWED_MUTATION_DOMAINS))
+        }
+
+    token = str(parameters.get("approval_token") or context.get("approval_token") or "").strip()
+    if not token or len(token) < 8:
+        return {
+            "ok": False,
+            "error": "APPROVAL_TOKEN_REQUIRED",
+            "message": "Valid owner approval_token is required for WordPress mutations."
+        }
+
+    try:
+        if action == "repair_database":
+            return hcp.repair_wordpress_database(domain)
+        elif action == "secure_exposed_files":
+            return hcp.secure_exposed_files(domain)
+        elif action == "toggle_plugin":
+            slug = str(parameters.get("plugin_slug") or "").strip()
+            enable = bool(parameters.get("enable", True))
+            if not slug:
+                return {"ok": False, "error": "plugin_slug_required"}
+            return hcp.toggle_wordpress_plugin(domain, slug, enable)
+        else:
+            return {"ok": False, "error": f"unsupported_action: {action}"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+WORDPRESS_SITE_QUERY_MANIFEST: Dict[str, Any] = {
+    "capability_id": "wordpress.site.query.v1",
+    "version": "1.3.0",
+    "title": "WordPress Site Inspection, Diagnostics, Spec Generator and REST Client",
+    "domain": "wordpress",
+    "risk_class": "low",
+    "mode": "read_only",
+    "description": "Inspects WordPress site structure, plugins, themes, database integrity, error logs, security exposure of backups, queries WP REST API, and generates typed Gutenberg and Elementor JSON specs in safe dry-run staging mode without mutating production sites.",
+    "keywords": ["wordpress", "gutenberg", "elementor", "diagnose", "landing", "rest", "builder", "industriasolex"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["generate_page_spec", "inspect_site", "diagnose_site", "call_wp_rest"]
+            },
+            "domain": {"type": "string"},
+            "page_title": {"type": "string"},
+            "sections": {"type": "array"},
+            "endpoint": {"type": "string"}
+        },
+        "required": ["action", "domain"],
+    },
+    "required_scopes": ["ralfia:read"],
+}
+
+
+def wordpress_site_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.hosting_control_plane import HostingControlPlane
+    hcp = HostingControlPlane()
+    action = str(parameters.get("action") or "").strip().lower()
+    domain = str(parameters.get("domain") or "").strip()
+
+    if action == "inspect_site":
+        return hcp.get_domain_details(domain)
+    elif action == "diagnose_site":
+        return hcp.diagnose_wordpress_site(domain)
+    elif action == "call_wp_rest":
+        endpoint = str(parameters.get("endpoint") or "/wp-json/wp/v2/types")
+        return hcp.query_wordpress_rest(domain, endpoint)
+    elif action == "generate_page_spec":
+        page_title = str(parameters.get("page_title") or f"Landing Page - {domain}")
+        sections = parameters.get("sections")
+        return hcp.generate_wordpress_page_spec(domain, page_title, sections=sections)
+    else:
+        return {"ok": False, "error": f"unsupported_action: {action}"}
+
+
 EMAIL_IMAP_QUERY_MANIFEST: Dict[str, Any] = {
     "capability_id": "email.imap.query.v1",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "title": "IMAP Mailbox Discovery and Search (Tenant Governed)",
     "domain": "email",
     "risk_class": "low",
@@ -267,7 +472,6 @@ def email_imap_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]
     action = str(parameters.get("action") or "").strip().lower()
 
     if action == "list_accounts":
-        # Only expose authorized corporate / tenant mailboxes, never personal recovery accounts
         return {
             "ok": True,
             "count": len(AUTHORIZED_IMAP_ACCOUNTS),
@@ -279,7 +483,6 @@ def email_imap_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]
         if not account:
             return {"ok": False, "error": "account_required"}
 
-        # Strict Tenant ACL Isolation
         if account not in AUTHORIZED_IMAP_ACCOUNTS:
             return {
                 "ok": False,
@@ -289,53 +492,8 @@ def email_imap_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]
             }
 
         folder = str(parameters.get("folder") or "INBOX")
-        limit = min(int(parameters.get("max_messages") or 10), 20)  # Bound limit
+        limit = min(int(parameters.get("max_messages") or 10), 20)
         return hcp.query_imap_mailbox(account, folder=folder, max_messages=limit)
-    else:
-        return {"ok": False, "error": f"unsupported_action: {action}"}
-
-
-WORDPRESS_SITE_QUERY_MANIFEST: Dict[str, Any] = {
-    "capability_id": "wordpress.site.query.v1",
-    "version": "1.2.0",
-    "title": "WordPress Site Inspection, Diagnostics and Spec Generator (Staging Safe)",
-    "domain": "wordpress",
-    "risk_class": "low",
-    "mode": "read_only",
-    "description": "Inspects WordPress site structure, plugins, themes, database integrity, error logs, security exposure of backups, and generates typed Gutenberg and Elementor JSON specs in safe dry-run staging mode without mutating production sites.",
-    "keywords": ["wordpress", "gutenberg", "elementor", "diagnose", "landing", "builder", "industriasolex"],
-    "parameters_schema": {
-        "type": "object",
-        "properties": {
-            "action": {
-                "type": "string",
-                "enum": ["generate_page_spec", "inspect_site", "diagnose_site"]
-            },
-            "domain": {"type": "string"},
-            "page_title": {"type": "string"},
-            "sections": {"type": "array"}
-        },
-        "required": ["action", "domain"],
-    },
-    "required_scopes": ["ralfia:read"],
-}
-
-
-def wordpress_site_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-    from inneros_core_runtime.hosting_control_plane import HostingControlPlane
-    hcp = HostingControlPlane()
-    action = str(parameters.get("action") or "").strip().lower()
-    domain = str(parameters.get("domain") or "").strip()
-
-    if action == "inspect_site":
-        details = hcp.get_domain_details(domain)
-        return details
-    elif action == "diagnose_site":
-        return hcp.diagnose_wordpress_site(domain)
-    elif action == "generate_page_spec":
-        page_title = str(parameters.get("page_title") or f"Landing Page - {domain}")
-        sections = parameters.get("sections")
-        return hcp.generate_wordpress_page_spec(domain, page_title, sections=sections)
     else:
         return {"ok": False, "error": f"unsupported_action: {action}"}
 
@@ -344,5 +502,6 @@ def register_hosting_capabilities() -> None:
     from inneros_core_runtime.capability_gateway import register_capability
     register_capability(CPANEL_HOSTING_QUERY_MANIFEST, cpanel_hosting_query_handler)
     register_capability(CPANEL_HOSTING_MUTATE_MANIFEST, cpanel_hosting_mutate_handler)
-    register_capability(EMAIL_IMAP_QUERY_MANIFEST, email_imap_query_handler)
     register_capability(WORDPRESS_SITE_QUERY_MANIFEST, wordpress_site_query_handler)
+    register_capability(WORDPRESS_SITE_MUTATE_MANIFEST, wordpress_site_mutate_handler)
+    register_capability(EMAIL_IMAP_QUERY_MANIFEST, email_imap_query_handler)

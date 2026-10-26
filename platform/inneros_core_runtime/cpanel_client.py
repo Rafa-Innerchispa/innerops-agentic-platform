@@ -13,6 +13,7 @@ import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +28,8 @@ ALLOWED_ROOT_PREFIXES = (
 
 ALLOWED_EXTENSIONS = {
     ".php", ".html", ".htm", ".css", ".js", ".json", ".txt",
-    ".log", ".xml", ".htaccess", ".ini", ".md", ".yaml", ".yml", ".conf"
+    ".log", ".xml", ".htaccess", ".ini", ".md", ".yaml", ".yml", ".conf",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".zip"
 }
 
 DENIED_FILENAMES = {
@@ -36,8 +38,9 @@ DENIED_FILENAMES = {
 }
 
 DENIED_EXTENSIONS = {
-    ".pem", ".key", ".pub", ".tar", ".gz", ".zip", ".sql",
-    ".bak", ".old", ".backup", ".rar", ".7z", ".db", ".sqlite", ".sqlite3"
+    ".pem", ".key", ".pub", ".tar", ".gz", ".sql",
+    ".bak", ".old", ".backup", ".rar", ".7z", ".db", ".sqlite", ".sqlite3",
+    ".exe", ".sh", ".bat", ".cmd"
 }
 
 MAX_READ_BYTES = 256 * 1024  # 256 KB
@@ -152,7 +155,7 @@ class CPanelClient:
         if not dir_path or not filename:
             raise SecurityViolation("dir_path_and_filename_required")
 
-        if "\x00" in dir_path or "\x00" in filename:
+        if chr(0) in dir_path or chr(0) in filename:
             raise SecurityViolation("null_byte_injection_detected")
 
         # Disallow traversal tokens
@@ -160,7 +163,7 @@ class CPanelClient:
             raise SecurityViolation("path_traversal_rejected")
 
         # Clean normalized path
-        normalized_dir = os.path.normpath(dir_path).replace("\\", "/")
+        normalized_dir = os.path.normpath(dir_path).replace(chr(92), "/")
         clean_filename = os.path.basename(filename)
 
         # Boundary check
@@ -178,14 +181,14 @@ class CPanelClient:
         if ext and ext not in ALLOWED_EXTENSIONS and clean_filename != ".htaccess":
             raise SecurityViolation(f"unauthorized_file_extension: {ext}")
 
-        full_path = os.path.normpath(os.path.join(normalized_dir, clean_filename)).replace("\\", "/")
+        full_path = os.path.normpath(os.path.join(normalized_dir, clean_filename)).replace(chr(92), "/")
         return full_path
 
     # File methods
     def list_files(
         self, dir_path: str = "/home/pcdoctor/public_html"
     ) -> list[dict[str, Any]]:
-        norm_dir = os.path.normpath(dir_path).replace("\\", "/")
+        norm_dir = os.path.normpath(dir_path).replace(chr(92), "/")
         if ".." in norm_dir or not any(norm_dir == p or norm_dir.startswith(p + "/") for p in ALLOWED_ROOT_PREFIXES):
             return []
         res = self.uapi("Fileman", "list_files", dir=norm_dir)
@@ -209,7 +212,6 @@ class CPanelClient:
     def _redact_secrets(self, filename: str, content: str) -> str:
         """Applies deterministic regex redaction to avoid leaking DB passwords, salts, and tokens."""
         if "wp-config" in filename.lower():
-            # Redact define('DB_PASSWORD', '...'), define('AUTH_KEY', '...'), etc.
             sensitive_wp_constants = [
                 "DB_PASSWORD", "DB_USER", "DB_HOST", "AUTH_KEY", "SECURE_AUTH_KEY",
                 "LOGGED_IN_KEY", "NONCE_KEY", "AUTH_SALT", "SECURE_AUTH_SALT",
@@ -220,10 +222,6 @@ class CPanelClient:
                 content = re.sub(pattern, r"\1[REDACTED_BY_GATEWAY]\3", content, flags=re.IGNORECASE)
 
         # General sensitive pattern redaction
-        general_patterns = [
-            r"((?:password|secret|api_key|token|private_key)\s*[:=]\s*['\"])([^'\"]{4,})(['\"])",
-            r"((?:DB_PASSWORD|SECRET_KEY|AUTH_KEY|PASSWORD)(['\",\s]+)(['\"])([^'\"]+)(['\"]))"
-        ]
         content = re.sub(r"(define\s*\(\s*['\"][^'\"]*PASSWORD[^'\"]*['\"]\s*,\s*['\"])([^'\"]+)(['\"])", r"\1[REDACTED_BY_GATEWAY]\3", content, flags=re.IGNORECASE)
         content = re.sub(r"(define\s*\(\s*['\"][^'\"]*SALT[^'\"]*['\"]\s*,\s*['\"])([^'\"]+)(['\"])", r"\1[REDACTED_BY_GATEWAY]\3", content, flags=re.IGNORECASE)
         content = re.sub(r"(define\s*\(\s*['\"][^'\"]*KEY[^'\"]*['\"]\s*,\s*['\"])([^'\"]+)(['\"])", r"\1[REDACTED_BY_GATEWAY]\3", content, flags=re.IGNORECASE)
@@ -302,3 +300,76 @@ class CPanelClient:
             return []
         lines = raw.splitlines()
         return lines[-max_lines:]
+
+    # cPanel API 2 interface
+    def api2(self, module: str, function: str, **kwargs: Any) -> dict[str, Any]:
+        qs = urllib.parse.urlencode({k: v for k, v in kwargs.items() if v is not None})
+        endpoint = f"/json-api/cpanel?cpanel_jsonapi_version=2&cpanel_jsonapi_module={module}&cpanel_jsonapi_func={function}&{qs}"
+        return self._request(endpoint, method="GET")
+
+    def mkdir(self, parent_dir: str, name: str) -> dict[str, Any]:
+        norm_dir = os.path.normpath(parent_dir).replace(chr(92), "/")
+        if ".." in norm_dir or ".." in name or "/" in name:
+            raise SecurityViolation("invalid_folder_name_or_traversal")
+        if not any(norm_dir == p or norm_dir.startswith(p + "/") for p in ALLOWED_ROOT_PREFIXES):
+            raise SecurityViolation(f"path_outside_allowed_roots: {norm_dir}")
+        return self.api2("Fileman", "mkdir", path=norm_dir, name=name)
+
+    def fileop(self, op: str, **kwargs: Any) -> dict[str, Any]:
+        return self.api2("Fileman", "fileop", op=op, **kwargs)
+
+    def chmod_file(self, file_path: str, mode: str) -> dict[str, Any]:
+        norm_path = os.path.normpath(file_path).replace(chr(92), "/")
+        if ".." in norm_path or not any(norm_path.startswith(p + "/") for p in ALLOWED_ROOT_PREFIXES):
+            raise SecurityViolation(f"path_outside_allowed_roots: {norm_path}")
+        return self.fileop(op="chmod", metadata=mode, sourcefiles=norm_path)
+
+    def extract_archive(self, archive_path: str, dest_dir: str) -> dict[str, Any]:
+        norm_archive = os.path.normpath(archive_path).replace(chr(92), "/")
+        norm_dest = os.path.normpath(dest_dir).replace(chr(92), "/")
+        if ".." in norm_archive or ".." in norm_dest:
+            raise SecurityViolation("path_traversal_rejected")
+        if not any(norm_archive.startswith(p + "/") for p in ALLOWED_ROOT_PREFIXES) or not any(norm_dest.startswith(p + "/") or norm_dest == p for p in ALLOWED_ROOT_PREFIXES):
+            raise SecurityViolation("archive_or_dest_outside_allowed_roots")
+        return self.fileop(op="extract", sourcefiles=norm_archive, destfiles=norm_dest)
+
+    def upload_file(self, dir_path: str, filename: str, data: bytes, overwrite: bool = True) -> dict[str, Any]:
+        full_path = self.validate_file_path(dir_path, filename)
+        clean_dir = os.path.dirname(full_path)
+        clean_name = os.path.basename(full_path)
+
+        boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
+        crlf = b"\r\n"
+        parts = [
+            f"--{boundary}".encode("utf-8") + crlf +
+            b'Content-Disposition: form-data; name="dir"' + crlf + crlf +
+            clean_dir.encode("utf-8") + crlf,
+            f"--{boundary}".encode("utf-8") + crlf +
+            b'Content-Disposition: form-data; name="overwrite"' + crlf + crlf +
+            (b"1" if overwrite else b"0") + crlf,
+            f"--{boundary}".encode("utf-8") + crlf +
+            f'Content-Disposition: form-data; name="file-1"; filename="{clean_name}"'.encode("utf-8") + crlf +
+            b'Content-Type: application/octet-stream' + crlf + crlf,
+            data + crlf,
+            f"--{boundary}--".encode("utf-8") + crlf,
+        ]
+
+        body = b"".join(parts)
+        url = f"{self.host}/execute/Fileman/upload_files"
+        headers = {
+            "Authorization": f"cpanel {self.user}:{self.token}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(body)),
+            "User-Agent": "InnerOS-CPanel-Adapter/1.0"
+        }
+
+        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, context=self._ctx, timeout=45) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                return json.loads(raw)
+        except Exception as e:
+            return {"status": 0, "errors": [str(e)]}
+
+    def repair_database(self, name: str) -> dict[str, Any]:
+        return self.uapi("Mysql", "repair_database", name=name)
