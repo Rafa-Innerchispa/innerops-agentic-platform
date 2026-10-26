@@ -2,7 +2,7 @@
 
 **Human + AI agent incident response for real-world infrastructure, with safe local-first execution and auditable evidence.**
 
-> **Status (2026-10-22): Preparation only. Not a functioning Switch integration or a hackathon submission.**
+> **Status (2026-10-26): Preparation only. Not a functioning Switch integration or a hackathon submission.**
 > This folder contains reusable, synthetic incident-domain primitives and event planning documents created **before** the competition build window. The Switch connector, human-agent collaborative room, and actual event workflow **must be implemented and verified during the event**, and are NOT present here yet.
 
 ## Competition
@@ -40,7 +40,9 @@ Switch must be central and **a human must demonstrably collaborate with an agent
 - Portable, offline Python domain contracts for synthetic incidents and action proposals.
 - Fail-closed approval and scope guard for a synthetic `simulate_restart` operation.
 - Read-only simulated observation and independent readback of in-memory state.
-- Canonical JSON SHA-256 receipt digest for change detection, **not a digital signature or tamper-proof audit log**.
+- Canonical JSON SHA-256 receipt digest with a separately testable integrity checker, **not a digital signature or tamper-proof audit log**.
+- Injectable synthetic readback to test failed verification without calling real devices.
+- Strict, checksum-verified standalone export, offline gate and 24 passing automated unit tests.
 - Automated unit tests and GitHub Actions CI definition.
 - All demo data is deliberately synthetic; no network or external model is used.
 
@@ -53,6 +55,8 @@ python -m pip install -e .
 python -m unittest discover -s tests -v
 python -m inneros_incident_room.cli --decision deny
 python -m inneros_incident_room.cli --decision approve
+python scripts/offline_gate.py
+python scripts/bootstrap_standalone.py --destination /tmp/incident-room-clean
 ```
 
 Alternatively, run without installing (Linux/macOS):
@@ -68,7 +72,10 @@ Every output explicitly includes `fixture_only: true`, `switch_connected: false`
 
 - `src/inneros_incident_room/`: generic, offline-safe incident primitives (PRE-EVENT reusable components)
 - `fixtures/`: fabricated demonstration data; no actual customer topology
-- `tests/`: policy, denial, approval, scope and evidence tests
+- `tests/`: policy, denial, approval, scope, evidence integrity and offline export tests
+- `scripts/offline_gate.py`: one-command offline-only reproducibility report
+- `scripts/bootstrap_standalone.py`: checksummed local export for a new Git repository
+- `docs/LOCAL_DIRECT_EXECUTION_20261026.md`: self-contained local recovery and instructions
 - `docs/ARCHITECTURE.md`: architecture and planned Switch boundary
 - `docs/SWITCH_INTEGRATION_PLAN.md`: official custom-agent protocol and event-period implementation plan
 - `docs/REUSE_MANIFEST.md`: pre-existing InnerOS lineage and reuse boundaries
