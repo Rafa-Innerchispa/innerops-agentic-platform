@@ -225,3 +225,38 @@ def test_wordpress_page_spec_generator():
     assert "<!-- wp:cover" in result["gutenberg"]["rendered_html"]
     assert "elementor" in result
     assert len(result["elementor"]["elementor_data_spec"]) > 0
+
+
+def test_diagnose_solex_wordpress_via_capability():
+    res = capability_invoke(
+        "wordpress.site.query.v1",
+        {"action": "diagnose_site", "domain": "industriasolex.com"}
+    )
+    assert res.get("ok") is True
+    diag = res.get("result", {})
+    assert diag.get("domain") == "industriasolex.com"
+    assert diag.get("wordpress_detected") is True
+    assert diag.get("database_configuration", {}).get("db_name") == "pcdoctor_wp107"
+    assert diag.get("database_integrity", {}).get("verified") is True
+    assert diag.get("database_integrity", {}).get("tables_count") == 51
+
+
+def test_cpanel_check_database_via_capability():
+    res = capability_invoke(
+        "hosting.cpanel.query.v1",
+        {"action": "check_database", "database": "pcdoctor_wp107"}
+    )
+    assert res.get("ok") is True
+    assert res.get("result", {}).get("database") == "pcdoctor_wp107"
+    check_res = res.get("result", {}).get("result", {})
+    assert check_res.get("status") == 1
+
+
+def test_cpanel_tail_error_log_via_capability():
+    res = capability_invoke(
+        "hosting.cpanel.query.v1",
+        {"action": "tail_error_log", "domain": "industriasolex.com", "max_lines": 10}
+    )
+    assert res.get("ok") is True
+    assert "lines" in res.get("result", {})
+

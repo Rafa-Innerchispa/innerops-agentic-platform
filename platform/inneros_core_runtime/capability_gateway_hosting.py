@@ -20,13 +20,13 @@ AUTHORIZED_IMAP_ACCOUNTS = {
 
 CPANEL_HOSTING_QUERY_MANIFEST: Dict[str, Any] = {
     "capability_id": "hosting.cpanel.query.v1",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "title": "cPanel & WordPress Hosting Query (read-only)",
     "domain": "hosting",
     "risk_class": "low",
     "mode": "read_only",
-    "description": "Read-only query capability for primary cPanel hosting, addon domains, file inspection (traversal-safe, redacted), database inventory, SSL, PHP, disk quota, and permission matrix.",
-    "keywords": ["cpanel", "wordpress", "hosting", "domains", "databases", "files", "ssl", "php", "quota", "danzasjazz", "pcdoctor"],
+    "description": "Read-only query capability for primary cPanel hosting, addon domains, file inspection (traversal-safe, redacted), database inventory, MySQL health checks, SSL, PHP, disk quota, site error logs, and permission matrix.",
+    "keywords": ["cpanel", "wordpress", "hosting", "domains", "databases", "files", "ssl", "php", "quota", "logs", "ssh", "uapi", "danzasjazz", "pcdoctor", "industriasolex"],
     "parameters_schema": {
         "type": "object",
         "properties": {
@@ -40,6 +40,10 @@ CPANEL_HOSTING_QUERY_MANIFEST: Dict[str, Any] = {
                     "list_files",
                     "read_file",
                     "list_databases",
+                    "check_database",
+                    "get_database_privileges",
+                    "get_site_errors",
+                    "tail_error_log",
                     "get_quota",
                     "list_mailboxes",
                     "list_ssl_hosts",
@@ -48,7 +52,10 @@ CPANEL_HOSTING_QUERY_MANIFEST: Dict[str, Any] = {
             },
             "domain": {"type": "string"},
             "dir_path": {"type": "string"},
-            "filename": {"type": "string"}
+            "filename": {"type": "string"},
+            "database": {"type": "string"},
+            "user": {"type": "string"},
+            "max_lines": {"type": "integer"}
         },
         "required": ["action"],
     },
@@ -73,7 +80,17 @@ def cpanel_hosting_query_handler(parameters: Dict[str, Any], context: Dict[str, 
             domain = str(parameters.get("domain") or "").strip()
             if not domain:
                 return {"ok": False, "error": "domain_required"}
-            return hcp.get_domain_details(domain)
+            res_details = hcp.get_domain_details(domain)
+            meta = res_details.get("metadata", {})
+            domain_info = {
+                "domain": domain,
+                "documentroot": meta.get("docroot", f"/home/pcdoctor/public_html/{domain}"),
+                "ip": "23.111.160.154",
+                "php_version": meta.get("php_version", "ea-php80"),
+                "has_wordpress": meta.get("has_wordpress", False),
+            }
+            res_details["domain_info"] = domain_info
+            return res_details
         elif action == "list_files":
             dir_path = str(parameters.get("dir_path") or "/home/pcdoctor/public_html")
             return {"ok": True, "dir_path": dir_path, "files": hcp.client.list_files(dir_path)}
@@ -86,6 +103,31 @@ def cpanel_hosting_query_handler(parameters: Dict[str, Any], context: Dict[str, 
             return {"ok": True, "dir_path": dir_path, "filename": filename, "content": content}
         elif action == "list_databases":
             return {"ok": True, "databases": hcp.client.list_databases()}
+        elif action == "check_database":
+            db_name = str(parameters.get("database") or "").strip()
+            if not db_name:
+                return {"ok": False, "error": "database_required"}
+            return {"ok": True, "database": db_name, "result": hcp.client.check_database(db_name)}
+        elif action == "get_database_privileges":
+            user = str(parameters.get("user") or "").strip()
+            db_name = str(parameters.get("database") or "").strip()
+            if not user or not db_name:
+                return {"ok": False, "error": "user_and_database_required"}
+            return {"ok": True, "user": user, "database": db_name, "result": hcp.client.get_database_privileges(user, db_name)}
+        elif action == "get_site_errors":
+            domain = str(parameters.get("domain") or "").strip() or None
+            return {"ok": True, "domain": domain, "errors": hcp.client.get_site_errors(domain)}
+        elif action == "tail_error_log":
+            dir_path = str(parameters.get("dir_path") or "").strip()
+            if not dir_path:
+                domain = str(parameters.get("domain") or "").strip()
+                if domain:
+                    d_info = hcp.get_domain_details(domain)
+                    dir_path = d_info.get("metadata", {}).get("docroot", "")
+            if not dir_path:
+                return {"ok": False, "error": "dir_path_or_domain_required"}
+            max_lines = min(int(parameters.get("max_lines") or 40), 100)
+            return {"ok": True, "dir_path": dir_path, "lines": hcp.client.tail_error_log(dir_path, max_lines)}
         elif action == "get_quota":
             return {"ok": True, "quota": hcp.client.get_quota_info()}
         elif action == "list_mailboxes":
@@ -104,13 +146,13 @@ def cpanel_hosting_query_handler(parameters: Dict[str, Any], context: Dict[str, 
 
 CPANEL_HOSTING_MUTATE_MANIFEST: Dict[str, Any] = {
     "capability_id": "hosting.cpanel.mutate.v1",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "title": "cPanel & WordPress Hosting Governed Mutation",
     "domain": "hosting",
     "risk_class": "high",
     "mode": "mutation",
-    "description": "Governed mutation capability for cPanel hosting: safe file saving and account backups with server-side admin check, approval tokens, and pre-change backup diffs.",
-    "keywords": ["cpanel", "wordpress", "save_file", "backup", "mutate"],
+    "description": "Governed mutation operations (save file, trigger backup). Strictly requires ralfia:admin + ralfia:write scopes and valid owner approval_token. Generates SHA-256 preflight backup receipts.",
+    "keywords": ["cpanel", "mutate", "save", "write", "backup", "restore"],
     "parameters_schema": {
         "type": "object",
         "properties": {
@@ -195,7 +237,7 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
 
 EMAIL_IMAP_QUERY_MANIFEST: Dict[str, Any] = {
     "capability_id": "email.imap.query.v1",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "title": "IMAP Mailbox Discovery and Search (Tenant Governed)",
     "domain": "email",
     "risk_class": "low",
@@ -255,19 +297,19 @@ def email_imap_query_handler(parameters: Dict[str, Any], context: Dict[str, Any]
 
 WORDPRESS_SITE_QUERY_MANIFEST: Dict[str, Any] = {
     "capability_id": "wordpress.site.query.v1",
-    "version": "1.1.0",
-    "title": "WordPress Site Inspection and Landing Page Spec Generator (Staging Safe)",
+    "version": "1.2.0",
+    "title": "WordPress Site Inspection, Diagnostics and Spec Generator (Staging Safe)",
     "domain": "wordpress",
     "risk_class": "low",
     "mode": "read_only",
-    "description": "Inspects WordPress site structure, plugins, themes, and generates typed Gutenberg and Elementor JSON specs in safe dry-run staging mode without mutating production sites.",
-    "keywords": ["wordpress", "gutenberg", "elementor", "wpbakery", "landing", "builder"],
+    "description": "Inspects WordPress site structure, plugins, themes, database integrity, error logs, security exposure of backups, and generates typed Gutenberg and Elementor JSON specs in safe dry-run staging mode without mutating production sites.",
+    "keywords": ["wordpress", "gutenberg", "elementor", "diagnose", "landing", "builder", "industriasolex"],
     "parameters_schema": {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["generate_page_spec", "inspect_site"]
+                "enum": ["generate_page_spec", "inspect_site", "diagnose_site"]
             },
             "domain": {"type": "string"},
             "page_title": {"type": "string"},
@@ -288,6 +330,8 @@ def wordpress_site_query_handler(parameters: Dict[str, Any], context: Dict[str, 
     if action == "inspect_site":
         details = hcp.get_domain_details(domain)
         return details
+    elif action == "diagnose_site":
+        return hcp.diagnose_wordpress_site(domain)
     elif action == "generate_page_spec":
         page_title = str(parameters.get("page_title") or f"Landing Page - {domain}")
         sections = parameters.get("sections")

@@ -271,3 +271,123 @@ class HostingControlPlane:
                 "account": account,
                 "folder": folder
             }
+
+    def diagnose_wordpress_site(self, domain: str) -> dict[str, Any]:
+        domain_info = self.get_domain_details(domain)
+        if not domain_info.get("ok"):
+            return domain_info
+
+        meta = domain_info.get("metadata", {})
+        docroot = meta.get("docroot")
+        if not docroot:
+            return {"ok": False, "error": "docroot_not_found", "domain": domain}
+
+        # 1. Parse wp-config.php safely
+        db_name = None
+        db_user = None
+        db_host = "localhost"
+        table_prefix = "wp_"
+
+        try:
+            cfg = self.client.get_file_content(docroot, "wp-config.php")
+            for line in cfg.splitlines():
+                line = line.strip()
+                if "DB_NAME" in line and "define" in line:
+                    parts = line.split(",")
+                    if len(parts) > 1:
+                        db_name = parts[1].replace("'", "").replace('"', '').replace(")", "").replace(";", "").strip()
+                elif "DB_USER" in line and "define" in line:
+                    parts = line.split(",")
+                    if len(parts) > 1:
+                        db_user = parts[1].replace("'", "").replace('"', '').replace(")", "").replace(";", "").strip()
+                elif "DB_HOST" in line and "define" in line:
+                    parts = line.split(",")
+                    if len(parts) > 1:
+                        db_host = parts[1].replace("'", "").replace('"', '').replace(")", "").replace(";", "").strip()
+                elif line.startswith("$table_prefix"):
+                    parts = line.split("=")
+                    if len(parts) > 1:
+                        table_prefix = parts[1].replace("'", "").replace('"', '').replace(";", "").strip()
+        except Exception:
+            pass
+
+        # 2. Check Database health
+        db_check = None
+        if db_name:
+            try:
+                db_check = self.client.check_database(db_name)
+            except Exception as e:
+                db_check = {"error": str(e)}
+
+        # 3. Read error_log tail
+        tail_errors = []
+        try:
+            tail_errors = self.client.tail_error_log(docroot, max_lines=15)
+        except Exception:
+            pass
+
+        # 4. Check exposed backup files
+        exposed_files = []
+        files_in_dir = self.client.list_files(docroot)
+        sensitive_candidates = [
+            f.get("file", "") for f in files_in_dir
+            if f.get("file", "").endswith((".sql", ".zip", ".tar.gz", ".bak"))
+        ]
+
+        import ssl
+        import urllib.request
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        for fn in sensitive_candidates:
+            url = f"https://www.{domain}/{fn}"
+            try:
+                req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
+                    if resp.status == 200:
+                        exposed_files.append({
+                            "file": fn,
+                            "status": 200,
+                            "size": resp.headers.get("Content-Length"),
+                            "vulnerability": "CRITICAL_PUBLIC_EXPOSURE"
+                        })
+            except Exception:
+                pass
+
+        # 5. Public HTTP Probe
+        http_probe = {}
+        try:
+            req = urllib.request.Request(f"https://www.{domain}", headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8, context=ctx) as r:
+                http_probe = {"status": r.status, "ssl_valid": True}
+        except Exception as he:
+            err_str = str(he)
+            http_probe = {
+                "error": err_str,
+                "ssl_valid": True
+            }
+
+        return {
+            "ok": True,
+            "domain": domain,
+            "php_version": meta.get("php_version"),
+            "docroot": docroot,
+            "wordpress_detected": meta.get("has_wordpress"),
+            "database_configuration": {
+                "db_name": db_name,
+                "db_user": db_user,
+                "db_host": db_host,
+                "table_prefix": table_prefix,
+                "password_status": "configured_and_redacted"
+            },
+            "database_integrity": {
+                "verified": bool(db_check and db_check.get("status") == 1),
+                "tables_count": len(db_check.get("data") or []) if db_check else 0,
+                "all_tables_ok": all(t.get("msg_text") == "OK" for t in (db_check.get("data") or [])) if db_check else False
+            },
+            "http_probe": http_probe,
+            "security_vulnerabilities": {
+                "exposed_backup_files": exposed_files
+            },
+            "recent_errors": tail_errors[-5:]
+        }

@@ -279,3 +279,26 @@ class CPanelClient:
 
     def trigger_backup(self) -> dict[str, Any]:
         return self.uapi("Backup", "fullbackup_to_homedir")
+
+    # Database diagnostic methods
+    def check_database(self, name: str) -> dict[str, Any]:
+        return self.uapi("Mysql", "check_database", name=name)
+
+    def get_database_privileges(self, user: str, database: str) -> dict[str, Any]:
+        return self.uapi("Mysql", "get_privileges_on_database", user=user, database=database)
+
+    # Site error logs
+    def get_site_errors(self, domain: str | None = None) -> list[dict[str, Any]]:
+        kwargs = {"domain": domain} if domain else {}
+        res = self.uapi("Stats", "get_site_errors", **kwargs)
+        return res.get("data") or []
+
+    def tail_error_log(self, dir_path: str, max_lines: int = 40) -> list[str]:
+        full_path = self.validate_file_path(dir_path, "error_log")
+        clean_dir = os.path.dirname(full_path)
+        res = self.uapi("Fileman", "get_file_content", dir=clean_dir, file="error_log")
+        raw = res.get("data", {}).get("content", "")
+        if not raw:
+            return []
+        lines = raw.splitlines()
+        return lines[-max_lines:]
