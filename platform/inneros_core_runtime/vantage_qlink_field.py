@@ -1,8 +1,8 @@
 """Read-only field bridge for legacy Vantage QLink (CLMNES050).
 
 This module is deliberately *not* a QLink programmer or a relay driver.
-It captures serial diagnostics on the technician's onsite computer; no
-commands are transmitted.  The existing InnerOS AG-60/HA service can
+It captures serial diagnostics on the technician's onsite computer and
+permits only a bounded non-mutating VGS# query for a known keypad address.  The existing InnerOS AG-60/HA service can
 consume captured JSON only after an authenticated site association.
 
 QLink is NOT InFusion.  Do not substitute the Home Assistant InFusion
@@ -227,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument("--list-ports", action="store_true")
     group.add_argument("--observe", metavar="SERIAL_PORT")
     group.add_argument("--manifest", nargs="+", metavar="QLINK_BACKUP")
-    parser.add_argument("--site", help="InnerOS client site slug (e.g. puerto_azul_ashley)")
+    parser.add_argument("--site", help="InnerOS client site slug (e.g. test_site)")
     parser.add_argument("--seconds", type=float, default=5.0, help="Passive capture duration (max 60s)")
     args = parser.parse_args(argv)
     return _dispatch(parser, args, argv)
