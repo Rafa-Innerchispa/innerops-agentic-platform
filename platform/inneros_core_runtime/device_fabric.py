@@ -138,7 +138,7 @@ PROVIDERS: tuple[Provider, ...] = (
         SUPPORT_NOT_VALIDATED,
         ("lighting_controller", "relay_station", "keypad", "scene"),
         ("rs232_qlink",),
-        ("local_serial_port_inventory", "passive_serial_observe", "backup_manifest"),
+        ("local_serial_port_inventory", "passive_serial_observe", "one_known_button_query", "backup_manifest"),
         ("AG-60", "Home Assistant"),
         "onsite_usb_rs232_access_and_client_authorization_required",
         notes=(
