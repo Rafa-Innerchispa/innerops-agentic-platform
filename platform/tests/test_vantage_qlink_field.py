@@ -91,3 +91,68 @@ def test_manifest_rejects_unexpected_extension(tmp_path):
     file.write_text("DO_NOT_READ")
     with pytest.raises(ValueError):
         field.backup_manifest([str(file)], site_id="puerto_azul_ashley")
+
+
+def test_query_known_switch_is_single_read_only_vgs(monkeypatch):
+    class FakeSerial:
+        issued = []
+        def __init__(self, **kwargs):
+            self.lines = [b"SW 2 3 4 1\r\n", b"RGS# 1 9 23 1\r\n"]
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return None
+        def write(self, payload):
+            type(self).issued.append(payload)
+            return len(payload)
+        def readline(self, limit):
+            return self.lines.pop(0) if self.lines else b""
+
+    monkeypatch.setitem(sys.modules, "serial", SimpleNamespace(Serial=FakeSerial))
+    found = field.query_switch_state(
+        "COM5", site_id="puerto_azul_ashley", master=1, station=9, button=23
+    )
+    assert found["ok"] is True
+    assert found["button_state"] == 1
+    assert found["station_bus_relay_state_verified"] is False
+    assert found["mutating_commands_transmitted"] == 0
+    assert FakeSerial.issued == [b"VGS# 1 9 23\r\n"]
+
+
+def test_query_rejects_bad_addresses_before_any_serial_io():
+    with pytest.raises(ValueError):
+        field.query_switch_state(
+            "COM1", site_id="puerto_azul_ashley", master=1,
+            station=0, button=4
+        )
+    with pytest.raises(ValueError):
+        field.query_switch_state(
+            "COM1", site_id="../other", master=1,
+            station=9, button=4
+        )
+
+
+def test_query_timeout_does_not_fabricate_state(monkeypatch):
+    class NoReplySerial:
+        def __init__(self, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return None
+        def write(self, payload):
+            return len(payload)
+        def readline(self, limit):
+            return b""
+
+    monkeypatch.setitem(sys.modules, "serial", SimpleNamespace(Serial=NoReplySerial))
+    timestamps = iter([0.0, 0.0, 0.2])
+    monkeypatch.setattr(field.time, "monotonic", lambda: next(timestamps, 0.2))
+    found = field.query_switch_state(
+        "COM5", site_id="puerto_azul_ashley",
+        master=1, station=9, button=23,
+        timeout_seconds=0.1
+    )
+    assert found["ok"] is False
+    assert found["error"] == "qlink_switch_query_timeout"
+    assert "button_state" not in found
