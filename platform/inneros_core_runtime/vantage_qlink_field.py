@@ -126,25 +126,34 @@ def observe_serial(port: str, *, seconds: float = 5.0, baudrate: int = DEFAULT_B
     }
 
 
-def backup_manifest(paths: list[str], *, site_id: str) -> dict[str, Any]:
-    """Hash existing QLink backups without parsing or modifying project files."""
+def backup_manifest(paths: list[str], *, site_id: str, allowed_root: str | None = None) -> dict[str, Any]:
+    """Hash local QLink backups within an approved folder, without changing them."""
     if not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", site_id or ""):
         raise ValueError("site_id_required")
+    import os
+    root = Path(allowed_root or os.getenv("VANTAGE_QLINK_BACKUP_ROOT") or Path.cwd()).resolve()
+    if not root.is_dir():
+        raise ValueError("backup_root_not_directory")
     items: list[dict[str, Any]] = []
     for name in paths:
-        path = Path(name)
-        if path.suffix.lower() not in {".qlk", ".bak", ".bin"}:
+        original = Path(name)
+        if original.is_symlink():
+            raise ValueError("backup_symlink_not_allowed")
+        path = original.resolve()
+        if not path.is_relative_to(root):
+            raise ValueError("backup_outside_approved_root")
+        if not path.is_file() or path.suffix.lower() not in {".qlk", ".bak", ".bin"}:
             raise ValueError("unexpected_backup_extension")
-        data = path.read_bytes()
-        if len(data) > 32 * 1024 * 1024:
+        if path.stat().st_size > 32 * 1024 * 1024:
             raise ValueError("backup_too_large")
+        data = path.read_bytes()
         items.append({
             "name": path.name, "size_bytes": len(data),
             "sha256": hashlib.sha256(data).hexdigest(),
             "parsing_verified": False,
         })
-    return {"ok": True, "site_id": site_id, "backups": items,
-            "source_files_modified": False, "source_files_uploaded": False}
+    return {"ok": True, "site_id": site_id, "approved_root": str(root),
+            "backups": items, "source_files_modified": False, "source_files_uploaded": False}
 
 
 def main(argv: list[str] | None = None) -> int:
