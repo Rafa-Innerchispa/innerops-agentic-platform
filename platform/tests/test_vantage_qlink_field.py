@@ -58,7 +58,7 @@ def test_active_serial_commands_are_never_transmitted(monkeypatch):
     monkeypatch.setitem(sys.modules, "serial", SimpleNamespace(Serial=FakeSerial))
     timestamps = iter([0.0, 0.0, 0.005, 0.010, 0.020, 1.0])
     monkeypatch.setattr(field.time, "monotonic", lambda: next(timestamps, 1.1))
-    result = field.observe_serial("COM5", seconds=0.1, site_id="puerto_azul_ashley")
+    result = field.observe_serial("COM5", seconds=0.1, site_id="test_site")
     assert result["ok"] is True
     assert result["count"] == 2
     assert result["frames"][0]["kind"] == "button_event"
@@ -79,7 +79,7 @@ def test_backup_manifest_never_modifies_files(tmp_path):
     file = tmp_path / "ASHLEY_FLASH.qlk"
     file.write_bytes(b"example backup bytes")
     before = file.stat().st_mtime_ns
-    result = field.backup_manifest([str(file)], site_id="puerto_azul_ashley", allowed_root=str(tmp_path))
+    result = field.backup_manifest([str(file)], site_id="test_site", allowed_root=str(tmp_path))
     assert result["backups"][0]["sha256"] == hashlib.sha256(b"example backup bytes").hexdigest()
     assert result["source_files_modified"] is False
     assert result["source_files_uploaded"] is False
@@ -90,7 +90,7 @@ def test_manifest_rejects_unexpected_extension(tmp_path):
     file = tmp_path / "secrets.env"
     file.write_text("DO_NOT_READ")
     with pytest.raises(ValueError):
-        field.backup_manifest([str(file)], site_id="puerto_azul_ashley")
+        field.backup_manifest([str(file)], site_id="test_site")
 
 
 def test_query_known_switch_is_single_read_only_vgs(monkeypatch):
@@ -110,7 +110,7 @@ def test_query_known_switch_is_single_read_only_vgs(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "serial", SimpleNamespace(Serial=FakeSerial))
     found = field.query_switch_state(
-        "COM5", site_id="puerto_azul_ashley", master=1, station=9, button=23
+        "COM5", site_id="test_site", master=1, station=9, button=23
     )
     assert found["ok"] is True
     assert found["button_state"] == 1
@@ -122,7 +122,7 @@ def test_query_known_switch_is_single_read_only_vgs(monkeypatch):
 def test_query_rejects_bad_addresses_before_any_serial_io():
     with pytest.raises(ValueError):
         field.query_switch_state(
-            "COM1", site_id="puerto_azul_ashley", master=1,
+            "COM1", site_id="test_site", master=1,
             station=0, button=4
         )
     with pytest.raises(ValueError):
@@ -149,7 +149,7 @@ def test_query_timeout_does_not_fabricate_state(monkeypatch):
     timestamps = iter([0.0, 0.0, 0.2])
     monkeypatch.setattr(field.time, "monotonic", lambda: next(timestamps, 0.2))
     found = field.query_switch_state(
-        "COM5", site_id="puerto_azul_ashley",
+        "COM5", site_id="test_site",
         master=1, station=9, button=23,
         timeout_seconds=0.1
     )
