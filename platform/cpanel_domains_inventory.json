@@ -1,0 +1,218 @@
+[
+  {
+    "domain": "pcdoctor.com.ec",
+    "type": "main",
+    "docroot": "/home/pcdoctor/public_html",
+    "php_version": "ea-php80",
+    "ssl_expires": 1798542935,
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "industriasolex.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/industriasolex.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "elecompgps.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/elecompgps.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "thships.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/thships.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "elecompsa.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/elecompsa.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "sgtour.ec",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/sgtour.ec",
+    "php_version": "ea-php84",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  },
+  {
+    "domain": "bellcosmeec.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/bellcosmeec.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  },
+  {
+    "domain": "iskconguayaquil.org",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/iskconguayaquil.org",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "iskconecuador.org",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/iskconecuador.org",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  },
+  {
+    "domain": "soindu.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/soindu.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  },
+  {
+    "domain": "pcdoctor.ai",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/pcdoctor.ai",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": true
+  },
+  {
+    "domain": "creatorcore.ai",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/creatorcore.ai",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "transpower.com.ec",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/transpower.com.ec",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "fundacionaei.org",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/fundacionaei.org",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": true
+  },
+  {
+    "domain": "cristobalbolon.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/cristobalbolon.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  },
+  {
+    "domain": "innerchispa.us",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/innerchispa.us",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": true
+  },
+  {
+    "domain": "servifran.site",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/servifran.site",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  },
+  {
+    "domain": "kanahri.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/kanahri.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  },
+  {
+    "domain": "danzasjazz.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/danzasjazz.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "optica7.com",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/optica7.com",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "dcmobileservices.net",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/dcmobileservices.net",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": true,
+    "has_index": true
+  },
+  {
+    "domain": "creatoros.dev",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/creatoros.dev",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  },
+  {
+    "domain": "innerspark.live",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/innerspark.live",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": true
+  },
+  {
+    "domain": "torresdelrio.net",
+    "type": "addon",
+    "docroot": "/home/pcdoctor/public_html/torresdelrio.net",
+    "php_version": "ea-php80",
+    "ssl_expires": "none",
+    "has_wordpress": false,
+    "has_index": false
+  }
+]

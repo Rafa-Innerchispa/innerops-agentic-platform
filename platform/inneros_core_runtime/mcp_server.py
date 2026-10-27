@@ -3352,7 +3352,7 @@ def list_inventory(entity_id: str | None = None, limit: int = 100) -> dict[str, 
 @mcp.tool
 def list_mcp_tool_profiles(for_model: str | None = None) -> dict[str, Any]:
     """Perfiles versionados (Capability Router F0). Proyección recomendada; legacy tools/list intacto."""
-    from raphiia_openai import mcp_profiles
+    from inneros_core_runtime import mcp_profiles
 
     return mcp_profiles.list_profiles(for_model=for_model)
 
@@ -3509,13 +3509,32 @@ def capability_invoke(
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Invoke one allowlisted capability handler with server-side policy enforcement."""
-    from inneros_core_runtime import capability_gateway
+    from inneros_core_runtime import capability_gateway, auth_middleware as runtime_auth
+
+    ctx = dict(context or {})
+    try:
+        headers = runtime_auth._request_headers()
+        auth_ctx = runtime_auth.resolve_bearer_auth_context(headers)
+        if auth_ctx.get("ok"):
+            granted = auth_ctx.get("granted_scopes") or []
+            ctx.setdefault("scopes", granted)
+            ctx.setdefault("caller_scopes", granted)
+            ctx.setdefault("client_id", auth_ctx.get("client_id") or "chatgpt")
+            ctx.setdefault("username", auth_ctx.get("username") or "chatgpt")
+            ctx.setdefault("mcp_profile", auth_ctx.get("mcp_profile") or "chatgpt_compact")
+        elif runtime_auth.MCP_API_KEY and (headers.get("x-api-key") == runtime_auth.MCP_API_KEY or headers.get("X-API-Key") == runtime_auth.MCP_API_KEY):
+            admin_scopes = ["ralfia:read", "ralfia:write", "ralfia:agents", "ralfia:admin"]
+            ctx.setdefault("scopes", admin_scopes)
+            ctx.setdefault("caller_scopes", admin_scopes)
+            ctx.setdefault("client_id", "owner_api_key")
+    except Exception:
+        pass
 
     return capability_gateway.capability_invoke(
         capability_id=capability_id,
         parameters=parameters,
         idempotency_key=idempotency_key,
-        context=context,
+        context=ctx,
     )
 
 
@@ -5236,17 +5255,10 @@ def contifico_query(
     limit: int = 20,
     include_details: bool = False,
     natural_language: str | None = None,
-    proveedor: str | None = None,
-    cliente: str | None = None,
-    producto: str | None = None,
-    documento: str | None = None,
-    fecha: str | None = None,
-    year: int | None = None,
-    tipo: str | None = None,
-    cruce_margen: bool = False,
 ) -> dict[str, Any]:
-    """Query analítica Contífico read-only por proveedor, producto, documento o DSL."""
+    """Query analítica Contífico read-only (DSL allowlist). No crea tool por pregunta."""
     from raphiia_openai import contifico_analytics
+
     return contifico_analytics.contifico_query(
         domain=domain,
         measures=measures,
@@ -5256,15 +5268,8 @@ def contifico_query(
         limit=limit,
         include_details=include_details,
         natural_language=natural_language,
-        proveedor=proveedor,
-        cliente=cliente,
-        producto=producto,
-        documento=documento,
-        fecha=fecha,
-        year=year,
-        tipo=tipo,
-        cruce_margen=cruce_margen,
     )
+
 
 @mcp.tool
 def contifico_get_document(document_id: str | None = None, number: str | None = None) -> dict[str, Any]:
@@ -5309,7 +5314,7 @@ def get_capability_registry_summary() -> dict[str, Any]:
 @mcp.tool
 def get_mcp_profile(name: str) -> dict[str, Any]:
     """Devuelve un perfil versionado (toolset pinneable)."""
-    from raphiia_openai import mcp_profiles
+    from inneros_core_runtime import mcp_profiles
 
     return mcp_profiles.get_profile(name)
 
@@ -5933,6 +5938,7 @@ def get_coordination_liveness_summary() -> dict[str, Any]:
 @mcp.tool
 def list_ops_tasks(
     task_id: str | None = None,
+    human_task_id: str | None = None,
     correlation_id: str | None = None,
     project: str | None = None,
     repo: str | None = None,
@@ -5941,13 +5947,15 @@ def list_ops_tasks(
     date: str | None = None,
     workflow_id: str | None = None,
     run_id: str | None = None,
+    group_by_human: bool = False,
     limit: int = 50,
 ) -> dict[str, Any]:
-    """Lista órdenes ops con soporte de filtros por task_id, correlation_id, project, repo, assignee, status, date, workflow_id, run_id."""
+    """Lista órdenes ops (human_task_id primero; IDs técnicos en detalle)."""
     from inneros_core_runtime import coordination_live
 
     return coordination_live.list_ops_tasks(
         task_id=task_id,
+        human_task_id=human_task_id,
         correlation_id=correlation_id,
         project=project,
         repo=repo,
@@ -5956,6 +5964,7 @@ def list_ops_tasks(
         date=date,
         workflow_id=workflow_id,
         run_id=run_id,
+        group_by_human=group_by_human,
         limit=limit,
     )
 
@@ -8379,7 +8388,7 @@ def _apply_runtime_tool_profile(profile_name: str) -> dict[str, Any]:
     import asyncio
 
     from fastmcp.server.transforms import Visibility
-    from raphiia_openai import mcp_profiles
+    from inneros_core_runtime import mcp_profiles
 
     profile = mcp_profiles.get_profile(profile_name)
     if not profile.get("ok"):
@@ -8423,8 +8432,6 @@ if __name__ == "__main__":
     if runtime_profile:
         profile_info = _apply_runtime_tool_profile(runtime_profile)
         mongo_store.log_sync("mcp_profile_startup", host=MCP_HOST, port=MCP_PORT, **profile_info)
-    from inneros_core_runtime.mcp_tool_annotation_transform import ToolAnnotationTransform
-    mcp.add_transform(ToolAnnotationTransform())
     mongo_store.log_sync("mcp_startup", host=MCP_HOST, port=MCP_PORT)
     mcp.run(
         transport="streamable-http",

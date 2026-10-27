@@ -114,11 +114,16 @@ class RouterHttpHandler(BaseHTTPRequestHandler):
             self._send_json(jsonrpc_error(None, JSONRPC_PARSE_ERROR, "Parse error"))
             return
         session_id = self.headers.get("Mcp-Session-Id", "")
+        auth_header = self.headers.get("Authorization", "")
+        if not auth_header and session_id:
+            sess = self.router._session(session_id)
+            if sess and sess.authorization:
+                auth_header = sess.authorization
         reply = (
             self.router.handle_with_session(
                 payload,
                 session_id=session_id,
-                authorization=self.headers.get("Authorization", ""),
+                authorization=auth_header,
             )
             if isinstance(payload, dict)
             else None
@@ -139,7 +144,14 @@ class RouterHttpHandler(BaseHTTPRequestHandler):
         token = self.router.config.bearer_token
         auth = self.headers.get("Authorization", "")
         if self.router.config.auth_mode == "oauth_passthrough":
-            return self._has_bearer_auth()
+            if self._has_bearer_auth():
+                return True
+            session_id = self.headers.get("Mcp-Session-Id", "")
+            if session_id:
+                sess = self.router._session(session_id)
+                if sess and sess.authorization:
+                    return True
+            return False
         if not token:
             return True
         return auth == f"Bearer {token}"

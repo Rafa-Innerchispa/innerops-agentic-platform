@@ -53,13 +53,28 @@ class McpRouter:
 
     def handle_with_session(self, payload: dict[str, Any] | list[Any], *, session_id: str = "", authorization: str = "") -> RouterReply:
         if isinstance(payload, list):
-            responses = [self._handle_one(item, session_id=session_id) for item in payload]
-            return RouterReply(responses, session_id=session_id)
+            sess = self._session(session_id, authorization=authorization)
+            if sess is None and (authorization or session_id):
+                sess = self._synthesize_session(session_id, authorization=authorization)
+            actual_session_id = sess.id if sess else session_id
+            responses = [self._handle_one(item, session_id=actual_session_id) for item in payload]
+            return RouterReply(responses, session_id=actual_session_id)
+
         if payload.get("method") == "initialize":
-            return self._initialize(payload, authorization=authorization)
-        if not session_id or session_id not in self._sessions:
-            return RouterReply(jsonrpc_error(payload.get("id"), JSONRPC_INVALID_REQUEST, "Missing or unknown Mcp-Session-Id"))
-        return RouterReply(self._handle_one(payload, session_id=session_id), session_id=session_id)
+            try:
+                return self._initialize(payload, authorization=authorization)
+            except RouterError as exc:
+                return RouterReply(router_error_response(payload.get("id"), exc))
+
+        sess = self._session(session_id, authorization=authorization)
+        if sess is None:
+            if authorization or session_id:
+                sess = self._synthesize_session(session_id, authorization=authorization)
+            else:
+                return RouterReply(jsonrpc_error(payload.get("id"), JSONRPC_INVALID_REQUEST, "Missing or unknown Mcp-Session-Id"))
+
+        actual_session_id = sess.id
+        return RouterReply(self._handle_one(payload, session_id=actual_session_id), session_id=actual_session_id)
 
     def _handle_one(self, request: Any, *, session_id: str = "") -> dict[str, Any]:
         if not isinstance(request, dict):
@@ -126,8 +141,69 @@ class McpRouter:
     def _default_backend_name(self) -> str:
         return self.config.profile.default_backend or self.config.default_backend
 
-    def _session(self, session_id: str) -> RouterSession | None:
-        return self._sessions.get(session_id) if session_id else None
+    def _session(self, session_id: str, *, authorization: str = "") -> RouterSession | None:
+        if not session_id:
+            return None
+        sess = self._sessions.get(session_id)
+        if sess is not None:
+            if authorization and not sess.authorization:
+                sess.authorization = authorization
+            return sess
+        # Check shared MongoDB session store
+        try:
+            import pymongo
+            client = pymongo.MongoClient("mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=400")
+            doc = client.inneros.mcp_router_sessions.find_one({"session_id": session_id})
+            if doc:
+                sess = RouterSession(
+                    id=session_id,
+                    initialize_request=doc.get("initialize_request") or {},
+                    authorization=authorization or doc.get("authorization") or "",
+                    backend_sessions=doc.get("backend_sessions") or {},
+                    tool_backend_cache=doc.get("tool_backend_cache") or {},
+                )
+                self._sessions[session_id] = sess
+                return sess
+        except Exception:
+            pass
+        return None
+
+    def _persist_session(self, session: RouterSession) -> None:
+        try:
+            import pymongo
+            client = pymongo.MongoClient("mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=400")
+            client.inneros.mcp_router_sessions.update_one(
+                {"session_id": session.id},
+                {
+                    "$set": {
+                        "session_id": session.id,
+                        "initialize_request": session.initialize_request,
+                        "authorization": session.authorization,
+                        "backend_sessions": session.backend_sessions,
+                        "tool_backend_cache": session.tool_backend_cache,
+                    }
+                },
+                upsert=True,
+            )
+        except Exception:
+            pass
+
+    def _synthesize_session(self, session_id: str = "", *, authorization: str = "") -> RouterSession:
+        sid = session_id or secrets.token_hex(16)
+        default_init = {
+            "jsonrpc": "2.0",
+            "id": "__auto_init__",
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "ChatGPT-AutoSession", "version": "1.0"},
+            },
+        }
+        session = RouterSession(id=sid, initialize_request=default_init, authorization=authorization)
+        self._sessions[sid] = session
+        self._persist_session(session)
+        return session
 
     def _initialize(self, request: dict[str, Any], *, authorization: str = "") -> RouterReply:
         backend_name = self._primary_backend_name()
@@ -137,6 +213,7 @@ class McpRouter:
         if response.session_id:
             session.backend_sessions[backend_name] = response.session_id
         self._sessions[router_session_id] = session
+        self._persist_session(session)
         return RouterReply(response.payload, session_id=router_session_id)
 
     def _ensure_backend_session(self, backend_name: str, session: RouterSession | None) -> str:
@@ -144,14 +221,18 @@ class McpRouter:
             return ""
         if backend_name in session.backend_sessions:
             return session.backend_sessions[backend_name]
-        response = self._forward_raw(
-            session.initialize_request,
-            backend_name=backend_name,
-            backend_session_id="",
-            authorization=session.authorization,
-        )
-        if response.session_id:
-            session.backend_sessions[backend_name] = response.session_id
+        try:
+            response = self._forward_raw(
+                session.initialize_request,
+                backend_name=backend_name,
+                backend_session_id="",
+                authorization=session.authorization,
+            )
+            if response.session_id:
+                session.backend_sessions[backend_name] = response.session_id
+                self._persist_session(session)
+        except Exception:
+            pass
         return session.backend_sessions.get(backend_name, "")
 
     def _forward_raw(
@@ -219,6 +300,7 @@ class McpRouter:
         session = self._session(session_id)
         if session is not None:
             session.tool_backend_cache = tool_backend_cache
+            self._persist_session(session)
         response = base_response or {"jsonrpc": "2.0", "id": request.get("id"), "result": {}}
         response = dict(response)
         response["id"] = request.get("id")

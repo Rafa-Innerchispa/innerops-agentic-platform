@@ -34,12 +34,10 @@ _LEGACY_CAPABILITY_ALIASES: Dict[str, str] = {
     "local_gitlab_list_merge_request_discussions": "local_gitlab.list_merge_request_discussions.v1",
     "local_gitlab_list_merge_request_pipelines": "local_gitlab.list_merge_request_pipelines.v1",
     "local_gitlab_list_pipeline_jobs": "local_gitlab.list_pipeline_jobs.v1",
-        "local_gitlab_get_job_trace": "local_gitlab.get_job_trace.v1",
-    "contifico_query": "contifico.query.v1",
-    "contifico.read.query.v1": "contifico.query.v1",
-    "search_contifico_documents": "contifico.query.v1",
-    "search_contifico_transactions": "contifico.query.v1",
-    "cap.contifico.query": "contifico.query.v1",
+    "local_gitlab_get_job_trace": "local_gitlab.get_job_trace.v1",
+    "network_device_reboot": "network.device.reboot.v1",
+    "network_device_poe_cycle": "network.device.poe_cycle.v1",
+    "network_device_verify_recovery": "network.device.verify_recovery.v1",
 }
 
 
@@ -174,7 +172,25 @@ def capability_invoke(
             "capability_id": capability_id
         }
         
-    ctx = context or {}
+    ctx = dict(context or {})
+    if not ctx.get("scopes") and not ctx.get("caller_scopes"):
+        try:
+            from inneros_core_runtime import auth_middleware as runtime_auth
+            headers = runtime_auth._request_headers()
+            auth_ctx = runtime_auth.resolve_bearer_auth_context(headers)
+            if auth_ctx.get("ok"):
+                granted = auth_ctx.get("granted_scopes") or []
+                ctx.setdefault("scopes", granted)
+                ctx.setdefault("caller_scopes", granted)
+                ctx.setdefault("client_id", auth_ctx.get("client_id") or "chatgpt")
+                ctx.setdefault("username", auth_ctx.get("username") or "chatgpt")
+            elif runtime_auth.MCP_API_KEY and (headers.get("x-api-key") == runtime_auth.MCP_API_KEY or headers.get("X-API-Key") == runtime_auth.MCP_API_KEY):
+                admin_scopes = ["ralfia:read", "ralfia:write", "ralfia:agents", "ralfia:admin"]
+                ctx.setdefault("scopes", admin_scopes)
+                ctx.setdefault("caller_scopes", admin_scopes)
+                ctx.setdefault("client_id", "owner_api_key")
+        except Exception:
+            pass
     mode = manifest.get("mode", "read_only")
     
     # Enforce read-only constraint if running in strict read-only session
@@ -583,3 +599,10 @@ register_peer_capabilities()
 from inneros_core_runtime.capability_gateway_contifico import register_contifico_capabilities
 
 register_contifico_capabilities()
+
+from inneros_core_runtime.capability_gateway_network_actions import register_network_action_capabilities
+
+register_network_action_capabilities()
+
+from inneros_core_runtime.capability_gateway_hosting import register_hosting_capabilities
+register_hosting_capabilities()

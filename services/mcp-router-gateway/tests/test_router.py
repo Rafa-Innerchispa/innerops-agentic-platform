@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any
-
 from pathlib import Path
 
 from mcp_router_gateway.config import BackendTarget, RouterConfig, SandboxPolicy, ToolProfile, load_profiles
@@ -18,7 +17,7 @@ class FakeBackend:
             {"name": "secret_dump", "description": "nope", "inputSchema": {"type": "object"}},
         ]
 
-    def request(self, payload: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
+    def request(self, payload: dict[str, Any] | list[Any], session_id: str = "", authorization: str = "") -> dict[str, Any] | list[Any]:
         self.calls.append(payload)
         if isinstance(payload, dict) and payload.get("method") == "tools/list":
             return {"jsonrpc": "2.0", "id": payload.get("id"), "result": {"tools": self.tools}}
@@ -115,3 +114,38 @@ def test_load_profiles_from_json() -> None:
     assert "inneros_compact" in backends
     assert "coding" in profiles
     assert profiles["admin"].allow_all is True
+
+
+def test_session_recovery_when_session_unknown_but_authorized() -> None:
+    router = make_router(ToolProfile(name="profile_coding", prefixes=("git_",), max_tools=25))
+    # Call tools/call with unknown session ID and bearer authorization
+    reply = router.handle_with_session(
+        {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "git_status", "arguments": {}}},
+        session_id="unknown_session_from_other_node",
+        authorization="Bearer test_token",
+    )
+    assert reply.session_id == "unknown_session_from_other_node"
+    assert reply.payload["result"]["ok"] is True  # type: ignore[index]
+    assert reply.payload["result"]["echo"] == "git_status"  # type: ignore[index]
+
+
+def test_session_recovery_when_session_id_missing_but_authorized() -> None:
+    router = make_router(ToolProfile(name="profile_coding", prefixes=("git_",), max_tools=25))
+    reply = router.handle_with_session(
+        {"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "git_status", "arguments": {}}},
+        session_id="",
+        authorization="Bearer test_token",
+    )
+    assert reply.session_id != ""
+    assert reply.payload["result"]["ok"] is True  # type: ignore[index]
+
+
+def test_session_rejected_when_no_auth_and_no_session() -> None:
+    router = make_router(ToolProfile(name="profile_coding", prefixes=("git_",), max_tools=25))
+    reply = router.handle_with_session(
+        {"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "git_status", "arguments": {}}},
+        session_id="",
+        authorization="",
+    )
+    assert "error" in reply.payload
+    assert reply.payload["error"]["message"] == "Missing or unknown Mcp-Session-Id"  # type: ignore[index]
