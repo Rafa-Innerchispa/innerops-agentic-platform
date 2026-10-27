@@ -16,7 +16,7 @@ Large Language Models are brilliant diagnosticians, but giving an external cloud
 
 **InnerOS Infrastructure Guardian** bridges this gap:
 1. **Cloud Intelligence (Nebius + NVIDIA):** A model returned by the authenticated Nebius Token Factory catalog is selected only when its ID is explicitly NVIDIA/Nemotron. A provider receipt distinguishes real inference from the default local heuristic.
-2. **Strict Air-Gap & Sanitization:** Before leaving the building, private IPs, customer names, and MACs are sanitized. Nebius never receives direct control or credentials.
+2. **Strict Trust Boundary & Sanitization:** Before leaving the building, private IPs, customer names, and MACs are sanitized. Nebius never receives direct control or credentials.
 3. **Local Authority & Governed Execution:** All physical mutations (`network.device.reboot.v1`, `network.device.poe_cycle.v1`) are approval-gated. Live status is impossible without a connected provider adapter and a real provider receipt.
 4. **Verified Physical Recovery:** A simulated probe is labeled `SIMULATED`; only a connected recovery probe can produce `verification_mode=REAL`.
 
@@ -99,3 +99,16 @@ The action endpoint is plan-only and forces `dry_run=true`. It does not expose l
 ## 📜 License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+
+## Test the public export
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest tests -q
+```
+
+CI runs only offline tests and the dry-run demo; it never uses API keys or cloud credits. The five API routes describe the private integration contract; this standalone export does not expose a physical-control server.
+
+## Verified API examples
+
+See [sanitized HTTP responses](examples/api-http-evidence.json) from five actual requests to an isolated loopback ASGI runtime. This is API-contract evidence; it is not a public deployment, live Nebius inference, or physical-device recovery proof.
