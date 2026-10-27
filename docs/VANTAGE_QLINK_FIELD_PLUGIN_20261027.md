@@ -1,7 +1,7 @@
-# InnerOS Field Plugin — Vantage QLink / the client (a legacy client installation)
+# InnerOS Field Plugin — Legacy Vantage QLink (On-site)
 
-**Status: prototype read-only (2026-10-27). NOT deployed, NOT tested on customer equipment.**
-**Client/site:** the client · a legacy client installation. The earlier electrical fault was repaired at the site; the suspect wall station was kept isolated pending an electrician's inspection. The upgrade is a **separate phase 2**.
+**Status: prototype non-mutating (2026-10-27). NOT deployed, NOT tested on customer equipment.**
+**Client/site:** sensitive client information is stored only in the private field-service record.
 
 Customer records and site details are stored privately in the approved service log. No customer identifiers or private links belong in public GitHub history.
 
@@ -61,8 +61,8 @@ python -m inneros_core_runtime.vantage_qlink_field --observe COM5 --site test_si
 
 For existing QLink backups only, run from an approved per-client folder:
 ```bash
-export VANTAGE_QLINK_BACKUP_ROOT="/path/to/private/ashley/qlink"
-python -m inneros_core_runtime.vantage_qlink_field --manifest "/path/to/private/ashley/qlink/ASHLEY_FLASH.qlk" --site test_site
+export VANTAGE_QLINK_BACKUP_ROOT="/path/to/private/test_site/qlink"
+python -m inneros_core_runtime.vantage_qlink_field --manifest "/path/to/private/test_site/qlink/TEST_FLASH.qlk" --site test_site
 ```
 
 For a local AI client supporting stdio MCP, install the **local** `platform/plugins/inneros-vantage-qlink/mcp.json` while running the full InnerOS checkout. Launches `server.py` via the platform's `fastmcp`. The process accesses physical ports **only on that laptop**. Serial device permissions and site authorization still apply.
