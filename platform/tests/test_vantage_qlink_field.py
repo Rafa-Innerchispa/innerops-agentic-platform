@@ -79,7 +79,7 @@ def test_backup_manifest_never_modifies_files(tmp_path):
     file = tmp_path / "ASHLEY_FLASH.qlk"
     file.write_bytes(b"example backup bytes")
     before = file.stat().st_mtime_ns
-    result = field.backup_manifest([str(file)], site_id="puerto_azul_ashley")
+    result = field.backup_manifest([str(file)], site_id="puerto_azul_ashley", allowed_root=str(tmp_path))
     assert result["backups"][0]["sha256"] == hashlib.sha256(b"example backup bytes").hexdigest()
     assert result["source_files_modified"] is False
     assert result["source_files_uploaded"] is False
