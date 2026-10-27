@@ -200,7 +200,14 @@ class CPanelClient:
         clean_name = os.path.basename(full_path)
 
         res = self.uapi("Fileman", "get_file_content", dir=clean_dir, file=clean_name)
-        raw_content = res.get("data", {}).get("content", "")
+        data = res.get("data")
+        if not data or not isinstance(data, dict):
+            if res.get("status") == 0:
+                errors = res.get("errors") or ["file_not_found"]
+                raise FileNotFoundError(f"cpanel_file_error: {errors}")
+            raw_content = str(data or "")
+        else:
+            raw_content = data.get("content", "")
 
         if len(raw_content) > MAX_READ_BYTES:
             raw_content = raw_content[:MAX_READ_BYTES] + "\n... [TRUNCATED_AT_MAX_SIZE]"
