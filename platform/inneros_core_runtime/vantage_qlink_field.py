@@ -74,6 +74,71 @@ def parse_line(raw: str | bytes) -> dict[str, Any]:
     return {"kind": "unknown", "raw": line}
 
 
+
+def query_switch_state(port: str, *, site_id: str, master: int,
+                       station: int, button: int, timeout_seconds: float = 3.0,
+                       baudrate: int = DEFAULT_BAUDRATE) -> dict[str, Any]:
+    """Issue ONLY the known QLink VGS# query for one already-known switch address.
+
+    Read-only at device level, but sends one serial QUERY.  It does not
+    discover unknown addresses, control loads, trigger scenes or program QLink.
+    The response describes a BUTTON, not the actual physical light/relay.
+    Source: https://github.com/imfinlay/vantage-qlink-api (documented VGS#).
+    """
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", site_id or ""):
+        raise ValueError("site_id_required")
+    if not port or not isinstance(port, str):
+        raise ValueError("serial_port_required")
+    for item, value in (("master", master), ("station", station), ("button", button)):
+        if type(value) is not int or not (1 <= value <= 255):
+            raise ValueError(f"{item}_must_be_known_positive_address")
+    if not (0.1 <= timeout_seconds <= 10):
+        raise ValueError("timeout_seconds_out_of_range")
+    if baudrate not in {9600, 19200, 38400, 57600, 115200}:
+        raise ValueError("unsupported_baudrate")
+    try:
+        import serial  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError("pyserial_missing") from exc
+    request = f"VGS# {master} {station} {button}\r\n".encode("ascii")
+    observed: list[dict[str, Any]] = []
+    with serial.Serial(port=port, baudrate=baudrate, bytesize=8, parity="N",
+                       stopbits=1, timeout=0.25, write_timeout=0.25) as conn:
+        conn.write(request)
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline and len(observed) < 30:
+            reply = conn.readline(MAX_LINE_BYTES)
+            if not reply:
+                continue
+            item = parse_line(reply)
+            observed.append(item)
+            if item.get("kind") != "button_state":
+                continue
+            if item.get("source") not in {"RGS#", "VGS#"}:
+                continue
+            if (item.get("master"), item.get("station"), item.get("button")) != (
+                master, station, button
+            ):
+                continue
+            return {
+                "ok": True, "site_id": site_id, "provider_id": PROVIDER_ID,
+                "query": "VGS#", "query_transmitted": 1,
+                "mutating_commands_transmitted": 0,
+                "master": master, "station": station, "button": button,
+                "button_state": item["value"],
+                "station_bus_relay_state_verified": False,
+                "response": item, "mode": "read_only_query",
+            }
+    return {
+        "ok": False, "error": "qlink_switch_query_timeout",
+        "site_id": site_id, "provider_id": PROVIDER_ID,
+        "query": "VGS#", "query_transmitted": 1,
+        "mutating_commands_transmitted": 0,
+        "target": {"master": master, "station": station, "button": button},
+        "station_bus_relay_state_verified": False,
+        "observed_count": len(observed),
+    }
+
 def list_serial_ports() -> dict[str, Any]:
     """Inventory serial ports on the *onsite* host, not AMD/Intel remotely."""
     try:
