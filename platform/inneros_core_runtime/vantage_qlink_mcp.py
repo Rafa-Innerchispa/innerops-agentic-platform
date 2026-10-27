@@ -43,8 +43,10 @@ def vantage_qlink_capabilities() -> dict[str, Any]:
         "controller_model_reference": "CLMNES050",
         "serial_port_listing": True,
         "passive_capture": True,
+        "one_known_button_query_VGS": True,
         "backup_hash_manifest": True,
         "button_event_observation": "available_only_if_QLink_emits_serial_frames",
+        "QLink_VGS_query": "one_known_address; read-only request transmits RS232 bytes",
         "station_bus_relay_state": "NOT_VERIFIED",
         "relay_or_scene_control": "NOT_IMPLEMENTED",
         "QLink_programming": "NOT_IMPLEMENTED",
@@ -60,6 +62,21 @@ def vantage_qlink_observe(port: str, site_id: str, seconds: float = 5.0) -> dict
     """Read unsolicited QLink RS232 messages for up to 60s; NEVER send commands."""
     return field.observe_serial(
         port, site_id=site_id, seconds=seconds, max_events=100
+    )
+
+
+@mcp.tool()
+def vantage_qlink_read_switch_state(
+    port: str, site_id: str, master: int, station: int, button: int
+) -> dict[str, Any]:
+    """Query ONE known QLink keypad switch address with non-mutating VGS#.
+
+    Returns button state (not relay/load state). Serial sends a read command.
+    Never probes a guessed range, toggles devices, or programs the Master.
+    """
+    return field.query_switch_state(
+        port, site_id=site_id, master=master,
+        station=station, button=button
     )
 
 
