@@ -175,6 +175,7 @@ class NebiusNvidiaReasoning:
         local_base_url: Optional[str] = None,
         local_model: Optional[str] = None,
         timeout_seconds: float = 8.0,
+        max_output_tokens: int = 512,
     ) -> None:
         self.api_key = api_key or os.environ.get("NEBIUS_API_KEY", "")
         self.base_url = (base_url or os.environ.get("NEBIUS_BASE_URL", DEFAULT_NEBIUS_BASE_URL)).rstrip("/")
@@ -182,6 +183,9 @@ class NebiusNvidiaReasoning:
         self.local_base_url = (local_base_url or os.environ.get("LOCAL_MODEL_URL", DEFAULT_LOCAL_BASE_URL)).rstrip("/")
         self.local_model = local_model or os.environ.get("LOCAL_MODEL_NAME", DEFAULT_LOCAL_MODEL)
         self.timeout_seconds = timeout_seconds
+        if type(max_output_tokens) is not int or not 1 <= max_output_tokens <= 2048:
+            raise ValueError("max_output_tokens_must_be_between_1_and_2048")
+        self.max_output_tokens = max_output_tokens
 
     def _build_prompt(self, sanitized_telemetry: Dict[str, Any]) -> str:
         return (
@@ -271,7 +275,7 @@ class NebiusNvidiaReasoning:
             ],
             "temperature": 0.1,
             "response_format": {"type": "json_object"},
-            "max_tokens": 512,
+            "max_tokens": self.max_output_tokens,
         }
 
         req = urllib.request.Request(

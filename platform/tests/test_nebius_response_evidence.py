@@ -24,3 +24,19 @@ def test_invalid_response_retains_receipt_without_claiming_real_diagnosis(conten
     assert result["provider_receipt"]["response_id"] == "receipt-offline-test"
     assert result["provider_receipt"]["usage"]["completion_tokens"] == 512
     assert "offline-test" not in json.dumps(result) .replace("receipt-offline-test", "")
+
+
+@pytest.mark.parametrize("limit", [0, 2049, True, "2048"])
+def test_output_budget_rejects_invalid_limits(limit):
+    with pytest.raises(ValueError):
+        NebiusNvidiaReasoning(max_output_tokens=limit)
+
+def test_explicit_output_budget_is_sent_without_automatic_retries():
+    response = {"id":"offline-budget", "usage":{},
+                "choices":[{"finish_reason":"stop", "message":{"content":"{}"}}]}
+    with mock.patch("urllib.request.urlopen") as request:
+        request.return_value.__enter__.return_value.read.return_value = json.dumps(response).encode()
+        result = NebiusNvidiaReasoning(api_key="offline", model="nvidia/test", max_output_tokens=2048).diagnose({})
+    assert json.loads(request.call_args.args[0].data)["max_tokens"] == 2048
+    assert request.call_count == 1
+    assert result["provider_receipt"]["evidence_mode"] == "REAL"

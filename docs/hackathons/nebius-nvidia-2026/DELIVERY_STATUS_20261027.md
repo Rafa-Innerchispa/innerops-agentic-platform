@@ -17,3 +17,8 @@ Inferencia Nebius REAL: pendiente. Rafael autorizó explícitamente una sola pru
 Credenciales: refs owner_vault:nebius_token_factory/api_key y owner_vault:nebius/api_key ausentes; búsqueda de metadatos Nebius vacía y variables oficiales ausentes en Intel/AMD. No se imprimieron secretos. Se preparó entrada oculta directamente al Vault para el owner. Mientras falte la clave: BLOCKED_MISSING_VAULT_CREDENTIAL; cero inferencias de pago realizadas.
 
 No se modificó el frontend de ChatGPT, ni servicios físicos, alta disponibilidad, Cursor, Alexa o llamadas; no se envió Devpost.
+
+
+## Update: owner credential enrolled and live inference verified
+
+The owner supplied a credential, stored only in owner_vault. The first approved attempt failed with TypeError while parsing the provider response; its complete response/usage were not retained. A second attempt was separately approved with a 2048 output-token bound and returned REAL inference with NVIDIA Nemotron 3 Nano: 308 prompt + 692 completion = 1000 tokens, finish_reason stop. See NEBIUS_SECOND_LIVE_RECEIPT_20261027.json. The first failed receipt remains preserved separately. No card, top-up, production deployment, physical mutation or recurring paid job was added. Parser receipt retention and bounded output configuration pass 50 offline tests.
