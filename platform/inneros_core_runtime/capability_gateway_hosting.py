@@ -106,7 +106,7 @@ def cpanel_hosting_query_handler(parameters: Dict[str, Any], context: Dict[str, 
         elif action == "list_files":
             dir_path = str(parameters.get("dir_path") or "/home/pcdoctor/public_html")
             return {"ok": True, "dir_path": dir_path, "files": hcp.client.list_files(dir_path)}
-        elif action == "read_file":
+        elif action in {"read_file", "get_file_content"}:
             dir_path = str(parameters.get("dir_path") or "")
             filename = str(parameters.get("filename") or "")
             if not dir_path or not filename:
@@ -371,9 +371,10 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
         elif action == "rollback_release":
             domain = target_domain
             release_tag = str(parameters.get("release_tag") or "").strip()
+            target_env = str(parameters.get("target_env") or "staging").strip()
             if not release_tag:
                 return {"ok": False, "error": "release_tag_required"}
-            res = hcp.rollback_release(domain, release_tag)
+            res = hcp.rollback_release(domain, release_tag, target_env=target_env)
             if res.get("ok"):
                 record_hosting_audit_event(active_auth_id, action, {"domain": domain, "release_tag": release_tag})
             return res

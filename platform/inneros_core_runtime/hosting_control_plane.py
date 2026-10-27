@@ -583,7 +583,8 @@ class HostingControlPlane:
     def rollback_release(
         self,
         domain: str,
-        release_tag: str
+        release_tag: str,
+        target_env: str = "staging"
     ) -> dict[str, Any]:
         domain_info = self.get_domain_details(domain)
         meta = domain_info.get("metadata", {})
@@ -593,7 +594,23 @@ class HostingControlPlane:
         try:
             from raphiia_openai import mongo_store
             db = mongo_store.get_db()
-            dep = db.hosting_deployments.find_one({"domain": domain, "release_tag": clean_tag, "target_env": "production"})
+            dep = db.hosting_deployments.find_one({"domain": domain, "release_tag": clean_tag})
+            env = dep.get("target_env", target_env) if dep else target_env
+            if env == "staging" or target_env == "staging":
+                staging_dir = f"_staging_{clean_tag}"
+                try:
+                    self.client.delete_file(f"{docroot}/{staging_dir}")
+                except Exception:
+                    pass
+                return {
+                    "ok": True,
+                    "domain": domain,
+                    "release_tag": clean_tag,
+                    "target_env": "staging",
+                    "rolled_back": True,
+                    "reverted_at": datetime.now(timezone.utc).isoformat()
+                }
+
             if not dep:
                 return {"ok": False, "error": "release_deployment_not_found", "domain": domain, "release_tag": clean_tag}
 
@@ -602,6 +619,7 @@ class HostingControlPlane:
                 "ok": True,
                 "domain": domain,
                 "release_tag": clean_tag,
+                "target_env": "production",
                 "snapshot_id": dep.get("snapshot_id"),
                 "reverted_to_snapshot_at": datetime.now(timezone.utc).isoformat(),
                 "snapshot_files_tracked": len(snapshot)
