@@ -1,11 +1,9 @@
-# InnerOS Field Plugin — Vantage QLink / Ashley Ruiz (Puerto Azul)
+# InnerOS Field Plugin — Vantage QLink / the client (a legacy client installation)
 
 **Status: prototype read-only (2026-10-27). NOT deployed, NOT tested on customer equipment.**
-**Client/site:** Ashley Ruiz · Puerto Azul. The service on 2026-10-27 was recovered; the suspect wall station remains isolated pending an electrician's inspection. The upgrade is a **separate phase 2**.
+**Client/site:** the client · a legacy client installation. The earlier electrical fault was repaired at the site; the suspect wall station was kept isolated pending an electrician's inspection. The upgrade is a **separate phase 2**.
 
-Notion source of truth:
-- Diagnosis/closed original visit: https://app.notion.com/p/406cb2deeb0f8132a429dd7ab12124bd
-- Phase 2: https://app.notion.com/p/406cb2deeb0f81499312feac253de5c7
+Customer records and site details are stored privately in the approved service log. No customer identifiers or private links belong in public GitHub history.
 
 ## Objective (do not create a parallel home automation stack)
 
@@ -30,7 +28,7 @@ This is not a promise of autonomous programming or Alexa support in v0.1.0. In p
 ## Architecture: portable field bridge, not another controller
 
 ```text
-Technician laptop at Ashley (authorized on-site)
+Technician laptop at client (authorized on-site)
   -> USB-RS232 adapter + verified wiring/pinout + one exclusive serial session
   -> local InnerOS Vantage MCP field plugin (STDIO, read-only)
   -> **future** authenticated outgoing site relay (mTLS/token + site scoped)
@@ -43,8 +41,8 @@ A permanent installation needs a small **onsite serial/IP gateway** or tiny Pi/m
 
 ## What is implemented in this branch
 
-- `platform/inneros_core_runtime/vantage_qlink_field.py`: CLI for `--list-ports`, passive capture `--observe PORT`, and SHA-256 manifest for approved existing `.qlk/.bak/.bin` files. No serial writes or QLink project modification.
-- `platform/inneros_core_runtime/vantage_qlink_mcp.py`: STDIO FastMCP server for the **onsite laptop**.
+- `platform/inneros_core_runtime/vantage_qlink_field.py`: CLI for `--list-ports`, passive capture `--observe PORT`, and SHA-256 manifest for approved existing `.qlk/.bak/.bin` files. Passive capture never transmits; one explicitly requested VGS# query sends a non-mutating read. QLink programming and load control are not provided.
+- `platform/inneros_core_runtime/vantage_qlink_mcp.py`: STDIO FastMCP server for the **onsite laptop** with a single-known-address VGS# keypad query (not a physical load state).
 - `platform/plugins/inneros-vantage-qlink/`: local plugin package referencing the canonical checkout, with `plugin.json`, `mcp.json`, and field skill. **Not standalone**: requires full InnerOS platform checkout and its Python dependencies.
 - AG-60 declares `vantage_qlink` as a not-yet-validated provider. Do not modify the 8001 Small tool list to force additional tools into every session.
 - `platform/tests/test_vantage_qlink_field.py`: unit tests that serial observation never writes and that no button event is presented as actual relay state.
@@ -57,14 +55,14 @@ On the laptop with the **full InnerOS repo checkout**, using the virtual environ
 python -m pip install pyserial fastmcp
 cd platform
 python -m inneros_core_runtime.vantage_qlink_field --list-ports
-python -m inneros_core_runtime.vantage_qlink_field --observe COM5 --site puerto_azul_ashley --seconds 10
+python -m inneros_core_runtime.vantage_qlink_field --observe COM5 --site test_site --seconds 10
 # Linux typically uses /dev/ttyUSB0 instead of COM5.
 ```
 
 For existing QLink backups only, run from an approved per-client folder:
 ```bash
 export VANTAGE_QLINK_BACKUP_ROOT="/path/to/private/ashley/qlink"
-python -m inneros_core_runtime.vantage_qlink_field --manifest "/path/to/private/ashley/qlink/ASHLEY_FLASH.qlk" --site puerto_azul_ashley
+python -m inneros_core_runtime.vantage_qlink_field --manifest "/path/to/private/ashley/qlink/ASHLEY_FLASH.qlk" --site test_site
 ```
 
 For a local AI client supporting stdio MCP, install the **local** `platform/plugins/inneros-vantage-qlink/mcp.json` while running the full InnerOS checkout. Launches `server.py` via the platform's `fastmcp`. The process accesses physical ports **only on that laptop**. Serial device permissions and site authorization still apply.
@@ -86,7 +84,7 @@ For a local AI client supporting stdio MCP, install the **local** `platform/plug
 
 ### Why relay states are not inferred from button telemetry
 
-- `SW m s b v` reports a keypad/switch event.
+- `SW m s b v` reports a keypad/switch event; querying a known keypad uses `VGS# m s b` and responses `RGS# m s b state`.
 - `RGS# m s b v` is a button state.
 - `LO m e module load level` relates to an *enclosure* load, **not a Station Bus STR8RW201 load**.
 - Station Bus stations require distinct V-commands (reported as `LS` lines, `VGC/VLC` grammar). The linked community bridge does not implement them.
