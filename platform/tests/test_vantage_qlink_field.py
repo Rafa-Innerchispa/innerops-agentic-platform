@@ -1,4 +1,4 @@
-"""Vantage QLink field adapter: no hardware required, zero TX is mandatory."""
+"""Vantage QLink field adapter: no hardware required, no load writes (passive observation is zero-TX)."""
 from __future__ import annotations
 
 import hashlib
@@ -72,11 +72,11 @@ def test_observer_rejects_unscoped_site_and_long_capture():
     with pytest.raises(ValueError):
         field.observe_serial("COM1", seconds=10, site_id="../other_client")
     with pytest.raises(ValueError):
-        field.observe_serial("COM1", seconds=61, site_id="ashley")
+        field.observe_serial("COM1", seconds=61, site_id="test_site")
 
 
 def test_backup_manifest_never_modifies_files(tmp_path):
-    file = tmp_path / "ASHLEY_FLASH.qlk"
+    file = tmp_path / "TEST_FLASH.qlk"
     file.write_bytes(b"example backup bytes")
     before = file.stat().st_mtime_ns
     result = field.backup_manifest([str(file)], site_id="test_site", allowed_root=str(tmp_path))
