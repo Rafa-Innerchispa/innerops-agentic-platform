@@ -1,0 +1,34 @@
+{
+  "ok": false,
+  "mode": "BLOCKED",
+  "credential_source": "owner_vault:nebius_token_factory/api_key",
+  "provider_receipt": {
+    "evidence_mode": "BLOCKED",
+    "provider": "nebius_token_factory",
+    "status": "REMOTE_INFERENCE_FAILED",
+    "error_type": "TypeError"
+  },
+  "diagnosis": {
+    "root_cause": "Access Point buffer bloat / memory pressure",
+    "severity": "high",
+    "impact": "Clients experiencing frame drops and intermittent disconnects",
+    "recommended_action": "reboot",
+    "recommended_capability": "network.device.reboot.v1",
+    "target_device_ref": "ap_validation_01",
+    "target_port": null,
+    "requires_approval": true,
+    "confidence": 0.91,
+    "rationale": "Soft reboot will clear saturated buffers and restart radio interfaces.",
+    "verification_plan": {
+      "capability_id": "network.device.verify_recovery.v1",
+      "expected_status": "online"
+    }
+  },
+  "sanitization": {
+    "private_identifiers_replaced": 0,
+    "deobfuscation_map_exposed": false
+  },
+  "credit_requests_attempted": 1,
+  "physical_mutation_applied": false,
+  "secret_printed": false
+}

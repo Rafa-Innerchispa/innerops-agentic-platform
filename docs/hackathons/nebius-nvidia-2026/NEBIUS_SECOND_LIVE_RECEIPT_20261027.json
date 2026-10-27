@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "mode": "REAL",
+  "credential_source": "owner_vault:nebius_token_factory/api_key",
+  "provider_receipt": {
+    "evidence_mode": "REAL",
+    "provider": "nebius_token_factory",
+    "base_url": "https://api.tokenfactory.nebius.com/v1",
+    "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+    "response_id": "chatcmpl-83fabc50-87cd-41aa-97b1-63fb7cadddc6",
+    "usage": {
+      "completion_tokens": 692,
+      "prompt_tokens": 308,
+      "total_tokens": 1000,
+      "completion_tokens_details": null,
+      "prompt_tokens_details": null
+    },
+    "receipt_sha256": "15a774daa61b138c6b95da275f35216fc3b71f6d980575ea0bbce259318eff6a",
+    "received_at": "2026-10-27T13:31:16.823439+00:00",
+    "finish_reason": "stop"
+  },
+  "diagnosis": {
+    "root_cause": "Device is offline with high memory utilization indicating a hung process",
+    "severity": "high",
+    "impact": "All clients associated with the AP lose connectivity, causing service disruption",
+    "recommended_action": "reboot",
+    "recommended_capability": "network.device.reboot.v1",
+    "target_device_ref": "ap_validation_01",
+    "target_port": 1,
+    "requires_approval": true,
+    "confidence": 0.95,
+    "rationale": "The AP is offline despite being powered, memory usage is at 91% suggesting it is unresponsive; a reboot is the most direct remediation.",
+    "verification_plan": {
+      "capability_id": "network.device.verify_recovery.v1",
+      "expected_status": "online"
+    }
+  },
+  "sanitization": {
+    "private_identifiers_replaced": 0,
+    "deobfuscation_map_exposed": false
+  },
+  "credit_requests_attempted": 1,
+  "physical_mutation_applied": false,
+  "secret_printed": false
+}

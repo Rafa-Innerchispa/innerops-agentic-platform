@@ -78,6 +78,14 @@ def load_nebius_api_key_from_vault() -> Tuple[str, str]:
 # Telemetry Sanitizer
 # ----------------------------------------------------------------------
 
+class NebiusResponseError(ValueError):
+    """Provider replied, but did not supply a usable diagnostic JSON object."""
+
+    def __init__(self, code: str, receipt: Dict[str, Any]) -> None:
+        super().__init__(code)
+        self.receipt = {**receipt, "evidence_mode": "BLOCKED", "status": code}
+
+
 class TelemetrySanitizer:
     """Sanitizes sensitive customer infrastructure metadata before external reasoning."""
 
@@ -167,6 +175,7 @@ class NebiusNvidiaReasoning:
         local_base_url: Optional[str] = None,
         local_model: Optional[str] = None,
         timeout_seconds: float = 8.0,
+        max_output_tokens: int = 512,
     ) -> None:
         self.api_key = api_key or os.environ.get("NEBIUS_API_KEY", "")
         self.base_url = (base_url or os.environ.get("NEBIUS_BASE_URL", DEFAULT_NEBIUS_BASE_URL)).rstrip("/")
@@ -174,6 +183,9 @@ class NebiusNvidiaReasoning:
         self.local_base_url = (local_base_url or os.environ.get("LOCAL_MODEL_URL", DEFAULT_LOCAL_BASE_URL)).rstrip("/")
         self.local_model = local_model or os.environ.get("LOCAL_MODEL_NAME", DEFAULT_LOCAL_MODEL)
         self.timeout_seconds = timeout_seconds
+        if type(max_output_tokens) is not int or not 1 <= max_output_tokens <= 2048:
+            raise ValueError("max_output_tokens_must_be_between_1_and_2048")
+        self.max_output_tokens = max_output_tokens
 
     def _build_prompt(self, sanitized_telemetry: Dict[str, Any]) -> str:
         return (
@@ -263,7 +275,7 @@ class NebiusNvidiaReasoning:
             ],
             "temperature": 0.1,
             "response_format": {"type": "json_object"},
-            "max_tokens": 512,
+            "max_tokens": self.max_output_tokens,
         }
 
         req = urllib.request.Request(
@@ -275,8 +287,6 @@ class NebiusNvidiaReasoning:
 
         with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            content = data["choices"][0]["message"]["content"]
-            parsed = json.loads(content)
             response_id = str(data.get("id") or "")
             usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
             receipt_seed = json.dumps(
@@ -288,7 +298,7 @@ class NebiusNvidiaReasoning:
                 },
                 sort_keys=True,
             )
-            return parsed, {
+            receipt = {
                 "evidence_mode": "REAL",
                 "provider": "nebius_token_factory",
                 "base_url": self.base_url,
@@ -298,6 +308,28 @@ class NebiusNvidiaReasoning:
                 "receipt_sha256": hashlib.sha256(receipt_seed.encode("utf-8")).hexdigest(),
                 "received_at": _now(),
             }
+            choices = data.get("choices")
+            choice = choices[0] if isinstance(choices, list) and choices else None
+            if not isinstance(choice, dict):
+                raise NebiusResponseError("INVALID_RESPONSE_CHOICES", receipt)
+            finish_reason = choice.get("finish_reason")
+            receipt["finish_reason"] = (
+                finish_reason if finish_reason in ("stop", "length", "content_filter", "tool_calls")
+                else "other"
+            )
+            message = choice.get("message")
+            content = message.get("content") if isinstance(message, dict) else None
+            if finish_reason == "length":
+                raise NebiusResponseError("OUTPUT_TOKEN_LIMIT_REACHED", receipt)
+            if not isinstance(content, str) or not content.strip():
+                raise NebiusResponseError("EMPTY_DIAGNOSTIC_CONTENT", receipt)
+            try:
+                parsed = json.loads(content)
+            except (TypeError, ValueError):
+                raise NebiusResponseError("INVALID_DIAGNOSTIC_JSON", receipt) from None
+            if not isinstance(parsed, dict):
+                raise NebiusResponseError("INVALID_DIAGNOSTIC_OBJECT", receipt)
+            return parsed, receipt
 
     def _fallback_local_reasoning(self, sanitized_telemetry: Dict[str, Any]) -> Dict[str, Any]:
         """Deterministic local fallback reasoning when external AI Cloud is unreachable."""
@@ -392,6 +424,8 @@ class NebiusNvidiaReasoning:
                     "status": "REMOTE_INFERENCE_FAILED",
                     "error_type": type(exc).__name__,
                 }
+                if isinstance(exc, NebiusResponseError):
+                    provider_receipt = {**exc.receipt, "error_type": type(exc).__name__}
                 parsed = self._fallback_local_reasoning(sanitized)
         else:
             used_provider = "local_heuristic"
