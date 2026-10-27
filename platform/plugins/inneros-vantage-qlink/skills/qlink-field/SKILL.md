@@ -11,7 +11,7 @@ The user connects an onsite technician laptop via a verified RS-232 cable to an 
 - Confirm client/site authorization and that installation is electrically safe.
 - Verify the port: the CLMNES050 front DB9 is a diagnostic/programming connector; for third-party continuous control, prefer the documented terminal board **Port A**, wired/verified by a qualified installer. Never infer pinouts.
 - Confirm the official QLink programming client has disconnected before attempting another session. Opening a passive serial port can block another client.
-- The old Station Bus fault investigation at Puerto Azul is documented separately in Notion; the suspect wall keypad stays isolated until an electrician resolves it.
+- The client fault investigation is recorded privately; a suspect wall keypad stays isolated until an electrician verifies its wiring.
 - Do **not** press Reset or change addresses as part of a read-only investigation.
 
 ## What is implemented (v0.1.0)
