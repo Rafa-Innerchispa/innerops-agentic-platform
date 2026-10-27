@@ -1,0 +1,18 @@
+{
+  "version": "guardian.v1",
+  "status": "implemented_in_inneros_runtime",
+  "base_path": "/api/guardian",
+  "security_invariants": {
+    "action_planning": "dry_run_only",
+    "live_mutations": "not_exposed_by_this_contract",
+    "external_inference": "vault_key_and_explicit_credit_authorization_required",
+    "evidence_modes": ["REAL", "SIMULATED", "BLOCKED", "NOT_RUN"]
+  },
+  "routes": [
+    {"method": "GET", "path": "/api/guardian/overview"},
+    {"method": "POST", "path": "/api/guardian/diagnose", "required": ["telemetry"]},
+    {"method": "POST", "path": "/api/guardian/actions/plan", "required": ["capability_id", "parameters"]},
+    {"method": "POST", "path": "/api/guardian/recovery/verify", "required": ["device_ref"]},
+    {"method": "GET", "path": "/api/guardian/evidence/{id}"}
+  ]
+}

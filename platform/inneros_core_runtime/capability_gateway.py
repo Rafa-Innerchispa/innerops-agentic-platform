@@ -35,6 +35,9 @@ _LEGACY_CAPABILITY_ALIASES: Dict[str, str] = {
     "local_gitlab_list_merge_request_pipelines": "local_gitlab.list_merge_request_pipelines.v1",
     "local_gitlab_list_pipeline_jobs": "local_gitlab.list_pipeline_jobs.v1",
     "local_gitlab_get_job_trace": "local_gitlab.get_job_trace.v1",
+    "network_device_reboot": "network.device.reboot.v1",
+    "network_device_poe_cycle": "network.device.poe_cycle.v1",
+    "network_device_verify_recovery": "network.device.verify_recovery.v1",
 }
 
 
@@ -578,3 +581,7 @@ register_peer_capabilities()
 from inneros_core_runtime.capability_gateway_contifico import register_contifico_capabilities
 
 register_contifico_capabilities()
+
+from inneros_core_runtime.capability_gateway_network_actions import register_network_action_capabilities
+
+register_network_action_capabilities()
