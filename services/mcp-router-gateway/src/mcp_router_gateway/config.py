@@ -52,7 +52,7 @@ class RouterConfig:
     public_url: str = ""
     bearer_token: str = ""
     auth_mode: str = "oauth_passthrough"
-    oauth_resource: str = "https://mcp.pcdoctor.ai/mcp"
+    oauth_resource: str = "https://mcp.pcdoctor.ai/router/mcp"
     oauth_authorization_server: str = "https://auth.pcdoctor.ai"
 
     @property
@@ -140,6 +140,8 @@ def load_config() -> RouterConfig:
         public_url=os.environ.get("MCP_ROUTER_PUBLIC_URL", "").rstrip("/"),
         bearer_token=os.environ.get("MCP_ROUTER_BEARER_TOKEN", "").strip(),
         auth_mode=os.environ.get("MCP_ROUTER_AUTH_MODE", "oauth_passthrough").strip().lower(),
-        oauth_resource=os.environ.get("MCP_ROUTER_OAUTH_RESOURCE", "https://mcp.pcdoctor.ai/mcp").rstrip("/"),
+        oauth_resource=os.environ.get(
+            "MCP_ROUTER_OAUTH_RESOURCE", "https://mcp.pcdoctor.ai/router/mcp"
+        ).rstrip("/"),
         oauth_authorization_server=os.environ.get("MCP_ROUTER_OAUTH_AUTHORIZATION_SERVER", "https://auth.pcdoctor.ai").rstrip("/"),
     )

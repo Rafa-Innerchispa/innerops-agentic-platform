@@ -370,6 +370,17 @@ def claim_ops_task(
     except Exception:
         pass
     if (
+        prov == "codex"
+        and not headless_spawn
+        and os.getenv("INNEROS_CODEX_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes", "on"}
+    ):
+        try:
+            from inneros_core_runtime import codex_headless_dispatch as cdx
+
+            headless_spawn = cdx.spawn_headless_execute(tid)
+        except Exception as exc:
+            headless_spawn = {"ok": False, "error": "codex_headless_spawn_failed", "detail": str(exc)[:200]}
+    if (
         prov == "antigravity"
         and not headless_spawn
         and os.getenv("INNEROS_ANTIGRAVITY_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes", "on"}
