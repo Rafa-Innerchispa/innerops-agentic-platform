@@ -656,7 +656,7 @@ class ExternalRepairAgentTests(unittest.TestCase):
                 evidence=intel_evidence,
                 update_task=True,
             )
-        self.assertTrue(completed["ok"])
+        self.assertFalse(completed["ok"])
         run = completed["run"]
         self.assertEqual(run["status"], "blocked")
         self.assertEqual(run["result"], "COMPLETE_REJECTED")

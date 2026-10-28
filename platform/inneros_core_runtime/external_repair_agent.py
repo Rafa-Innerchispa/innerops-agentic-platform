@@ -1238,7 +1238,15 @@ def complete_external_repair_run(
         except Exception as exc:
             task_result = {"ok": False, "error": str(exc)[:500]}
     report_result = _report_external_repair_result(run, report_to=report_to)
-    return {"ok": True, "run": run, "task_result": task_result, "report": report_result}
+    run_status = str(run.get("status") or "").lower()
+    run_result = str(run.get("result") or "")
+    task_ok = True if task_result is None else bool(task_result.get("ok", True))
+    api_ok = (
+        run_status not in {"blocked", "failed", "cancelled"}
+        and run_result != "COMPLETE_REJECTED"
+        and task_ok
+    )
+    return {"ok": api_ok, "run": run, "task_result": task_result, "report": report_result}
 
 
 def _report_external_repair_result(run: dict[str, Any], *, report_to: str = "chatgpt") -> dict[str, Any]:
