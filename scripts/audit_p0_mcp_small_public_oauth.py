@@ -60,11 +60,7 @@ def main() -> int:
 
     status, _, protected = request_json(RESOURCE_METADATA)
     checks["protected_resource"] = {"status": status, "body": protected}
-    resource_id = str(protected.get("resource") or "").rstrip("/")
-    public_url = str(protected.get("mcp_public_url") or resource_id).rstrip("/")
-    canonical = MCP.rstrip("/")
-    resource_ok = resource_id == canonical or public_url == canonical
-    if status != 200 or not resource_ok or protected.get("authorization_servers") != [ISSUER]:
+    if status != 200 or protected.get("resource") != MCP or protected.get("authorization_servers") != [ISSUER]:
         failures.append("protected-resource metadata mismatch")
 
     status, _, auth = request_json(AUTH_METADATA)
