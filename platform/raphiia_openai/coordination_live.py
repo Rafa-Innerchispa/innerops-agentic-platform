@@ -119,8 +119,13 @@ def _validate_terminal_evidence(task: dict[str, Any], status: str, evidence: dic
         gate = ocp.validate_terminal_completion(task, evidence)
         if not gate.get("ok"):
             return gate
-    except Exception:
-        pass
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": "terminal_evidence_policy_failed",
+            "task_id": task.get("task_id"),
+            "detail": str(exc)[:300],
+        }
     if not _task_requires_remote_commit_gate(task):
         return {"ok": True}
     commit_sha = _find_commit_sha(evidence or {})

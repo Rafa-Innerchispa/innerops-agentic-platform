@@ -126,6 +126,35 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         err = ocp.validate_mutating_completion_evidence({"task_class": "coding", "objective": "fix bug"}, ev)
         self.assertIn("git_baseline", err)
 
+    def test_untracked_objective_file_fails_without_commit(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        repo = Path(tmp.name)
+        subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@example.invalid"], check=True)
+        subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "README.md"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+        baseline = git_head(repo)
+        (repo / "platform").mkdir()
+        (repo / "platform" / "docs").mkdir()
+        phantom = repo / "platform" / "docs" / "ANTIGRAVITY_HEADLESS_64d4bf6d941e.md"
+        phantom.write_text("uncommitted phantom receipt\n", encoding="utf-8")
+        ev = {
+            "commit_sha": baseline,
+            "objective_paths": ["platform/docs/ANTIGRAVITY_HEADLESS_64d4bf6d941e.md"],
+            "objective_files_count": 1,
+            "test_results": {"exit_code": 0, "ok": True},
+        }
+        task = {"task_class": "coding", "objective": "patch", "git_baseline_sha": baseline}
+        err = ocp.validate_mutating_completion_evidence(task, ev, worktree=repo, before_sha=baseline)
+        self.assertIsNotNone(err)
+        self.assertTrue(
+            "receipt" in err or "git_baseline" in err or "commit_sha" in err,
+            msg=err,
+        )
+
     def test_canary_real_commit_passes_with_receipt(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
