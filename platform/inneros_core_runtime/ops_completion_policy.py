@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
@@ -46,28 +45,37 @@ _DEPLOYMENT_PAYLOAD_ACTIONS = frozenset(
     {"deploy", "publish", "go_live", "mutate_host", "host_mutation", "production_publish"}
 )
 
-_NEGATION_BEFORE = re.compile(
-    r"\b(?:no|not|sin|without|never|do\s+not|don't|nunca)\s+(?:[\w./-]+\s+){0,10}$",
-    re.IGNORECASE,
+_NEGATION_IN_CLAUSE = (
+    "no ",
+    "sin ",
+    "not ",
+    "without ",
+    "never ",
+    "avoid ",
+    "don't ",
+    "do not ",
+    "no publicar",
+    "sin publicar",
+    "no production",
+    "no wordpress",
+    "no cpanel",
+    "no deploy",
+    "sin despliegue",
+    "sin publicar",
 )
 
 
-def _positive_substring(text: str, phrase: str) -> bool:
-    """Match deployment phrases unless immediately preceded by explicit negation."""
-    if not phrase:
-        return False
+def _positive_intent_phrase(text: str, phrase: str) -> bool:
+    """Match deployment phrases unless negated in the local clause (e.g. 'no production publish')."""
     start = 0
-    lower = text.lower()
-    needle = phrase.lower()
     while True:
-        idx = lower.find(needle, start)
+        idx = text.find(phrase, start)
         if idx < 0:
             return False
-        prefix = text[max(0, idx - 60):idx]
-        if not _NEGATION_BEFORE.search(prefix):
+        window = text[max(0, idx - 48):idx].lower()
+        if not any(neg in window for neg in _NEGATION_IN_CLAUSE):
             return True
-        start = idx + len(needle)
-    return False
+        start = idx + len(phrase)
 
 
 def _txt(task: dict[str, Any]) -> str:
@@ -97,11 +105,16 @@ def objective_implies_deployment(task: dict[str, Any]) -> bool:
             return True
     text = _txt(task)
     text += " " + " ".join(str(item or "").lower() for item in (task.get("checklist") or []))
-    if any(_positive_substring(text, phrase) for phrase in _DEPLOYMENT_INTENT_PHRASES):
+    if any(_positive_intent_phrase(text, phrase) for phrase in _DEPLOYMENT_INTENT_PHRASES):
         return True
     lower = text
-    publish_verbs = ("deploy", "despliegue", "publicar", "publish", "publishing")
-    if any(v in lower for v in publish_verbs):
+    deploy_intent = (
+        _positive_intent_phrase(lower, "deploy")
+        or _positive_intent_phrase(lower, "despliegue")
+        or _positive_intent_phrase(lower, "publicar")
+        or _positive_intent_phrase(lower, "publish")
+    )
+    if deploy_intent:
         publish_context = (
             "wordpress",
             "cpanel",
@@ -113,11 +126,7 @@ def objective_implies_deployment(task: dict[str, Any]) -> bool:
             "sitio web",
         )
         if any(ctx in lower for ctx in publish_context):
-            for verb in publish_verbs:
-                if verb not in lower:
-                    continue
-                if _positive_substring(text, verb):
-                    return True
+            return True
     for item in task.get("checklist") or []:
         item_l = str(item or "").lower()
         if any(m in item_l for m in ("deploy:", "publish:", "go-live", "host mutation")):
