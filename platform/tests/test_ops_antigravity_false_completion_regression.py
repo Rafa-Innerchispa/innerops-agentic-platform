@@ -210,6 +210,13 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         deploy = {"task_class": "coding", "objective": "Deploy landing WordPress to cpanel production site"}
         self.assertTrue(ocp.objective_implies_deployment(deploy))
 
+    def test_negated_cpanel_publish_mention_not_deployment(self) -> None:
+        task = {
+            "task_class": "coding",
+            "objective": "Repair gates; no WordPress cpanel publish during this hotfix",
+        }
+        self.assertFalse(ocp.objective_implies_deployment(task))
+
     def test_coordination_live_terminal_validator_fail_closed(self) -> None:
         import importlib.util
         from unittest.mock import patch

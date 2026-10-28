@@ -45,6 +45,38 @@ _DEPLOYMENT_PAYLOAD_ACTIONS = frozenset(
     {"deploy", "publish", "go_live", "mutate_host", "host_mutation", "production_publish"}
 )
 
+_NEGATION_IN_CLAUSE = (
+    "no ",
+    "sin ",
+    "not ",
+    "without ",
+    "never ",
+    "avoid ",
+    "don't ",
+    "do not ",
+    "no publicar",
+    "sin publicar",
+    "no production",
+    "no wordpress",
+    "no cpanel",
+    "no deploy",
+    "sin despliegue",
+    "sin publicar",
+)
+
+
+def _positive_intent_phrase(text: str, phrase: str) -> bool:
+    """Match deployment phrases unless negated in the local clause (e.g. 'no production publish')."""
+    start = 0
+    while True:
+        idx = text.find(phrase, start)
+        if idx < 0:
+            return False
+        window = text[max(0, idx - 48):idx].lower()
+        if not any(neg in window for neg in _NEGATION_IN_CLAUSE):
+            return True
+        start = idx + len(phrase)
+
 
 def _txt(task: dict[str, Any]) -> str:
     return " ".join(
@@ -73,10 +105,16 @@ def objective_implies_deployment(task: dict[str, Any]) -> bool:
             return True
     text = _txt(task)
     text += " " + " ".join(str(item or "").lower() for item in (task.get("checklist") or []))
-    if any(phrase in text for phrase in _DEPLOYMENT_INTENT_PHRASES):
+    if any(_positive_intent_phrase(text, phrase) for phrase in _DEPLOYMENT_INTENT_PHRASES):
         return True
     lower = text
-    if "deploy" in lower or "despliegue" in lower or "publicar" in lower:
+    deploy_intent = (
+        _positive_intent_phrase(lower, "deploy")
+        or _positive_intent_phrase(lower, "despliegue")
+        or _positive_intent_phrase(lower, "publicar")
+        or _positive_intent_phrase(lower, "publish")
+    )
+    if deploy_intent:
         publish_context = (
             "wordpress",
             "cpanel",
