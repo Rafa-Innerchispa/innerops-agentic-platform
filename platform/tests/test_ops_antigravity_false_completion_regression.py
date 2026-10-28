@@ -206,6 +206,20 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         }
         self.assertFalse(ocp.objective_implies_deployment(task))
 
+    def test_ops_cd287162_mongo_objective_fragments_not_deployment(self) -> None:
+        """Real repair objective mentions deploy/WordPress only as gate requirements, not publish intent."""
+        task = {
+            "task_class": "coding",
+            "title": "P0 CURSOR: reparar falso COMPLETED Antigravity / Temporal",
+            "objective": (
+                "NO CONFUNDIR CON PUBLICACIÓN DE LAS WEBS. "
+                "test_results={} ni deploy sin recibos verificados. "
+                "Clasificar hosting/wordpress como deployment. "
+                "pcdoctor.ai sigue antigua allowlist sin ambos dominios."
+            ),
+        }
+        self.assertFalse(ocp.objective_implies_deployment(task))
+
     def test_explicit_wordpress_deploy_still_requires_host_mutation(self) -> None:
         deploy = {"task_class": "coding", "objective": "Deploy landing WordPress to cpanel production site"}
         self.assertTrue(ocp.objective_implies_deployment(deploy))

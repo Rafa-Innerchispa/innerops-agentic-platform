@@ -47,7 +47,7 @@ _DEPLOYMENT_PAYLOAD_ACTIONS = frozenset(
 )
 
 _NEGATION_BEFORE = re.compile(
-    r"\b(?:no|not|sin|without|never|do\s+not|don't|nunca)\s+(?:[\w./-]+\s+){0,10}$",
+    r"\b(?:no|not|ni|sin|without|never|do\s+not|don't|nunca)\s+(?:[\w./-]+\s+){0,10}$",
     re.IGNORECASE,
 )
 
@@ -67,6 +67,20 @@ def _positive_substring(text: str, phrase: str) -> bool:
         if not _NEGATION_BEFORE.search(prefix):
             return True
         start = idx + len(needle)
+    return False
+
+
+def _positive_publish_verb(text: str, verb: str) -> bool:
+    """Match publish verbs as whole words (not the noun 'deployment' / 'despliegue')."""
+    if not verb:
+        return False
+    pattern = re.compile(rf"(?<![\w./-]){re.escape(verb)}(?![\w-])", re.IGNORECASE)
+    for match in pattern.finditer(text):
+        idx = match.start()
+        prefix = text[max(0, idx - 60):idx]
+        if _NEGATION_BEFORE.search(prefix):
+            continue
+        return True
     return False
 
 
@@ -114,9 +128,7 @@ def objective_implies_deployment(task: dict[str, Any]) -> bool:
         )
         if any(ctx in lower for ctx in publish_context):
             for verb in publish_verbs:
-                if verb not in lower:
-                    continue
-                if _positive_substring(text, verb):
+                if _positive_publish_verb(text, verb):
                     return True
     for item in task.get("checklist") or []:
         item_l = str(item or "").lower()
