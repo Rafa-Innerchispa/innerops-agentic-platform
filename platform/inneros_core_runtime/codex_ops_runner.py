@@ -6,11 +6,13 @@ import os
 import secrets
 import socket
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Any
 
 from raphiia_openai import mongo_store
 
 from inneros_core_runtime import execution_binding as eb
+from inneros_core_runtime import execution_receipts as receipts
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL, _publish_task_event, heartbeat_ops_task
 from inneros_core_runtime.cursor_ops_runner import (
     _evidence_to_agent_result,
@@ -194,7 +196,11 @@ def claim_ops_task(
         if not worktree_path:
             _release_claim(db, tid, reason="worktree_create_failed")
             return {"ok": False, "error": "worktree_required", "task_id": tid, "details": wt}
-        db[OPS_TASKS_COL].update_one({"task_id": tid, "claim_token": token}, {"$set": {"worktree": worktree_path}})
+        baseline_sha = receipts.git_head(Path(worktree_path))
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": token},
+            {"$set": {"worktree": worktree_path, "git_baseline_sha": baseline_sha}, "$unset": {"claim_error": ""}},
+        )
     from inneros_core_runtime import durable_coordination_spine
 
     handoff = durable_coordination_spine.signal_task_workflow(
@@ -211,6 +217,14 @@ def claim_ops_task(
     )
     heartbeat_ops_task(tid, actor="codex", phase="claimed", current_step="codex_interactive", last_progress=f"Codex claim {_host()}")
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True})
+    headless_spawn: dict[str, Any] | None = None
+    if os.getenv("INNEROS_CODEX_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes", "on"}:
+        try:
+            from inneros_core_runtime import codex_headless_dispatch as cdx
+
+            headless_spawn = cdx.spawn_headless_execute(tid)
+        except Exception as exc:
+            headless_spawn = {"ok": False, "error": "codex_headless_spawn_failed", "detail": str(exc)[:200]}
     return {
         "ok": True,
         "task_id": tid,
@@ -219,6 +233,7 @@ def claim_ops_task(
         "worktree": worktree_path,
         "temporal_handoff": handoff,
         "execution_binding": binding,
+        "headless_spawn": headless_spawn,
     }
 
 
