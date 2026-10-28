@@ -254,6 +254,19 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         }
         self.assertFalse(ocp.objective_implies_deployment(task))
 
+    def test_repair_no_production_deploy_ignores_pasted_spec_deploy_words(self) -> None:
+        """Closure/repair tasks paste P0 specs mentioning WordPress deploy without publish intent."""
+        task = {
+            "task_class": "repair",
+            "payload": {"task_class": "repair", "no_production_deploy": True},
+            "objective": (
+                "observed_host_mutation required for real publish. "
+                "Fix classifier: Deploy landing WordPress cpanel production allowlist pcdoctor.ai"
+            ),
+            "evidence_required": ["commit_sha", "observed_host_mutation"],
+        }
+        self.assertFalse(ocp.objective_implies_deployment(task))
+
     def test_coordination_live_terminal_validator_fail_closed(self) -> None:
         import importlib.util
         from unittest.mock import patch

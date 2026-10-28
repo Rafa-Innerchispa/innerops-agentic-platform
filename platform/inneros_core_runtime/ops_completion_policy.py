@@ -94,9 +94,11 @@ def _txt(task: dict[str, Any]) -> str:
 def objective_implies_deployment(task: dict[str, Any]) -> bool:
     """True only when the task structurally requires publishing/mutating production hosts."""
     tc = str(task.get("task_class") or "").strip().lower()
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if not tc:
+        tc = str(payload.get("task_class") or "").strip().lower()
     if tc == "deployment":
         return True
-    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     action = str(payload.get("action") or payload.get("intent") or "").strip().lower()
     if action in _DEPLOYMENT_PAYLOAD_ACTIONS:
         return True
@@ -104,18 +106,22 @@ def objective_implies_deployment(task: dict[str, Any]) -> bool:
         return True
     if payload.get("host_mutation_required") is True:
         return True
+    repair_gate_only = (
+        payload.get("no_production_deploy") is True
+        and tc in {"repair", "coding", "integration", "implementation", "feature"}
+    )
     ev_req = task.get("evidence_required") or []
     if isinstance(ev_req, list):
         joined = " ".join(str(x).lower() for x in ev_req)
-        if "observed_host_mutation" in joined or "host_execution" in joined:
+        if not repair_gate_only and ("observed_host_mutation" in joined or "host_execution" in joined):
             return True
     text = _txt(task)
     text += " " + " ".join(str(item or "").lower() for item in (task.get("checklist") or []))
-    if any(_positive_substring(text, phrase) for phrase in _DEPLOYMENT_INTENT_PHRASES):
+    if not repair_gate_only and any(_positive_substring(text, phrase) for phrase in _DEPLOYMENT_INTENT_PHRASES):
         return True
     lower = text
     publish_verbs = ("deploy", "despliegue", "publicar", "publish", "publishing")
-    if any(v in lower for v in publish_verbs):
+    if not repair_gate_only and any(v in lower for v in publish_verbs):
         publish_context = (
             "wordpress",
             "cpanel",
