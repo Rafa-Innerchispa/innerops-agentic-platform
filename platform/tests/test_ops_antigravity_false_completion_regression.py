@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
+import io
+import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from inneros_core_runtime import ops_completion_policy as ocp
 from inneros_core_runtime import temporal_activities as ta
@@ -249,6 +254,19 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         }
         self.assertFalse(ocp.objective_implies_deployment(task))
 
+    def test_repair_no_production_deploy_ignores_pasted_spec_deploy_words(self) -> None:
+        """Closure/repair tasks paste P0 specs mentioning WordPress deploy without publish intent."""
+        task = {
+            "task_class": "repair",
+            "payload": {"task_class": "repair", "no_production_deploy": True},
+            "objective": (
+                "observed_host_mutation required for real publish. "
+                "Fix classifier: Deploy landing WordPress cpanel production allowlist pcdoctor.ai"
+            ),
+            "evidence_required": ["commit_sha", "observed_host_mutation"],
+        }
+        self.assertFalse(ocp.objective_implies_deployment(task))
+
     def test_coordination_live_terminal_validator_fail_closed(self) -> None:
         import importlib.util
         from unittest.mock import patch
@@ -322,6 +340,37 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         task = {"task_class": "coding", "objective": "add canary doc only"}
         err = ocp.validate_mutating_completion_evidence(task, ev, worktree=repo, before_sha=baseline)
         self.assertIsNone(err)
+
+    def test_antigravity_headless_script_declares_bounded_executor_plan(self) -> None:
+        """Hotfix script must fail-closed with verifiable bounded-executor plan (not silent COMPLETED)."""
+        script = Path(__file__).resolve().parents[1] / "scripts" / "antigravity_ops_headless_execute_one.py"
+        spec = importlib.util.spec_from_file_location("antigravity_ops_headless_execute_one", script)
+        assert spec and spec.loader
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        task = {"task_id": "ops_antigravity_plan_probe", "claim_token": "tok"}
+        col = MagicMock()
+        col.find_one.return_value = task
+        db = MagicMock()
+        db.__getitem__.return_value = col
+        stdout = io.StringIO()
+        with patch.object(sys, "argv", ["antigravity_ops_headless_execute_one.py", "ops_antigravity_plan_probe"]):
+            with patch.object(mod.mongo_store, "get_db", return_value=db):
+                with patch.object(mod.ior, "complete_ops_task", return_value={"ok": True, "status": "blocked"}) as complete:
+                    with patch.object(sys, "stdout", stdout):
+                        rc = mod.main()
+        self.assertEqual(rc, 1)
+        complete.assert_called_once()
+        _args, kwargs = complete.call_args
+        self.assertEqual(kwargs.get("status"), "blocked")
+        ev = kwargs.get("evidence") or {}
+        self.assertEqual(ev.get("blocked_reason"), "antigravity_headless_requires_bounded_executor")
+        payload = json.loads(stdout.getvalue())
+        self.assertFalse(payload.get("ok"))
+        self.assertEqual(payload.get("error"), "antigravity_headless_requires_bounded_executor")
+        plan = payload.get("bounded_executor_plan") or {}
+        self.assertEqual(plan.get("status"), "BLOCKED_PENDING_BOUNDED_EXECUTOR")
+        self.assertIn("committed_objective_receipt", " ".join(plan.get("required_steps") or []))
 
 
 if __name__ == "__main__":
