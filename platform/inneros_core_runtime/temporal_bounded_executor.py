@@ -425,7 +425,12 @@ def run_bounded_executor(
 
         sandbox = DockerSandboxExecutor()
         platform_cwd = _repo_platform_dir(wt_path)
-        res = sandbox.run_command(cmd=verify_cmd, worktree_path=platform_cwd, timeout=600)
+        res = sandbox.run_command(
+            cmd=verify_cmd,
+            worktree_path=platform_cwd,
+            timeout=600,
+            env_vars={"PYTHONPATH": str(platform_cwd)},
+        )
         test_results = {
             "exit_code": res.get("exit_code"),
             "ok": bool(res.get("ok")),

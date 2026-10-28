@@ -116,7 +116,12 @@ def _run_bounded_canary(task: dict[str, Any], provider: str, worktree: Path) -> 
         "preferred_provider": prov,
         "task_class": "coding",
         "required_objective_paths": [marker],
-        "verify_tests": [CANARY_VERIFY_TEST],
+        "verify_command": [
+            "python3",
+            "-m",
+            "unittest",
+            "tests.test_provider_ops_canary_receipt",
+        ],
         "sync_bridge_artifacts": False,
         # Use the claim worktree in-place; do not spawn a second LEP worktree.
         "repo": "",
