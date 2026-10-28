@@ -11,7 +11,8 @@ import os
 import socket
 import time
 
-from raphiia_openai import external_repair_agent, mongo_store
+from inneros_core_runtime import external_repair_agent
+from raphiia_openai import mongo_store
 
 STATE_KEY_PREFIX = "external_repair_agent_daemon"
 

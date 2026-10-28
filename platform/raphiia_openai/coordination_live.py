@@ -111,7 +111,22 @@ def _task_requires_remote_commit_gate(task: dict[str, Any]) -> bool:
 
 def _validate_terminal_evidence(task: dict[str, Any], status: str, evidence: dict[str, Any] | None) -> dict[str, Any]:
     normalized = (status or "").strip().lower()
-    if normalized != "completed" or not _task_requires_remote_commit_gate(task):
+    if normalized != "completed":
+        return {"ok": True}
+    try:
+        from inneros_core_runtime import ops_completion_policy as ocp
+
+        gate = ocp.validate_terminal_completion(task, evidence)
+        if not gate.get("ok"):
+            return gate
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": "terminal_evidence_policy_failed",
+            "task_id": task.get("task_id"),
+            "detail": str(exc)[:300],
+        }
+    if not _task_requires_remote_commit_gate(task):
         return {"ok": True}
     commit_sha = _find_commit_sha(evidence or {})
     if not commit_sha:

@@ -361,13 +361,25 @@ def claim_ops_task(
         pass
     heartbeat_ops_task(tid, actor=prov, phase="claimed", current_step=f"{prov}_interactive", last_progress=f"claim {_host()}")
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True})
+    headless_spawn: dict[str, Any] | None = None
     try:
         from inneros_core_runtime import competition_lane_dispatch as cld
 
         task_now = db[OPS_TASKS_COL].find_one({"task_id": tid}) or claimed
-        cld.maybe_spawn_after_claim({**task_now, "worktree": worktree_path})
+        headless_spawn = cld.maybe_spawn_after_claim({**task_now, "worktree": worktree_path})
     except Exception:
         pass
+    if (
+        prov == "antigravity"
+        and not headless_spawn
+        and os.getenv("INNEROS_ANTIGRAVITY_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes", "on"}
+    ):
+        try:
+            from inneros_core_runtime import antigravity_headless_dispatch as agd
+
+            headless_spawn = agd.spawn_headless_execute(tid)
+        except Exception as exc:
+            headless_spawn = {"ok": False, "error": "antigravity_headless_spawn_failed", "detail": str(exc)[:200]}
     return {
         "ok": True,
         "provider": prov,
@@ -378,6 +390,7 @@ def claim_ops_task(
         "temporal_handoff": handoff,
         "execution_binding": binding,
         "claim_host": _host(),
+        "headless_spawn": headless_spawn,
     }
 
 
@@ -404,21 +417,60 @@ def complete_ops_task(
         return {**model_err, "task_id": tid}
     normalized = (status or "completed").strip().lower()
     ev = dict(evidence or {})
+    if normalized == "completed":
+        expected_model = pinned_model(prov)
+        for field in ("gemini_model", "effective_model", "runtime_model"):
+            runtime_model = str(ev.get(field) or "").strip()
+            if runtime_model and expected_model and runtime_model != expected_model:
+                return {
+                    "ok": False,
+                    "error": "model_not_pinned",
+                    "expected": expected_model,
+                    "got": runtime_model,
+                    "field": field,
+                    "task_id": tid,
+                }
     if commit_sha:
         ev["commit_sha"] = commit_sha.strip()
-    if normalized == "completed" and not str(ev.get("commit_sha") or "").strip():
-        wt_path = str(task.get("worktree") or task.get("local_worktree") or "").strip()
-        base = str(task.get("git_baseline_sha") or ev.get("git_before_sha") or "").strip()
+    wt_path = str(task.get("worktree") or task.get("local_worktree") or ev.get("worktree") or "").strip()
+    base = str(task.get("git_baseline_sha") or ev.get("git_before_sha") or "").strip()
+    if normalized == "completed" and ocp.requires_git_commit(task):
+        if ocp.is_text_only_headless_evidence(ev):
+            return {"ok": False, "error": "text_only_headless_executor_cannot_complete", "task_id": tid}
         if wt_path and base:
+            runner_tests = ev.get("test_results") if isinstance(ev.get("test_results"), dict) else None
             built = receipts.completion_evidence_from_worktree(Path(wt_path), base)
             if built.get("ok"):
                 ev = {**ev, **built["evidence"]}
-    ev_err = ocp.validate_completed_evidence(task, ev) if normalized == "completed" else _validate_completion_evidence(normalized, ev)
+                if runner_tests is not None:
+                    ev["test_results"] = runner_tests
+            elif not str(ev.get("commit_sha") or "").strip():
+                return {
+                    "ok": False,
+                    "error": built.get("error") or "committed_objective_receipt_required",
+                    "task_id": tid,
+                    "receipt": built,
+                }
+    if normalized == "completed":
+        ev_err = ocp.validate_mutating_completion_evidence(
+            task,
+            ev,
+            worktree=Path(wt_path) if wt_path else None,
+            before_sha=base,
+        ) if ocp.requires_git_commit(task) else ocp.validate_completed_evidence(task, ev)
+    else:
+        ev_err = _validate_completion_evidence(normalized, ev)
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}
     agent_result = _agent_result(prov, ev, status=normalized)
     from inneros_core_runtime import durable_coordination_spine
 
+    completion_signal = {
+        "cursor": "cursor_execution_complete",
+        "codex": "cursor_execution_complete",
+        "antigravity": "cursor_execution_complete",
+        "gemini": "cursor_execution_complete",
+    }.get(prov, "cursor_execution_complete")
     submitted = ol.submit_completion_with_temporal_fallback(
         tid,
         claim_token=tok,
@@ -426,7 +478,7 @@ def complete_ops_task(
         evidence=ev,
         agent_result=agent_result,
         actor=prov,
-        signal_name="cursor_execution_complete",
+        signal_name=completion_signal,
     )
     try:
         oes.refresh_current_execution_state(

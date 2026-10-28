@@ -52,6 +52,19 @@ def _complete_with_live_token(
         commit_sha=commit_sha,
     )
 
+def _completion_policy_gate_error(message: str) -> bool:
+    msg = (message or "").lower()
+    markers = (
+        "evidence_required",
+        "text_only",
+        "commit_sha",
+        "deployment_requires",
+        "receipt",
+        "objective_paths",
+    )
+    return any(m in msg for m in markers)
+
+
 def _notify(text: str) -> None:
     if __import__("os").getenv("CURSOR_OPS_NOTIFY_WHATSAPP", "1") != "1":
         return
@@ -146,15 +159,18 @@ def main() -> int:
         if result.get("ok") and result.get("primary") == "platform_local_pytest":
             proof = dict(result.get("test_results") or {})
             main_sha = receipts.git_head(ROOT)
-            evidence = {
-                "test_results": proof,
-                "notes": str(result.get("pytest_tail") or "")[:2000],
-                "headless_primary": "platform_local_pytest",
-                "execution_host": _host(),
-                "git_head_sha": receipts.git_head(worktree),
-                "runtime_main_sha": main_sha,
-                "commit_sha": main_sha,
-            }
+            evidence = receipts.attach_runner_test_results(
+                {
+                    "test_results": proof,
+                    "notes": str(result.get("pytest_tail") or "")[:2000],
+                    "headless_primary": "platform_local_pytest",
+                    "execution_host": _host(),
+                    "git_head_sha": receipts.git_head(worktree),
+                    "runtime_main_sha": main_sha,
+                    "commit_sha": main_sha,
+                },
+                result,
+            )
             token = str(claim.get("claim_token") or "")
             if token:
                 complete = _complete_with_live_token(
@@ -175,12 +191,15 @@ def main() -> int:
             notes = str(result.get("local", {}).get("result") or "")[:2000]
             evidence = {}
             if proof.get("ok"):
-                evidence = {
-                    **proof,
-                    "notes": notes,
-                    "headless_primary": "local_sdk",
-                    "execution_host": _host(),
-                }
+                evidence = receipts.attach_runner_test_results(
+                    {
+                        **proof,
+                        "notes": notes,
+                        "headless_primary": "local_sdk",
+                        "execution_host": _host(),
+                    },
+                    result,
+                )
             elif ocp.allows_non_commit_completion(task, {"notes": notes}):
                 evidence = {
                     "read_only_completion": True,
@@ -227,11 +246,25 @@ def main() -> int:
             # A real negative result, not an invented successful completion.
             token = str(claim.get("claim_token") or "")
             if token:
+                gate_msg = reason or str((complete or {}).get("error") or "")
+                terminal_status = "blocked" if _completion_policy_gate_error(gate_msg) else "failed"
+                fail_evidence = {
+                    "notes": gate_msg or reason,
+                    "execution_host": _host(),
+                    "headless_primary": result.get("primary"),
+                    "git_before_sha": before_sha,
+                }
+                tr = (complete or {}).get("evidence") or {}
+                if isinstance(tr, dict) and isinstance(tr.get("test_results"), dict):
+                    fail_evidence["test_results"] = tr["test_results"]
+                else:
+                    runner_tr = receipts.runner_test_results_payload(result)
+                    if runner_tr:
+                        fail_evidence["test_results"] = runner_tr
                 failed = _complete_with_live_token(
-                    tid, status="failed",
-                    evidence={"notes": reason, "execution_host": _host(),
-                              "headless_primary": result.get("primary"),
-                              "git_before_sha": before_sha},
+                    tid,
+                    status=terminal_status,
+                    evidence=fail_evidence,
                 )
                 if failed.get("ok"):
                     complete = failed
@@ -257,6 +290,19 @@ def main() -> int:
         successful_submission = bool(
             submitted_status == "verification" and complete and complete.get("ok")
         )
+        test_results_summary: dict = {}
+        if isinstance(complete, dict):
+            ev_done = complete.get("evidence") if isinstance(complete.get("evidence"), dict) else {}
+            if isinstance(ev_done.get("test_results"), dict):
+                test_results_summary = ev_done["test_results"]
+        if not test_results_summary and isinstance(proof, dict):
+            if isinstance(proof.get("test_results"), dict):
+                test_results_summary = proof["test_results"]
+        if not test_results_summary:
+            runner_tr = receipts.runner_test_results_payload(result)
+            if runner_tr:
+                test_results_summary = runner_tr
+        gate_error = None if successful_submission else (reason or (complete or {}).get("error"))
         summary = {
             "ok": successful_submission,
             "sdk_ok": bool(result.get("ok")),
@@ -264,16 +310,22 @@ def main() -> int:
             "evidence_ok": bool(proof.get("ok")),
             "completion_submitted": successful_submission,
             "completion_status": (complete or {}).get("status"),
-            "error": reason or (complete or {}).get("error"),
+            "error": gate_error,
+            "test_results": test_results_summary,
         }
+        if gate_error and _completion_policy_gate_error(str(gate_error)):
+            summary["completion_policy_blocked"] = True
+        mongo_set: dict = {
+            "headless_execution_finished_at": finished_at,
+            "headless_last_result": summary,
+            "headless_evidence_receipt": proof,
+        }
+        if summary.get("completion_policy_blocked"):
+            mongo_set["do_not_auto_dispatch"] = True
         db[OPS_TASKS_COL].update_one(
             {"task_id": tid},
             {
-                "$set": {
-                    "headless_execution_finished_at": finished_at,
-                    "headless_last_result": summary,
-                    "headless_evidence_receipt": proof,
-                },
+                "$set": mongo_set,
                 "$inc": {"revision": 1},
             },
         )

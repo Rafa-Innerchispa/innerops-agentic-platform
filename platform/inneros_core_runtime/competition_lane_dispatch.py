@@ -80,10 +80,15 @@ def execute_competition_task(task_id: str) -> dict[str, Any]:
     run = _run_entry(entry)
     stdout_json = run.get("stdout_json") if isinstance(run.get("stdout_json"), dict) else {}
     ha = stdout_json.get("ha")
+    proc_rc = run.get("returncode")
+    if proc_rc is None:
+        test_results = {"ok": False, "exit_code": None, "reason": "competition_runner_returncode_missing"}
+    else:
+        test_results = {"ok": proc_rc == 0 and bool(run.get("ok")), "exit_code": int(proc_rc)}
     evidence = {
         "notes": f"Competition entry {entry.name} ok={run.get('ok')}",
         "ha_response": ha or stdout_json,
-        "test_results": {"ok": run.get("ok"), "exit_code": 0 if run.get("ok") else 1},
+        "test_results": test_results,
         "competition_entry": str(entry.relative_to(ROOT)),
         "execution_host": __import__("socket").gethostname(),
     }

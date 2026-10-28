@@ -83,6 +83,38 @@ def committed_objective_receipt(worktree: Path, before_sha: str) -> dict[str, An
     }
 
 
+def runner_test_results_payload(runner_result: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return runner-reported test_results for Mongo/Temporal receipts; never invent pass/fail."""
+    if not isinstance(runner_result, dict):
+        return None
+    nested = runner_result.get("test_results")
+    if isinstance(nested, dict) and nested.get("exit_code") is not None:
+        try:
+            exit_code = int(nested["exit_code"])
+        except (TypeError, ValueError):
+            return None
+        ok = nested.get("ok")
+        if ok is None:
+            ok = exit_code == 0
+        return {"exit_code": exit_code, "ok": bool(ok), **{k: v for k, v in nested.items() if k not in {"exit_code", "ok"}}}
+    raw_exit = runner_result.get("exit_code")
+    if raw_exit is not None:
+        try:
+            exit_code = int(raw_exit)
+        except (TypeError, ValueError):
+            return None
+        return {"exit_code": exit_code, "ok": exit_code == 0}
+    return None
+
+
+def attach_runner_test_results(evidence: dict[str, Any], runner_result: dict[str, Any] | None) -> dict[str, Any]:
+    """Merge authenticated runner pytest output into completion evidence when present."""
+    payload = runner_test_results_payload(runner_result)
+    if not payload:
+        return evidence
+    return {**evidence, "test_results": payload}
+
+
 def completion_evidence_from_worktree(
     worktree: Path,
     before_sha: str,

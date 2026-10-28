@@ -100,9 +100,16 @@ def _tick_provider(provider: str) -> dict[str, Any]:
         if not ok:
             continue
         tid = str(task.get("task_id") or "")
-        if not cld.is_competition_task(task):
+        if cld.is_competition_task(task):
+            spawn = cld.spawn_competition_execute(tid)
+        elif provider == "antigravity" and os.getenv(
+            "INNEROS_ANTIGRAVITY_SPAWN_ON_CLAIM", "1"
+        ).strip().lower() in {"1", "true", "yes", "on"}:
+            from inneros_core_runtime import antigravity_headless_dispatch as agd
+
+            spawn = agd.spawn_headless_execute(tid)
+        else:
             continue
-        spawn = cld.spawn_competition_execute(tid)
         started.append({"task_id": tid, "spawn": spawn})
         if len(started) >= slots:
             break

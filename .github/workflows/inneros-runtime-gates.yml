@@ -56,6 +56,9 @@ jobs:
             platform/tests/test_governed_model_writes.py \
             platform/inneros_core_runtime/execution_receipts.py \
             platform/scripts/cursor_ops_headless_execute_one.py \
+            platform/scripts/antigravity_ops_headless_execute_one.py \
+            platform/inneros_core_runtime/antigravity_headless_dispatch.py \
+            platform/tests/test_ops_antigravity_false_completion_regression.py \
             platform/tests/test_execution_receipts.py \
             platform/scripts/reconcile_ops_mongo_temporal.py \
             platform/tests/test_reconcile_ops_mongo_temporal.py \
@@ -95,6 +98,8 @@ jobs:
             platform/tests/test_dev_swarm_silent_stall_regression.py \
             platform/tests/test_integration_guardian_sha.py \
             platform/tests/test_ops_auto_claim_admission.py \
+            platform/tests/test_ops_antigravity_false_completion_regression.py \
+            platform/tests/test_completion_gate_evidence_keys.py \
             platform/tests/test_cursor_headless_retry_policy.py \
             platform/tests/test_cursor_ops_runner.py \
             platform/tests/test_cursor_execution_plane.py \
