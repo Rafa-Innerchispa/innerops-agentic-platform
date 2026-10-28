@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
+
+from inneros_core_runtime.execution_receipts import committed_objective_receipt
 
 _READ_ONLY_CLASSES = frozenset(
     {
@@ -16,12 +19,55 @@ _READ_ONLY_CLASSES = frozenset(
 )
 _CODING_CLASSES = frozenset({"coding", "integration", "implementation", "repair", "feature"})
 
+_TEXT_ONLY_HEADLESS_PRIMARIES = frozenset(
+    {
+        "antigravity_gemini_api",
+        "gemini_api_text_only",
+    }
+)
+
+_DEPLOYMENT_OBJECTIVE_MARKERS = (
+    "wordpress",
+    "cpanel",
+    "hosting.",
+    "hosting ",
+    "pcdoctor",
+    "ftp",
+    "landing",
+    "allowlist",
+    "mutate.v1",
+    "mutación",
+    "mutacion",
+    "deploy",
+    "despliegue",
+)
+
 
 def _txt(task: dict[str, Any]) -> str:
     return " ".join(
         str(task.get(k) or "")
         for k in ("task_class", "execution_policy", "objective", "title")
     ).lower()
+
+
+def objective_implies_deployment(task: dict[str, Any]) -> bool:
+    """Hosting / WordPress / cPanel work must prove observed mutation, not plan text."""
+    tc = str(task.get("task_class") or "").strip().lower()
+    if tc == "deployment":
+        return True
+    text = _txt(task)
+    text += " " + " ".join(str(item or "").lower() for item in (task.get("checklist") or []))
+    return any(marker in text for marker in _DEPLOYMENT_OBJECTIVE_MARKERS)
+
+
+def is_text_only_headless_evidence(evidence: dict[str, Any] | None) -> bool:
+    ev = dict(evidence or {})
+    primary = str(ev.get("headless_primary") or "").strip().lower()
+    if primary in _TEXT_ONLY_HEADLESS_PRIMARIES:
+        return True
+    if primary.startswith("antigravity_gemini") and not ev.get("evidence_source"):
+        return True
+    return False
 
 
 def requires_git_repository(task: dict[str, Any]) -> bool:
@@ -63,6 +109,104 @@ def allows_non_commit_completion(task: dict[str, Any], evidence: dict[str, Any] 
     return False
 
 
+def _deployment_host_evidence_ok(evidence: dict[str, Any]) -> bool:
+    ev = dict(evidence or {})
+    nested = ev.get("evidence") if isinstance(ev.get("evidence"), dict) else {}
+    for root in (ev, nested):
+        host = root.get("host_execution") or root.get("deployment_evidence")
+        post = root.get("postconditions") or root.get("observed_postconditions")
+        if isinstance(host, dict) and host.get("executed") is True:
+            if isinstance(post, dict) and post.get("verified") is True:
+                return True
+    return False
+
+
+def _verify_paths_on_disk(worktree: Path, paths: list[str]) -> str | None:
+    try:
+        root = worktree.resolve(strict=True)
+    except OSError:
+        return "worktree_unavailable"
+    for name in paths:
+        rel = Path(name)
+        if rel.is_absolute() or ".." in rel.parts:
+            return f"objective_path_unsafe:{name}"
+        full = (root / rel).resolve()
+        try:
+            full.relative_to(root)
+        except ValueError:
+            return f"objective_path_outside_worktree:{name}"
+        if not full.is_file():
+            return f"objective_path_missing_on_disk:{name}"
+    return None
+
+
+def validate_mutating_completion_evidence(
+    task: dict[str, Any],
+    evidence: dict[str, Any] | None,
+    *,
+    worktree: Path | None = None,
+    before_sha: str = "",
+) -> str | None:
+    """Fail-closed proof for coding/deployment-style ops completion."""
+    ev = dict(evidence or {})
+    if is_text_only_headless_evidence(ev):
+        return "text_only_headless_executor_cannot_complete"
+
+    if objective_implies_deployment(task) and not _deployment_host_evidence_ok(ev):
+        return "deployment_requires_observed_host_mutation"
+
+    sha = str(ev.get("commit_sha") or ev.get("sha") or "").strip()
+    paths = [str(p) for p in (ev.get("objective_paths") or []) if str(p).strip()]
+    files = int(ev.get("objective_files_count") or 0)
+    tests = ev.get("test_results") or {}
+    exit_code = tests.get("exit_code")
+
+    if exit_code is None:
+        return "evidence_required_for_completed: test_results.exit_code required"
+    try:
+        exit_int = int(exit_code)
+    except (TypeError, ValueError):
+        return "evidence_required_for_completed: invalid test_results.exit_code"
+    if exit_int != 0 or not tests.get("ok", False):
+        return "evidence_required_for_completed: tests must pass"
+
+    if not sha or files <= 0 or not paths:
+        return (
+            "evidence_required_for_completed: commit_sha, objective_paths, "
+            "objective_files_count, and passing tests"
+        )
+
+    base = str(before_sha or ev.get("git_before_sha") or task.get("git_baseline_sha") or "").strip()
+    wt = worktree
+    if wt is None:
+        wt_path = str(task.get("worktree") or task.get("local_worktree") or ev.get("worktree") or "").strip()
+        if wt_path:
+            wt = Path(wt_path)
+
+    if str(ev.get("evidence_source") or "") == "git_committed_diff_on_execution_host":
+        if wt is not None:
+            missing = _verify_paths_on_disk(wt, paths)
+            if missing:
+                return missing
+        return None
+
+    if wt is not None and base:
+        proof = committed_objective_receipt(wt, base)
+        if not proof.get("ok"):
+            return f"committed_objective_receipt_failed:{proof.get('error')}"
+        if proof.get("commit_sha") != sha:
+            return "commit_sha_not_from_task_worktree"
+        actual = set(proof.get("objective_paths") or [])
+        if not set(paths).issubset(actual):
+            return "objective_paths_not_in_git_diff"
+        missing = _verify_paths_on_disk(wt, paths)
+        if missing:
+            return missing
+        return None
+
+    return "evidence_required_for_completed: git_baseline_receipt_or_verified_evidence_source"
+
+
 def validate_completed_evidence(task: dict[str, Any], evidence: dict[str, Any] | None) -> str | None:
     ev = dict(evidence or {})
     if allows_non_commit_completion(task, ev):
@@ -71,17 +215,11 @@ def validate_completed_evidence(task: dict[str, Any], evidence: dict[str, Any] |
         if ev.get("commit_sha") or ev.get("objective_paths"):
             return None
         return "evidence_required_for_completed: summary/notes/report or git proof"
-    sha = str(ev.get("commit_sha") or ev.get("sha") or "").strip()
-    if sha:
-        return None
-    files = int(ev.get("objective_files_count") or 0)
-    paths = list(ev.get("objective_paths") or [])
-    if files > 0 and paths:
-        return None
-    tests = ev.get("test_results") or {}
-    if tests.get("exit_code") is not None and int(tests.get("exit_code")) == 0:
-        return None
-    return (
-        "evidence_required_for_completed: commit_sha, objective_paths+count, "
-        "or test_results.exit_code=0"
-    )
+    return validate_mutating_completion_evidence(task, ev)
+
+
+def validate_terminal_completion(task: dict[str, Any], evidence: dict[str, Any] | None) -> dict[str, Any]:
+    err = validate_completed_evidence(task, evidence)
+    if err:
+        return {"ok": False, "error": err, "task_id": task.get("task_id")}
+    return {"ok": True, "task_id": task.get("task_id")}

@@ -1182,11 +1182,59 @@ def complete_external_repair_run(
         target_status = "completed" if outcome == "completed" else "blocked" if outcome == "blocked" else "failed"
         try:
             actor_name = str(run.get("provider") or "external_repair_agent")
+            task_id = str(run["task_id"])
+            task_doc = _db()[coordination_live.OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
+            if target_status == "completed" and isinstance(task_doc, dict):
+                from inneros_core_runtime import ops_completion_policy as ocp
+
+                gate = ocp.validate_terminal_completion(task_doc, final_evidence)
+                if not gate.get("ok"):
+                    target_status = "blocked"
+                    final_evidence = {
+                        **final_evidence,
+                        "result": "COMPLETE_REJECTED",
+                        "completion_rejected_reason": gate.get("error"),
+                    }
+                    run = _db()[RUNS_COL].find_one_and_update(
+                        {"run_id": run_id},
+                        {
+                            "$set": {
+                                "status": "blocked",
+                                "outcome": "blocked",
+                                "result": "COMPLETE_REJECTED",
+                                "evidence": final_evidence,
+                                "updated_at": now,
+                            }
+                        },
+                        return_document=ReturnDocument.AFTER,
+                        projection={"_id": 0},
+                    ) or run
             if target_status == "completed":
-                coordination_live.update_ops_task_state(str(run["task_id"]), "verification", actor=actor_name, evidence=final_evidence, force_handoff=True)
-                task_result = coordination_live.update_ops_task_state(str(run["task_id"]), "completed", actor=actor_name, evidence=final_evidence, force_handoff=True, allow_legacy_direct=True)
+                claim_token = str((task_doc or {}).get("claim_token") or "").strip()
+                provider = str(run.get("provider") or actor_name).strip().lower()
+                if claim_token and provider in LOCAL_CLI_PROVIDERS:
+                    from inneros_core_runtime import interactive_ops_runner as ior
+
+                    task_result = ior.complete_ops_task(
+                        provider,
+                        task_id,
+                        claim_token=claim_token,
+                        status="completed",
+                        evidence=final_evidence,
+                    )
+                else:
+                    coordination_live.update_ops_task_state(
+                        task_id, "verification", actor=actor_name, evidence=final_evidence, force_handoff=True
+                    )
+                    task_result = {
+                        "ok": False,
+                        "error": "task_completion_requires_interactive_claim_token",
+                        "task_id": task_id,
+                    }
             else:
-                task_result = coordination_live.update_ops_task_state(str(run["task_id"]), target_status, actor=actor_name, evidence=final_evidence, force_handoff=True)
+                task_result = coordination_live.update_ops_task_state(
+                    task_id, target_status, actor=actor_name, evidence=final_evidence, force_handoff=True
+                )
         except Exception as exc:
             task_result = {"ok": False, "error": str(exc)[:500]}
     report_result = _report_external_repair_result(run, report_to=report_to)

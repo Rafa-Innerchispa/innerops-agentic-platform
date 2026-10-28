@@ -172,6 +172,10 @@ def _hydrate_gate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
 
 def _requires_observed_host_mutation(envelope_dict: Dict[str, Any]) -> bool:
     """Host/deploy operations must prove real execution, not just generated code/tests."""
+    from inneros_core_runtime import ops_completion_policy as _ocp
+
+    if _ocp.objective_implies_deployment(envelope_dict):
+        return True
     task_class = str(envelope_dict.get("task_class") or "").strip().lower()
     if task_class == "deployment":
         return True
@@ -210,8 +214,8 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
     files_count = agent_result.get("files_count", 0)
     code_diff = agent_result.get("code_diff", "")
     test_results = agent_result.get("test_results") or {}
-    test_exit_code = test_results.get("exit_code", 0)
-    test_ok = test_results.get("ok", True)
+    test_exit_code = test_results.get("exit_code")
+    test_ok = test_results.get("ok") if test_exit_code is not None else False
     evidence_required = list(envelope_dict.get("evidence_required") or [])
     commit_sha = str(agent_result.get("commit_sha") or "").strip()
 
@@ -370,24 +374,41 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
         "gemini_interactive",
     }
     if agent_result.get("completion_channel") in interactive_channels:
-        sha = str(agent_result.get("commit_sha") or "").strip()
-        objective_files = int(agent_result.get("objective_files_count") or 0)
-        objective_paths = list(agent_result.get("objective_paths") or [])
-        tests = agent_result.get("test_results") or {}
-        exit_code = tests.get("exit_code")
-        if sha and objective_files > 0 and objective_paths:
-            return {"passed": True, "mode": "cursor_interactive_sha_and_paths", "commit_sha": sha}
-        if exit_code is not None and int(exit_code) == 0 and tests.get("ok", True):
-            return {"passed": True, "mode": "cursor_interactive_tests", "test_results": tests}
-        return {
-            "passed": False,
-            "error": (
-                "Cursor completion prohibited: require commit_sha + objective_paths "
-                "or test_results.exit_code=0"
-            ),
-            "commit_sha": sha,
-            "objective_files_count": objective_files,
-        }
+        from inneros_core_runtime import ops_completion_policy as _ocp
+
+        if _ocp.is_text_only_headless_evidence(agent_result):
+            return {
+                "passed": False,
+                "error": "Completion prohibited: text-only headless executor cannot complete",
+                "headless_primary": agent_result.get("headless_primary"),
+            }
+        if _ocp.requires_git_commit(envelope_dict):
+            gate_err = _ocp.validate_mutating_completion_evidence(
+                envelope_dict,
+                agent_result,
+                worktree=Path(str(agent_result.get("worktree") or "")) if agent_result.get("worktree") else None,
+                before_sha=str(agent_result.get("git_before_sha") or envelope_dict.get("git_baseline_sha") or ""),
+            )
+            if gate_err:
+                return {
+                    "passed": False,
+                    "error": f"Completion prohibited: {gate_err}",
+                    "completion_channel": agent_result.get("completion_channel"),
+                }
+            return {
+                "passed": True,
+                "mode": "interactive_verified_receipt",
+                "commit_sha": str(agent_result.get("commit_sha") or "").strip(),
+                "test_results": agent_result.get("test_results") or {},
+            }
+        policy_err = _ocp.validate_completed_evidence(envelope_dict, agent_result)
+        if policy_err:
+            return {
+                "passed": False,
+                "error": f"Completion prohibited: {policy_err}",
+                "completion_channel": agent_result.get("completion_channel"),
+            }
+        return {"passed": True, "mode": "interactive_read_only_evidence"}
 
     if agent_result.get("candidate_only") and agent_result.get("requires_bounded_executor"):
         return {
