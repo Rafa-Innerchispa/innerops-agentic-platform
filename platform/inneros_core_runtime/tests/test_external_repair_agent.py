@@ -616,6 +616,56 @@ class ExternalRepairAgentTests(unittest.TestCase):
         recent = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": "ops_recent"})
         self.assertEqual(recent["nonterminal_reconcile_bucket"], "ACTIVE_TASK_NO_RUN")
 
+    def test_complete_external_repair_rejects_text_only_antigravity_evidence(self):
+        db = FakeDb()
+        task_id = "ops_64d4bf6d941e"
+        db[coordination_live.OPS_TASKS_COL].docs.append(
+            {
+                "task_id": task_id,
+                "assignee": "antigravity",
+                "status": "in_progress",
+                "task_class": "coding",
+                "objective": "Deploy landing WordPress cPanel hosting allowlist pcdoctor.ai",
+                "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+                "claim_token": "abc123",
+                "revision": 3,
+            }
+        )
+        intel_evidence = {
+            "headless_primary": "antigravity_gemini_api",
+            "commit_sha": "b90b8e0781b6ddbe4dfdb0ecf57071396000682c",
+            "objective_paths": ["platform/docs/ANTIGRAVITY_HEADLESS_64d4bf6d941e.md"],
+            "objective_files_count": 1,
+            "test_results": {},
+            "summary": "Plan ejecutado",
+        }
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}), \
+            patch.object(ext, "_report_external_repair_result", return_value={"ok": True}), \
+            patch.object(ext.coordination_live, "update_ops_task_state", return_value={"ok": True}) as upd:
+            started = ext.start_external_repair_run(
+                provider="antigravity",
+                task_id=task_id,
+                dry_run=True,
+            )
+            run_id = started["run"]["run_id"]
+            completed = ext.complete_external_repair_run(
+                run_id,
+                outcome="completed",
+                result="PASS",
+                evidence=intel_evidence,
+                update_task=True,
+            )
+        self.assertTrue(completed["ok"])
+        run = completed["run"]
+        self.assertEqual(run["status"], "blocked")
+        self.assertEqual(run["result"], "COMPLETE_REJECTED")
+        self.assertIn("text_only", str(run.get("evidence", {}).get("completion_rejected_reason", "")))
+        upd.assert_called_once()
+        args, kwargs = upd.call_args
+        self.assertEqual(args[1], "blocked")
+        self.assertNotEqual(completed.get("task_result", {}).get("status"), "completed")
+
 
 if __name__ == "__main__":
     unittest.main()

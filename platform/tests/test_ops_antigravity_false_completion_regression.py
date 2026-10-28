@@ -83,7 +83,36 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         env = {"task_class": "coding", "objective": "patch helper"}
         gate = asyncio.run(ta.activity_validate_completion_gate(env, agent))
         self.assertFalse(gate["passed"])
-        self.assertIn("text_only", gate["error"].lower())
+        err_l = gate["error"].lower()
+        self.assertTrue("text_only" in err_l or "text-only" in err_l)
+
+    def test_runtime_gemini_model_mismatch_rejected_on_complete(self) -> None:
+        from inneros_core_runtime import interactive_ops_runner as ior
+        from unittest.mock import MagicMock, patch
+
+        task = {
+            "task_id": "ops_model_mismatch",
+            "claim_token": "tok",
+            "assignee": "antigravity",
+            "task_class": "coding",
+            "objective": "patch",
+            "lease_until": "2099-01-01T00:00:00+00:00",
+        }
+        ev = {
+            "commit_sha": "a" * 40,
+            "objective_paths": ["x.py"],
+            "objective_files_count": 1,
+            "test_results": {"exit_code": 0, "ok": True},
+            "evidence_source": "git_committed_diff_on_execution_host",
+            "gemini_model": "gemini-3.6-flash",
+        }
+        with patch.object(ior.mongo_store, "get_db") as gdb:
+            col = MagicMock()
+            gdb.return_value.__getitem__.return_value = col
+            col.find_one.return_value = task
+            out = ior.complete_ops_task("antigravity", "ops_model_mismatch", claim_token="tok", evidence=ev)
+        self.assertFalse(out.get("ok"))
+        self.assertEqual(out.get("error"), "model_not_pinned")
 
     def test_foreign_sha_without_worktree_receipt_rejected(self) -> None:
         ev = {
