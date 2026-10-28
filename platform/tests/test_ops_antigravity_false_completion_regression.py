@@ -86,6 +86,24 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
             msg=gate.get("error"),
         )
 
+    def test_temporal_dev_swarm_does_not_invent_test_ok(self) -> None:
+        """exit_code=0 without explicit ok must not pass dev_swarm or coding gates."""
+        agent = {
+            "test_results": {"exit_code": 0},
+            "objective_files_count": 1,
+            "objective_paths": ["platform/x.py"],
+            "commit_sha": "a" * 40,
+        }
+        env = {
+            "task_class": "coding",
+            "execution_lane": "local_dev_swarm",
+            "objective": "patch helper",
+        }
+        gate = asyncio.run(ta.activity_validate_completion_gate(env, agent))
+        self.assertFalse(gate["passed"])
+        err_l = (gate.get("error") or "").lower()
+        self.assertTrue("exit_code" in err_l or "ok" in err_l or "receipt" in err_l or "worktree" in err_l, msg=gate.get("error"))
+
     def test_temporal_gate_rejects_text_only_on_plain_coding(self) -> None:
         agent = {
             "headless_primary": "antigravity_gemini_api",

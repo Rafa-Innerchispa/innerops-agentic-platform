@@ -361,7 +361,7 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
         if (
             exit_code is not None
             and int(exit_code) == 0
-            and tests.get("ok", True)
+            and tests.get("ok") is True
             and (not mutating_class or (objective_files > 0 and objective_paths))
         ):
             return {
