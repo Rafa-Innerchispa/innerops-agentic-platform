@@ -151,7 +151,11 @@ def _hydrate_gate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     """Workflow signals may omit fields present only in Mongo; gate needs task_class."""
     out = dict(envelope_dict or {})
     tid = str(out.get("task_id") or "").strip()
-    if not tid or (out.get("task_class") and out.get("evidence_required") is not None):
+    if not tid:
+        return out
+    if out.get("task_class") and (
+        "evidence_required" in out or out.get("objective") or out.get("title")
+    ):
         return out
     try:
         from raphiia_openai import mongo_store
@@ -501,6 +505,31 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
                 "objective_files_count": objective_files,
                 "objective_paths": objective_paths,
                 "test_results": test_results,
+            }
+
+    from inneros_core_runtime import ops_completion_policy as _ocp
+
+    if _ocp.requires_git_commit(envelope_dict):
+        wt_raw = (
+            agent_result.get("worktree")
+            or envelope_dict.get("worktree")
+            or envelope_dict.get("local_worktree")
+        )
+        gate_err = _ocp.validate_mutating_completion_evidence(
+            envelope_dict,
+            agent_result,
+            worktree=Path(str(wt_raw)) if wt_raw else None,
+            before_sha=str(
+                agent_result.get("git_before_sha")
+                or envelope_dict.get("git_baseline_sha")
+                or ""
+            ),
+        )
+        if gate_err:
+            return {
+                "passed": False,
+                "error": f"Completion prohibited: {gate_err}",
+                "task_class": task_class,
             }
 
     return {

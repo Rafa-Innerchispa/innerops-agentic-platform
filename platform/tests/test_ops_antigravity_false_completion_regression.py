@@ -71,6 +71,21 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         err_l = gate["error"].lower()
         self.assertTrue("text_only" in err_l or "host/deployment" in err_l or "deployment" in err_l)
 
+    def test_temporal_gate_rejects_intel_log_without_interactive_channel(self) -> None:
+        """Bounded Temporal path must not accept SHA+paths without receipt (ops_64d4bf6d941e drift)."""
+        agent = {
+            **_intel_log_evidence(),
+            "test_results": {"exit_code": 0, "ok": True},
+            "ok": True,
+        }
+        gate = asyncio.run(ta.activity_validate_completion_gate(REGRESSION_TASK, agent))
+        self.assertFalse(gate["passed"])
+        err_l = gate["error"].lower()
+        self.assertTrue(
+            "text_only" in err_l or "deployment" in err_l or "host" in err_l or "exit_code" in err_l,
+            msg=gate.get("error"),
+        )
+
     def test_temporal_gate_rejects_text_only_on_plain_coding(self) -> None:
         agent = {
             "headless_primary": "antigravity_gemini_api",

@@ -219,7 +219,20 @@ def validate_completed_evidence(task: dict[str, Any], evidence: dict[str, Any] |
 
 
 def validate_terminal_completion(task: dict[str, Any], evidence: dict[str, Any] | None) -> dict[str, Any]:
-    err = validate_completed_evidence(task, evidence)
+    ev = dict(evidence or {})
+    wt_path = str(task.get("worktree") or task.get("local_worktree") or ev.get("worktree") or "").strip()
+    base = str(task.get("git_baseline_sha") or ev.get("git_before_sha") or "").strip()
+    if allows_non_commit_completion(task, ev):
+        err = validate_completed_evidence(task, ev)
+    elif requires_git_commit(task):
+        err = validate_mutating_completion_evidence(
+            task,
+            ev,
+            worktree=Path(wt_path) if wt_path else None,
+            before_sha=base,
+        )
+    else:
+        err = validate_completed_evidence(task, ev)
     if err:
         return {"ok": False, "error": err, "task_id": task.get("task_id")}
     return {"ok": True, "task_id": task.get("task_id")}
