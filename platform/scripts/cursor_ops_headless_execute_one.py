@@ -159,15 +159,18 @@ def main() -> int:
         if result.get("ok") and result.get("primary") == "platform_local_pytest":
             proof = dict(result.get("test_results") or {})
             main_sha = receipts.git_head(ROOT)
-            evidence = {
-                "test_results": proof,
-                "notes": str(result.get("pytest_tail") or "")[:2000],
-                "headless_primary": "platform_local_pytest",
-                "execution_host": _host(),
-                "git_head_sha": receipts.git_head(worktree),
-                "runtime_main_sha": main_sha,
-                "commit_sha": main_sha,
-            }
+            evidence = receipts.attach_runner_test_results(
+                {
+                    "test_results": proof,
+                    "notes": str(result.get("pytest_tail") or "")[:2000],
+                    "headless_primary": "platform_local_pytest",
+                    "execution_host": _host(),
+                    "git_head_sha": receipts.git_head(worktree),
+                    "runtime_main_sha": main_sha,
+                    "commit_sha": main_sha,
+                },
+                result,
+            )
             token = str(claim.get("claim_token") or "")
             if token:
                 complete = _complete_with_live_token(
@@ -188,12 +191,15 @@ def main() -> int:
             notes = str(result.get("local", {}).get("result") or "")[:2000]
             evidence = {}
             if proof.get("ok"):
-                evidence = {
-                    **proof,
-                    "notes": notes,
-                    "headless_primary": "local_sdk",
-                    "execution_host": _host(),
-                }
+                evidence = receipts.attach_runner_test_results(
+                    {
+                        **proof,
+                        "notes": notes,
+                        "headless_primary": "local_sdk",
+                        "execution_host": _host(),
+                    },
+                    result,
+                )
             elif ocp.allows_non_commit_completion(task, {"notes": notes}):
                 evidence = {
                     "read_only_completion": True,
@@ -251,6 +257,10 @@ def main() -> int:
                 tr = (complete or {}).get("evidence") or {}
                 if isinstance(tr, dict) and isinstance(tr.get("test_results"), dict):
                     fail_evidence["test_results"] = tr["test_results"]
+                else:
+                    runner_tr = receipts.runner_test_results_payload(result)
+                    if runner_tr:
+                        fail_evidence["test_results"] = runner_tr
                 failed = _complete_with_live_token(
                     tid,
                     status=terminal_status,
@@ -288,6 +298,10 @@ def main() -> int:
         if not test_results_summary and isinstance(proof, dict):
             if isinstance(proof.get("test_results"), dict):
                 test_results_summary = proof["test_results"]
+        if not test_results_summary:
+            runner_tr = receipts.runner_test_results_payload(result)
+            if runner_tr:
+                test_results_summary = runner_tr
         gate_error = None if successful_submission else (reason or (complete or {}).get("error"))
         summary = {
             "ok": successful_submission,

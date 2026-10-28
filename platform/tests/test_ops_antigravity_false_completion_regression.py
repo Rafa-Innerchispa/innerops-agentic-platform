@@ -194,6 +194,18 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         }
         self.assertFalse(ocp.objective_implies_deployment(repair))
 
+    def test_ops_cd287162_p0_gate_task_not_deployment(self) -> None:
+        """Repair PR #226 must not require host mutation solely because PCDoctor appears in title."""
+        task = {
+            "task_class": "coding",
+            "title": "P0: fail-closed Antigravity completion gates (ops cd287162b44a)",
+            "objective": (
+                "Close false COMPLETED for Antigravity headless; stabilize Temporal receipts; "
+                "pcdoctor.ai mentioned only as prior false-complete context — no WordPress cpanel publish"
+            ),
+        }
+        self.assertFalse(ocp.objective_implies_deployment(task))
+
     def test_explicit_wordpress_deploy_still_requires_host_mutation(self) -> None:
         deploy = {"task_class": "coding", "objective": "Deploy landing WordPress to cpanel production site"}
         self.assertTrue(ocp.objective_implies_deployment(deploy))

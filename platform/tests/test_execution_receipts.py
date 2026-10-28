@@ -7,7 +7,11 @@ import unittest
 from pathlib import Path
 
 from inneros_core_runtime.execution_receipts import (
-    committed_objective_receipt, completion_evidence_from_worktree, git_head,
+    attach_runner_test_results,
+    committed_objective_receipt,
+    completion_evidence_from_worktree,
+    git_head,
+    runner_test_results_payload,
 )
 
 
@@ -88,6 +92,20 @@ class ExecutionReceiptsTests(unittest.TestCase):
         invalid = completion_evidence_from_worktree(self.repo, self.baseline, test_exit_code="invalid")
         self.assertFalse(invalid["ok"])
         self.assertEqual(invalid["error"], "invalid_test_exit_code")
+
+    def test_runner_test_results_payload_never_invents_exit_code(self) -> None:
+        self.assertIsNone(runner_test_results_payload({}))
+        self.assertIsNone(runner_test_results_payload({"test_results": {}}))
+        nested = runner_test_results_payload(
+            {"test_results": {"exit_code": 0, "ok": True, "suite": ["a.py"]}}
+        )
+        self.assertEqual(nested, {"exit_code": 0, "ok": True, "suite": ["a.py"]})
+        flat = runner_test_results_payload({"exit_code": 2, "primary": "platform_local_pytest"})
+        self.assertEqual(flat, {"exit_code": 2, "ok": False})
+
+    def test_attach_runner_test_results_preserves_existing_when_runner_silent(self) -> None:
+        base = {"commit_sha": "a" * 40, "test_results": {"exit_code": 1, "ok": False}}
+        self.assertIs(attach_runner_test_results(base, None), base)
 
 
 if __name__ == "__main__":
