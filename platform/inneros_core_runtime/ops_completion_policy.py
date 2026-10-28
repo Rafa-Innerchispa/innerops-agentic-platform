@@ -26,20 +26,23 @@ _TEXT_ONLY_HEADLESS_PRIMARIES = frozenset(
     }
 )
 
-_DEPLOYMENT_OBJECTIVE_MARKERS = (
-    "wordpress",
-    "cpanel",
-    "hosting.",
-    "hosting ",
-    "pcdoctor",
-    "ftp",
-    "landing",
-    "allowlist",
+_DEPLOYMENT_INTENT_PHRASES = (
+    "publish to production",
+    "deploy to production",
+    "go live",
+    "go-live",
+    "mutate production host",
+    "observed_host_mutation",
+    "host mutation required",
+    "wordpress publish",
+    "cpanel publish",
+    "despliegue a producción",
+    "publicar en producción",
     "mutate.v1",
-    "mutación",
-    "mutacion",
-    "deploy",
-    "despliegue",
+)
+
+_DEPLOYMENT_PAYLOAD_ACTIONS = frozenset(
+    {"deploy", "publish", "go_live", "mutate_host", "host_mutation", "production_publish"}
 )
 
 
@@ -51,13 +54,46 @@ def _txt(task: dict[str, Any]) -> str:
 
 
 def objective_implies_deployment(task: dict[str, Any]) -> bool:
-    """Hosting / WordPress / cPanel work must prove observed mutation, not plan text."""
+    """True only when the task structurally requires publishing/mutating production hosts."""
     tc = str(task.get("task_class") or "").strip().lower()
     if tc == "deployment":
         return True
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    action = str(payload.get("action") or payload.get("intent") or "").strip().lower()
+    if action in _DEPLOYMENT_PAYLOAD_ACTIONS:
+        return True
+    if payload.get("deploy") is True or payload.get("publish_to_production") is True:
+        return True
+    if payload.get("host_mutation_required") is True:
+        return True
+    ev_req = task.get("evidence_required") or []
+    if isinstance(ev_req, list):
+        joined = " ".join(str(x).lower() for x in ev_req)
+        if "observed_host_mutation" in joined or "host_execution" in joined:
+            return True
     text = _txt(task)
     text += " " + " ".join(str(item or "").lower() for item in (task.get("checklist") or []))
-    return any(marker in text for marker in _DEPLOYMENT_OBJECTIVE_MARKERS)
+    if any(phrase in text for phrase in _DEPLOYMENT_INTENT_PHRASES):
+        return True
+    lower = text
+    if "deploy" in lower or "despliegue" in lower or "publicar" in lower:
+        publish_context = (
+            "wordpress",
+            "cpanel",
+            "production",
+            "producción",
+            "go live",
+            "ftp",
+            "landing page",
+            "sitio web",
+        )
+        if any(ctx in lower for ctx in publish_context):
+            return True
+    for item in task.get("checklist") or []:
+        item_l = str(item or "").lower()
+        if any(m in item_l for m in ("deploy:", "publish:", "go-live", "host mutation")):
+            return True
+    return False
 
 
 def is_text_only_headless_evidence(evidence: dict[str, Any] | None) -> bool:
@@ -183,28 +219,23 @@ def validate_mutating_completion_evidence(
         if wt_path:
             wt = Path(wt_path)
 
-    if str(ev.get("evidence_source") or "") == "git_committed_diff_on_execution_host":
-        if wt is not None:
-            missing = _verify_paths_on_disk(wt, paths)
-            if missing:
-                return missing
-        return None
+    if not base:
+        return "evidence_required_for_completed: git_baseline_sha required"
+    if wt is None:
+        return "evidence_required_for_completed: worktree required for git receipt"
 
-    if wt is not None and base:
-        proof = committed_objective_receipt(wt, base)
-        if not proof.get("ok"):
-            return f"committed_objective_receipt_failed:{proof.get('error')}"
-        if proof.get("commit_sha") != sha:
-            return "commit_sha_not_from_task_worktree"
-        actual = set(proof.get("objective_paths") or [])
-        if not set(paths).issubset(actual):
-            return "objective_paths_not_in_git_diff"
-        missing = _verify_paths_on_disk(wt, paths)
-        if missing:
-            return missing
-        return None
-
-    return "evidence_required_for_completed: git_baseline_receipt_or_verified_evidence_source"
+    proof = committed_objective_receipt(wt, base)
+    if not proof.get("ok"):
+        return f"committed_objective_receipt_failed:{proof.get('error')}"
+    if proof.get("commit_sha") != sha:
+        return "commit_sha_not_from_task_worktree"
+    actual = set(proof.get("objective_paths") or [])
+    if not set(paths).issubset(actual):
+        return "objective_paths_not_in_git_diff"
+    missing = _verify_paths_on_disk(wt, paths)
+    if missing:
+        return missing
+    return None
 
 
 def validate_completed_evidence(task: dict[str, Any], evidence: dict[str, Any] | None) -> str | None:

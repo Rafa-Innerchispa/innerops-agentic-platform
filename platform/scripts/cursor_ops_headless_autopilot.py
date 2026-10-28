@@ -257,6 +257,11 @@ def _find_resume_on_host(limit: int) -> list[dict[str, Any]]:
     rows = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(limit, 1) * 3))
     out: list[dict[str, Any]] = []
     for row in rows:
+        if row.get("do_not_auto_dispatch") is True:
+            continue
+        hl = row.get("headless_last_result") or {}
+        if hl.get("completion_policy_blocked") is True:
+            continue
         claim_host = str(row.get("claim_host") or "").lower()
         if claim_host and claim_host not in h and h not in claim_host:
             allowed, _ = lanes.should_this_node_run_task(row)

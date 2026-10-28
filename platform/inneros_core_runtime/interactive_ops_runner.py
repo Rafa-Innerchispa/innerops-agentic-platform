@@ -437,10 +437,13 @@ def complete_ops_task(
     if normalized == "completed" and ocp.requires_git_commit(task):
         if ocp.is_text_only_headless_evidence(ev):
             return {"ok": False, "error": "text_only_headless_executor_cannot_complete", "task_id": tid}
-        if wt_path and base and not str(ev.get("evidence_source") or "").strip():
+        if wt_path and base:
+            runner_tests = ev.get("test_results") if isinstance(ev.get("test_results"), dict) else None
             built = receipts.completion_evidence_from_worktree(Path(wt_path), base)
             if built.get("ok"):
                 ev = {**ev, **built["evidence"]}
+                if runner_tests is not None:
+                    ev["test_results"] = runner_tests
             elif not str(ev.get("commit_sha") or "").strip():
                 return {
                     "ok": False,

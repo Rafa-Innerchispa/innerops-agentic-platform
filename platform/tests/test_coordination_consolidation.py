@@ -2,14 +2,35 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
+import tempfile
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 from pymongo import MongoClient
 
 from inneros_core_runtime import durable_coordination_spine as spine
+from inneros_core_runtime.execution_receipts import git_head
 from inneros_core_runtime import coordination_live
 from inneros_core_runtime import local_model_router
 from inneros_core_runtime import temporal_activities
+
+
+def _temp_git_coding_evidence() -> tuple[tempfile.TemporaryDirectory, str, str, str, list[str]]:
+    tmp = tempfile.TemporaryDirectory()
+    repo = Path(tmp.name)
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "README.md"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    baseline = git_head(repo)
+    (repo / "feature.py").write_text("print('ok')\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "feature.py"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "feature"], check=True)
+    head = git_head(repo)
+    return tmp, str(repo), baseline, head, ["feature.py"]
 
 
 class Full16CanariesTests(unittest.IsolatedAsyncioTestCase):
@@ -17,6 +38,10 @@ class Full16CanariesTests(unittest.IsolatedAsyncioTestCase):
         self.mongo_uri = "mongodb://127.0.0.1:27017"
         self.client = MongoClient(self.mongo_uri, serverSelectionTimeoutMS=2000)
         self.db = self.client["pcdoctor_swarm"]
+        self._git_tmp, self._worktree, self._baseline, self._head, self._paths = _temp_git_coding_evidence()
+
+    def tearDown(self):
+        self._git_tmp.cleanup()
 
     # CANARY 1: INTERNAL SUCCESS
     async def test_canary_01_internal_success(self):
@@ -30,6 +55,7 @@ class Full16CanariesTests(unittest.IsolatedAsyncioTestCase):
             "assignee": "dev_swarm",
             "preferred_provider": "local",
             "revision": 1,
+            "git_baseline_sha": self._baseline,
         }
         # 1. Validation activity
         val = await temporal_activities.activity_validate_envelope(envelope)
@@ -42,9 +68,14 @@ class Full16CanariesTests(unittest.IsolatedAsyncioTestCase):
         # 3. Completion gate validation
         agent_res = {
             "ok": True,
-            "files_count": 2,
+            "files_count": 1,
             "code_diff": "+ feature implementation",
-            "test_results": {"exit_code": 0, "ok": True}
+            "test_results": {"exit_code": 0, "ok": True},
+            "objective_files_count": len(self._paths),
+            "objective_paths": list(self._paths),
+            "commit_sha": self._head,
+            "git_before_sha": self._baseline,
+            "worktree": self._worktree,
         }
         gate = await temporal_activities.activity_validate_completion_gate(envelope, agent_res)
         self.assertTrue(gate["passed"])
@@ -82,10 +113,21 @@ class Full16CanariesTests(unittest.IsolatedAsyncioTestCase):
             "assignee": "antigravity",
             "preferred_provider": "antigravity",
             "revision": 1,
+            "git_baseline_sha": self._baseline,
         }
         val = await temporal_activities.activity_validate_envelope(envelope)
         self.assertTrue(val["ok"])
-        agent_res = {"ok": True, "files_count": 1, "code_diff": "+ external patch", "test_results": {"exit_code": 0, "ok": True}}
+        agent_res = {
+            "ok": True,
+            "files_count": 1,
+            "code_diff": "+ external patch",
+            "test_results": {"exit_code": 0, "ok": True},
+            "objective_files_count": len(self._paths),
+            "objective_paths": list(self._paths),
+            "commit_sha": self._head,
+            "git_before_sha": self._baseline,
+            "worktree": self._worktree,
+        }
         gate = await temporal_activities.activity_validate_completion_gate(envelope, agent_res)
         self.assertTrue(gate["passed"])
 
@@ -114,7 +156,8 @@ class Full16CanariesTests(unittest.IsolatedAsyncioTestCase):
         }
         gate = await temporal_activities.activity_validate_completion_gate(envelope, agent_res)
         self.assertFalse(gate["passed"])
-        self.assertIn("exit_code=1", gate["error"])
+        err = gate.get("error", "")
+        self.assertTrue("exit_code=1" in err or "executor reported failure" in err, msg=err)
 
     # CANARY 6: EMPTY DIFF GATE
     async def test_canary_06_empty_diff_gate(self):
@@ -122,7 +165,8 @@ class Full16CanariesTests(unittest.IsolatedAsyncioTestCase):
         agent_res = {"ok": True, "files_count": 0, "code_diff": "", "test_results": {"exit_code": 0, "ok": True}}
         gate = await temporal_activities.activity_validate_completion_gate(envelope, agent_res)
         self.assertFalse(gate["passed"])
-        self.assertIn("requires non-empty diff", gate["error"])
+        err = gate.get("error", "")
+        self.assertTrue("requires non-empty diff" in err or "bridge artifacts" in err, msg=err)
 
     # CANARY 7: HANDOFF UNREAD UNTIL EXPLICIT ACK
     def test_canary_07_handoff_explicit_ack(self):

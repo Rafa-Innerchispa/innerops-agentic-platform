@@ -17,7 +17,7 @@ def test_coding_task_requires_commit_or_objective():
     assert ocp.requires_git_commit(task) is True
     err = ocp.validate_completed_evidence(task, {"notes": "done"})
     assert err is not None
-    full = {
+    forged = {
         "commit_sha": "a" * 40,
         "objective_paths": ["src/x.py"],
         "objective_files_count": 1,
@@ -25,7 +25,7 @@ def test_coding_task_requires_commit_or_objective():
         "evidence_source": "git_committed_diff_on_execution_host",
         "git_before_sha": "b" * 40,
     }
-    assert ocp.validate_completed_evidence(task, full) is None
+    assert ocp.validate_completed_evidence(task, forged) is not None
     assert ocp.validate_completed_evidence(task, {"commit_sha": "a" * 40}) is not None
 
 

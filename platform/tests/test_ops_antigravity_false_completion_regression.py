@@ -139,7 +139,79 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
             "postconditions": {"verified": True},
         }
         err = ocp.validate_mutating_completion_evidence({"task_class": "coding", "objective": "fix bug"}, ev)
-        self.assertIn("git_baseline", err)
+        self.assertTrue("worktree" in err or "git_baseline" in err, msg=err)
+
+    def test_forged_evidence_source_and_nebius_sha_rejected_without_worktree(self) -> None:
+        ev = {
+            "evidence_source": "git_committed_diff_on_execution_host",
+            "commit_sha": NEBius_SHA,
+            "objective_paths": ["platform/inneros_core_runtime/ops_completion_policy.py"],
+            "objective_files_count": 1,
+            "test_results": {"exit_code": 0, "ok": True},
+            "git_before_sha": "a" * 40,
+        }
+        err = ocp.validate_mutating_completion_evidence(
+            {"task_class": "coding", "objective": "patch", "git_baseline_sha": "a" * 40},
+            ev,
+        )
+        self.assertIn("worktree", err)
+
+    def test_forged_evidence_source_rejected_when_commit_not_in_worktree(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        repo = Path(tmp.name)
+        subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@example.invalid"], check=True)
+        subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "README.md"], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+        baseline = git_head(repo)
+        (repo / "marker.md").write_text("exists on disk only\n", encoding="utf-8")
+        ev = {
+            "evidence_source": "git_committed_diff_on_execution_host",
+            "commit_sha": NEBius_SHA,
+            "objective_paths": ["marker.md"],
+            "objective_files_count": 1,
+            "test_results": {"exit_code": 0, "ok": True},
+        }
+        err = ocp.validate_mutating_completion_evidence(
+            {"task_class": "coding", "objective": "patch"},
+            ev,
+            worktree=repo,
+            before_sha=baseline,
+        )
+        self.assertIsNotNone(err)
+        self.assertTrue("receipt" in err or "commit_sha" in err, msg=err)
+
+    def test_repair_task_mentioning_pcdoctor_not_deployment(self) -> None:
+        repair = {
+            "task_class": "coding",
+            "objective": (
+                "Fix false COMPLETED gates; regression mentions pcdoctor.ai hosting allowlist "
+                "only as context, no production publish"
+            ),
+        }
+        self.assertFalse(ocp.objective_implies_deployment(repair))
+
+    def test_explicit_wordpress_deploy_still_requires_host_mutation(self) -> None:
+        deploy = {"task_class": "coding", "objective": "Deploy landing WordPress to cpanel production site"}
+        self.assertTrue(ocp.objective_implies_deployment(deploy))
+
+    def test_coordination_live_terminal_validator_fail_closed(self) -> None:
+        import importlib.util
+        from unittest.mock import patch
+
+        legacy_path = Path(__file__).resolve().parents[1] / "raphiia_openai" / "coordination_live.py"
+        spec = importlib.util.spec_from_file_location("legacy_coordination_live", legacy_path)
+        assert spec and spec.loader
+        cl = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cl)
+        task = {"task_id": "ops_terminal_gate", "task_class": "coding", "repo": "org/r"}
+        with patch("inneros_core_runtime.ops_completion_policy.validate_terminal_completion", side_effect=RuntimeError("boom")):
+            gate = cl._validate_terminal_evidence(task, "completed", {"commit_sha": "a" * 40})
+        self.assertFalse(gate.get("ok"))
+        self.assertEqual(gate.get("error"), "terminal_evidence_policy_failed")
 
     def test_untracked_objective_file_fails_without_commit(self) -> None:
         tmp = tempfile.TemporaryDirectory()
