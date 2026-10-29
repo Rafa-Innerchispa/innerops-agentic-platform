@@ -25,6 +25,9 @@ PROVIDER_CANARY_MARKERS = {
 
 CANARY_VERIFY_TEST = "platform/tests/test_provider_ops_canary_receipt.py"
 
+EXECUTION_SYNTHETIC_CANARY = "SYNTHETIC_CANARY_PASS"
+EXECUTION_PROVIDER_REAL = "PROVIDER_REAL_EXECUTION_VERIFIED"
+
 
 def _codex_bin() -> str:
     for candidate in (
@@ -49,17 +52,21 @@ def _task_blob(task: dict[str, Any]) -> str:
 
 
 def is_innocuous_canary_task(task: dict[str, Any], provider: str) -> bool:
+    """True only for explicitly marked synthetic canaries — never from free-text objectives."""
     prov = (provider or "").strip().lower()
-    marker = PROVIDER_CANARY_MARKERS.get(prov, "")
-    if not marker:
+    if not PROVIDER_CANARY_MARKERS.get(prov):
         return False
-    blob = _task_blob(task)
-    if marker.lower() in blob:
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if payload.get("provider_canary") != prov:
+        return False
+    mode = str(payload.get("execution_mode") or task.get("execution_mode") or "").strip().upper()
+    if mode == "SYNTHETIC_CANARY" or payload.get("synthetic_canary") is True:
         return True
-    if f"[{prov}_canary]" in blob or "[provider_canary]" in blob:
-        return True
-    payload = task.get("payload") or {}
-    return isinstance(payload, dict) and payload.get("provider_canary") == prov
+    if os.getenv("INNEROS_ALLOW_TEXT_CANARY_MATCH", "").strip().lower() in {"1", "true", "yes", "on"}:
+        blob = _task_blob(task)
+        marker = PROVIDER_CANARY_MARKERS[prov]
+        return marker.lower() in blob or f"[{prov}_canary]" in blob
+    return False
 
 
 def _model_exec_allowed(provider: str) -> bool:
@@ -248,7 +255,7 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
             resolved_model=None,
             model_source="bounded_canary_no_model_spend",
             transport="temporal_bounded_executor",
-            extra=journal_extra,
+            extra={**journal_extra, "execution_verification_class": EXECUTION_SYNTHETIC_CANARY},
         )
     elif prov == "codex" and _model_exec_allowed("codex"):
         runner_result = _run_codex_cli(task, worktree, pinned_model=pinned)
@@ -260,7 +267,11 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
             model_source="codex_cli_exec",
             usage=runner_result.get("usage") if isinstance(runner_result.get("usage"), dict) else None,
             transport="codex_cli_exec",
-            extra={**journal_extra, "codex_thread_id": runner_result.get("codex_thread_id")},
+            extra={
+                **journal_extra,
+                "codex_thread_id": runner_result.get("codex_thread_id"),
+                "execution_verification_class": EXECUTION_PROVIDER_REAL,
+            },
         )
         if runner_result.get("ok"):
             commit = _git_commit_worktree(worktree, f"ops {tid} codex")
@@ -343,9 +354,15 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
         )
         return {"ok": False, "task_id": tid, "receipt": built, "complete": complete}
 
+    exec_class = (
+        EXECUTION_SYNTHETIC_CANARY
+        if runner_result.get("primary") == "bounded_canary"
+        else EXECUTION_PROVIDER_REAL
+    )
     evidence = {
         **built["evidence"],
         "headless_primary": runner_result.get("primary"),
+        "execution_verification_class": exec_class,
         "execution_host": __import__("socket").gethostname(),
         "configured_model": pinned,
         "resolved_model": runner_result.get("resolved_model") or pinned,

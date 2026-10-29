@@ -423,10 +423,15 @@ def complete_ops_task(
         return {"ok": False, "error": "claim_token_mismatch_or_task_missing", "task_id": tid}
     if not _lease_valid(task):
         return {"ok": False, "error": "lease_expired", "task_id": tid}
+    normalized = (status or "completed").strip().lower()
+    from inneros_core_runtime import ops_task_requirements as otr
+
+    amend_block = otr.completion_blocked_by_amendments(tid)
+    if normalized == "completed" and amend_block.get("blocked"):
+        return {"ok": False, "error": amend_block["error"], "task_id": tid, "pending_amendments": amend_block["pending"]}
     model_err = _validate_pinned_model(provider=prov, task=task)
     if model_err:
         return {**model_err, "task_id": tid}
-    normalized = (status or "completed").strip().lower()
     ev = dict(evidence or {})
     if normalized == "completed":
         expected_model = pinned_model(prov)

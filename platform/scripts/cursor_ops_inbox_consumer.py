@@ -44,6 +44,13 @@ def run(*, limit: int = 20, ack_open: bool = True) -> dict:
         "acks": acks if isinstance(acks, list) else [],
         "classification": cep.classify_cursor_execution(),
         "executes_ops": False,
+        "delivery_semantics": {
+            "message_delivered": True,
+            "message_read_ack": bool(acks),
+            "requirements_applied": False,
+            "task_work_done": False,
+            "verified": False,
+        },
     }
 
 

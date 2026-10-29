@@ -48,24 +48,31 @@ def _create_task(*, provider: str, correlation_id: str, repo: str) -> dict[str, 
         task_class="coding",
         execution_lane=f"{provider}_interactive",
         preferred_provider=provider,
-        payload={"provider_canary": provider, "suppress_owner_whatsapp_auth": True},
+        payload={
+            "provider_canary": provider,
+            "execution_mode": "SYNTHETIC_CANARY",
+            "synthetic_canary": True,
+            "suppress_owner_whatsapp_auth": True,
+        },
         idempotency_key=f"{correlation_id}|{provider}",
     )
 
 
-def _authorize(task_id: str) -> None:
-    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
-    from raphiia_openai import mongo_store
+def _authorize(task_id: str, *, provider: str) -> dict[str, Any]:
+    if os.getenv("INNEROS_OPS_SYNTHETIC_CANARY_AUTH", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return {"ok": False, "error": "synthetic_canary_auth_disabled", "task_id": task_id}
+    from inneros_core_runtime import interactive_ops_runner as ior
 
-    mongo_store.get_db()[OPS_TASKS_COL].update_one(
-        {"task_id": task_id},
-        {
-            "$set": {
-                "owner_authorized_at": _utc(),
-                "owner_actor": os.getenv("RALFIA_OWNER_ID") or "INNEROS_OPS_CANARY",
-                "updated_at": _utc(),
-            }
-        },
+    return ior.authorize_ops_task(
+        provider,
+        task_id,
+        owner_actor=os.getenv("RALFIA_OWNER_ID") or "INNEROS_OPS_CANARY",
+        channel="synthetic_canary",
     )
 
 
@@ -95,7 +102,9 @@ def _run_provider(
     if not created.get("ok"):
         return {"ok": False, "provider": provider, "stage": "create", "detail": created}
     tid = str(created.get("task_id") or "")
-    _authorize(tid)
+    auth = _authorize(tid, provider=provider)
+    if not auth.get("ok"):
+        return {"ok": False, "provider": provider, "task_id": tid, "stage": "authorize", "detail": auth}
     claim = ior.claim_ops_task(provider, task_id=tid, owner_approved=True, owner_actor="INNEROS_OPS_CANARY")
     if not claim.get("ok"):
         return {"ok": False, "provider": provider, "task_id": tid, "stage": "claim", "detail": claim}

@@ -128,20 +128,26 @@ def test_spawn_uses_persistent_systemd_unit_and_records_pid():
     launched = subprocess.CompletedProcess([], 0, stdout="", stderr="")
     pid = subprocess.CompletedProcess([], 0, stdout="4321\n", stderr="")
 
+    unit = "inneros-cursor-headless-ops_demo-deadbeef.service"
     with (
         patch.object(dispatch.mongo_store, "get_db", return_value=db),
         patch("inneros_core_runtime.cursor_headless_lanes.is_ha_execution_node", return_value=True),
         patch("inneros_core_runtime.cursor_headless_lanes.available_slots", return_value=1),
         patch("inneros_core_runtime.cursor_headless_lanes.hostname", return_value="ralfiia-intel"),
         patch("inneros_core_runtime.cursor_headless_lanes.node_role", return_value="intel"),
-        patch.object(dispatch.subprocess, "run", side_effect=[launched, pid]) as run,
+        patch.object(
+            dispatch.hwr,
+            "systemd_run_transient",
+            return_value=(launched, unit),
+        ) as mock_systemd,
+        patch.object(dispatch.subprocess, "run", return_value=pid) as run,
     ):
         result = dispatch.spawn_headless_execute("ops_demo")
 
     assert result["ok"] is True
     assert result["pid"] == 4321
-    assert result["unit"].startswith("inneros-cursor-headless-ops_demo-")
-    launch_cmd = run.call_args_list[0].args[0]
+    assert result["unit"] == unit
+    launch_cmd = mock_systemd.call_args.kwargs["command"]
     assert launch_cmd[:4] == ["systemd-run", "--user", "--quiet", "--collect"]
     assert "--property=Type=exec" in launch_cmd
     assert any(arg.startswith("--property=EnvironmentFile=-") for arg in launch_cmd)

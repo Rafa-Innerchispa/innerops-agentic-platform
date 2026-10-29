@@ -52,12 +52,32 @@ def _checklist_from_body(body: str) -> list[str]:
 
 def should_create_task(*, title: str, body: str, message_type: str, payload: dict[str, Any] | None) -> bool:
     payload = payload or {}
+    if payload.get("requirements_amendment") is True or payload.get("amends_task_id"):
+        return False
     return bool(
         str(message_type or "").strip().lower() == "task"
         or payload.get("auto_create_ops_task") is True
         or _TASK_TITLE.search(title or "")
         or _TASK_BODY.search(body or "")
     )
+
+
+def _is_requirements_amendment(
+    *,
+    title: str,
+    body: str,
+    message_type: str,
+    payload: dict[str, Any] | None,
+    reply_to: str | None,
+) -> bool:
+    payload = payload or {}
+    if payload.get("requirements_amendment") is True or payload.get("amends_task_id"):
+        return True
+    if payload.get("task_id") and str(message_type or "").lower() in {"amendment", "requirements", "reply"}:
+        return True
+    if reply_to and not should_create_task(title=title, body=body, message_type=message_type, payload=payload):
+        return True
+    return False
 
 
 def ingest_agent_message(
@@ -125,6 +145,29 @@ def ingest_agent_message(
         idempotency_key=idempotency_key,
         related_project=project,
     )
+    if message.get("ok") and _is_requirements_amendment(
+        title=title,
+        body=body_n,
+        message_type=message_type,
+        payload=payload_n,
+        reply_to=reply_to,
+    ):
+        from inneros_core_runtime import ops_task_requirements as otr
+
+        amendment = otr.ingest_message_as_amendment(
+            {
+                **message,
+                "reply_to": reply_to,
+                "payload": payload_n,
+                "body": body_n,
+            }
+        )
+        return {
+            **message,
+            "requirements_amendment": amendment,
+            "task_work_done": False,
+            "requirements_applied": amendment.get("lifecycle") in {"applied", "verified"},
+        }
     if not message.get("ok") or not should_create_task(
         title=title,
         body=body_n,
