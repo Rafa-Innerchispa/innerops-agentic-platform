@@ -13,3 +13,4 @@ var/inneros_autopilot/
 worktrees/
 workspaces/*
 !workspaces/innerops-agentic-platform/
+.venv-ci/

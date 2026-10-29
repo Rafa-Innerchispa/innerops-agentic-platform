@@ -439,6 +439,9 @@ def claim_ops_task(
         current_step="cursor_interactive",
         last_progress=f"Claimed on {_host()} model={CURSOR_PINNED_MODEL}",
     )
+    from inneros_core_runtime import ops_task_requirements as otr
+
+    requirements_checkpoint = otr.process_checkpoint_amendments(tid, actor="cursor")
 
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True, "assignee": "cursor", "status": "in_progress"})
     result: dict[str, Any] = {
@@ -458,6 +461,7 @@ def claim_ops_task(
         "execution_binding": binding,
         "temporal_handoff": temporal_handoff,
         "session": classified.get("interactive_session"),
+        "requirements_checkpoint": requirements_checkpoint,
     }
     if os.getenv("INNEROS_CURSOR_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes"}:
         from inneros_core_runtime.cursor_headless_dispatch import spawn_headless_execute
@@ -493,6 +497,17 @@ def complete_ops_task(
     normalized = (status or "completed").strip().lower()
     if normalized not in {"completed", "failed", "blocked"}:
         return {"ok": False, "error": "invalid_status", "allowed": ["completed", "failed", "blocked"]}
+
+    from inneros_core_runtime import ops_task_requirements as otr
+
+    amend_block = otr.completion_blocked_by_amendments(tid)
+    if normalized == "completed" and amend_block.get("blocked"):
+        return {
+            "ok": False,
+            "error": amend_block["error"],
+            "task_id": tid,
+            "pending_amendments": amend_block["pending"],
+        }
 
     now = _now()
     ev = dict(evidence or {})

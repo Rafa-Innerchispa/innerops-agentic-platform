@@ -180,7 +180,8 @@ def apply_amendment(event_id: str, *, actor: str = "executor") -> dict[str, Any]
         return {"ok": True, "continuation": cont, "event_id": event_id, "parent_terminal": True}
 
     base_ver = _task_requirements_version(task)
-    at_register = int(ev.get("requirements_version_at_register") or base_ver)
+    raw_at_register = ev.get("requirements_version_at_register")
+    at_register = base_ver if raw_at_register is None else int(raw_at_register)
     if base_ver != at_register:
         return {
             "ok": False,
@@ -258,6 +259,56 @@ def checkpoint_pending_revision(task_id: str) -> dict[str, Any]:
         ).sort("created_at", 1)
     )
     return {"task_id": task_id, "pending_events": rows, "count": len(rows)}
+
+
+def process_checkpoint_amendments(task_id: str, *, actor: str = "worker") -> dict[str, Any]:
+    """Worker checkpoint: verify applied amendments, apply accepted queue (CAS + revision barrier)."""
+    tid = (task_id or "").strip()
+    if not tid:
+        return {"ok": False, "error": "task_id_required"}
+    db = mongo_store.get_db()
+    task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+    if not task:
+        return {"ok": False, "error": "task_not_found", "task_id": tid}
+
+    processed: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+
+    for ev in db[COL_EVENTS].find({"task_id": tid, "lifecycle": "applied"}, {"_id": 0}).sort(
+        "created_at", 1
+    ):
+        eid = str(ev.get("event_id") or "")
+        verified = verify_amendment(eid, actor=actor)
+        processed.append({"event_id": eid, "step": "verify_applied", **verified})
+        if not verified.get("ok"):
+            errors.append({"event_id": eid, **verified})
+
+    for ev in db[COL_EVENTS].find({"task_id": tid, "lifecycle": "accepted"}, {"_id": 0}).sort(
+        "created_at", 1
+    ):
+        eid = str(ev.get("event_id") or "")
+        applied = apply_amendment(eid, actor=actor)
+        if not applied.get("ok"):
+            errors.append({"event_id": eid, **applied})
+            processed.append({"event_id": eid, "step": "apply", **applied})
+            continue
+        if applied.get("continuation"):
+            processed.append({"event_id": eid, "step": "apply_continuation", **applied})
+            continue
+        verified = verify_amendment(eid, actor=actor)
+        processed.append({"event_id": eid, "step": "apply_verify", **verified})
+        if not verified.get("ok"):
+            errors.append({"event_id": eid, **verified})
+        task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
+
+    return {
+        "ok": not errors,
+        "task_id": tid,
+        "requirements_version": _task_requirements_version(task),
+        "processed": processed,
+        "errors": errors,
+        "pending_after": checkpoint_pending_revision(tid),
+    }
 
 
 def create_continuation_for_amendment(event: dict[str, Any], *, parent: dict[str, Any]) -> dict[str, Any]:

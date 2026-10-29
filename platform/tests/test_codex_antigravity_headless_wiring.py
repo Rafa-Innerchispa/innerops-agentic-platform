@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -26,9 +27,12 @@ class CodexAntigravityWiringTests(unittest.TestCase):
             "payload": {
                 "provider_canary": "codex",
                 "execution_mode": "SYNTHETIC_CANARY",
+                "synthetic_canary": True,
+                "synthetic_canary_issuer": "inneros_ops_provider_bounded_canary",
             },
         }
-        self.assertTrue(ipbe.is_innocuous_canary_task(signed, "codex"))
+        with patch.dict(os.environ, {"INNEROS_OPS_SYNTHETIC_CANARY_AUTH": "1"}):
+            self.assertTrue(ipbe.is_innocuous_canary_task(signed, "codex"))
         self.assertFalse(ipbe.is_innocuous_canary_task(signed, "antigravity"))
 
     def test_codex_headless_script_invokes_bounded_executor(self) -> None:

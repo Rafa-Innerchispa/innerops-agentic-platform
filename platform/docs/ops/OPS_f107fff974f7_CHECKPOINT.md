@@ -19,8 +19,9 @@
 - [x] Canario script: auth vía `authorize_ops_task` + env `INNEROS_OPS_SYNTHETIC_CANARY_AUTH`
 
 ## Fase 3 — aprobaciones / créditos (parcial en código existente)
-- [ ] UI grant tokens/USD separados (msg_f310e8f9) — requiere extensión MCP/owner gate
-- [ ] Análisis inverso FMEA (msg_59edd08d) — issue privado #8, no copiar al público
+- [x] Vista HA local `ops_owner_approval_ha.py` (NL budget, grant, observed vs estimate) — continuación ops_2dae642f4ebf
+- [ ] Push live Companion / MCP wiring producción — pendiente aprobación scoped
+- [x] FMEA 12 invariantes offline — `test_ops_fmea_invariants.py` (issue #8 no copiado al público)
 
 ## Reanudación
 - `task_id`: ops_f107fff974f7

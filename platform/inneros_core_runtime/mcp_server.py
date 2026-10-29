@@ -398,6 +398,22 @@ def cursor_authorize_ops_task(task_id: str, owner_actor: str = "RAFAEL", channel
 
 
 @mcp.tool
+def ops_owner_approval_view(task_id: str) -> dict[str, Any]:
+    """Vista HA: scope, presupuesto NL (unknown≠0), grant, coste observado vs estimado."""
+    from inneros_core_runtime import ops_owner_approval_ha as oah
+
+    return oah.build_owner_approval_view(task_id)
+
+
+@mcp.tool
+def ops_owner_approval_push(task_id: str, notes: str = "") -> dict[str, Any]:
+    """Push checkpoint durable al owner (ChatGPT inbox); no deploy live sin grant."""
+    from inneros_core_runtime import ops_owner_approval_ha as oah
+
+    return oah.push_owner_approval_ha(task_id, notes=notes)
+
+
+@mcp.tool
 def cursor_claim_ops_task(
     task_id: str = "",
     correlation_id: str = "",

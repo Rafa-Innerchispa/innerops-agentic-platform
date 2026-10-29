@@ -360,6 +360,9 @@ def claim_ops_task(
     except Exception:
         pass
     heartbeat_ops_task(tid, actor=prov, phase="claimed", current_step=f"{prov}_interactive", last_progress=f"claim {_host()}")
+    from inneros_core_runtime import ops_task_requirements as otr
+
+    requirements_checkpoint = otr.process_checkpoint_amendments(tid, actor=prov)
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True})
     headless_spawn: dict[str, Any] | None = None
     try:
@@ -402,6 +405,7 @@ def claim_ops_task(
         "execution_binding": binding,
         "claim_host": _host(),
         "headless_spawn": headless_spawn,
+        "requirements_checkpoint": requirements_checkpoint,
     }
 
 

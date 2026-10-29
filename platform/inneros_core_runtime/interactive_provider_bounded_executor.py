@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
@@ -51,6 +52,25 @@ def _task_blob(task: dict[str, Any]) -> str:
     ).lower()
 
 
+def _synthetic_canary_trusted(task: dict[str, Any]) -> bool:
+    """Payload flags alone are insufficient — require issuer token or synthetic_canary auth channel."""
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    expected = os.getenv("INNEROS_OPS_SYNTHETIC_CANARY_TOKEN", "").strip()
+    if expected:
+        token = str(payload.get("synthetic_canary_auth_token") or "").strip()
+        return bool(token) and hmac.compare_digest(token, expected)
+    if str(task.get("owner_authorization_channel") or "") == "synthetic_canary":
+        return True
+    if payload.get("synthetic_canary_issuer") == "inneros_ops_provider_bounded_canary":
+        return os.getenv("INNEROS_OPS_SYNTHETIC_CANARY_AUTH", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    return False
+
+
 def is_innocuous_canary_task(task: dict[str, Any], provider: str) -> bool:
     """True only for explicitly marked synthetic canaries — never from free-text objectives."""
     prov = (provider or "").strip().lower()
@@ -61,7 +81,7 @@ def is_innocuous_canary_task(task: dict[str, Any], provider: str) -> bool:
         return False
     mode = str(payload.get("execution_mode") or task.get("execution_mode") or "").strip().upper()
     if mode == "SYNTHETIC_CANARY" or payload.get("synthetic_canary") is True:
-        return True
+        return _synthetic_canary_trusted(task)
     if os.getenv("INNEROS_ALLOW_TEXT_CANARY_MATCH", "").strip().lower() in {"1", "true", "yes", "on"}:
         blob = _task_blob(task)
         marker = PROVIDER_CANARY_MARKERS[prov]
@@ -258,6 +278,35 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
             extra={**journal_extra, "execution_verification_class": EXECUTION_SYNTHETIC_CANARY},
         )
     elif prov == "codex" and _model_exec_allowed("codex"):
+        from inneros_core_runtime import ops_owner_approval_ha as oah
+
+        grant = oah.paid_execution_allowed(tid, provider=prov)
+        if not grant.get("allowed"):
+            blocked = {
+                "ok": False,
+                "error": grant.get("error") or "owner_budget_grant_required",
+                "task_id": tid,
+                "provider": prov,
+                "primary": "codex_cli_exec",
+                "hint": grant.get("hint"),
+            }
+            omj.record_model_execution(
+                tid,
+                provider=prov,
+                configured_model=pinned,
+                resolved_model=None,
+                model_source="blocked_no_grant",
+                transport=None,
+                extra={**journal_extra, "blocked_reason": blocked["error"]},
+            )
+            complete = ior.complete_ops_task(
+                prov,
+                tid,
+                claim_token=token,
+                status="blocked",
+                evidence={"blocked_reason": blocked["error"], "headless_primary": "codex_cli_exec"},
+            )
+            return {**blocked, "complete": complete}
         runner_result = _run_codex_cli(task, worktree, pinned_model=pinned)
         omj.record_model_execution(
             tid,
