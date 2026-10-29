@@ -43,7 +43,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `367e67ff5680302c8f89162f0f7a7fea27a4bd44` |
-| worktree_sha | *(post-commit docs)* |
+|  *(post-commit docs)* | *(post-commit docs)* |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -60,7 +60,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a37420ed2a7b4178aa50c54489ad76883028acee` |
-| worktree_sha | `ae467e5294be1950dd3b56ff0af5dc9c5e6f42b6` |
+|  *(post-commit docs)* | `ae467e5294be1950dd3b56ff0af5dc9c5e6f42b6` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -77,7 +77,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `177523928b1844fe7e49057376b4a5af9fd64b59` |
-| worktree_sha | `6ea9e86deaee360fb4457f988457441ca3068201` |
+|  *(post-commit docs)* | `6ea9e86deaee360fb4457f988457441ca3068201` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -94,7 +94,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `e42347b62ebd1bd14f033f40de176043846702f2` |
-| worktree_sha | `a627b5eeee2c5da1eb88abe692407b417f071afa` |
+|  *(post-commit docs)* | `a627b5eeee2c5da1eb88abe692407b417f071afa` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -111,7 +111,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f2a402ebe5298c9fb4a729727c111a1eec1807e4` |
-| worktree_sha | `21399f25dcf72c910b2d007ee156144a6e0c3d74` |
+|  *(post-commit docs)* | `21399f25dcf72c910b2d007ee156144a6e0c3d74` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -128,7 +128,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f3e1a0c06b5c72165a93710eb4efc0e58a36f9c0` |
-| worktree_sha | `ad5ecdd7814b56c7c95af0bf382c01caa411f0f2` |
+|  *(post-commit docs)* | `ad5ecdd7814b56c7c95af0bf382c01caa411f0f2` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -145,7 +145,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `81f9766a2bc4bdb3e632a57068a2f7ff5425c84d` |
-| worktree_sha | `2f2147200d7bb7cdd29a394fedc370c89043177e` |
+|  *(post-commit docs)* | `2f2147200d7bb7cdd29a394fedc370c89043177e` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -162,7 +162,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3989ce9ecf1e7dd9f911daa3b3b2e965534ab907` |
-| worktree_sha | `8c893939a6f37a999fd515e39a6c27864d222a1a` |
+|  *(post-commit docs)* | `8c893939a6f37a999fd515e39a6c27864d222a1a` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -179,7 +179,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `239324d0bbf79afa6b3c86cabe1c1d8918431a30` |
-| worktree_sha | `581efb9203386927cf49fbd6948ad34f081faf10` |
+|  *(post-commit docs)* | `581efb9203386927cf49fbd6948ad34f081faf10` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
