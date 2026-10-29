@@ -2,7 +2,7 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `430c13ff10f1c8a44422226f6b98326ad6b336c9` (merge PR #238 deploy pause @ 23:34Z; post-#247 docs `c418fa17`). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (sync main `430c13ff`; tip post-receipt pendiente incluye CI gate `test_ops_deploy_scheduler_loop_regression`; PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); **#238** deploy pause en main; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (sync main `430c13ff`; tip `ee9aad1a` incluye CI gate `test_ops_deploy_scheduler_loop_regression`; PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); **#238** deploy pause en main; **sin COMPLETED global de la OPS**.
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 23:40Z
 
@@ -10,7 +10,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `47f87975426b7bbbf61a8ce3138d1f1f2f42c821` |
-| worktree_sha (post-commit docs) | *(post-commit)* |
+| worktree_sha (post-commit docs) | `ee9aad1afddbc14d93a656d13109315f736b6db2` |
 | main SHA | `430c13ff10f1c8a44422226f6b98326ad6b336c9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
