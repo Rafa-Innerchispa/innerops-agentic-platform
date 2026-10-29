@@ -8,7 +8,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 | Fase | Alcance | Estado | Evidencia |
 |------|---------|--------|-----------|
-| 1 | Inventario read-only Git/runtime/fleet | **PARTIAL** | Auditor `ralphi-ia-ver-10`; worktree integrator (docs); Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `24277871…` → runtime no certificado |
+| 1 | Inventario read-only Git/runtime/fleet | **PARTIAL** | Auditor `ralphi-ia-ver-10`; worktree integrator; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `9cf2d1c2…` → runtime no certificado |
 | 2 | Contrato estados / adendas / CAS | **PASS (offline)** | Heredado PR #232/#233; gate global nuevo en `finalize_verification_to_completed` |
 | 3 | Reintentos / fencing DevSwarm | **PASS (offline)** | Heredado PR #233 `test_dev_swarm_retry_budget_regression` |
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
@@ -35,27 +35,26 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T15:10Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `24277871…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T15:13Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `e7b168d4` (rama `cursor/ops-7039e9cc4f11-integrator`, PR #236) |
-| before_sha (pre-sesión) | `e7b168d4c97b2cae362e6b9173b9df49eade0c82` |
+| worktree SHA | `0eb6b6ae` (rama `cursor/ops-7039e9cc4f11-integrator`, merge main post-#236) |
+| before_sha (pre-sesión) | `a7f35b21b197ecab93a92d0cdd4220c0d3a930fe` |
 | main SHA (merge #236) | `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T15:11Z |
-| tests | pytest exit 0 — 255 passed, 13 subtests (`inneros-runtime-gates` lista @ 15:11Z) |
-| CI PR #236 | workflow `inneros-runtime-gates` run **40898337229** SUCCESS |
-| CI main | workflow `inneros-runtime-gates` run **40895193326** SUCCESS @ merge #235 |
-| runtime audit | `ops_runtime_deploy_audit_readonly.py` → `ok: false` (Intel SSH; AMD SHA desalineado) |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T15:14Z |
+| tests | pytest exit 0 — 255 passed, 13 subtests (`inneros-runtime-gates` suite @ 15:14Z) |
+| CI main #236 | workflow `inneros-runtime-gates` run **40898934368** SUCCESS @ push `9cf2d1c2` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py` → `ok: false` (Intel SSH; AMD SHA desalineado vs `9cf2d1c2`) |
 | estado global OPS | **IN_PROGRESS** — gate en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
 
 ### Autorización owner pendiente (misma OPS, no nueva task)
 
-1. **Deploy canario host 1** — alinear `ralfiia-amd` (y luego Intel) con main `24277871…`; reinicio servicios solo tras checkpoint HA explícito.
+1. **Deploy canario host 1** — alinear `ralfiia-amd` (y luego Intel) con main `9cf2d1c2…`; reinicio servicios solo tras checkpoint HA explícito.
 2. **Intel audit** — clave SSH/Tailscale para `192.168.1.4`.
 3. **Grant HA** — gasto real Codex/Antigravity (fase 5/9 parcial BLOCKED sin grant).
