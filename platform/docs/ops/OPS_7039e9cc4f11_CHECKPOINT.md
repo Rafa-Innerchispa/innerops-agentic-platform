@@ -10,8 +10,8 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `1f0c8c406c91e866db441e8f02315c50d23c44e5` |
-|  *(pendiente post-commit)* | *(pendiente post-commit)* |
-| integrator_branch_sha | *(pendiente post-commit)* |
+| worktree_sha (post-commit docs) | `2e8003e5a0eacaa8368c7949879966f900c81d84` |
+| integrator_branch_sha | `2e8003e5` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -30,7 +30,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `4e3cb9520aa91a038865a5cbdbbf0b068194902e` |
-|  *(pendiente post-commit)* | `9abcead071211170c4a2a739a81c2e23823841c1` |
+| worktree_sha (post-commit docs) | `9abcead071211170c4a2a739a81c2e23823841c1` |
 | integrator_branch_sha | `4ecbed9d` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -50,7 +50,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `52cc92f943e7b26cad9ec788a1e1d586d3f3f1e5` |
-|  *(pendiente post-commit)* | `0d40494bee23301fc4dc8b06c4091c54c08b366b` |
+| worktree_sha (post-commit docs) | `0d40494bee23301fc4dc8b06c4091c54c08b366b` |
 | integrator_branch_sha | `b2a0a765` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -70,7 +70,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `22995de4b6e2be37457cb82a02a21aeaccc84f0d` |
-|  *(pendiente post-commit)* | `1e589fa71a89c61d197549be0f4b3da470eb6c93` |
+| worktree_sha (post-commit docs) | `1e589fa71a89c61d197549be0f4b3da470eb6c93` |
 | integrator_branch_sha | `8f3a75cf` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -102,7 +102,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `94e6cb3d038318ec2e515b96d1f365bac65ebf7b` |
-|  *(pendiente post-commit)* | `c20d05750c6509679d325993d4b63bc757371c2a` |
+| worktree_sha (post-commit docs) | `c20d05750c6509679d325993d4b63bc757371c2a` |
 | integrator_branch_sha | `f3fb322e` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -122,7 +122,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c0a40d91a24de4c14b5ff35dc66be180b5d3a1e0` |
-|  *(pendiente post-commit)* | `ac35930c0cacd529f7ebf14cd64c199ba808a79f` |
+| worktree_sha (post-commit docs) | `ac35930c0cacd529f7ebf14cd64c199ba808a79f` |
 | integrator_branch_sha | `ac35930c0cacd529f7ebf14cd64c199ba808a79f` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -142,7 +142,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `0406a105c94d9d8e5a402e5f5be1cd0a49c3f798` |
-|  *(pendiente post-commit)* | `6fe7c3fedff866f7bb92854a4f6daacc102fe135` |
+| worktree_sha (post-commit docs) | `6fe7c3fedff866f7bb92854a4f6daacc102fe135` |
 | integrator_branch_sha | `6fe7c3fedff866f7bb92854a4f6daacc102fe135` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -162,7 +162,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `0c59a108e2cd5b86e0428c80e75a41e0c9b7658e` |
-|  *(pendiente post-commit)* | `d359c935a8c05b8487cfb2868f86cf4579681989` |
+| worktree_sha (post-commit docs) | `d359c935a8c05b8487cfb2868f86cf4579681989` |
 | integrator_branch_sha | `d359c935a8c05b8487cfb2868f86cf4579681989` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -182,7 +182,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a9799b63ab420f98eb0fc0c1dbc72e41895dde41` |
-|  *(pendiente post-commit)* | `23b528594615815c6286a5aaf46efbf97f308756` |
+| worktree_sha (post-commit docs) | `23b528594615815c6286a5aaf46efbf97f308756` |
 | integrator_branch_sha | `23b528594615815c6286a5aaf46efbf97f308756` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -202,7 +202,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `700386411c2f452dbb67c2dc6d8596ca952e1b8e` |
-|  *(pendiente post-commit)* | `76ce68c90eb6e3d4cf6fc60f4314762bdf05c921` |
+| worktree_sha (post-commit docs) | `76ce68c90eb6e3d4cf6fc60f4314762bdf05c921` |
 | integrator_branch_sha | `76ce68c90eb6e3d4cf6fc60f4314762bdf05c921` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -222,7 +222,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `88235d22ad13a15f7fbff8b4a482e13260eecded` |
-|  *(pendiente post-commit)* | `0be34d069d2467a31bd00f33a7c91094bdaeb9d9` |
+| worktree_sha (post-commit docs) | `0be34d069d2467a31bd00f33a7c91094bdaeb9d9` |
 | integrator_branch_sha | `0be34d069d2467a31bd00f33a7c91094bdaeb9d9` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -242,7 +242,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c1f10eeea4bf6dfa964bcef9e3d0abbf76d5ed08` |
-|  *(pendiente post-commit)* | `e0f849f432892a608456d78c01b50cc90479156e` |
+| worktree_sha (post-commit docs) | `e0f849f432892a608456d78c01b50cc90479156e` |
 | integrator_branch_sha | `e0f849f432892a608456d78c01b50cc90479156e` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -262,7 +262,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3974f900b949254eabee73fe2381d8569bd0557a` |
-|  *(pendiente post-commit)* | `a3b1776df116ae088e7e208d240cb025a3b7b4e7` |
+| worktree_sha (post-commit docs) | `a3b1776df116ae088e7e208d240cb025a3b7b4e7` |
 | integrator_branch_sha | `a3b1776df116ae088e7e208d240cb025a3b7b4e7` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -282,7 +282,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `80c9fd7c8db0041b993aba01963b9943f2b66f07` |
-|  *(pendiente post-commit)* | `426a18d0a4ad549a7a70f8fecde9ac48e801f58c` |
+| worktree_sha (post-commit docs) | `426a18d0a4ad549a7a70f8fecde9ac48e801f58c` |
 | integrator_branch_sha | `426a18d0a4ad549a7a70f8fecde9ac48e801f58c` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -302,7 +302,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8333be15f756bdc46eb949c5dc317546981282e1` |
-|  *(pendiente post-commit)* | `ce4946660e9974719966ef57361e2565905fb1a7` |
+| worktree_sha (post-commit docs) | `ce4946660e9974719966ef57361e2565905fb1a7` |
 | integrator_branch_sha | `ce4946660e9974719966ef57361e2565905fb1a7` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
