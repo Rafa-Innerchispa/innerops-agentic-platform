@@ -11,6 +11,8 @@ from typing import Any
 
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
 from inneros_core_runtime import execution_binding as eb
+from inneros_core_runtime import ops_completion_policy as ocp
+from inneros_core_runtime import ops_deploy_execution_pause as odep
 from raphiia_openai import mongo_store, ralfia_time
 
 COL_GRANTS = "ops_owner_approval_grants"
@@ -216,11 +218,25 @@ def build_owner_approval_view(task_id: str) -> dict[str, Any]:
     repo = str(task.get("repo") or "").strip()
     deep_link = f"https://github.com/{repo}/issues" if repo else None
     task_deep_link = f"https://github.com/{repo}/blob/main/platform/docs/ops" if repo else None
+    deploy_scope = {
+        "requires_deploy_approval": bool(payload.get("requires_deploy_approval"))
+        or ocp.objective_implies_deployment(task),
+        "awaiting_deploy_approval": str(task.get("status") or "").lower() == odep.STATUS_AWAITING_DEPLOY
+        or bool(payload.get("awaiting_deploy_approval")),
+        "blocked_with_cause": task.get("blocked_with_cause") or payload.get("blocked_with_cause"),
+        "expected_main_sha": payload.get("expected_main_sha") or task.get("expected_main_sha"),
+        "target_hosts": payload.get("deploy_hosts") or payload.get("target_hosts") or [],
+        "deploy_approved_at": payload.get("deploy_approved_at") or task.get("deploy_approved_at"),
+    }
     summary_lines = [
         f"Task {tid} · status={task.get('status')}",
         f"Provider/model: {summary.get('provider')} / {summary.get('preferred_model') or task.get('preferred_model')}",
         f"Grant: {'active' if grant else 'missing'}",
     ]
+    if deploy_scope["requires_deploy_approval"] or deploy_scope["awaiting_deploy_approval"]:
+        summary_lines.append(
+            "Deploy: requiere aprobación HA separada por host/repo/SHA/servicios (no incluida en auth de código)."
+        )
     if grant:
         gl = _grant_durable_limits(grant)
         summary_lines.append(f"Limits USD/tokens/credits: {gl['usd_limit']}/{gl['token_limit']}/{gl['credit_limit']}")
@@ -252,6 +268,7 @@ def build_owner_approval_view(task_id: str) -> dict[str, Any]:
             "observed": observed,
         },
         "grant": grant,
+        "deploy_approval": deploy_scope,
         "owner_authorized_at": task.get("owner_authorized_at"),
         "deep_links": {"github_repo": deep_link, "ops_docs": task_deep_link, "task_id": tid},
         "owner_summary_nl": "\n".join(summary_lines),

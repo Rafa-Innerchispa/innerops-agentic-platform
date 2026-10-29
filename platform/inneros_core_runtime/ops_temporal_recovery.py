@@ -69,6 +69,17 @@ def reopen_ops_temporal_execution(
     if not task:
         return {"ok": False, "error": "task_not_found", "task_id": tid}
 
+    from inneros_core_runtime import ops_deploy_execution_pause as odep
+
+    if odep.execution_automation_frozen(task):
+        return {
+            "ok": False,
+            "error": "temporal_reopen_blocked_deploy_pause",
+            "task_id": tid,
+            "status": task.get("status"),
+            "blocked_with_cause": task.get("blocked_with_cause"),
+        }
+
     canonical = f"ops_task:{tid}"
     current_wf = str(task.get("workflow_id") or canonical)
     described = asyncio.run(_describe_workflow(current_wf))
