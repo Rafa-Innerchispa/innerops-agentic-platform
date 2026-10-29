@@ -2,7 +2,7 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f878661373aad307489b7de5eaf95d7444d43804` (merge docs [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) @ 19:10Z; código gate en `f211e533` vía #242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (tip docs-only sobre main `f8786613`). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) → main `f8786613`; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. PR docs abierto: [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) (MERGEABLE; tip integrador `519f74ca`, push pendiente).
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (tip docs-only sobre main `f8786613`). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) → main `f8786613`; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. PR docs abierto: [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) (MERGEABLE; tip integrador `16207429`, push pendiente).
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 21:03Z
 
@@ -10,8 +10,8 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `519f74ca20df76f4c362cc47dcca4982b4419a26` |
-| worktree_sha (post-commit docs) | *(commit receipt pendiente)* |
-| integrator_branch_sha | *(commit receipt pendiente)* |
+| worktree_sha (post-commit docs) | `16207429957b029f5a658c9478a7dd25766b786b` |
+| integrator_branch_sha | `16207429` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
