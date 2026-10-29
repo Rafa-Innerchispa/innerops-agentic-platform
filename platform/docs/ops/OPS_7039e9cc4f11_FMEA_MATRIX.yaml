@@ -8,7 +8,7 @@ main_merge_sha_pr236: 9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d
 main_merge_sha_pr237: 9f51f22e6bfa16ba481d3ad9e1b8d556e21afc39
 main_merge_sha_pr240: 83384714247267548e3bcceba25081248999fb1d
 main_tip_sha: 83384714247267548e3bcceba25081248999fb1d
-integrator_branch_sha: e42347b62ebd1bd14f033f40de176043846702f2
+integrator_branch_sha: a627b5eeee2c5da1eb88abe692407b417f071afa
 integrator_pr: 234
 docs_pr: 241
 docs_pr_merged: false
