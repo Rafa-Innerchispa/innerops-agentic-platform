@@ -2,7 +2,28 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` (merge integrador docs [#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247) @ 22:11Z; gate en main desde #241–#242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (sincronizada con main post-#247). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (sincronizada con main post-#247). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); docs pendientes [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:20Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `7fbd558a4020248c49c99b9065afa6b7627522ba` |
+| worktree_sha (post-commit docs) | *(pendiente commit sesión)* |
+| integrator_branch_sha | *(pendiente)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:20Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:20Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; import `ops_global_completion_gate` desde worktree `platform/` |
+| delta `.py` vs main | **0** — cierre vía `ops_global_completion_gate` + RACB `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 22:18Z
 
@@ -2973,7 +2994,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 
 ### Autorización owner pendiente (misma OPS, no nueva task)
 
-1. **Deploy canario host 1 (AMD)** — alinear `ralfiia-amd` (`192.168.1.5`) con main `f878661373aad307489b7de5eaf95d7444d43804` (actual runtime `f3a4ecdd…`); snapshot/rollback + reinicio servicios solo tras checkpoint HA explícito en esta OPS.
+1. **Deploy canario host 1 (AMD)** — alinear `ralfiia-amd` (`192.168.1.5`) con main `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` (actual runtime `f3a4ecdd…`); snapshot/rollback + reinicio servicios solo tras checkpoint HA explícito en esta OPS.
 2. **Deploy canario host 2 (Intel)** — clave SSH/Tailscale para `rlopez@192.168.1.4` (audit actual: **Permission denied**); mismo SHA canario tras AMD verificado.
 3. **Grant HA** — gasto real Codex/Antigravity con tope DURO (fases 5/9 parcial **BLOCKED** sin grant).
 4. **E2E fase 9** — tarea inocua HA→routing→worktree→receipt→Temporal/Mongo→notificación, solo tras deploy canario aprobado.
