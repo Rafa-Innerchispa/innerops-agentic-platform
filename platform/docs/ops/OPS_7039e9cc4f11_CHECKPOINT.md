@@ -2,7 +2,7 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f211e53370e0680f087a84e1e302476c04a594b9` (merge PR [#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242), 2026-10-29T17:42Z; checkpoint docs post-#241). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. Docs pendientes merge: PR [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243) (CI **SUCCESS**; push pendiente tip integrador `b8346b51`).
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. Docs pendientes merge: PR [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243) (CI **SUCCESS**; push pendiente tip integrador `aec51712`).
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 18:31Z
 
@@ -10,7 +10,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `90183651f22c28d13f71a08da393ede32f60f6a3` |
-| worktree_sha (post-commit docs) | `b8346b51fc3a29b1c85f5c14e58ec133627947c5` |
+| worktree_sha (post-commit docs) | `aec517124802c11ccd562fc0aea581060f29b885` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
