@@ -14,7 +14,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **PASS (Git+local)** | PR [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#240](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/240) **MERGED** → main `83384714…`; PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241) docs checkpoint **OPEN**; local **257 passed** @ 17:17Z; CI main [40916025327](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40916025327) **SUCCESS** |
+| 7 | CI + PR integrador | **PASS (Git+local)** | PR [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#240](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/240) **MERGED** → main `83384714…`; PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241) docs checkpoint **OPEN**; local **257 passed** @ 17:25Z; CI main [40916025327](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40916025327) **SUCCESS** |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -35,7 +35,24 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T17:22:53Z; `--expected-sha 83384714…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T17:24:50Z; `--expected-sha 83384714…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+
+## Receipt sesión Cursor (composer-2.5-fast) — 17:25Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `5c7667a017c8b9fb9bf366f7544a1c1a4762448c` |
+| worktree_sha | *(post-commit docs; ver `git log -1` en rama integrador)* |
+| main SHA | `83384714247267548e3bcceba25081248999fb1d` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T17:25Z |
+| tests | pytest exit 0 — **257 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml` @ 17:25Z) |
+| CI main | **SUCCESS** @ 16:53Z (run [40916025327](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40916025327), head `83384714…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 83384714…` → `ok: false` @ 17:24:50Z |
+| verificación sesión | Orden definitiva P0: inventario read-only + suite gate; remediación falsos cierres en main (sin delta `.py` vs `origin/main`); checkpoint PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241); **sin COMPLETED global** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** + E2E; fases 8–9 bloqueadas owner (Intel SSH, AMD SHA≠main, grant HA Codex/Antigravity) |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 17:23Z
 
