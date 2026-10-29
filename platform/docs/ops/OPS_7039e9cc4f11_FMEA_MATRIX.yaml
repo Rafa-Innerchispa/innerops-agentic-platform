@@ -7,7 +7,7 @@ integrator_branch_sha: 0e7be30d
 integrator_pr: 234
 docs_pr: 235
 last_verified_utc: "2026-10-29T14:45:00Z"
-ci_local_pytest: "254 passed, 13 subtests (MCP bypass fix + CI subset 14:45Z)"
+ci_local_pytest: "254 passed, 13 subtests (MCP bypass dfccb387 + CI subset 14:47Z)"
 runtime_fleet_audit_ok: false
 entries:
   - scene: inbox_ack_without_execution
