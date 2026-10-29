@@ -109,7 +109,8 @@ jobs:
             platform/tests/test_ops_task_requirements_e2e.py \
             platform/tests/test_ops_owner_approval_ha.py \
             platform/tests/test_provider_execution_trust_boundary.py \
-            platform/tests/test_ops_fmea_invariants.py
+            platform/tests/test_ops_fmea_invariants.py \
+            platform/tests/test_dev_swarm_retry_budget_regression.py
       - name: Produce CI-only provenance manifest
         env:
           INNEROS_COMMIT: ${{ github.sha }}

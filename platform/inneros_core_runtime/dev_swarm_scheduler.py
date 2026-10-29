@@ -31,6 +31,7 @@ STALE_WORKER_SECONDS = 3600
 STALE_PROGRESS_SECONDS = 1800
 STALE_OPS_TASK_SECONDS = 6 * 3600
 MAX_STALE_RECLAIMS = 2
+MAX_AUTOMATED_TASK_DISPATCH_ATTEMPTS = 3  # Per OPS task, not per worker generation.
 MAX_MODEL_OUTPUT_ATTEMPTS = 2
 MODEL_OUTPUT_MAX_TOKENS = 1536
 MODEL_OUTPUT_MAX_FILES = 2
@@ -74,6 +75,16 @@ def _parse_dt(value: Any) -> datetime | None:
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
     except Exception:
         return None
+
+
+def _dev_swarm_dispatch_budget_exhausted(task: dict[str, Any]) -> bool:
+    """Bound retries across worker/worktree generations, fail-closed on bad counters."""
+    try:
+        attempts = max(0, int(task.get("attempt_count") or 0))
+        reclaims = max(0, int(task.get("dev_swarm_stale_reclaim_count") or 0))
+    except (TypeError, ValueError, OverflowError):
+        return True
+    return attempts >= MAX_AUTOMATED_TASK_DISPATCH_ATTEMPTS or reclaims >= MAX_STALE_RECLAIMS
 
 
 def _db():
@@ -794,7 +805,7 @@ def _safe_dev_swarm_requeue_candidate(task: dict[str, Any], *, completed_sibling
     """Only retry a locally owned job once and never retry work already delivered."""
     if completed_sibling or task.get("do_not_auto_dispatch") is True:
         return False
-    if bool(task.get("review_required")):
+    if bool(task.get("review_required")) or _dev_swarm_dispatch_budget_exhausted(task):
         return False
     if str(task.get("owner") or "").lower() != "dev_swarm":
         return False
@@ -899,19 +910,42 @@ def _worker_progress_time(worker: dict[str, Any]) -> datetime | None:
 
 
 def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso: str, reason: str) -> dict[str, int]:
+    """Reclaim the observed worker generation only, with a cumulative task budget."""
     retriable = 0
     exhausted = 0
     for worker in stale_workers:
         task_id = str(worker.get("task_id") or "")
         if not task_id:
             continue
+        task = db[coordination_live.OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
         executor = worker.get("executor") if isinstance(worker.get("executor"), dict) else {}
         reclaim_count = int(executor.get("stale_reclaim_count") or 0) + 1
-        retryable = reclaim_count <= MAX_STALE_RECLAIMS
+        try:
+            task_reclaims = max(0, int(task.get("dev_swarm_stale_reclaim_count") or 0))
+        except (TypeError, ValueError, OverflowError):
+            task_reclaims = MAX_STALE_RECLAIMS
+        retryable = (
+            bool(task)
+            and str(task.get("owner") or "").lower() == "dev_swarm"
+            and task.get("do_not_auto_dispatch") is not True
+            and not _dev_swarm_dispatch_budget_exhausted(task)
+            and reclaim_count <= MAX_STALE_RECLAIMS
+            and task_reclaims + 1 < MAX_STALE_RECLAIMS
+        )
         executor_status = "failed_retryable" if retryable else "blocked"
         blocker = "stale_worker_reclaimed_for_retry" if retryable else "stale_worker_retry_budget_exhausted"
-        db[WORKERS_COL].update_one(
-            {"task_id": task_id},
+
+        worker_selector: dict[str, Any] = {
+            "task_id": task_id,
+            "status": {"$in": ["starting", "running"]},
+        }
+        for field in ("worker_id", "last_heartbeat_at"):
+            if worker.get(field) is not None:
+                worker_selector[field] = worker[field]
+        if executor.get("last_progress_at") is not None:
+            worker_selector["executor.last_progress_at"] = executor["last_progress_at"]
+        worker_result = db[WORKERS_COL].update_one(
+            worker_selector,
             {
                 "$set": {
                     "owner": "dev_swarm",
@@ -928,19 +962,31 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
                 }
             },
         )
-        db[coordination_live.OPS_TASKS_COL].update_one(
-            {"task_id": task_id},
+        if int(getattr(worker_result, "modified_count", 0) or 0) != 1:
+            continue
+
+        task_selector: dict[str, Any] = {
+            "task_id": task_id,
+            "owner": "dev_swarm",
+            "status": {"$in": ["accepted", "in_progress", "running", "worker_starting", "dispatched"]},
+        }
+        if task.get("dev_swarm_worker_id") is not None and worker.get("worker_id") is not None:
+            task_selector["dev_swarm_worker_id"] = worker["worker_id"]
+        task_result = db[coordination_live.OPS_TASKS_COL].update_one(
+            task_selector,
             {
                 "$set": {
-                    "owner": "dev_swarm",
                     "status": "blocked",
                     "dev_swarm_last_skip_reason": blocker,
                     "dev_swarm_last_skip_at": now_iso,
-                    "dev_swarm_retry_requested": retryable,
+                    "dev_swarm_retry_requested": bool(retryable),
                     "updated_at": now_iso,
-                }
+                },
+                "$inc": {"dev_swarm_stale_reclaim_count": 1},
             },
         )
+        if int(getattr(task_result, "modified_count", 0) or 0) != 1:
+            continue
         _record_watchdog_anomaly_safe(
             {
                 "type": blocker,
@@ -952,9 +998,16 @@ def _reclaim_stale_workers(db: Any, stale_workers: list[dict[str, Any]], now_iso
                 "model": worker.get("model"),
                 "profile": worker.get("profile"),
                 "severity": "high",
-                "evidence": {"reason": reason, "reclaim_count": reclaim_count, "retryable": retryable},
-            }
-        , db=db)
+                "evidence": {
+                    "reason": reason,
+                    "reclaim_count": reclaim_count,
+                    "task_reclaims": task_reclaims + 1,
+                    "task_attempts": task.get("attempt_count"),
+                    "retryable": bool(retryable),
+                },
+            },
+            db=db,
+        )
         if retryable:
             retriable += 1
         else:
@@ -1278,6 +1331,8 @@ def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
     # even if older coordination projections retain owner=dev_swarm.
     if task.get("do_not_auto_dispatch") is True:
         return False, "do_not_auto_dispatch", gate_repo
+    if dev_swarm_dispatch_reconcile.is_dev_swarm_managed_task(task) and _dev_swarm_dispatch_budget_exhausted(task):
+        return False, "dev_swarm_dispatch_budget_exhausted", gate_repo
     status = str(task.get("status") or "").lower()
     cooldown = _parse_dt(task.get("cooldown_until"))
     if cooldown and cooldown > datetime.now(timezone.utc):
@@ -3504,6 +3559,10 @@ def _fanout_execute_one(repo: str, task_id: str, base_snapshot: dict[str, Any] |
     task = _task_doc(task_id)
     if not task:
         return {"ok": False, "task_id": task_id, "error": "task_not_found"}
+    if task.get("do_not_auto_dispatch") is True:
+        return {"ok": False, "task_id": task_id, "outcome": "SKIPPED", "error": "do_not_auto_dispatch"}
+    if _dev_swarm_dispatch_budget_exhausted(task):
+        return {"ok": False, "task_id": task_id, "outcome": "SKIPPED", "error": "dev_swarm_dispatch_budget_exhausted"}
     ops_status = str(task.get("status") or "").lower()
     if ops_status in OPS_TERMINAL_STATUSES and not _ops_auto_retry_allowed(task):
         blocker = str(task.get("blocker") or task.get("dev_swarm_last_skip_reason") or ops_status)
