@@ -11,7 +11,7 @@ main_merge_sha_pr241: c0ce5e40a94b620b6f87a0bfa96f79349d5c9df9
 main_merge_sha_pr242: f211e53370e0680f087a84e1e302476c04a594b9
 main_merge_sha_pr243: 913219af58a310d0c385be83eff65873976e9acf
 main_tip_sha: 633f11c9546d797506c9579580070c4b76ccf738
-integrator_branch_sha: "pending_19_09Z"
+integrator_branch_sha: "40c29603"
 integrator_pr: 234
 docs_pr: 245
 docs_pr_merged: false
