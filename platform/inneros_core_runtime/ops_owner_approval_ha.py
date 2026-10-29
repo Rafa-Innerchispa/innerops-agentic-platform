@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
@@ -94,22 +95,108 @@ def _latest_grant(task_id: str) -> dict[str, Any] | None:
     return db[COL_GRANTS].find_one({"task_id": task_id, "status": "active"}, sort=[("created_at", -1)])
 
 
+def _parse_utc_instant(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
 def _journal_cost_observed(task: dict[str, Any]) -> dict[str, Any]:
     journal = task.get("model_execution_journal") if isinstance(task.get("model_execution_journal"), list) else []
     tokens_in = tokens_out = 0
     usd_observed: float | None = None
+    credits_observed: float | None = None
     for row in journal:
         usage = row.get("usage") if isinstance(row.get("usage"), dict) else {}
         tokens_in += int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
         tokens_out += int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
         if usage.get("usd") is not None:
             usd_observed = (usd_observed or 0.0) + float(usage["usd"])
+        if usage.get("credits") is not None:
+            credits_observed = (credits_observed or 0.0) + float(usage["credits"])
+    total_tokens = tokens_in + tokens_out
     return {
         "journal_entries": len(journal),
         "tokens_input_observed": tokens_in or None,
         "tokens_output_observed": tokens_out or None,
+        "tokens_total_observed": total_tokens or None,
         "usd_observed": usd_observed,
+        "credits_observed": credits_observed,
     }
+
+
+def _grant_durable_limits(grant: dict[str, Any]) -> dict[str, int | float | None]:
+    return {
+        "usd_limit": _budget_field(grant.get("usd_limit")),
+        "token_limit": _budget_field(grant.get("token_limit")),
+        "credit_limit": _budget_field(grant.get("credit_limit")),
+    }
+
+
+def _grant_has_durable_ceiling(grant: dict[str, Any]) -> bool:
+    limits = _grant_durable_limits(grant)
+    return any(limits[k] is not None for k in limits)
+
+
+def _grant_expired(grant: dict[str, Any], *, now: datetime | None = None) -> bool:
+    instant = _parse_utc_instant(grant.get("expires_at"))
+    if instant is None:
+        return False
+    ref = now or datetime.now(timezone.utc)
+    return instant <= ref
+
+
+def _grant_scope_mismatch(task: dict[str, Any], grant: dict[str, Any], provider: str) -> str | None:
+    bound_provider = str(grant.get("provider") or "").strip()
+    if bound_provider and eb.normalize_provider(bound_provider) != eb.normalize_provider(provider):
+        return "owner_grant_provider_mismatch"
+    bound_model = str(grant.get("model") or "").strip()
+    if bound_model:
+        task_model = str(task.get("preferred_model") or task.get("model") or "").strip()
+        payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+        if payload.get("model"):
+            task_model = str(payload.get("model"))
+        if task_model and task_model.lower() != bound_model.lower():
+            return "owner_grant_model_mismatch"
+    return None
+
+
+def _consumption_exceeds_grant(task: dict[str, Any], grant: dict[str, Any]) -> str | None:
+    limits = _grant_durable_limits(grant)
+    observed = _journal_cost_observed(task)
+    journal_entries = int(observed.get("journal_entries") or 0)
+    usd_limit = limits["usd_limit"]
+    if usd_limit is not None:
+        usd_obs = observed.get("usd_observed")
+        if usd_obs is None:
+            if journal_entries > 0:
+                return "owner_grant_usd_consumption_unknown"
+        elif float(usd_obs) > float(usd_limit):
+            return "owner_grant_usd_exceeded"
+    token_limit = limits["token_limit"]
+    if token_limit is not None:
+        total = observed.get("tokens_total_observed")
+        if total is None:
+            if journal_entries > 0:
+                return "owner_grant_token_consumption_unknown"
+        elif int(total) > int(token_limit):
+            return "owner_grant_token_exceeded"
+    credit_limit = limits["credit_limit"]
+    if credit_limit is not None:
+        credits = observed.get("credits_observed")
+        if credits is None:
+            if journal_entries > 0:
+                return "owner_grant_credit_consumption_unknown"
+        elif float(credits) > float(credit_limit):
+            return "owner_grant_credit_exceeded"
+    return None
 
 
 def build_owner_approval_view(task_id: str) -> dict[str, Any]:
@@ -127,7 +214,17 @@ def build_owner_approval_view(task_id: str) -> dict[str, Any]:
     observed = _journal_cost_observed(task)
     events = list(db[COL_EVENTS].find({"task_id": tid}, {"_id": 0}).sort("created_at", -1).limit(20))
     repo = str(task.get("repo") or "").strip()
-    deep_link = f"https://github.com/{repo}/pulls" if repo else None
+    deep_link = f"https://github.com/{repo}/issues" if repo else None
+    task_deep_link = f"https://github.com/{repo}/blob/main/platform/docs/ops" if repo else None
+    summary_lines = [
+        f"Task {tid} · status={task.get('status')}",
+        f"Provider/model: {summary.get('provider')} / {summary.get('preferred_model') or task.get('preferred_model')}",
+        f"Grant: {'active' if grant else 'missing'}",
+    ]
+    if grant:
+        gl = _grant_durable_limits(grant)
+        summary_lines.append(f"Limits USD/tokens/credits: {gl['usd_limit']}/{gl['token_limit']}/{gl['credit_limit']}")
+    summary_lines.append(f"Observed USD/tokens: {observed.get('usd_observed')}/{observed.get('tokens_total_observed')}")
     return {
         "ok": True,
         "task_id": tid,
@@ -156,7 +253,8 @@ def build_owner_approval_view(task_id: str) -> dict[str, Any]:
         },
         "grant": grant,
         "owner_authorized_at": task.get("owner_authorized_at"),
-        "deep_links": {"github_pulls": deep_link, "task_id": tid},
+        "deep_links": {"github_repo": deep_link, "ops_docs": task_deep_link, "task_id": tid},
+        "owner_summary_nl": "\n".join(summary_lines),
         "event_history": events,
         "rejection_allowed": True,
     }
@@ -171,6 +269,8 @@ def record_owner_grant(
     token_limit: int | None = None,
     credit_limit: float | None = None,
     expires_at: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
     scope_note: str = "",
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
@@ -183,6 +283,16 @@ def record_owner_grant(
     existing = db[COL_GRANTS].find_one({"grant_id": gid}, {"_id": 0})
     if existing:
         return {"ok": True, "duplicate": True, "grant_id": gid, "grant": existing}
+    limits = {
+        "usd_limit": _budget_field(usd_limit),
+        "token_limit": _budget_field(token_limit),
+        "credit_limit": _budget_field(credit_limit),
+    }
+    if not any(limits[k] is not None for k in limits):
+        return {"ok": False, "error": "owner_grant_limits_required", "task_id": tid}
+    exp_instant = _parse_utc_instant(expires_at)
+    if expires_at and exp_instant is None:
+        return {"ok": False, "error": "owner_grant_expires_at_invalid", "task_id": tid}
     now = _now()
     doc = {
         "grant_id": gid,
@@ -190,10 +300,12 @@ def record_owner_grant(
         "status": "active",
         "owner_actor": owner_actor,
         "channel": channel,
-        "usd_limit": usd_limit,
-        "token_limit": token_limit,
-        "credit_limit": credit_limit,
-        "expires_at": expires_at,
+        "usd_limit": limits["usd_limit"],
+        "token_limit": limits["token_limit"],
+        "credit_limit": limits["credit_limit"],
+        "provider": eb.normalize_provider(provider) if provider else None,
+        "model": (model or "").strip() or None,
+        "expires_at": exp_instant.isoformat() if exp_instant else None,
         "scope_note": (scope_note or "")[:1000],
         "idempotency_key": ikey,
         "created_at": now,
@@ -207,7 +319,7 @@ def record_owner_grant(
             "type": "grant_recorded",
             "actor": owner_actor,
             "channel": channel,
-            "payload": {k: doc[k] for k in ("usd_limit", "token_limit", "credit_limit", "expires_at")},
+            "payload": {k: doc[k] for k in ("usd_limit", "token_limit", "credit_limit", "expires_at", "provider", "model")},
             "created_at": now,
         }
     )
@@ -257,9 +369,33 @@ def paid_execution_allowed(task_id: str, *, provider: str = "") -> dict[str, Any
             "task_id": tid,
             "hint": "record_owner_grant via HA Companion before paid model execution",
         }
-    exp = str(grant.get("expires_at") or "").strip()
-    if exp and exp < _now()[:10]:
+    if not _grant_has_durable_ceiling(grant):
+        return {
+            "allowed": False,
+            "error": "owner_grant_limits_required",
+            "task_id": tid,
+            "grant_id": grant.get("grant_id"),
+        }
+    if _grant_expired(grant):
         return {"allowed": False, "error": "owner_grant_expired", "grant_id": grant.get("grant_id")}
+    scope_err = _grant_scope_mismatch(task, grant, prov)
+    if scope_err:
+        return {"allowed": False, "error": scope_err, "grant_id": grant.get("grant_id"), "provider": prov}
+    over = _consumption_exceeds_grant(task, grant)
+    if over:
+        return {"allowed": False, "error": over, "grant_id": grant.get("grant_id")}
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    budget_est = payload.get("budget_estimate") if isinstance(payload.get("budget_estimate"), dict) else {}
+    est_usd = _budget_field(budget_est.get("usd_max"))
+    if est_usd is None:
+        est_usd = _budget_field(budget_est.get("usd_min"))
+    if est_usd == 0:
+        return {
+            "allowed": False,
+            "error": "owner_budget_estimate_zero_not_verified",
+            "task_id": tid,
+            "grant_id": grant.get("grant_id"),
+        }
     return {"allowed": True, "grant_id": grant.get("grant_id"), "provider": prov}
 
 
@@ -275,7 +411,7 @@ def push_owner_approval_ha(task_id: str, *, actor: str = "inneros", notes: str =
     obs = budget.get("observed") or {}
     body_notes = (
         f"{notes}\n"
-        f"Provider/model: {view.get('provider_model')}\n"
+        f"{view.get('owner_summary_nl')}\n"
         f"NL budget: {nl}\n"
         f"Estimate USD/tokens/credits: {est}\n"
         f"Observed: {obs}\n"

@@ -278,8 +278,16 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
         from inneros_core_runtime import dev_swarm_scheduler as scheduler
 
         class Collection:
-            def __init__(self):
+            def __init__(self, *, tasks: dict[str, dict] | None = None):
                 self.updates = []
+                self.tasks = tasks or {}
+
+            def find_one(self, query, projection=None):
+                task_id = query.get("task_id")
+                if task_id and task_id in self.tasks:
+                    return dict(self.tasks[task_id])
+                return None
+
             def update_one(self, query, update, upsert=False):
                 self.updates.append((query, update, upsert))
                 class Result:
@@ -288,19 +296,36 @@ class DevSwarmControlPlaneTests(unittest.TestCase):
 
         class Db(dict):
             def __getitem__(self, key):
-                self.setdefault(key, Collection())
+                if key not in self:
+                    tasks = {}
+                    if key == scheduler.coordination_live.OPS_TASKS_COL:
+                        tasks = {
+                            "ops_retry": {
+                                "task_id": "ops_retry",
+                                "owner": "dev_swarm",
+                                "status": "in_progress",
+                                "dev_swarm_stale_reclaim_count": 0,
+                            },
+                            "ops_done": {
+                                "task_id": "ops_done",
+                                "owner": "dev_swarm",
+                                "status": "in_progress",
+                                "dev_swarm_stale_reclaim_count": scheduler.MAX_STALE_RECLAIMS,
+                            },
+                        }
+                    dict.__setitem__(self, key, Collection(tasks=tasks))
                 return dict.__getitem__(self, key)
 
         db = Db()
         retry = scheduler._reclaim_stale_workers(
             db,
-            [{"task_id": "ops_retry", "executor": {"stale_reclaim_count": 0}}],
+            [{"task_id": "ops_retry", "status": "running", "executor": {"stale_reclaim_count": 0}}],
             "2026-08-26T00:00:00+00:00",
             "unit_test",
         )
         exhausted = scheduler._reclaim_stale_workers(
             db,
-            [{"task_id": "ops_done", "executor": {"stale_reclaim_count": scheduler.MAX_STALE_RECLAIMS}}],
+            [{"task_id": "ops_done", "status": "running", "executor": {"stale_reclaim_count": scheduler.MAX_STALE_RECLAIMS}}],
             "2026-08-26T00:01:00+00:00",
             "unit_test",
         )

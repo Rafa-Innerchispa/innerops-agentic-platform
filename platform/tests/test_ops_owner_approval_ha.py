@@ -55,6 +55,84 @@ def test_record_grant_idempotent():
     grants.insert_one.assert_called_once()
 
 
+def test_record_grant_requires_durable_limits():
+    db = MagicMock()
+    grants = MagicMock()
+    events = MagicMock()
+    db.__getitem__.side_effect = lambda n: grants if n == oah.COL_GRANTS else events
+    grants.find_one.return_value = None
+    with patch.object(oah.mongo_store, "get_db", return_value=db):
+        out = oah.record_owner_grant("ops_paid", idempotency_key="no-limits")
+    assert out["ok"] is False
+    assert out["error"] == "owner_grant_limits_required"
+    grants.insert_one.assert_not_called()
+
+
+def test_paid_execution_blocked_when_grant_limits_null():
+    task = {
+        "task_id": "ops_paid",
+        "assignee": "codex",
+        "owner_authorized_at": "2026-10-29T00:00:00Z",
+    }
+    grant = {"grant_id": "g1", "usd_limit": None, "token_limit": None, "credit_limit": None}
+    db = MagicMock()
+    tasks = MagicMock()
+    grants = MagicMock()
+    db.__getitem__.side_effect = lambda n: tasks if n == oah.OPS_TASKS_COL else grants
+    tasks.find_one.return_value = task
+    grants.find_one.return_value = grant
+    with patch.object(oah.mongo_store, "get_db", return_value=db):
+        out = oah.paid_execution_allowed("ops_paid", provider="codex")
+    assert out["allowed"] is False
+    assert out["error"] == "owner_grant_limits_required"
+
+
+def test_paid_execution_allowed_with_limits_and_journal_under_cap():
+    task = {
+        "task_id": "ops_paid",
+        "assignee": "codex",
+        "owner_authorized_at": "2026-10-29T00:00:00Z",
+        "model_execution_journal": [{"usage": {"input_tokens": 100, "output_tokens": 50, "usd": 0.5}}],
+    }
+    grant = {
+        "grant_id": "g1",
+        "usd_limit": 2.0,
+        "token_limit": 5000,
+        "credit_limit": None,
+        "expires_at": "2099-01-01T00:00:00+00:00",
+        "provider": "codex",
+    }
+    db = MagicMock()
+    tasks = MagicMock()
+    grants = MagicMock()
+    db.__getitem__.side_effect = lambda n: tasks if n == oah.OPS_TASKS_COL else grants
+    tasks.find_one.return_value = task
+    grants.find_one.return_value = grant
+    with patch.object(oah.mongo_store, "get_db", return_value=db):
+        out = oah.paid_execution_allowed("ops_paid", provider="codex")
+    assert out["allowed"] is True
+
+
+def test_paid_execution_blocked_zero_estimate_not_verified():
+    task = {
+        "task_id": "ops_paid",
+        "assignee": "codex",
+        "owner_authorized_at": "2026-10-29T00:00:00Z",
+        "payload": {"budget_estimate": {"usd_max": 0}},
+    }
+    grant = {"grant_id": "g1", "usd_limit": 1.0, "token_limit": 1000, "expires_at": "2099-01-01T00:00:00+00:00"}
+    db = MagicMock()
+    tasks = MagicMock()
+    grants = MagicMock()
+    db.__getitem__.side_effect = lambda n: tasks if n == oah.OPS_TASKS_COL else grants
+    tasks.find_one.return_value = task
+    grants.find_one.return_value = grant
+    with patch.object(oah.mongo_store, "get_db", return_value=db):
+        out = oah.paid_execution_allowed("ops_paid", provider="codex")
+    assert out["allowed"] is False
+    assert out["error"] == "owner_budget_estimate_zero_not_verified"
+
+
 def test_push_owner_approval_ha_uses_checkpoint():
     view = {"ok": True, "task_id": "ops_x", "budget": {"natural_language": {}, "estimate": {}, "observed": {}}}
     with (
