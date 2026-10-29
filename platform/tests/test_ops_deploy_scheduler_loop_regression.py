@@ -149,3 +149,62 @@ def test_scheduler_simulation_20_ticks_no_respawn_on_pause():
 def test_claimable_statuses_exclude_blocked_failed():
     assert "blocked" not in cor.CLAIM_STATUSES
     assert "failed" not in cor.CLAIM_STATUSES
+
+
+def test_coding_deploy_completed_without_host_receipt_is_paused_before_temporal():
+    """Real reported bug: Cursor returns completed with git/tests, no deploy receipt."""
+    db = MagicMock()
+    tasks = MagicMock()
+    db.__getitem__.return_value = tasks
+    task = _deploy_task(task_id="ops_code_deploy")
+    tasks.find_one.return_value = task
+    tasks.update_one.return_value.modified_count = 1
+    ev = {"commit_sha": "a" * 40, "objective_files_count": 1,
+          "objective_paths": ["fixed.py"], "test_results": {"ok": True, "exit_code": 0}}
+    with patch("raphiia_openai.mongo_store.get_db", return_value=db), \
+         patch.object(cor, "_lease_valid", return_value=True), \
+         patch.object(cor, "_validate_pinned_model", return_value=None), \
+         patch.object(cor, "_validate_completion_evidence", return_value=None), \
+         patch("inneros_core_runtime.durable_coordination_spine.signal_task_workflow",
+               return_value={"ok": True}) as temporal, \
+         patch.object(cor, "heartbeat_ops_task"), \
+         patch.object(cor, "_publish_task_event"):
+        result = cor.complete_ops_task("ops_code_deploy", claim_token="abc",
+                                       status="completed", evidence=ev)
+    assert result["status"] == odep.STATUS_AWAITING_DEPLOY
+    assert result["paused"] is True
+    assert temporal.call_args.args[2]["status"] == odep.STATUS_AWAITING_DEPLOY
+    assert tasks.update_one.call_args.args[1]["$set"]["do_not_auto_dispatch"] is True
+
+
+def test_transient_provider_failure_keeps_failure_not_deploy_pause():
+    db = MagicMock()
+    tasks = MagicMock()
+    db.__getitem__.return_value = tasks
+    task = {"task_id": "ops_transient", "assignee": "cursor", "status": "in_progress",
+            "claim_token": "abc", "task_class": "coding", "payload": {}}
+    tasks.find_one.return_value = task
+    with patch("raphiia_openai.mongo_store.get_db", return_value=db), \
+         patch.object(cor, "_lease_valid", return_value=True), \
+         patch.object(cor, "_validate_pinned_model", return_value=None), \
+         patch.object(cor, "_validate_completion_evidence", return_value=None), \
+         patch("inneros_core_runtime.durable_coordination_spine.signal_task_workflow",
+               return_value={"ok": True}), \
+         patch.object(cor, "heartbeat_ops_task"), \
+         patch.object(cor, "_publish_task_event"):
+        result = cor.complete_ops_task("ops_transient", claim_token="abc",
+                                       status="failed", evidence={"notes": "429 retry later"})
+    assert result["status"] == "failed"
+    patch_data = tasks.update_one.call_args.args[1]["$set"]
+    assert patch_data["status"] == "failed"
+    assert "do_not_auto_dispatch" not in patch_data
+
+
+def test_deploy_receipt_does_not_pause_and_can_progress_to_verification():
+    task = _deploy_task()
+    ev = {"host_execution": {"executed": True}, "postconditions": {"verified": True}}
+    assert odep.completion_requires_deploy_pause(task, ev) is False
+    assert odep.completion_requires_deploy_pause(task, {}) is True
+    assert odep.completion_requires_deploy_pause(
+        {"task_class": "coding", "payload": {}}, {}
+    ) is False
