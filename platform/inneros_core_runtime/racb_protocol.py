@@ -88,11 +88,20 @@ def validate_evidence(target_status: str, evidence: dict[str, Any] | None) -> di
     if not isinstance(evidence, dict) or not evidence:
         return {"ok": False, "error": "evidence_required", "status": target}
     result = str(evidence.get("status") or evidence.get("result") or "").strip().upper()
-    if target == "completed" and result not in {"PASS", "OK", "COMPLETED", "COMPLETED_VERIFIED"}:
+    if target == "completed":
+        receipt = evidence.get("verified_receipt")
+        receipt_ok = (
+            isinstance(receipt, dict)
+            and str(receipt.get("certification") or "") == "COMPLETED_VERIFIED"
+        )
+        if evidence.get("global_completion_ack") is True and result == "COMPLETED_VERIFIED":
+            return {"ok": True}
+        if receipt_ok and result in {"COMPLETED_VERIFIED", "PASS", "OK", "COMPLETED"}:
+            return {"ok": True}
         return {
             "ok": False,
-            "error": "completion_result_required",
-            "accepted_results": ["PASS", "OK", "COMPLETED", "COMPLETED_VERIFIED"],
+            "error": "completed_verified_receipt_required",
+            "accepted_results": ["COMPLETED_VERIFIED with global_completion_ack or verified_receipt"],
         }
     return {"ok": True}
 

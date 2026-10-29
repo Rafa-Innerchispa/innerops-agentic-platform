@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from inneros_core_runtime import ops_global_completion_gate as ogcg
 from inneros_core_runtime import ops_lifecycle as ol
+from inneros_core_runtime import racb_protocol as racb
 from inneros_core_runtime.execution_receipts import git_head
 
 
@@ -79,6 +80,13 @@ def test_coding_task_requires_real_commit_receipt():
         assert out["receipt"]["commit_sha"] == head
     finally:
         tmp.cleanup()
+
+
+def test_racb_completed_rejects_pass_without_verified_receipt():
+    ev = {"status": "PASS", "result": "PASS", "commit_sha": "e" * 40}
+    out = racb.validate_evidence("completed", ev)
+    assert out["ok"] is False
+    assert out["error"] == "completed_verified_receipt_required"
 
 
 def test_finalize_verification_rejects_agent_denial_cas():
