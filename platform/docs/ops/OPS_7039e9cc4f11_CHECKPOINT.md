@@ -14,7 +14,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **IN_PROGRESS** | PR #234 merge gate en main `7b103254…`; fix MCP bypass en rama integrador (pendiente PR); local **254 passed** (+13 subtests) @ 2026-10-29T14:45Z; docs previos en PR [#235](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/235) OPEN |
+| 7 | CI + PR integrador | **IN_PROGRESS** | PR #234 en main `7b103254…`; fix MCP bypass en commits `dfccb387`/`432f2c7b` (PR [#235](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/235) OPEN, CI verde previo); local **254 passed** (+13 subtests) @ 2026-10-29T14:47Z |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -35,18 +35,18 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:45Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:46Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `dfccb38727c82afbce440fd11dee2b39b3484731` |
-| before_sha (pre-sesión) | `04a48659b3489f9819039255b0b36c47902553ae` |
+| worktree SHA | `432f2c7bcbb153331cd02b223341039495f8eb5c` (HEAD post revalidación) |
+| before_sha (pre-sesión) | `432f2c7bcbb153331cd02b223341039495f8eb5c` |
 | main SHA (merge #234) | `7b10325457979042521dac3f988b0034a1e9e28b` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:45Z |
-| tests | pytest exit 0 — 254 passed, 13 subtests (CI subset + MCP bypass tests) |
-| estado global OPS | **IN_PROGRESS** — gate en main; fix MCP en rama; runtime AMD desalineado; E2E/deploy sin certificar |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:47Z |
+| tests | pytest exit 0 — 254 passed, 13 subtests (`inneros-runtime-gates` peer suite) |
+| estado global OPS | **IN_PROGRESS** — merge PR #235 pendiente (MCP bypass); runtime AMD desalineado; E2E/deploy sin certificar |
