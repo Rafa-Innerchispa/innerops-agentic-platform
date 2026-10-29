@@ -35,23 +35,23 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:34:45Z; `--expected-sha 39ba41c6…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:36:40Z; `--expected-sha 39ba41c6…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
 
-## Receipt sesión Cursor (composer-2.5-fast) — 16:35Z
+## Receipt sesión Cursor (composer-2.5-fast) — 16:38Z
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree_sha | `0f4ebe251cbecdcf3637d223661a37ed1266c964` (integrator docs; **main** `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2`) |
-| before_sha (pre-sesión) | `0f4ebe251cbecdcf3637d223661a37ed1266c964` |
+| worktree_sha | `bba5bc06804a7cceac4d47ecbfd0c69c58553cd8` (integrator docs; **main** `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2`) |
+| before_sha (pre-sesión) | `bba5bc06804a7cceac4d47ecbfd0c69c58553cd8` |
 | main SHA | `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:35Z |
-| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite CI `inneros-runtime-gates.yml` @ 16:34Z) |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:38Z |
+| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite CI `inneros-runtime-gates.yml` @ 16:38Z) |
 | CI main post-merge | **SUCCESS** @ 16:21Z (run [40910822472](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40910822472)) |
-| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 39ba41c6…` → `ok: false` @ 16:34:45Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
-| verificación sesión | Re-ejecución suite CI completa + gate/reconcile/FMEA subset; bypass MCP `direct_completion_forbidden` confirmado en código; sin deploy/E2E |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 39ba41c6…` → `ok: false` @ 16:36:40Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| verificación sesión | Suite CI completa re-ejecutada (256+13); gate global + RACB receipt + reconcile→verification + CAS race; sin deploy/E2E/grant Codex-Antigravity |
 | estado global OPS | **IN_PROGRESS** — gate+RACB en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
 
 ### Autorización owner pendiente (misma OPS, no nueva task)
