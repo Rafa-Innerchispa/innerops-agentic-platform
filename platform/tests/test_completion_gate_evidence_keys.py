@@ -77,7 +77,11 @@ class CompletionGateEvidenceKeysTests(unittest.TestCase):
             "task_class": "deployment",
             "execution_lane": "internal",
             "execution_policy": "owner-approved-bounded-platform-sync",
-            "payload": {"rollback_required": True, "verify_dual_node": True},
+            "payload": {
+                "rollback_required": True,
+                "verify_dual_node": True,
+                "deploy_approved_at": "2026-10-29T12:00:00+00:00",
+            },
             "title": "Deploy platform and restart runtime",
         }
         agent_result = {

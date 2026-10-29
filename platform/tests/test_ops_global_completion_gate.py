@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from inneros_core_runtime import ops_global_completion_gate as ogcg
+from inneros_core_runtime import temporal_activities as ta
 from inneros_core_runtime import ops_lifecycle as ol
 from inneros_core_runtime import racb_protocol as racb
 from inneros_core_runtime.execution_receipts import git_head
@@ -40,6 +42,29 @@ def test_agent_report_no_completed_global_blocks_gate():
     out = ogcg.evaluate_global_completion(task, evidence)
     assert out["ok"] is False
     assert "agent_report_denies_global_completion" in out["reasons"]
+
+
+def test_temporal_activity_gate_blocks_agent_denial_despite_tests():
+    """Temporal path must not mirror completed when agent text denies global completion."""
+    envelope = {
+        "task_id": "ops_6e3e49716e6c",
+        "task_class": "coding",
+        "repo": "org/r",
+        "evidence_required": [],
+    }
+    agent = {
+        "notes": "**NO COMPLETED** hasta merge PR y audit Intel.",
+        "commit_sha": "f" * 40,
+        "files_count": 2,
+        "objective_files_count": 1,
+        "objective_paths": ["src/x.py"],
+        "test_results": {"exit_code": 0, "ok": True},
+        "code_diff": "diff",
+    }
+    gate = asyncio.run(ta.activity_validate_completion_gate(envelope, agent))
+    assert gate.get("passed") is False
+    assert gate.get("global_completion_gate") is True
+    assert "agent_report_denies_global_completion" in (gate.get("reasons") or [])
 
 
 def test_read_only_verification_can_pass_global_gate():

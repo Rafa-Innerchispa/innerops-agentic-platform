@@ -214,6 +214,17 @@ def _observed_host_mutation_evidence(agent_result: Dict[str, Any]) -> tuple[bool
 async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent_result: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("validating_completion_gate")
     envelope_dict = _hydrate_gate_envelope(envelope_dict)
+    from inneros_core_runtime import ops_global_completion_gate as _ogcg
+
+    task_projection = {**envelope_dict, "task_id": envelope_dict.get("task_id")}
+    pre_denials = _ogcg.shared_pre_temporal_denials(task_projection, agent_result)
+    if pre_denials:
+        return {
+            "passed": False,
+            "error": pre_denials[0],
+            "reasons": pre_denials,
+            "global_completion_gate": True,
+        }
     task_class = (envelope_dict.get("task_class") or "coding").lower()
     files_count = agent_result.get("files_count", 0)
     code_diff = agent_result.get("code_diff", "")
