@@ -4,12 +4,12 @@ requirements_version: integrator-2026-10-29
 baseline_main_sha: ac4e16e75e31c8d00c89419f0db2badf3c55749c
 main_merge_sha_pr234: 7b10325457979042521dac3f988b0034a1e9e28b
 main_merge_sha_pr235: 24277871235bf19cad138546432b613102549c75
-integrator_branch_sha: d78e9a3e
+integrator_branch_sha: e7b168d4
 integrator_pr: 234
 docs_pr: 236
 docs_pr_merged: false
-last_verified_utc: "2026-10-29T15:07:00Z"
-ci_local_pytest: "255 passed, 13 subtests (inneros-runtime-gates @ ralphi-ia-ver-10 15:07Z; main 24277871)"
+last_verified_utc: "2026-10-29T15:11:00Z"
+ci_local_pytest: "255 passed, 13 subtests (inneros-runtime-gates @ ralphi-ia-ver-10 15:11Z; main 24277871; PR236 CI 40898337229)"
 runtime_fleet_audit_ok: false
 entries:
   - scene: inbox_ack_without_execution
