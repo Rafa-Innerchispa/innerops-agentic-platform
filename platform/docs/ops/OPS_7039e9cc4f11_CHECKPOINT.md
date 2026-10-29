@@ -42,7 +42,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree_sha | `4f0a30b4df5df499e4a9159dbfaa03c9b83c9c3b` (integrator; **main** sin cambios `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2`) |
+| worktree_sha | `5523b9f825b30993c5783006906cb1d7e9c6e3f6` (integrator; **main** sin cambios `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2`) |
 | before_sha (pre-sesión) | `4f0a30b4df5df499e4a9159dbfaa03c9b83c9c3b` |
 | model | `composer-2.5-fast` |
 | host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:45Z |
