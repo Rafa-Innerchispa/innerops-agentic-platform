@@ -132,3 +132,38 @@ def test_raphiia_mcp_direct_completed_transition_denied():
     assert out["ok"] is False
     assert out["error"] == "temporal_owns_task_lifecycle"
     tasks.update_one.assert_not_called()
+
+
+def test_finalize_verification_cas_race_does_not_terminal_close():
+    """Concurrent amend/revision bump must not mark completed when CAS update_one misses."""
+    db = MagicMock()
+    tasks = MagicMock()
+    db.__getitem__.return_value = tasks
+    task = {
+        "task_id": "ops_race",
+        "status": "verification",
+        "revision": 4,
+        "task_class": "verification",
+        "objective": "git rev-parse HEAD on worktree",
+        "evidence_required": ["commit_sha"],
+    }
+    tasks.find_one.side_effect = [task, task]
+    change = MagicMock()
+    change.modified_count = 0
+    tasks.update_one.return_value = change
+    gate_ok = {
+        "ok": True,
+        "certification": "COMPLETED_VERIFIED",
+        "receipt": {"task_id": "ops_race", "certification": "COMPLETED_VERIFIED"},
+        "temporal_gate": {"passed": True},
+    }
+    with patch("raphiia_openai.mongo_store.get_db", return_value=db):
+        with patch("inneros_core_runtime.ops_global_completion_gate.evaluate_global_completion", return_value=gate_ok):
+            with patch("inneros_core_runtime.ops_lifecycle.emit_owner_terminal_whatsapp") as wa:
+                out = ol.finalize_verification_to_completed(
+                    "ops_race",
+                    evidence={"commit_sha": "d" * 40, "summary": "ok"},
+                )
+    assert out["ok"] is False
+    assert out["error"] == "concurrent_completion_race"
+    wa.assert_not_called()
