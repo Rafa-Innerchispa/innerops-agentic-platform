@@ -1,8 +1,8 @@
 # OPS ops_7039e9cc4f11 — checkpoint integrador (2026-10-29)
 
-Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `430c13ff10f1c8a44422226f6b98326ad6b336c9` (merge PR #238 deploy pause @ 23:34Z; post-#247 docs `c418fa17`). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
+Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `0d9a9ddb241cbbf88aa0f24178b4c84db9b1f1f7` (merge PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) @ 23:46Z: CI gate `test_ops_deploy_scheduler_loop_regression` + checkpoint). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (sync main `430c13ff`; tip `f7014137`; PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN mergeable, CI **SUCCESS** @ run 40975006994). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); **#238** deploy pause en main; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (tip `b15f13b2` post-push; **PR #248 MERGED** → main `0d9a9ddb`). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248); **sin COMPLETED global de la OPS**.
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 23:45Z
 
@@ -23,6 +23,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | inventario local | Host auditor `ralphi-ia-ver-10` (x86_64); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0**; PR #248 añade **+1** test CI (`test_ops_deploy_scheduler_loop_regression`) |
 | verificación sesión | Orden P0 fases 1–7 re-certificadas; gate/RACB/`evaluate_global_completion` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
 | estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `430c13ff`) + E2E; **no COMPLETED_VERIFIED** |
+| post-sesión | PR **#248 MERGED** → main `0d9a9ddb241cbbf88aa0f24178b4c84db9b1f1f7` |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 23:43Z
 
