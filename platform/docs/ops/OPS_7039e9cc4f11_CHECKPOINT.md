@@ -1,8 +1,1741 @@
 # OPS ops_7039e9cc4f11 — checkpoint integrador (2026-10-29)
 
-Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `633f11c9546d797506c9579580070c4b76ccf738` (docs checkpoint post-#243, 2026-10-29T18:47Z; código gate en `f211e533` vía #242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
+Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f878661373aad307489b7de5eaf95d7444d43804` (merge docs [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) @ 19:10Z; código gate en `f211e533` vía #242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main ancestro @ `633f11c9`; tip integrador docs-only). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#244](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/244); PR docs [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) OPEN; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (docs-only sobre main `f8786613`; head integrador en receipt más reciente). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) → main `f8786613`; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. PR docs abierto: [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) (MERGEABLE; CI SUCCESS @ 22:06Z run [40963035948](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963035948), head `c625d77d…`).
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:08Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c625d77d0b49b602f7e6cd039ee003e1192a0a5d` |
+| worktree_sha (post-commit docs) | `94850564ea7c7c4dabbdcb6d08fb1fabae6d4898` |
+| integrator_branch_sha | `94850564` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:08Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:08Z) |
+| CI PR #246 | **SUCCESS** @ 22:06Z (run [40963035948](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963035948), head `c625d77d…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 22:08Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — cierre vía `ops_global_completion_gate` + RACB `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:04Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `a51869841efda7799f84f0b0b3562ce3b0722971` |
+| worktree_sha (post-commit docs) | `1a1c8f53d15089b44619a858121fdced1598cbb7` |
+| integrator_branch_sha | `1a1c8f53` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:04Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:04Z) |
+| CI PR #246 | **SUCCESS** @ 22:04Z (run [40962751724](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40962751724), head `a5186984…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 22:03Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — cierre vía `ops_global_completion_gate` + RACB `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:02Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `1025ba16b4d4f4ad0735d694411c0ef065c7e7e3` |
+| worktree_sha (post-commit docs) | `29f21e7bdec327079abbe000f5fbd23fa28cc8bc` |
+| integrator_branch_sha | `29f21e7b` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:02Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:02Z) |
+| CI PR #246 | **SUCCESS** @ 22:01Z (run [40962463705](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40962463705), head `1025ba16…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — cierre vía `ops_global_completion_gate` + RACB `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Fases 1–7 offline/Git revalidadas; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:00Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c48712659a705f7c5e98c7c1eeb89a4235daf330` |
+| worktree_sha (post-commit docs) | `6e82133acc42b05f6e198179add560799792fb4a` |
+| integrator_branch_sha | `6e82133a` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:00Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:00Z) |
+| CI PR #246 | **SUCCESS** @ 21:59Z (run [40962198815](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40962198815), head `c4871265…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 22:00Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:58Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `4e6a4004ffada4083b2c1111ed8fe98898252e90` |
+| worktree_sha (post-commit docs) | `650e0a09be7d66b81f7dd3ff2b7fb69fec8752de` |
+| integrator_branch_sha | `650e0a09` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:58Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:58Z) |
+| CI PR #246 | **SUCCESS** @ 21:57Z (run [40961921355](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40961921355), head `4e6a4004…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:58Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:56Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `d47036632094ca9793a8e9353f7c2c80efe5ff7f` |
+| worktree_sha (post-commit docs) | `86a62bf1d3b2f7b184f527eb21344aca33c8f856` |
+| integrator_branch_sha | `86a62bf1` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:56Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:56Z) |
+| CI PR #246 | **SUCCESS** @ 21:55Z (run [40961656596](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40961656596), head `d4703663…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:56Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:54Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `786b72d9179585b022be1b700888630eecd0b444` |
+| worktree_sha (post-commit docs) | `061147594bad3c7d0ec5bea3db1a0b68c5f9e999` |
+| integrator_branch_sha | `06114759` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:54Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:54Z) |
+| CI PR #246 | **SUCCESS** @ 21:53Z (run [40961393576](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40961393576), head `786b72d9…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:54:02Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:52Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `6ac13de3077e532ba80e4b7392aa065b818dfdde` |
+| worktree_sha (post-commit docs) | `fc5decf55a0656fb10f8876ca2133b1f13ffce87` |
+| integrator_branch_sha | `fc5decf5` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:52Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:52Z) |
+| CI PR #246 | **SUCCESS** @ 21:50Z (run [40960896711](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40960896711), head remoto `9522d217…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:52:05Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64); Temporal `:7233` + Mongo `:27017` + MCP full `:8102` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:50Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `9522d2176ba78b92b48e5306b817e5dd8850bdb6` |
+| worktree_sha (post-commit docs) | `320b0ea37f54a0307747151572ca2e22c722f488` |
+| integrator_branch_sha | `320b0ea3` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:50Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml` lista explícita; `.venv` + `PYTHONPATH=platform` @ 21:50Z) |
+| CI PR #246 | **SUCCESS** @ 21:48Z (run [40960896711](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40960896711), head `9522d217…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:49:54Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10`; Temporal `:7233` + Mongo `:27017` + MCP full `:8102` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — falsos cierres mitigados en motor (`evaluate_global_completion`, RACB, Temporal, MCP fail-closed); regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:48Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `e4d1415bf209372166eeaedb6167bf9d4d20d69f` |
+| worktree_sha (post-commit docs) | `ef106ec164e8a6a4a1be859b2e18719cdf33276d` |
+| integrator_branch_sha | `ef106ec1` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:48Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:48Z) |
+| CI PR #246 | **SUCCESS** @ 21:46Z (run [40960390302](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40960390302), head `e4d1415b…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:47:57Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:44Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `5fee7e433c9dfeef6a9871c2bcaf97f45e05141d` |
+| worktree_sha (post-commit docs) | `1bff60a89b845daf955038a5e56cd0cc8b62d5f2` |
+| integrator_branch_sha | `1bff60a8` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:44Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:43Z) |
+| CI PR #246 | **SUCCESS** @ 21:43Z (run [40960037366](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40960037366), head `5fee7e43…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:43:48Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:42Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `88b077fb6210354ca849da30a5b7f83193ad3574` |
+| worktree_sha (post-commit docs) | `8a5f7d599553b8b6451032c8ff74cbb525ac5d97` |
+| integrator_branch_sha | `8a5f7d59` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:42Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:42Z) |
+| CI PR #246 | **SUCCESS** @ 21:38Z (run [40959514548](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40959514548), remote head `08d4af05…`; local ahead 4) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:42Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:40Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `08d4af05bfd0e891627d9a0f0aefb77eb782f56d` |
+| worktree_sha (post-commit docs) | `7814d7bc85ec00532b3cc955431775405bf95512` |
+| integrator_branch_sha | `7814d7bc` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:40Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:39Z) |
+| CI PR #246 | **SUCCESS** @ 21:38Z (run [40959514548](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40959514548), head en run `08d4af05…`; tip rama `7814d7bc…` pendiente push/CI) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:39Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:39Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `7485eb745a4764fc8ad8f995a1d99abcab4876cf` |
+| worktree_sha (post-commit docs) | `cba9abb2691b76342d818d8bcb43e6f9a0d3efa2` |
+| integrator_branch_sha | `cba9abb2` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:39Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:38Z) |
+| CI PR #246 | **SUCCESS** @ 21:33Z (run [40958677437](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40958677437), head `009e2b78…`; rama local **ahead 2** sin push) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:38Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:36Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `009e2b788d4d1e850a80ca0c2e5ff000ad4cfdd1` |
+| worktree_sha (post-commit docs) | `e2877638d59b80be5dd74b8dbac86bbfbe200234` |
+| integrator_branch_sha | `e2877638` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:36Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:36Z) |
+| CI PR #246 | **SUCCESS** @ 21:33Z (run [40958677437](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40958677437), head `009e2b78…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:36Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:32Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `70fbfa67270f42194c9b50ee7b9a80e0a89be404` |
+| worktree_sha (post-commit docs) | `34c4330b145e1be8add75ee3f78ee4f32a7a19e1` |
+| integrator_branch_sha | `34c4330b` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:32Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:32Z) |
+| CI PR #246 | **SUCCESS** @ 21:31Z (run [40958360696](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40958360696), head `70fbfa67…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:32Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:30Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c1e932e34da8680b8fb0b53c0f44c0cb850a9e1b` |
+| worktree_sha (post-commit docs) | `ef3c67ce0db58404530d158ad564002dc29e3c24` |
+| integrator_branch_sha | `ef3c67ce` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:30Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:30Z) |
+| CI PR #246 | **SUCCESS** @ 21:28Z (run [40958107824](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40958107824), head `c1e932e3…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:29Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:28Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `3453a2b36e6a8815d18a6f5b4f28149343d506cb` |
+| worktree_sha (post-commit docs) | `3837fa14266fbc07c0673c0b9fe7596bcd592bee` |
+| integrator_branch_sha | `3837fa14` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:28Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:28Z) |
+| CI PR #246 | **SUCCESS** @ 21:27Z (run [40957826241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40957826241), head `3453a2b3…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:27Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:25Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c129dccb281ad0767af3cc43c64486c4408689d9` |
+| worktree_sha (post-commit docs) | `64d69bbe5732b655270be90d537d13477c211660` |
+| integrator_branch_sha | `64d69bbe` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:25Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:25Z) |
+| CI PR #246 | **SUCCESS** @ 21:25Z (run [40957519049](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40957519049), head `c129dccb…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:25Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:23Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `d27a7db358f5c39a6a6b7a1025ce068269d2529c` |
+| worktree_sha (post-commit docs) | `78beb498097828ff5b43d6173907ae644fc963c4` |
+| integrator_branch_sha | `78beb498` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:23Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:23Z) |
+| CI PR #246 | **SUCCESS** @ 21:22Z (run [40957082764](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40957082764), head `d27a7db3…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:23Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:20Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `8e89f9ac32b48e3847704748f53755b1ad5155e9` |
+| worktree_sha (post-commit docs) | `1bbc6f7203e134a88551bafa116d2ece86182d5c` |
+| integrator_branch_sha | `1bbc6f72` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:20Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:19Z) |
+| CI PR #246 | **SUCCESS** @ 21:19Z (run [40956680320](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40956680320), head `8e89f9ac…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:19Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:18Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `22695b8332a711394894848bcaad3163f16e270a` |
+| worktree_sha (post-commit docs) | `cfdfed9153f1cf9606222942bfefb46e9d1e6ff5` |
+| integrator_branch_sha | `cfdfed91` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:18Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:17Z) |
+| CI PR #246 | **SUCCESS** @ 21:17Z (run [40956363609](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40956363609), head `22695b83…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:17Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:16Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `9124ed34ba8412b945fc29e84885dba9b3aa0b97` |
+| worktree_sha (post-commit docs) | `de0f559833ac53b1af27d7b7841fd5b473e6eaa7` |
+| integrator_branch_sha | `de0f5598` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:16Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:16Z) |
+| CI PR #246 | **SUCCESS** @ 21:16Z (run [40956071475](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40956071475), head `9124ed34…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:15Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:14Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `a6641ed495ccd00f6dddb45ea7b3871f31420fd5` |
+| worktree_sha (post-commit docs) | `bfd6453bcdc50903a253b2629edb26b898803eee` |
+| integrator_branch_sha | `bfd6453b` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:14Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:14Z) |
+| CI PR #246 | **SUCCESS** @ 21:13Z (run [40955782272](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40955782272), head `a6641ed4…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:13Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:12Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `d62711746892e1306df8d6a6be3d1a6fd29f76d7` |
+| worktree_sha (post-commit docs) | `596e763a7b810386c51395642027de619a757d52` |
+| integrator_branch_sha | `596e763a` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:12Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:12Z) |
+| CI PR #246 | **SUCCESS** @ 21:11Z (run [40955476051](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40955476051), head `d6271174…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:11Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:10Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `1b49ad633ab300e73b3201af689fa7c8b106c0d2` |
+| worktree_sha (post-commit docs) | `da0311a3b795cc2d628d19b686bf605dd1e842ad` |
+| integrator_branch_sha | `da0311a3` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:10Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:10Z) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:10Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:07Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `85977111e26a9a1e13d374b0033ec921e25f21f5` |
+| worktree_sha (post-commit docs) | `82cc322c9c71ad485460c6c3dd61cf1a489ae195` |
+| integrator_branch_sha | `82cc322c` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:07Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:07Z) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:07Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:05Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `d0b6b00f407f6d42f863121bb96489e8d2a91881` |
+| worktree_sha (post-commit docs) | `9b35c1bc7e553ca0d178e0202f74dd5714b2d985` |
+| integrator_branch_sha | `9b35c1bc` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:05Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:05Z) |
+| CI PR #246 | remoto `5d3fcd30` SUCCESS @ 20:59Z; tip local **11 commits** adelantado (push pendiente) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:05Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:03Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `519f74ca20df76f4c362cc47dcca4982b4419a26` |
+| worktree_sha (post-commit docs) | `16207429957b029f5a658c9478a7dd25766b786b` |
+| integrator_branch_sha | `16207429` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:03Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:03Z) |
+| CI PR #246 | tip local adelantado vs remoto (`519f74ca`+); push pendiente |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:03Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:02Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `59ac54da328f02da08a1cd82a9eac388b32ff03c` |
+| worktree_sha (post-commit docs) | `d1226fd2c23ccde47781985564ebdeddb9fd5e2f` |
+| integrator_branch_sha | `d1226fd2` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:02Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:01Z) |
+| CI PR #246 | último remoto `5d3fcd30` SUCCESS @ 20:59Z; tip local adelantado (push pendiente) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:01Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 21:00Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `5d3fcd30107360876735471a5ceb52055187743c` |
+| worktree_sha (post-commit docs) | `d5e78b90a62c38294b2f0884469bcef80ce0938c` |
+| integrator_branch_sha | `d5e78b90` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:00Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:00Z) |
+| CI PR #246 | pendiente push tip post-receipt |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:00Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:58Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c6f9e157b2b009535563c1b6750a6ac2cabbc8f1` |
+| worktree_sha (post-commit docs) | `aaedbcdb73be97ac458dbbf8712f680b58bf7b64` |
+| integrator_branch_sha | `aaedbcdb` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:58Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:57Z) |
+| CI PR #246 | **SUCCESS** @ 20:57Z (run [40953414737](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40953414737), head `c6f9e157…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:57Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:56Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `1a665c7ed4a0ccf6f2cb02282701672e90e228fd` |
+| worktree_sha (post-commit docs) | `31164cd2000d9d5bb0d6ca727dcddf48985e002b` |
+| integrator_branch_sha | `3388c755e5d0870e2c3e50d685fa0a3deac87817` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:56Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:55Z) |
+| CI PR #246 | **SUCCESS** @ 20:55Z (run [40953099514](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40953099514), head `1a665c7e…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:55Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:54Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `cb9cacbf6018a25b1cc70674b2650dc47504ede5` |
+| worktree_sha (post-commit docs) | `c3c7846b494a088ce1c1cc7f883d4bac0b85d0bd` |
+| integrator_branch_sha | `c3c7846b` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:54Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:53Z) |
+| CI PR #246 | **SUCCESS** @ 20:53Z (run [40952848006](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40952848006), head `cb9cacbf…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:53Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:52Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `3e51f91feb2a6a7b5da075d46e468bb98d15a87e` |
+| worktree_sha (post-commit docs) | `6f36b9e9838ce1f7d98adbf49e933e448cbd9ffb` |
+| integrator_branch_sha | `6f36b9e9` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:52Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:51Z) |
+| CI PR #246 | **SUCCESS** @ 20:50Z (run [40952449888](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40952449888), head `3e51f91f…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:51:52Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB + reconcile + MCP bypass en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:49Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `1068fd8c7df92b2412a9f8bdc753dd58ce83d545` |
+| worktree_sha (post-commit docs) | `84c4443b855ba4fd1c81c95dd8ce102242a33b3c` |
+| integrator_branch_sha | `84c4443b` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:49Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:49Z) |
+| CI PR #246 | **SUCCESS** @ 20:47Z (run [40952015044](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40952015044), head `1068fd8c…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:48:43Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:46Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `878ccf3bd913bbaa903ea1720a6b5dbef3eefda4` |
+| worktree_sha (post-commit docs) | `fcf91d9fb4ed556e93f3202a07f3359300933fa0` |
+| integrator_branch_sha | `fcf91d9f` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:46Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:46Z) |
+| CI PR #246 | **SUCCESS** @ 20:44Z (run [40951603689](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40951603689), head `fcf91d9f…` tras push) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:46Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — `finalize_verification_to_completed` → `evaluate_global_completion`; MCP `complete_ops_task` → `direct_completion_forbidden`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:44Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `8e1279d5246c7b611fb0d4f94c6070037b23ca35` |
+| worktree_sha (post-commit docs) | `a1376ba14af5160ab41e9220db7e6662494a7812` |
+| integrator_branch_sha | `8e1279d5` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:44Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:43Z) |
+| CI PR #246 | **SUCCESS** @ 20:43Z (run [40951324461](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40951324461), head `8e1279d5…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:43:11Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — `finalize_verification_to_completed` → `evaluate_global_completion`; Temporal `shared_pre_temporal_denials`; RACB exige `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f8786613`) + E2E; Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:42Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `9551f42f285ee92c78193a336fa09b6a3a13d0bb` |
+| worktree_sha (post-commit docs) | `6092d84ec7cffe9152d00a65f251ae1c7ce17c6d` |
+| integrator_branch_sha | `6092d84e` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:42Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:41Z) |
+| CI PR #246 | **SUCCESS** @ 20:41Z (run [40951047099](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40951047099), head `9551f42…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:41:15Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:40Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `113df404c237b1b53bac1f0138b8faa20add56d2` |
+| worktree_sha (post-commit docs) | `7cc4225768829d8f7593fd77b5bf76c8ae843559` |
+| integrator_branch_sha | `7cc42257` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:40Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:39Z) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:39:23Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:38Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `93e1ad24e71b6909bf4566aff73bb0ac89b534f3` |
+| worktree_sha (post-commit docs) | `68d4ee030374b5ae48be0b433b79a0e47dd83c21` |
+| integrator_branch_sha | `68d4ee03` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:38Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:37Z) |
+| CI PR #246 | **SUCCESS** @ 20:37Z (run [40950527675](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40950527675), head `93e1ad24…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:37:47Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:36Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `0b9e2d8057da3635eb523b7343fb53d584c315f3` |
+| worktree_sha (post-commit docs) | `2f3627a4dfb4540912910b5c22bea0cf6b52a6f8` |
+| integrator_branch_sha | `2f3627a4` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:36Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:35Z) |
+| CI PR #246 | **SUCCESS** @ 20:35Z (run [40950214319](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40950214319), head `0b9e2d80…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:35:48Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:33Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `3c9278fa151787563c3c5b17a200f389af4b79b7` |
+| worktree_sha (post-commit docs) | `46c8bf2c366e24eee66f75c3eaa95e3db82a5f6e` |
+| integrator_branch_sha | `cab93925` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:33Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:33Z) |
+| CI PR #246 | **SUCCESS** @ 20:29Z (run [40949320674](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40949320674), head remoto `d3c36545…`; re-run tras push) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:33:29Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:31Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `f7b0ecb61160d88e4dc71c5d91d5e0de2eaafd1c` |
+| worktree_sha (post-commit docs) | `5459b108e039a9e78b1af7006559e2921bd64f37` |
+| integrator_branch_sha | `5459b108` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:31Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:31Z) |
+| CI PR #246 | **SUCCESS** @ 20:29Z (run [40949320674](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40949320674), head remoto `d3c36545…`; re-run tras push integrador) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:31:40Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:29Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `d3c3654541e8513249a943f523a6688a8f9739ec` |
+| worktree_sha (post-commit docs) | `cb3b9ecffd56e1caab914109e2130ebf536ea9a3` |
+| integrator_branch_sha | `cb3b9ecf` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:29Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:29Z) |
+| CI PR #246 | **SUCCESS** @ 20:29Z (run [40949320674](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40949320674), head `d3c36545…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:29:16Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:28Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `57a988b75e26922b0c1da33b96a00a70bb72d1aa` |
+| worktree_sha (post-commit docs) | `6591cc18bc548cfbcf329c2040fbcafcc6af4f87` |
+| integrator_branch_sha | `6591cc18` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:28Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:27Z) |
+| CI PR #246 | **SUCCESS** @ 20:27Z (run [40949005428](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40949005428), head `57a988b7…`) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:27:35Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:25Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `34da33961d60202653205e3630de592ba4f232d3` |
+| worktree_sha (post-commit docs) | `778782d8` |
+| integrator_branch_sha | `778782d8` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:25Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:25Z) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:25:39Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:23Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `1da17a3608941290e27a714e9f1b235b1696f322` |
+| worktree_sha (post-commit docs) | `2f6f11ec` |
+| integrator_branch_sha | `2f6f11ec` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:23Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:23Z) |
+| CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:23Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:21Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `ca8e9f08da62a694277bd1c1cf11f499a36837d3` |
+| worktree_sha (post-commit docs) | `9df258a5` |
+| integrator_branch_sha | `9df258a5` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:21Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:21Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:21:47Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:20Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `af4c5026442e994a1155f9c0e24d12b8701f3c03` |
+| worktree_sha (post-commit docs) | `ecae63a4` |
+| integrator_branch_sha | `ecae63a4` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:20Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:19Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:19:11Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA `f8786613`) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+### Autorización requerida (fase 8 — no ejecutar sin owner)
+
+| Host | Acción | Riesgo / impacto |
+|------|--------|------------------|
+| Intel `192.168.1.4` | Desplegar main `f8786613`, reinicio selectivo servicios OPS/Temporal worker | Downtime cola; requiere SSH BatchMode (actualmente **denegado** desde auditor) |
+| AMD `ralfiia-amd` | Actualizar checkout de `f3a4ecdd…` → `f8786613`, canario segundo host | Desvío runtime vs Git main; posible impacto DevSwarm/cursor runners |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:17Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `7b63eb9698f4b410af984715dc2033d8e4351f03` |
+| worktree_sha (post-commit docs) | `9371d779` |
+| integrator_branch_sha | `9371d779` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:17Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:17Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:17:41Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:15Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `8a4f9f0731889bc457a1e030d85758d721f4ac13` |
+| worktree_sha (post-commit docs) | `48d26e5c` |
+| integrator_branch_sha | `48d26e5c` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:15Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:15Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:15:30Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:13Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `b24a4958f9744e41f79525b62e3790ce4115e7be` |
+| worktree_sha (post-commit docs) | `ac901baf` |
+| integrator_branch_sha | `ac901baf` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:13Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:13Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:13:35Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:11Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `b50d868be4315564c8b1069047bd4f257b01d352` |
+| worktree_sha (post-commit docs) | `f403e7f5` |
+| integrator_branch_sha | `f403e7f5` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:11Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:11Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:11:34Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:09Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `32ac3610e6605df5e9a99692287e5495d0b5e6d8` |
+| worktree_sha (post-commit docs) | `726d065e` |
+| integrator_branch_sha | `726d065e` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:09Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:09Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:09:15Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:08Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c3047f2166b52952e0d3106e44daede7ed559354` |
+| worktree_sha (post-commit docs) | `2901db53` |
+| integrator_branch_sha | `2901db53` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:08Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:08Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:07:39Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:05Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `b151707d26c48a0a8315d595119ea41d1a167026` |
+| worktree_sha (post-commit docs) | `967e389d` |
+| integrator_branch_sha | `967e389d` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:05Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:05Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:05:37Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:03Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `5126461544c53ba3ad31f5a2f12a093cd0d3a8f1` |
+| worktree_sha (post-commit docs) | `e21577d5` |
+| integrator_branch_sha | `e21577d5` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:03Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:03Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:03:31Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:01Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `6e3c5694397f20f8a36bae7a23cd5fe07948a8e5` |
+| worktree_sha (post-commit docs) | `5f8c424a` |
+| integrator_branch_sha | `5f8c424a` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:01Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:01Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 20:00Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `8989981c8031c14980359983a20d188e3e2aade8` |
+| worktree_sha (post-commit docs) | `06d667bc` |
+| integrator_branch_sha | `06d667bc` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:00Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:00Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:00Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:58Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `14ef9b71f26e675833d2a71d6e0faa613dfafbfb` |
+| worktree_sha (post-commit docs) | `58d397dd` |
+| integrator_branch_sha | `4a4ef25f` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:58Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:58Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:57:28Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:55Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `feb4d67672f0d4e52cb8b08e89fb67807c028e29` |
+| worktree_sha (post-commit docs) | `e10d1789` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:55Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:55Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:55:31Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:54Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `31df85fb06b4e0d0693e0766c7f0e291483618cc` |
+| worktree_sha (post-commit docs) | `443be179` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:54Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:54Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:54Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador ≠ main — esperado docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017` activos; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:52Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `5ccd18d1f380a6d54eff911305a23809f9d8a253` |
+| worktree_sha (post-commit docs) | `88a731ea` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:52Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:52Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:52Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador ≠ main — esperado docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:49Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `be9cb79f33ba77305ff3afd971f1b2293d9598ea` |
+| worktree_sha (post-commit docs) | `f6d97147` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:49Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:49Z) |
+| CI integrador PR #246 | **SUCCESS** [40943317322](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40943317322) @ `be9cb79f` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:49Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador ≠ main — esperado docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:47Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `9303479c29a0e73295f54d326cee6116f19fce50` |
+| worktree_sha (post-commit docs) | `2b8a596b` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:47Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:47Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| CI integrador PR #246 | **SUCCESS** [40942726802](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40942726802) @ `9437dc69` (head PR; re-push tras commits docs) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:47Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador ≠ main — esperado docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:46Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `9437dc69207974a0abae290b196cb3c23f425d64` |
+| worktree_sha (post-commit docs) | `68ea6bfa` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:46Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:46Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| CI integrador PR #246 | **SUCCESS** [40942726802](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40942726802) @ `9437dc69` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:45Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador ≠ main — esperado docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:43Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `8e0ca08279cf56adbaa80cb99b4a47af65a0091d` |
+| worktree_sha (post-commit docs) | `ac02a2f0` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:43Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:43Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| CI integrador PR #246 | **SUCCESS** [40942468334](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40942468334) @ `8e0ca082` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:43Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador `8e0ca082…` ≠ main — esperado docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:41Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `61cdf62d00f7ee3e0b544ced21bd9c0e7650df87` |
+| worktree_sha (post-commit docs) | `3d34ec65` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:41Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:41Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:41Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main; worktree integrador `61cdf62d…` ≠ main — esperado pre-merge docs) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8: canario Intel+AMD @ main SHA) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:40Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `4907ee2617b4bd964b81bdfaff509aff1dc285a0` |
+| worktree_sha (post-commit docs) | `ef1389bc` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:40Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:39Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:39Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:37Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c03055aa173acdf67beaf7eca136abba9638dca6` |
+| worktree_sha (post-commit docs) | `82a1201b` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:37Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:37Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:37Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:35Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `43e41bbddaebb100a3dadcc6f1455858ba5ca999` |
+| worktree_sha (post-commit docs) | `c85bd16a` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:35Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:33Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:33:31Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); merge `origin/main` en integrador para desbloquear PR #246; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:33Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `509617824619f1eadebdc69ff3ff88fa02be5acd` |
+| worktree_sha (post-commit docs) | `08cb0095` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:33Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:33Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:31:23Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:32Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `72d4a41447a65d3fed31d55dd089b356635ecb69` |
+| worktree_sha (post-commit docs) | `153f672a` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:32Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:32Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:29:22Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 re-ejecutada (fases 1–7 offline/Git); fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; agente declara explícitamente **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:30Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `ac923ba392573e2f62803df1a483763335e3beb9e` |
+| worktree_sha (post-commit docs) | `8a03b229` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:30Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:29Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:27:39Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:27Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `d0064391c8d02259447c7632d4dcb5ea1cd56e9e` |
+| worktree_sha (post-commit docs) | `1f3d1d03` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:27Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:27Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:25:18Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:23Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `24028d3074e15b9b483e41682ed5dae340594075` |
+| worktree_sha (post-commit docs) | `400f2b44` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:23Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:23Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:23:31Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:21Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `2bb03088f5b352bceedff696a227525d5fe7ab37` |
+| worktree_sha (post-commit docs) | `106b72a9` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:21Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:21Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:21:30Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:19Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `f13f5cd4c059d0ceb17c4a6f24619d9d266b48a0` |
+| worktree_sha (post-commit docs) | `240cd854` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:19Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:18Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:18:55Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:17Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `68d9f8f4881d7319243d24aa38661b5fab205921` |
+| worktree_sha (post-commit docs) | `e328575d` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:17Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:17Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:17:25Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:15Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `50fa092227bc2ea9393c310e0d859287a70af8a6` |
+| worktree_sha (post-commit docs) | `fb1c6af0` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:15Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:15Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:15:13Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD `ralfiia-amd`); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 19:13Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `e0fb19ca99e334069df07b6faacc3bd71d035e6d` |
+| worktree_sha (post-commit docs) | `dee5a469` |
+| main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T19:13Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 19:13Z) |
+| CI main | **SUCCESS** [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928) @ `f8786613` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 19:13:20Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 19:09Z
 
@@ -756,13 +2489,13 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 | Fase | Alcance | Estado | Evidencia |
 |------|---------|--------|-----------|
-| 1 | Inventario read-only Git/runtime/fleet | **PARTIAL** | Auditor `ralphi-ia-ver-10`; worktree/platform código **main** `633f11c9` (gate código `f211e533` vía #242); Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main → runtime no certificado |
+| 1 | Inventario read-only Git/runtime/fleet | **PARTIAL** | Auditor `ralphi-ia-ver-10`; worktree/platform código **main** `f8786613` (gate código `f211e533` vía #242); Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main → runtime no certificado |
 | 2 | Contrato estados / adendas / CAS | **PASS (offline)** | Heredado PR #232/#233; gate global nuevo en `finalize_verification_to_completed` |
 | 3 | Reintentos / fencing DevSwarm | **PASS (offline)** | Heredado PR #233 `test_dev_swarm_retry_budget_regression` |
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; gate Mongo + **Temporal** (`shared_pre_temporal_denials`); reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **PASS (Git)** | Main tip `633f11c9…` (docs post-#243); código gate `f211e533…` (PR [#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242)); **258 passed** @ 19:07Z local; CI main [40933676799](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40933676799); PR [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) CI [40936328427](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40936328427); runtime SHA import pendiente fase 8 |
+| 7 | CI + PR integrador | **PASS (Git)** | Main tip `f8786613…` (merge PR [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245)); código gate `f211e533…` (PR [#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242)); **258 passed** @ 21:48Z local; CI PR [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) [40960390302](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40960390302); CI main [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928); runtime SHA import pendiente fase 8 |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -783,7 +2516,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T19:07:17Z; `--expected-sha 633f11c9…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`); Temporal `:7233` y Mongo `:27017` escuchando en auditor; MCP Small `:8001` no escucha en este host.
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T21:47:57Z; `--expected-sha f8786613…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`); Temporal `:7233` y Mongo `:27017` escuchando en auditor; MCP Small `:8001` no escucha en este host.
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 17:37Z
 
@@ -1177,6 +2910,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 
 ### Autorización owner pendiente (misma OPS, no nueva task)
 
-1. **Deploy canario host 1** — alinear `ralfiia-amd` (y luego Intel) con main `83384714…`; reinicio servicios solo tras checkpoint HA explícito.
-2. **Intel audit** — clave SSH/Tailscale para `192.168.1.4`.
-3. **Grant HA** — gasto real Codex/Antigravity (fase 5/9 parcial BLOCKED sin grant).
+1. **Deploy canario host 1 (AMD)** — alinear `ralfiia-amd` (`192.168.1.5`) con main `f878661373aad307489b7de5eaf95d7444d43804` (actual runtime `f3a4ecdd…`); snapshot/rollback + reinicio servicios solo tras checkpoint HA explícito en esta OPS.
+2. **Deploy canario host 2 (Intel)** — clave SSH/Tailscale para `rlopez@192.168.1.4` (audit actual: **Permission denied**); mismo SHA canario tras AMD verificado.
+3. **Grant HA** — gasto real Codex/Antigravity con tope DURO (fases 5/9 parcial **BLOCKED** sin grant).
+4. **E2E fase 9** — tarea inocua HA→routing→worktree→receipt→Temporal/Mongo→notificación, solo tras deploy canario aprobado.
