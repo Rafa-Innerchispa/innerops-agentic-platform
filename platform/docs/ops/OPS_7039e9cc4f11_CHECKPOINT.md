@@ -4,6 +4,24 @@ Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #2
 
 Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. Docs pendientes merge: PR [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243).
 
+## Receipt sesión Cursor (composer-2.5-fast) — 18:19Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `81cf1cb9e856779b968c280ea35a7c1df09f5cde` |
+| worktree_sha (post-commit docs) | `3c8154c584a2985edffd4308aac94e893ecb01e1` |
+| main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T18:19Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml` @ 18:19Z) |
+| CI main | **SUCCESS** [40923843607](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40923843607) @ `f211e533` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f211e533…` → `ok: false` @ 18:18:54Z (Intel SSH denied; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main; MCP :8001 sin listener local) |
+| delta `.py` vs main | **0** — gate Mongo/Temporal/RACB/reconcile/MCP en main; regresión ops_6e3e49716e6c offline **PASS** |
+| verificación sesión | Orden definitiva P0: re-cert inventario read-only + suite gate; fases 1–7 **PASS (offline/Git)**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** + E2E (fases 8–9); Codex/Antigravity **BLOCKED** sin grant |
+
 ## Receipt sesión Cursor (composer-2.5-fast) — 18:18Z
 
 | Campo | Valor |
@@ -321,7 +339,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T18:17:02Z; `--expected-sha f211e533…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`); Temporal `:7233` y Mongo `:27017` escuchando en auditor; MCP Small `:8001` no escucha en este host.
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T18:18:54Z; `--expected-sha f211e533…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`); Temporal `:7233` y Mongo `:27017` escuchando en auditor; MCP Small `:8001` no escucha en este host.
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 17:37Z
 
