@@ -10,7 +10,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `1f0c8c406c91e866db441e8f02315c50d23c44e5` |
-| worktree_sha (post-commit docs) | *(pendiente post-commit)* |
+|  *(pendiente post-commit)* | *(pendiente post-commit)* |
 | integrator_branch_sha | *(pendiente post-commit)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -30,7 +30,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `4e3cb9520aa91a038865a5cbdbbf0b068194902e` |
-| worktree_sha (post-commit docs) | `9abcead071211170c4a2a739a81c2e23823841c1` |
+|  *(pendiente post-commit)* | `9abcead071211170c4a2a739a81c2e23823841c1` |
 | integrator_branch_sha | `4ecbed9d` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -50,7 +50,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `52cc92f943e7b26cad9ec788a1e1d586d3f3f1e5` |
-| worktree_sha (post-commit docs) | `0d40494bee23301fc4dc8b06c4091c54c08b366b` |
+|  *(pendiente post-commit)* | `0d40494bee23301fc4dc8b06c4091c54c08b366b` |
 | integrator_branch_sha | `b2a0a765` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -70,7 +70,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `22995de4b6e2be37457cb82a02a21aeaccc84f0d` |
-| worktree_sha (post-commit docs) | `1e589fa71a89c61d197549be0f4b3da470eb6c93` |
+|  *(pendiente post-commit)* | `1e589fa71a89c61d197549be0f4b3da470eb6c93` |
 | integrator_branch_sha | `8f3a75cf` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
