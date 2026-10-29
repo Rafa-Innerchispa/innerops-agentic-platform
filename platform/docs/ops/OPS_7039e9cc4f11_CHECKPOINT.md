@@ -2,7 +2,7 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` (merge PR [#236](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/236) tras #235 `24277871235bf19cad138546432b613102549c75`, 2026-10-29T15:12Z). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. PR integrador [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) **MERGED** — `critical-runtime-contracts` + GitGuardian **PASS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. PR integrador [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) **MERGED** — `critical-runtime-contracts` + GitGuardian **PASS**. PR docs checkpoint [#237](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/237) **OPEN** (solo evidencia; sin COMPLETED global).
 
 ## Fases
 
@@ -35,20 +35,20 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T15:26:36Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T15:30:30Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `bea71222` (rama `cursor/ops-7039e9cc4f11-integrator`, docs PR #237) |
-| before_sha (pre-sesión) | `d1023dd3acaffbf1da6399b611eb52aab31ef944` |
+| worktree SHA | `f33f522c` (rama `cursor/ops-7039e9cc4f11-integrator`, docs PR #237) |
+| before_sha (pre-sesión) | `f33f522c511dd20638031d1c93ddc89f18f6d3fd` |
 | main SHA (merge #236) | `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T15:27Z |
-| tests | pytest exit 0 — 255 passed, 13 subtests (`inneros-runtime-gates` suite @ 15:27Z, re-cert sesión composer-2.5-fast) |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T15:31Z |
+| tests | pytest exit 0 — 255 passed, 13 subtests (`inneros-runtime-gates` suite @ 15:31Z, re-cert sesión composer-2.5-fast) |
 | CI main #236 | workflow `inneros-runtime-gates` run **40898934368** SUCCESS @ push `9cf2d1c2` |
 | runtime audit | `ops_runtime_deploy_audit_readonly.py` → `ok: false` (Intel SSH; AMD SHA desalineado vs `9cf2d1c2`) |
 | estado global OPS | **IN_PROGRESS** — gate en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
