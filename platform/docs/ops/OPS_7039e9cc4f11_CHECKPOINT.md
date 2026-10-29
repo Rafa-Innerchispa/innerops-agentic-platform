@@ -42,7 +42,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `434fcb778f6a183f575accadace5edf2cb3cc1e7` (rama integrator; gate en main `9cf2d1c2`) |
+|  `434fcb778f6a183f575accadace5edf2cb3cc1e7`| `434fcb778f6a183f575accadace5edf2cb3cc1e7` (rama integrator; gate en main `9cf2d1c2`) |
 | before_sha (pre-sesión) | `434fcb778f6a183f575accadace5edf2cb3cc1e7` |
 | main SHA (merge #236) | `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
