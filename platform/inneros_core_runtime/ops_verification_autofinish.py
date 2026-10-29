@@ -9,7 +9,10 @@ from typing import Any
 from raphiia_openai import mongo_store
 
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+from inneros_core_runtime import execution_receipts as receipts
 from inneros_core_runtime import interactive_ops_runner as ior
+from inneros_core_runtime import racb_protocol as racb
+from pathlib import Path
 
 
 def _is_readonly_verification(task: dict[str, Any]) -> bool:
@@ -90,6 +93,73 @@ def try_finish_verification_task(
         },
     )
     return {"ok": bool(out.get("ok")), "task_id": tid, "provider": prov, "complete": out, "commit_sha": sha}
+
+
+def try_fail_verification_no_new_commit(
+    *,
+    task_id: str,
+    superseded_by: str | None = None,
+) -> dict[str, Any] | None:
+    """Close verification tasks that cannot produce a task-scoped commit receipt."""
+    tid = (task_id or "").strip()
+    if not tid:
+        return None
+    db = mongo_store.get_db()
+    task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+    if not task:
+        return {"ok": False, "task_id": tid, "error": "task_not_found"}
+    status = str(task.get("status") or "").lower()
+    if status != "verification":
+        if status == "failed" and task.get("reconcile_note") == "verification_failed_no_new_commit_for_task":
+            return {"ok": True, "task_id": tid, "skipped": "already_reconciled_failed"}
+        if status == "completed":
+            return {"ok": True, "task_id": tid, "skipped": "already_completed"}
+        return {"ok": False, "task_id": tid, "skipped": f"status:{status}"}
+    worktree_raw = str(task.get("worktree") or task.get("local_worktree") or "").strip()
+    if not worktree_raw:
+        return {"ok": False, "task_id": tid, "error": "missing_worktree"}
+    worktree = Path(worktree_raw).expanduser()
+    before_sha = str(task.get("git_baseline_sha") or receipts.git_head(worktree)).strip()
+    proof = receipts.committed_objective_receipt(worktree, before_sha)
+    if proof.get("ok"):
+        return {"ok": False, "task_id": tid, "skipped": "receipt_ok"}
+    if proof.get("error") != "no_new_commit_for_task":
+        return {"ok": False, "task_id": tid, "skipped": proof.get("error"), "receipt": proof}
+
+    evidence = {
+        "status": "FAILED",
+        "result": "no_new_commit_for_task",
+        "receipt": proof,
+        "notes": "verification closed: repair landed on main without task-scoped commit",
+    }
+    transition = racb.build_transition(
+        current_status=status,
+        target_status="failed",
+        current_revision=int(task.get("revision") or 0),
+        actor="ops_verification_autofinish",
+        evidence=evidence,
+    )
+    if not transition.get("ok"):
+        return {"ok": False, "task_id": tid, "error": transition.get("error"), "receipt": proof}
+    patch = {
+        **(transition.get("patch") or {}),
+        "reconcile_note": "verification_failed_no_new_commit_for_task",
+        "reconcile_evidence": {
+            "receipt": proof,
+            "superseded_by": superseded_by,
+            "github_main_sha_at_close": receipts.git_head(worktree),
+        },
+        "last_error": "no_new_commit_for_task",
+    }
+    if superseded_by:
+        patch["superseded_by"] = superseded_by
+    filt: dict[str, Any] = {"task_id": tid, "status": "verification"}
+    if "revision" in task:
+        filt["revision"] = task["revision"]
+    change = db[OPS_TASKS_COL].update_one(filt, {"$set": patch})
+    if getattr(change, "modified_count", 0) != 1:
+        return {"ok": False, "task_id": tid, "error": "concurrent_update", "receipt": proof}
+    return {"ok": True, "task_id": tid, "status": "failed", "receipt": proof}
 
 
 def run_autofinish_batch(*, limit: int = 10) -> dict[str, Any]:

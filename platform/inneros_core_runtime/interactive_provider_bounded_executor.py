@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
@@ -24,6 +25,9 @@ PROVIDER_CANARY_MARKERS = {
 }
 
 CANARY_VERIFY_TEST = "platform/tests/test_provider_ops_canary_receipt.py"
+
+EXECUTION_SYNTHETIC_CANARY = "SYNTHETIC_CANARY_PASS"
+EXECUTION_PROVIDER_REAL = "PROVIDER_REAL_EXECUTION_VERIFIED"
 
 
 def _codex_bin() -> str:
@@ -48,18 +52,41 @@ def _task_blob(task: dict[str, Any]) -> str:
     ).lower()
 
 
+def _synthetic_canary_trusted(task: dict[str, Any]) -> bool:
+    """Payload flags alone are insufficient — require issuer token or synthetic_canary auth channel."""
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    expected = os.getenv("INNEROS_OPS_SYNTHETIC_CANARY_TOKEN", "").strip()
+    if expected:
+        token = str(payload.get("synthetic_canary_auth_token") or "").strip()
+        return bool(token) and hmac.compare_digest(token, expected)
+    if str(task.get("owner_authorization_channel") or "") == "synthetic_canary":
+        return True
+    if payload.get("synthetic_canary_issuer") == "inneros_ops_provider_bounded_canary":
+        return os.getenv("INNEROS_OPS_SYNTHETIC_CANARY_AUTH", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    return False
+
+
 def is_innocuous_canary_task(task: dict[str, Any], provider: str) -> bool:
+    """True only for explicitly marked synthetic canaries — never from free-text objectives."""
     prov = (provider or "").strip().lower()
-    marker = PROVIDER_CANARY_MARKERS.get(prov, "")
-    if not marker:
+    if not PROVIDER_CANARY_MARKERS.get(prov):
         return False
-    blob = _task_blob(task)
-    if marker.lower() in blob:
-        return True
-    if f"[{prov}_canary]" in blob or "[provider_canary]" in blob:
-        return True
-    payload = task.get("payload") or {}
-    return isinstance(payload, dict) and payload.get("provider_canary") == prov
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if payload.get("provider_canary") != prov:
+        return False
+    mode = str(payload.get("execution_mode") or task.get("execution_mode") or "").strip().upper()
+    if mode == "SYNTHETIC_CANARY" or payload.get("synthetic_canary") is True:
+        return _synthetic_canary_trusted(task)
+    if os.getenv("INNEROS_ALLOW_TEXT_CANARY_MATCH", "").strip().lower() in {"1", "true", "yes", "on"}:
+        blob = _task_blob(task)
+        marker = PROVIDER_CANARY_MARKERS[prov]
+        return marker.lower() in blob or f"[{prov}_canary]" in blob
+    return False
 
 
 def _model_exec_allowed(provider: str) -> bool:
@@ -248,9 +275,38 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
             resolved_model=None,
             model_source="bounded_canary_no_model_spend",
             transport="temporal_bounded_executor",
-            extra=journal_extra,
+            extra={**journal_extra, "execution_verification_class": EXECUTION_SYNTHETIC_CANARY},
         )
     elif prov == "codex" and _model_exec_allowed("codex"):
+        from inneros_core_runtime import ops_owner_approval_ha as oah
+
+        grant = oah.paid_execution_allowed(tid, provider=prov)
+        if not grant.get("allowed"):
+            blocked = {
+                "ok": False,
+                "error": grant.get("error") or "owner_budget_grant_required",
+                "task_id": tid,
+                "provider": prov,
+                "primary": "codex_cli_exec",
+                "hint": grant.get("hint"),
+            }
+            omj.record_model_execution(
+                tid,
+                provider=prov,
+                configured_model=pinned,
+                resolved_model=None,
+                model_source="blocked_no_grant",
+                transport=None,
+                extra={**journal_extra, "blocked_reason": blocked["error"]},
+            )
+            complete = ior.complete_ops_task(
+                prov,
+                tid,
+                claim_token=token,
+                status="blocked",
+                evidence={"blocked_reason": blocked["error"], "headless_primary": "codex_cli_exec"},
+            )
+            return {**blocked, "complete": complete}
         runner_result = _run_codex_cli(task, worktree, pinned_model=pinned)
         omj.record_model_execution(
             tid,
@@ -260,7 +316,11 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
             model_source="codex_cli_exec",
             usage=runner_result.get("usage") if isinstance(runner_result.get("usage"), dict) else None,
             transport="codex_cli_exec",
-            extra={**journal_extra, "codex_thread_id": runner_result.get("codex_thread_id")},
+            extra={
+                **journal_extra,
+                "codex_thread_id": runner_result.get("codex_thread_id"),
+                "execution_verification_class": EXECUTION_PROVIDER_REAL,
+            },
         )
         if runner_result.get("ok"):
             commit = _git_commit_worktree(worktree, f"ops {tid} codex")
@@ -343,9 +403,15 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
         )
         return {"ok": False, "task_id": tid, "receipt": built, "complete": complete}
 
+    exec_class = (
+        EXECUTION_SYNTHETIC_CANARY
+        if runner_result.get("primary") == "bounded_canary"
+        else EXECUTION_PROVIDER_REAL
+    )
     evidence = {
         **built["evidence"],
         "headless_primary": runner_result.get("primary"),
+        "execution_verification_class": exec_class,
         "execution_host": __import__("socket").gethostname(),
         "configured_model": pinned,
         "resolved_model": runner_result.get("resolved_model") or pinned,

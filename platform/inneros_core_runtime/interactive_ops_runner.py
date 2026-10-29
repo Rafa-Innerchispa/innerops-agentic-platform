@@ -360,6 +360,9 @@ def claim_ops_task(
     except Exception:
         pass
     heartbeat_ops_task(tid, actor=prov, phase="claimed", current_step=f"{prov}_interactive", last_progress=f"claim {_host()}")
+    from inneros_core_runtime import ops_task_requirements as otr
+
+    requirements_checkpoint = otr.process_checkpoint_amendments(tid, actor=prov)
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True})
     headless_spawn: dict[str, Any] | None = None
     try:
@@ -402,6 +405,7 @@ def claim_ops_task(
         "execution_binding": binding,
         "claim_host": _host(),
         "headless_spawn": headless_spawn,
+        "requirements_checkpoint": requirements_checkpoint,
     }
 
 
@@ -423,10 +427,15 @@ def complete_ops_task(
         return {"ok": False, "error": "claim_token_mismatch_or_task_missing", "task_id": tid}
     if not _lease_valid(task):
         return {"ok": False, "error": "lease_expired", "task_id": tid}
+    normalized = (status or "completed").strip().lower()
+    from inneros_core_runtime import ops_task_requirements as otr
+
+    amend_block = otr.completion_blocked_by_amendments(tid)
+    if normalized == "completed" and amend_block.get("blocked"):
+        return {"ok": False, "error": amend_block["error"], "task_id": tid, "pending_amendments": amend_block["pending"]}
     model_err = _validate_pinned_model(provider=prov, task=task)
     if model_err:
         return {**model_err, "task_id": tid}
-    normalized = (status or "completed").strip().lower()
     ev = dict(evidence or {})
     if normalized == "completed":
         expected_model = pinned_model(prov)

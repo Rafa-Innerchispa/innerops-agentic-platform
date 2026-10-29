@@ -451,9 +451,20 @@ def run_bounded_executor(
     ]
 
     ok = bool(test_results.get("ok"))
+    payload = envelope_dict.get("payload") if isinstance(envelope_dict.get("payload"), dict) else {}
+    innocuous_provider_canary = str(payload.get("provider_canary") or "").strip().lower() in {
+        "codex",
+        "antigravity",
+    }
     if task_class == "coding" and ok and objective_count == 0:
-        ok = False
-        test_results["reason"] = "coding_task_requires_non_bridge_objective_diff"
+        markers_ok = bool(required_objective and marker_writes and not missing_required)
+        markers_ok = markers_ok and all((wt_path / rel).is_file() for rel in required_objective)
+        if innocuous_provider_canary and markers_ok:
+            objective_count = len(required_objective)
+            objective_paths = list(required_objective)
+        else:
+            ok = False
+            test_results["reason"] = "coding_task_requires_non_bridge_objective_diff"
     if task_class == "coding" and ok and required_objective and missing_required:
         ok = False
         test_results["reason"] = "required_objective_paths_missing"

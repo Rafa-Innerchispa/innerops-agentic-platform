@@ -104,7 +104,12 @@ jobs:
             platform/tests/test_cursor_ops_runner.py \
             platform/tests/test_cursor_execution_plane.py \
             platform/tests/test_owner_authorization_pipeline.py \
-            platform/tests/test_main_ci_gate_trigger.py
+            platform/tests/test_main_ci_gate_trigger.py \
+            platform/tests/test_ops_task_requirements.py \
+            platform/tests/test_ops_task_requirements_e2e.py \
+            platform/tests/test_ops_owner_approval_ha.py \
+            platform/tests/test_provider_execution_trust_boundary.py \
+            platform/tests/test_ops_fmea_invariants.py
       - name: Produce CI-only provenance manifest
         env:
           INNEROS_COMMIT: ${{ github.sha }}

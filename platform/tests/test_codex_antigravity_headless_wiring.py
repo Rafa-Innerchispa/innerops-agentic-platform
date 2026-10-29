@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -18,10 +19,21 @@ from inneros_core_runtime import ops_model_execution_journal as omj
 
 
 class CodexAntigravityWiringTests(unittest.TestCase):
-    def test_innocuous_canary_detects_marker_path(self) -> None:
-        task = {"title": "canary", "objective": "write docs/CODEX_CANARY.md only"}
-        self.assertTrue(ipbe.is_innocuous_canary_task(task, "codex"))
-        self.assertFalse(ipbe.is_innocuous_canary_task(task, "antigravity"))
+    def test_innocuous_canary_requires_authenticated_payload(self) -> None:
+        loose = {"title": "canary", "objective": "write docs/CODEX_CANARY.md only"}
+        self.assertFalse(ipbe.is_innocuous_canary_task(loose, "codex"))
+        signed = {
+            "objective": "canary",
+            "payload": {
+                "provider_canary": "codex",
+                "execution_mode": "SYNTHETIC_CANARY",
+                "synthetic_canary": True,
+                "synthetic_canary_issuer": "inneros_ops_provider_bounded_canary",
+            },
+        }
+        with patch.dict(os.environ, {"INNEROS_OPS_SYNTHETIC_CANARY_AUTH": "1"}):
+            self.assertTrue(ipbe.is_innocuous_canary_task(signed, "codex"))
+        self.assertFalse(ipbe.is_innocuous_canary_task(signed, "antigravity"))
 
     def test_codex_headless_script_invokes_bounded_executor(self) -> None:
         script = PLATFORM_DIR / "scripts" / "codex_ops_headless_execute_one.py"

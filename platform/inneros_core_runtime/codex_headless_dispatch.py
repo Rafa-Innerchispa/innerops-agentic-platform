@@ -12,6 +12,7 @@ from typing import Any
 
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
 from inneros_core_runtime import cursor_headless_lanes as cursor_lanes
+from inneros_core_runtime import headless_worker_runtime as hwr
 from inneros_core_runtime import interactive_provider_lanes as ipl
 from raphiia_openai import mongo_store
 
@@ -109,9 +110,7 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
         return {"ok": False, "task_id": tid, "error": "not_claimed_or_already_started"}
 
     root = Path(__file__).resolve().parents[1]
-    py = root / "venv" / "bin" / "python3"
-    if not py.is_file():
-        py = Path(os.getenv("INNEROS_PYTHON") or "python3")
+    py = hwr.resolve_headless_python(platform_root=root)
     script = root / "scripts" / "codex_ops_headless_execute_one.py"
     log_path = _headless_log_path(tid)
     unit = _headless_unit_name(tid)
@@ -133,14 +132,7 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
         tid,
     ]
     try:
-        launch = subprocess.run(
-            command,
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            timeout=20,
-            check=False,
-        )
+        launch, unit = hwr.systemd_run_transient(unit=unit, command=command, cwd=root)
         if launch.returncode != 0:
             _clear_spawn_reservation(db, tid, host)
             return {
