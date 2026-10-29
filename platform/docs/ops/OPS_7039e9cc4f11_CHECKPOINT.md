@@ -10,15 +10,15 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c1f10eeea4bf6dfa964bcef9e3d0abbf76d5ed08` |
-| worktree_sha (post-commit docs) | *(commit siguiente a este receipt)* |
-| integrator_branch_sha | *(commit siguiente a este receipt)* |
+| worktree_sha (post-commit docs) | `e0f849f432892a608456d78c01b50cc90479156e` |
+| integrator_branch_sha | `e0f849f432892a608456d78c01b50cc90479156e` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
 | host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:53Z |
 | tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:53Z) |
 | CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
-| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:53:51Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `c1f10eee…` docs-only) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:53:51Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `e0f849f4…` docs-only) |
 | mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
 | inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
 | verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
