@@ -13,15 +13,15 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 3 | Reintentos / fencing DevSwarm | **PASS (offline)** | Heredado PR #233 `test_dev_swarm_retry_budget_regression` |
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
-| 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **PASS (Git+local)** | PR [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#240](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/240) **MERGED** → main `83384714…`; PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241) docs checkpoint **OPEN**; local **257 passed** @ 17:31Z; CI main [40916025327](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40916025327) **SUCCESS** |
+| 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; gate Mongo + **Temporal** (`shared_pre_temporal_denials`); reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
+| 7 | CI + PR integrador | **IN_PROGRESS** | Main `83384714…`; PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241) docs; **258 passed** local @ 17:35Z (gate Temporal); CI main prev [40916025327](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40916025327) **SUCCESS** pre-patch |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
 ## Bug P0 reparado (falsos cierres)
 
 - **Causa:** `finalize_verification_to_completed` escribía `status=completed` en Mongo sin evaluar criterio global ni texto del agente.
-- **Remediación:** `ops_global_completion_gate.evaluate_global_completion` + transición RACB CAS (`revision` + `verification`); certificación `COMPLETED_VERIFIED` y `verified_receipt` obligatorios; `racb_protocol.validate_evidence` exige `result=COMPLETED_VERIFIED` (no `PASS`/`OK` aunque exista `verified_receipt`) + `global_completion_ack` o receipt concordante (segunda línea de defensa).
+- **Remediación:** `ops_global_completion_gate.evaluate_global_completion` + `shared_pre_temporal_denials` también en `activity_validate_completion_gate` (Temporal no puede marcar `completed` en mirror si el agente niega cierre global); transición RACB CAS (`revision` + `verification`); certificación `COMPLETED_VERIFIED` y `verified_receipt` obligatorios; `racb_protocol.validate_evidence` exige `result=COMPLETED_VERIFIED` (no `PASS`/`OK` aunque exista `verified_receipt`) + `global_completion_ack` o receipt concordante (segunda línea de defensa).
 - **Bypass adicional cerrado:** `reconcile_ops_mongo_temporal.py` ya no propone `completed` terminal; solo avanza a `verification` para cierre vía gate.
 - **Bypass MCP (sesión 14:45Z):** `raphiia_openai.coordination_live.complete_ops_task` y transición directa `update_ops_task_state(..., completed)` devuelven `direct_completion_forbidden` / `temporal_owns_task_lifecycle` (alineado con `inneros_core_runtime.coordination_live`).
 
@@ -35,7 +35,23 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T17:31:01Z; `--expected-sha 83384714…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T17:32:55Z; `--expected-sha 83384714…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+
+## Receipt sesión Cursor (composer-2.5-fast) — 17:35Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `ebc876edf6854a05272bf88735db4ef1dcbea0ca` |
+| worktree_sha | *(post-commit integrador)* |
+| main SHA | `83384714247267548e3bcceba25081248999fb1d` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T17:35Z |
+| tests | pytest exit 0 — **258 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml` @ 17:35Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py` → `ok: false` @ 17:32:55Z |
+| verificación sesión | Cierre brecha Temporal: `shared_pre_temporal_denials` en `activity_validate_completion_gate`; test regresión ops_6e3e49716e6c vía Temporal; **sin COMPLETED global** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** + E2E; fases 8–9 bloqueadas owner |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 17:31Z
 

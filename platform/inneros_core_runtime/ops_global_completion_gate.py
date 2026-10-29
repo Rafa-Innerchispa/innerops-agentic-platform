@@ -69,6 +69,38 @@ def agent_denies_global_completion(task: dict[str, Any], evidence: dict[str, Any
     return None
 
 
+def shared_pre_temporal_denials(task: dict[str, Any], evidence: dict[str, Any] | None) -> list[str]:
+    """Checks used by Mongo finalize and Temporal activity_validate_completion_gate (no recursion)."""
+    tid = str(task.get("task_id") or "")
+    ev = dict(evidence or {})
+    reasons: list[str] = []
+
+    deny = agent_denies_global_completion(task, ev)
+    if deny:
+        reasons.append(deny)
+
+    amend = otr.completion_blocked_by_amendments(tid)
+    if amend.get("blocked"):
+        reasons.append(str(amend.get("error") or "pending_requirements_amendments"))
+
+    if task.get("pending_temporal_completion"):
+        reasons.append("pending_temporal_completion")
+
+    synth = _synthetic_provider(ev)
+    if synth:
+        reasons.append(synth)
+
+    deploy_err = _deploy_approval_missing(task, ev)
+    if deploy_err:
+        reasons.append(deploy_err)
+
+    sha_err = _expected_main_sha_mismatch(task, ev)
+    if sha_err:
+        reasons.append(sha_err)
+
+    return reasons
+
+
 def _envelope_from_task(task: dict[str, Any]) -> dict[str, Any]:
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     env = {**payload, **task}
@@ -179,30 +211,7 @@ def evaluate_global_completion(
     """Return ok=True only when COMPLETED_VERIFIED criteria are satisfied."""
     tid = str(task.get("task_id") or "")
     ev = dict(evidence or {})
-    reasons: list[str] = []
-
-    deny = agent_denies_global_completion(task, ev)
-    if deny:
-        reasons.append(deny)
-
-    amend = otr.completion_blocked_by_amendments(tid)
-    if amend.get("blocked"):
-        reasons.append(str(amend.get("error") or "pending_requirements_amendments"))
-
-    if task.get("pending_temporal_completion"):
-        reasons.append("pending_temporal_completion")
-
-    synth = _synthetic_provider(ev)
-    if synth:
-        reasons.append(synth)
-
-    deploy_err = _deploy_approval_missing(task, ev)
-    if deploy_err:
-        reasons.append(deploy_err)
-
-    sha_err = _expected_main_sha_mismatch(task, ev)
-    if sha_err:
-        reasons.append(sha_err)
+    reasons = shared_pre_temporal_denials(task, ev)
 
     wt_path = str(task.get("worktree") or task.get("local_worktree") or ev.get("worktree") or "").strip()
     base = str(task.get("git_baseline_sha") or ev.get("git_before_sha") or "").strip()

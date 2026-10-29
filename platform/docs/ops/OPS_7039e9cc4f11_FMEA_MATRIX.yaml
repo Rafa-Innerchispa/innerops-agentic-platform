@@ -93,6 +93,11 @@ entries:
     test: platform/tests/test_ops_global_completion_gate.py::test_finalize_verification_rejects_agent_denial_cas
     status: PASS
     remediation: global_completion_gate_failed blocks Mongo update_one
+  - scene: temporal_activity_gate_agent_denial_with_tests
+    invariant: INV-13
+    test: platform/tests/test_ops_global_completion_gate.py::test_temporal_activity_gate_blocks_agent_denial_despite_tests
+    status: PASS
+    remediation: activity_validate_completion_gate runs shared_pre_temporal_denials before evidence fast-paths
   - scene: concurrent_completion_revision_race
     invariant: INV-13
     test: platform/tests/test_ops_global_completion_gate.py::test_finalize_verification_cas_race_does_not_terminal_close
