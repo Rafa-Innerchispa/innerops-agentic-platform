@@ -88,11 +88,11 @@ def validate_evidence(target_status: str, evidence: dict[str, Any] | None) -> di
     if not isinstance(evidence, dict) or not evidence:
         return {"ok": False, "error": "evidence_required", "status": target}
     result = str(evidence.get("status") or evidence.get("result") or "").strip().upper()
-    if target == "completed" and result not in {"PASS", "OK", "COMPLETED"}:
+    if target == "completed" and result not in {"PASS", "OK", "COMPLETED", "COMPLETED_VERIFIED"}:
         return {
             "ok": False,
             "error": "completion_result_required",
-            "accepted_results": ["PASS", "OK", "COMPLETED"],
+            "accepted_results": ["PASS", "OK", "COMPLETED", "COMPLETED_VERIFIED"],
         }
     return {"ok": True}
 

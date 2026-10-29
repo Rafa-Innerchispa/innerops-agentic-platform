@@ -66,7 +66,10 @@ def emit_owner_terminal_whatsapp(task: dict[str, Any], *, previous_status: str =
 
 
 def finalize_verification_to_completed(task_id: str, *, actor: str = "chatgpt", evidence: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Verification gate pass → completed + owner FIN notification + ChatGPT ack."""
+    """Verification gate pass → COMPLETED_VERIFIED + owner FIN notification (CAS, fail-closed)."""
+    from inneros_core_runtime import ops_global_completion_gate as ogcg
+    from inneros_core_runtime import racb_protocol as racb
+
     db = mongo_store.get_db()
     task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
     if not task:
@@ -74,23 +77,66 @@ def finalize_verification_to_completed(task_id: str, *, actor: str = "chatgpt", 
     prev = str(task.get("status") or "")
     if prev != "verification":
         return {"ok": False, "error": "not_in_verification", "status": prev}
-    now = ralfia_time.now_utc_iso()
-    db[OPS_TASKS_COL].update_one(
-        {"task_id": task_id},
-        {
-            "$set": {
-                "status": "completed",
-                "completed_at": now,
-                "updated_at": now,
-                "verified_by": actor,
-                "verified_evidence": evidence or {},
-            },
-            "$inc": {"revision": 1},
-        },
+
+    merged_evidence = dict(evidence or {})
+    candidate = task.get("candidate_evidence") if isinstance(task.get("candidate_evidence"), dict) else {}
+    merged_evidence = {**candidate, **merged_evidence}
+    gate = ogcg.evaluate_global_completion(task, merged_evidence)
+    if not gate.get("ok"):
+        return {
+            "ok": False,
+            "error": "global_completion_gate_failed",
+            "task_id": task_id,
+            "certification": gate.get("certification"),
+            "reasons": gate.get("reasons"),
+            "gate": gate,
+        }
+
+    receipt = gate.get("receipt") or {}
+    terminal_evidence = {
+        **merged_evidence,
+        "status": "COMPLETED_VERIFIED",
+        "result": "COMPLETED_VERIFIED",
+        "global_completion_ack": True,
+        "verified_receipt": receipt,
+    }
+    transition = racb.build_transition(
+        current_status=prev,
+        target_status="completed",
+        actor=actor,
+        current_revision=int(task.get("revision") or 0),
+        evidence=terminal_evidence,
+        force_handoff=True,
     )
+    if not transition.get("ok"):
+        return {"ok": False, "error": transition.get("error"), "task_id": task_id, "transition": transition}
+
+    patch = dict(transition.get("patch") or {})
+    patch.update(
+        {
+            "verified_by": actor,
+            "verified_evidence": merged_evidence,
+            "completion_certification": "COMPLETED_VERIFIED",
+            "verified_receipt": receipt,
+        }
+    )
+    filt: dict[str, Any] = {"task_id": task_id, "status": "verification"}
+    if task.get("revision") is not None:
+        filt["revision"] = task["revision"]
+    change = db[OPS_TASKS_COL].update_one(filt, {"$set": patch})
+    if getattr(change, "modified_count", 0) != 1:
+        return {"ok": False, "error": "concurrent_completion_race", "task_id": task_id}
+
     task2 = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or task
     whatsapp = emit_owner_terminal_whatsapp({**task2, "status": "completed"}, previous_status="verification")
-    return {"ok": True, "task_id": task_id, "status": "completed", "whatsapp": whatsapp}
+    return {
+        "ok": True,
+        "task_id": task_id,
+        "status": "completed",
+        "certification": "COMPLETED_VERIFIED",
+        "receipt": receipt,
+        "whatsapp": whatsapp,
+    }
 
 
 def submit_completion_with_temporal_fallback(

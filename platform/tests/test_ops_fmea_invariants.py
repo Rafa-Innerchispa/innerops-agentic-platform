@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from inneros_core_runtime import execution_binding as eb
 from inneros_core_runtime import ops_auto_claim_admission as oaca
 from inneros_core_runtime import ops_owner_approval_ha as oah
+from inneros_core_runtime import ops_global_completion_gate as ogcg
 from inneros_core_runtime import ops_task_requirements as otr
 from scripts import cursor_ops_inbox_consumer as inbox
 
@@ -23,6 +24,7 @@ FMEA_MATRIX = [
     ("INV-10", "unknown_budget_not_zero", lambda: _unknown_budget()),
     ("INV-11", "double_claim_foreign_provider", lambda: _foreign_claim()),
     ("INV-12", "replay_checkpoint_idempotent", lambda: _checkpoint_replay()),
+    ("INV-13", "no_false_completed_global", lambda: _no_false_completed_global()),
 ]
 
 
@@ -137,6 +139,12 @@ def _checkpoint_replay():
             first = otr.process_checkpoint_amendments("t")
             second = otr.process_checkpoint_amendments("t")
     return first.get("ok") and second.get("ok")
+
+
+def _no_false_completed_global():
+    task = {"task_id": "ops_reg", "task_class": "implementation", "repo": "org/r"}
+    evidence = {"report": "NO COMPLETED global: falta deploy autorizado."}
+    return ogcg.evaluate_global_completion(task, evidence)["ok"] is False
 
 
 def test_fmea_invariants_matrix():
