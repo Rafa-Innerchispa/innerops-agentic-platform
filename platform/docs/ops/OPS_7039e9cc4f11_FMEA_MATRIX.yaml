@@ -2,6 +2,8 @@
 task_id: ops_7039e9cc4f11
 requirements_version: integrator-2026-10-29
 baseline_main_sha: ac4e16e75e31c8d00c89419f0db2badf3c55749c
+integrator_branch_sha: b63dc92d112b4ff4ea899888d14794461232802c
+integrator_pr: 234
 entries:
   - scene: inbox_ack_without_execution
     invariant: INV-01

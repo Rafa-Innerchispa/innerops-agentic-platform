@@ -2,7 +2,7 @@
 
 Baseline GitHub main: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` @ `b63dc92d112b4ff4ea899888d14794461232802c`. PR integrador: [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) — `critical-runtime-contracts` + GitGuardian **PASS** (2026-10-29).
 
 ## Fases
 
@@ -14,7 +14,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **IN_PROGRESS** | Suite runtime gates local; PR integrador pendiente merge main |
+| 7 | CI + PR integrador | **AWAITING_MERGE** | CI verde en PR #234; merge a main pendiente owner; worktree local 35+ tests gate/FMEA/reconcile PASS |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
