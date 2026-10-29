@@ -35,19 +35,25 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:52Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `24277871…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:54Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `24277871…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `452ac27d83976d2cce6f0c8ba26f6a1ae5cd1c3b` (post-commit docs 14:48Z) |
-| before_sha (pre-sesión) | `24277871235bf19cad138546432b613102549c75` |
+| worktree SHA | `1517591295ebf8c6195d600216abe5012531aae8` |
+| before_sha (pre-sesión) | `452ac27d83976d2cce6f0c8ba26f6a1ae5cd1c3b` |
 | main SHA (merge #235) | `24277871235bf19cad138546432b613102549c75` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:52Z |
-| tests | pytest exit 0 — 254 passed, 13 subtests (`critical-runtime-contracts` suite local) |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:54Z |
+| tests | pytest exit 0 — 254 passed, 13 subtests (`critical-runtime-contracts` @ 14:54Z) |
 | runtime audit | `ops_runtime_deploy_audit_readonly.py` → `ok: false` (Intel SSH; AMD SHA desalineado) |
-| estado global OPS | **IN_PROGRESS** — código en main; runtime AMD/Intel desalineado; deploy HA + E2E sin certificar (**no COMPLETED_VERIFIED**) |
+| estado global OPS | **IN_PROGRESS** — gate en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
+
+### Autorización owner pendiente (misma OPS, no nueva task)
+
+1. **Deploy canario host 1** — alinear `ralfiia-amd` (y luego Intel) con main `24277871…`; reinicio servicios solo tras checkpoint HA explícito.
+2. **Intel audit** — clave SSH/Tailscale para `192.168.1.4`.
+3. **Grant HA** — gasto real Codex/Antigravity (fase 5/9 parcial BLOCKED sin grant).
