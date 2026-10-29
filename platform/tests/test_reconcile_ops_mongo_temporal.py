@@ -34,13 +34,27 @@ class ReconcileSafetyTests(unittest.TestCase):
             "result_status": "completed", "result_gate_passed": None}
         self.assertIsNone(self.check(t))
         t["result_gate_passed"] = True
-        self.assertEqual(self.check(t)["new_status"], "completed")
+        self.assertEqual(self.check(t)["new_status"], "verification")
 
     def test_verification_task_does_not_require_coding_diff(self):
         self.task["task_class"] = "verification"
         p = self.check({"ok": True, "terminal": True,
             "status": "WorkflowExecutionStatus.COMPLETED", "result_status": "completed"})
-        self.assertEqual(p["new_status"], "completed")
+        self.assertEqual(p["new_status"], "verification")
+
+    def test_reconcile_never_proposes_terminal_completed(self):
+        for task_class in ("coding", "verification", "implementation"):
+            task = {**self.task, "task_class": task_class}
+            temporal = {
+                "ok": True,
+                "terminal": True,
+                "status": "WorkflowExecutionStatus.COMPLETED",
+                "result_status": "completed",
+                "result_gate_passed": True,
+            }
+            prop = reconcile._proposed_action(task, temporal)
+            if prop:
+                self.assertNotEqual(prop["new_status"], "completed")
 
     def test_temporal_backend_failure_never_kills_leased_task(self):
         self.task["lease_until"] = "2020-01-01T00:00:00+00:00"

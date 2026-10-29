@@ -13,8 +13,8 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 3 | Reintentos / fencing DevSwarm | **PASS (offline)** | Heredado PR #233 `test_dev_swarm_retry_budget_regression` |
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
-| 6 | FMEA / falsos COMPLETED | **IN_PROGRESS** | INV-13 `no_false_completed_global`; módulo `ops_global_completion_gate.py` |
-| 7 | CI + PR integrador | **IN_PROGRESS** | Tests `test_ops_global_completion_gate.py`; merge pendiente |
+| 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
+| 7 | CI + PR integrador | **IN_PROGRESS** | Suite runtime gates local; PR integrador pendiente merge main |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -22,6 +22,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 - **Causa:** `finalize_verification_to_completed` escribía `status=completed` en Mongo sin evaluar criterio global ni texto del agente.
 - **Remediación:** `ops_global_completion_gate.evaluate_global_completion` + transición RACB CAS (`revision` + `verification`); certificación `COMPLETED_VERIFIED` y `verified_receipt` obligatorios.
+- **Bypass adicional cerrado:** `reconcile_ops_mongo_temporal.py` ya no propone `completed` terminal; solo avanza a `verification` para cierre vía gate.
 
 ## Blockers owner
 
