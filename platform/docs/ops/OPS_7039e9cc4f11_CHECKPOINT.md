@@ -1,8 +1,27 @@
 # OPS ops_7039e9cc4f11 — checkpoint integrador (2026-10-29)
 
-Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `c418fa173cf580d5255db6d7d1165655f1e70910` (docs nebius post-#247 @ 23:31Z; gate en main desde #241–#242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
+Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `430c13ff10f1c8a44422226f6b98326ad6b336c9` (merge PR #238 deploy pause @ 23:34Z; post-#247 docs `c418fa17`). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (sync main `c418fa17`; integrador docs-only ahead vía PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (sync main `430c13ff` @ merge integrador `d086e5d8`; docs-only ahead vía PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); **#238** deploy loop en main; **sin COMPLETED global de la OPS**.
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:36Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `4ce19102316ca0e09dfc0caeeeaa715df4051e31` |
+| worktree_sha (post-merge main) | `d086e5d88217c8caf79665049276077745da70c2` |
+| main SHA | `430c13ff10f1c8a44422226f6b98326ad6b336c9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:36Z |
+| tests | pytest exit **0** — **269 passed**, 13 subtests (suite CI + `test_ops_deploy_scheduler_loop_regression.py`; `PYTHONPATH=platform` @ 23:36Z) |
+| CI main | **SUCCESS** @ 23:34Z (run [40974044408](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40974044408), head `430c13ff…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 430c13ff…` → `ok: false` @ 23:36Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador @ `d086e5d8…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | merge main **#238** (`ops_deploy_execution_pause`); fases 1–7 re-certificadas; gate/RACB fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `430c13ff`) + E2E; **no COMPLETED_VERIFIED** |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 23:32Z
 
