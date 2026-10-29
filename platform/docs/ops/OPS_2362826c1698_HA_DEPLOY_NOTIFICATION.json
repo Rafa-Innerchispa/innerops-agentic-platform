@@ -1,0 +1,64 @@
+{
+  "notification_type": "ha_deploy_approval_separate",
+  "task_id": "ops_2362826c1698",
+  "coding_authorization_does_not_include": [
+    "systemd_restart",
+    "platform_mirror_apply",
+    "host_mutation",
+    "external_paid_spend"
+  ],
+  "target_main_sha": "430c13ff10f1c8a44422226f6b98326ad6b336c9",
+  "merge_ref": "PR #238",
+  "ci_run_id": "40973627165",
+  "runtime_import_root": "/home/rlopez/inneros/inneros_core/platform",
+  "project_registry_path": "/home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform",
+  "observed_drift": {
+    "live_runtime_has_ops_deploy_execution_pause": false,
+    "live_autopilot_find_resume_includes_failed_verification": true,
+    "amd_workspace_sha": "f3a4ecdd53cda50c0f24568cebb781db15c41f15",
+    "intel_workspace_sha": "e820b1127fac8afa1a7c73f6e2b82910369cd485",
+    "worktree_main_sha": "430c13ff10f1c8a44422226f6b98326ad6b336c9"
+  },
+  "hosts": [
+    {
+      "node": "intel",
+      "lan": "192.168.1.4",
+      "rollout_order": 1,
+      "dry_run_host_approval": {
+        "action": "platform_mirror_deploy_canary",
+        "correlation_id": "ops_2362826c1698_deploy_ha",
+        "ttl_minutes": 30
+      },
+      "services_touched": [
+        "inneros-cursor-headless-autopilot.service",
+        "inneros-interactive-provider-autopilot.service",
+        "inneros-temporal-worker.service"
+      ],
+      "rollback": "HDD snapshot /mnt/inneros_backups + prior platform tree"
+    },
+    {
+      "node": "amd",
+      "lan": "192.168.1.5",
+      "rollout_order": 2,
+      "dry_run_host_approval": {
+        "action": "platform_mirror_deploy_canary",
+        "correlation_id": "ops_2362826c1698_deploy_ha",
+        "ttl_minutes": 30
+      },
+      "services_touched": [
+        "inneros-cursor-headless-autopilot.service",
+        "inneros-interactive-provider-autopilot.service",
+        "inneros-temporal-worker.service"
+      ],
+      "rollback": "peer snapshot + git checkout prior SHA in workspace"
+    }
+  ],
+  "post_deploy_verification": [
+    "git rev-parse HEAD in workspace matches 430c13ff",
+    "pytest platform/tests/test_ops_deploy_scheduler_loop_regression.py on host venv",
+    "no respawn inneros-cursor-headless-ops_7039e9cc4f11-*",
+    "Temporal worker health + Mongo ops task reconcile"
+  ],
+  "owner_receipt_required": true,
+  "signed_receipt_fields": ["task_id", "grant_id", "host", "sha", "at", "signature"]
+}

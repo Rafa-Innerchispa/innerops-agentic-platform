@@ -1,0 +1,82 @@
+# FMEA — ops_2362826c1698 (post PR #238 main 430c13ff)
+task_id: ops_2362826c1698
+base_main_sha: 430c13ff10f1c8a44422226f6b98326ad6b336c9
+pr238_ci_run: "40973627165"
+related_tasks:
+  superseded_dispatch: ops_7039e9cc4f11
+  prior_coding: ops_97310078a555
+  codex_ha: ops_d7ac9d1e90ec
+  antigravity_ref: ops_64d4bf6d941e
+scenarios:
+  - id: FMEA-01
+    fault: runtime_autopilot_pre_pr238_respawn
+    test: readonly audit + live systemd
+    status: FAIL_UNTIL_DEPLOY
+    cause: inneros_core/platform lacks ops_deploy_execution_pause; _find_resume includes failed/verification
+    rollback: supersede mongo ops_7039; deploy canary Intel then AMD
+  - id: FMEA-02
+    fault: amd_sha_drift
+    test: ops_runtime_deploy_audit_readonly.py
+    status: AWAITING_DEPLOY_APPROVAL
+    cause: AMD workspace f3a4ecdd != main 430c13ff
+    rollback: snapshot /mnt/inneros_backups + peer rollback procedure
+  - id: FMEA-03
+    fault: intel_ssh_loopback_denied
+    test: peer.node_capability_matrix.v1 local
+    status: PASS
+    cause: BatchMode ssh to self; audit via local worktree + AG-41
+    rollback: use peer ops not password ssh
+  - id: FMEA-04
+    fault: deploy_without_ha_grant
+    test: test_ops_global_completion_gate.py
+    status: PASS
+    cause: coding auth != deploy auth
+    rollback: awaiting_deploy_approval on ops_2362826c1698
+  - id: FMEA-05
+    fault: codex_inbox_to_exec
+    test: ipbe.execute_claimed_task ops_d7ac9d1e90ec
+    status: BLOCKED
+    cause: owner_budget_grant_required + INNEROS_CODEX_OPS_ALLOW_MODEL_EXEC unset
+    rollback: owner reauth push + record_owner_grant HA #227
+  - id: FMEA-06
+    fault: antigravity_false_completed
+    test: test_ops_antigravity_false_completion_regression.py
+    status: PASS
+    cause: text-only evidence rejected
+    rollback: require test_results.exit_code + git receipt
+  - id: FMEA-07
+    fault: temporal_reopen_deploy_pause
+    test: test_ops_deploy_scheduler_loop_regression.py
+    status: PASS_OFFLINE
+    cause: PR238 code in worktree/main not live runtime
+    rollback: import SHA before trusting reopen scripts
+  - id: FMEA-08
+    fault: infinite_cursor_relaunch
+    test: test_ops_deploy_scheduler_loop_regression.py
+    status: PASS_OFFLINE
+    cause: legacy autopilot respawn
+    rollback: mongo supersede + post-deploy headless_resume_allowed
+  - id: FMEA-09
+    fault: ack_not_execution
+    test: test_ops_fmea_invariants.py INV-01
+    status: PASS
+    cause: inbox consumer
+    rollback: claim required before complete
+  - id: FMEA-10
+    fault: paid_spend_without_grant
+    test: test_ops_owner_approval_ha.py
+    status: PASS
+    cause: codex/antigravity env gates
+    rollback: fail-closed paid_execution_allowed
+  - id: FMEA-11
+    fault: workspace_registry_path
+    test: peer_python_runtime primary/amd
+    status: PASS
+    cause: /home/rlopez/inneros/inneros_core/workspaces/innerops-agentic-platform both nodes
+    rollback: verify venv AMD / no venv Intel before deploy
+  - id: FMEA-12
+    fault: global_false_completed
+    test: test_ops_fmea_invariants.py INV-13
+    status: PASS
+    cause: completion gate
+    rollback: ops_2362826c1698 stays awaiting_deploy_approval
