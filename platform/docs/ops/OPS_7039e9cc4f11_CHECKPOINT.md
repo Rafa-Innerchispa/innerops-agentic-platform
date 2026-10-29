@@ -35,21 +35,21 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T15:46:31Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T15:50:30Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `08ab3e95f11fe712c6ad281261aec2d77c0d0b08` (short `08ab3e9`, docs PR #237) |
-| before_sha (pre-sesión) | `08ab3e95f11fe712c6ad281261aec2d77c0d0b08` (sin diff código; re-cert) |
+| worktree SHA | `938ab8ac881081d6c03071aac0e96b9f2c1db0cf` (short `938ab8a`, docs PR #237) |
+| before_sha (pre-sesión) | `938ab8ac881081d6c03071aac0e96b9f2c1db0cf` (sin diff código vs main; re-cert sesión 15:50Z) |
 | main SHA (merge #236) | `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T15:47Z |
-| tests | pytest exit 0 — 255 passed, 13 subtests (`inneros-runtime-gates` suite @ 15:47Z) |
-| CI integrator PR #237 | workflow `inneros-runtime-gates` — re-run tras push sesión |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T15:50Z |
+| tests | pytest exit 0 — 255 passed, 13 subtests (`inneros-runtime-gates` suite @ 15:50Z) |
+| CI integrator PR #237 | workflow `inneros-runtime-gates` — **SUCCESS** @ 15:48Z (pre-push); re-run tras commit sesión |
 | runtime audit | `ops_runtime_deploy_audit_readonly.py` → `ok: false` (Intel SSH; AMD SHA desalineado vs `9cf2d1c2`) |
 | estado global OPS | **IN_PROGRESS** — gate en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
 
