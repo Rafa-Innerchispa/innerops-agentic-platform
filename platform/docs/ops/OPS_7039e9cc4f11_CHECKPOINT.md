@@ -2,7 +2,7 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` (merge integrador docs [#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247) @ 22:11Z; gate en main desde #241–#242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main `f3b4c112`, integrador docs-only ahead **38** commits vs origin). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); docs pendientes [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main `f3b4c112`, integrador docs-only ahead **39** commits vs origin). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); docs pendientes [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
 
 ## Checkpoint owner — fases 8–9 (AWAITING_DEPLOY_APPROVAL)
 
@@ -22,8 +22,8 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `94e6cb3d038318ec2e515b96d1f365bac65ebf7b` |
-| worktree_sha (post-commit docs) | *(pendiente post-commit)* |
-| integrator_branch_sha | *(pendiente post-commit)* |
+| worktree_sha (post-commit docs) | `c20d05750c6509679d325993d4b63bc757371c2a` |
+| integrator_branch_sha | `c20d05750c6509679d325993d4b63bc757371c2a` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
