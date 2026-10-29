@@ -2,7 +2,26 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `633f11c9546d797506c9579580070c4b76ccf738` (docs checkpoint post-#243, 2026-10-29T18:47Z; código gate en `f211e533` vía #242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (ff-sync con main @ `633f11c9`). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#244](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/244); gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main ancestro @ `633f11c9`; tip integrador docs-only). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#244](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/244); PR docs [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) OPEN; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**.
+
+## Receipt sesión Cursor (composer-2.5-fast) — 18:57Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c3c43639bfb62517490a67b48e1ed588af497a75` |
+| worktree_sha (post-commit docs) | *(este commit)* |
+| main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T18:57Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 18:57Z) |
+| CI main | **SUCCESS** [40933676799](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40933676799) @ `633f11c9` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 633f11c9…` → `ok: false` @ 18:57:24Z (Intel SSH denied; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main; worktree integrador docs ≠ main tip) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (≠ AMD); Temporal `:7233` + Mongo `:27017`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — motor cierre fail-closed + RACB `COMPLETED_VERIFIED` en main; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / **BLOCKED**; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (fase 8) + E2E (fase 9); Codex/Antigravity **BLOCKED** sin grant HA |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 18:55Z
 
