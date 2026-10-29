@@ -8,7 +8,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 | Fase | Alcance | Estado | Evidencia |
 |------|---------|--------|-----------|
-| 1 | Inventario read-only Git/runtime/fleet | **PARTIAL** | Auditor `ralphi-ia-ver-10`; worktree @ `0b750d0f…`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` → runtime no certificado |
+| 1 | Inventario read-only Git/runtime/fleet | **PARTIAL** | Auditor `ralphi-ia-ver-10`; worktree @ `b156923e…`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` → runtime no certificado |
 | 2 | Contrato estados / adendas / CAS | **PASS (offline)** | Heredado PR #232/#233; gate global nuevo en `finalize_verification_to_completed` |
 | 3 | Reintentos / fencing DevSwarm | **PASS (offline)** | Heredado PR #233 `test_dev_swarm_retry_budget_regression` |
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
@@ -34,14 +34,14 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:36:15Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; worktree platform @ `0b750d0f…`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:36:15Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; worktree platform @ `b156923e…`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | (post commit sesión 14:36Z) |
+| worktree SHA | `b156923e5c634eff4723f6b84f7c69eb0af36728` |
 | before_sha (pre-sesión) | `0b750d0f03098c7a354cf9df5c762d2719be1ff2` |
 | main SHA (merge #234) | `7b10325457979042521dac3f988b0034a1e9e28b` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
