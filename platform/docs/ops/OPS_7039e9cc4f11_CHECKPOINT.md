@@ -43,7 +43,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a37420ed2a7b4178aa50c54489ad76883028acee` |
-| worktree_sha | *(post-commit docs)* |
+| worktree_sha | `ae467e5294be1950dd3b56ff0af5dc9c5e6f42b6` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
