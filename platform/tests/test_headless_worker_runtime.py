@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from inneros_core_runtime import headless_worker_runtime as hwr
 
@@ -30,6 +30,19 @@ class HeadlessWorkerRuntimeTests(unittest.TestCase):
                 os.environ.pop("INNEROS_PYTHON", None)
                 resolved = hwr.resolve_headless_python(platform_root=root)
             self.assertEqual(resolved, venv_py)
+
+    def test_systemd_run_transient_retries_on_stale_unit(self) -> None:
+        stale = MagicMock(returncode=1, stderr="Unit was already loaded", stdout="")
+        ok = MagicMock(returncode=0, stderr="", stdout="")
+        with patch.object(hwr, "prepare_transient_unit"):
+            with patch.object(hwr.subprocess, "run", side_effect=[stale, ok]):
+                proc, unit = hwr.systemd_run_transient(
+                    unit="inneros-codex-headless-ops_test-abc.service",
+                    command=["systemd-run", "--unit=inneros-codex-headless-ops_test-abc.service", "true"],
+                    cwd="/tmp",
+                )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("-r", unit)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,16 @@ def main() -> int:
     for tid in args.task_id:
         out = ova.try_fail_verification_no_new_commit(task_id=tid.strip(), superseded_by=superseded)
         results.append(out or {"ok": False, "task_id": tid, "error": "no_result"})
-    report = {"ok": all(r.get("ok") for r in results if r), "results": results}
+    report = {
+        "ok": all(r.get("ok") for r in results if r),
+        "results": results,
+    }
+    if not report["ok"]:
+        report["ok"] = all(
+            r.get("ok") or str(r.get("skipped", "")).startswith(("already_", "status:completed", "status:failed"))
+            for r in results
+            if r
+        )
     out_path = ROOT.parent / "var" / "evidence" / "ops_verification_no_commit_reconcile.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
