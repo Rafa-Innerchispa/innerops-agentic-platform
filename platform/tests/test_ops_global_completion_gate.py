@@ -89,6 +89,18 @@ def test_racb_completed_rejects_pass_without_verified_receipt():
     assert out["error"] == "completed_verified_receipt_required"
 
 
+def test_racb_completed_rejects_pass_even_with_verified_receipt_shape():
+    """Legacy PASS/OK must not close terminal even if verified_receipt is present."""
+    ev = {
+        "status": "PASS",
+        "result": "PASS",
+        "verified_receipt": {"certification": "COMPLETED_VERIFIED", "task_id": "ops_legacy"},
+    }
+    out = racb.validate_evidence("completed", ev)
+    assert out["ok"] is False
+    assert out["error"] == "completed_verified_receipt_required"
+
+
 def test_finalize_verification_rejects_agent_denial_cas():
     db = MagicMock()
     tasks = MagicMock()

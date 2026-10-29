@@ -96,12 +96,12 @@ def validate_evidence(target_status: str, evidence: dict[str, Any] | None) -> di
         )
         if evidence.get("global_completion_ack") is True and result == "COMPLETED_VERIFIED":
             return {"ok": True}
-        if receipt_ok and result in {"COMPLETED_VERIFIED", "PASS", "OK", "COMPLETED"}:
+        if receipt_ok and result == "COMPLETED_VERIFIED":
             return {"ok": True}
         return {
             "ok": False,
             "error": "completed_verified_receipt_required",
-            "accepted_results": ["COMPLETED_VERIFIED with global_completion_ack or verified_receipt"],
+            "accepted_results": ["COMPLETED_VERIFIED with global_completion_ack or matching verified_receipt"],
         }
     return {"ok": True}
 
