@@ -127,6 +127,15 @@ class DockerSandboxExecutor:
                 text=True,
                 timeout=effective_timeout,
             )
+            stderr = proc.stderr or ""
+            if proc.returncode != 0 and (
+                "Unable to find image" in stderr or "pull access denied" in stderr
+            ):
+                logger.warning(
+                    "Sandbox image %s unavailable; using bounded host fallback.",
+                    self.image,
+                )
+                return self._run_fallback(cmd, worktree, env_vars, effective_timeout)
             return {
                 "ok": proc.returncode == 0,
                 "exit_code": proc.returncode,

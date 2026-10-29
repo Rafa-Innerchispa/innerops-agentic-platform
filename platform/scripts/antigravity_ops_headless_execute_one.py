@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Versioned Antigravity headless worker — fail-closed unless real git/tests evidence exists.
-
-Unversioned Intel scripts that call Gemini text-only must not complete ops tasks.
-Use interactive_ops_runner.complete_ops_task after committed_objective_receipt proof.
-
-This script is a fail-closed hotfix, not a full autonomous executor. Bounded tool
-execution (worktree + temporal_bounded_executor + committed_objective_receipt +
-explicit test_results.exit_code) remains the required path before production deploys.
-"""
+"""Versioned Antigravity headless worker — bounded canary or fail-closed block."""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from inneros_core_runtime import interactive_provider_bounded_executor as ipbe
 from inneros_core_runtime import interactive_ops_runner as ior
 from inneros_core_runtime import ops_completion_policy as ocp
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
@@ -38,13 +31,19 @@ def main() -> int:
     if not token:
         print(json.dumps({"ok": False, "error": "claim_token_required", "task_id": tid}))
         return 2
+
+    if ipbe.is_innocuous_canary_task(task, "antigravity"):
+        result = ipbe.execute_claimed_task(tid, "antigravity")
+        print(json.dumps(result, default=str))
+        return 0 if result.get("ok") else 1
+
     blocked = {
         "ok": False,
         "error": "antigravity_headless_requires_bounded_executor",
         "task_id": tid,
         "hint": (
-            "Do not complete from Gemini text-only API. Run bounded tools, "
-            "committed_objective_receipt, tests, then antigravity_complete_ops_task."
+            "Do not complete from Gemini text-only API. Use innocuous canary with "
+            "docs/ANTIGRAVITY_CANARY.md or bounded tools + receipts."
         ),
         "policy": "ops_completion_policy_v2_fail_closed",
         "bounded_executor_plan": {
@@ -72,7 +71,18 @@ def main() -> int:
         )
         print(json.dumps({**blocked, "complete": out}, default=str))
         return 1
-    print(json.dumps(blocked))
+    out = ior.complete_ops_task(
+        "antigravity",
+        tid,
+        claim_token=token,
+        status="blocked",
+        evidence={
+            "notes": "antigravity_ops_headless_execute_one_fail_closed",
+            "blocked_reason": blocked["error"],
+            "headless_primary": "antigravity_bounded_executor",
+        },
+    )
+    print(json.dumps({**blocked, "complete": out}, default=str))
     return 1
 
 

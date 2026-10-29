@@ -82,7 +82,7 @@ Backends with `"enabled": false` are not used. A profile that points only at dis
 Production uses the same OAuth entrypoint as the canonical MCP:
 
 ```text
-Resource: https://mcp.pcdoctor.ai/mcp
+Resource: https://mcp.pcdoctor.ai/router/mcp
 Authorization server: https://auth.pcdoctor.ai
 Router endpoint: https://mcp.pcdoctor.ai/router/mcp
 ```

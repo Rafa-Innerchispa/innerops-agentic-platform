@@ -13,7 +13,7 @@ Environment=MCP_ROUTER_PUBLIC_URL=https://mcp.pcdoctor.ai/router/mcp
 Environment=MCP_ROUTER_PROFILE=chatgpt_compact
 Environment=MCP_ROUTER_PROFILES=/home/rlopez/inneros/inneros_core/services/mcp-router-gateway/profiles.json
 Environment=MCP_ROUTER_AUTH_MODE=oauth_passthrough
-Environment=MCP_ROUTER_OAUTH_RESOURCE=https://mcp.pcdoctor.ai/mcp
+Environment=MCP_ROUTER_OAUTH_RESOURCE=https://mcp.pcdoctor.ai/router/mcp
 Environment=MCP_ROUTER_OAUTH_AUTHORIZATION_SERVER=https://auth.pcdoctor.ai
 EnvironmentFile=-/home/rlopez/.config/inneros/mcp-router-gateway.env
 ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python -m mcp_router_gateway.server

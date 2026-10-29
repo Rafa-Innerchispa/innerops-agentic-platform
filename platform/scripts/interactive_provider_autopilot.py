@@ -102,6 +102,12 @@ def _tick_provider(provider: str) -> dict[str, Any]:
         tid = str(task.get("task_id") or "")
         if cld.is_competition_task(task):
             spawn = cld.spawn_competition_execute(tid)
+        elif provider == "codex" and os.getenv(
+            "INNEROS_CODEX_SPAWN_ON_CLAIM", "1"
+        ).strip().lower() in {"1", "true", "yes", "on"}:
+            from inneros_core_runtime import codex_headless_dispatch as cdx
+
+            spawn = cdx.spawn_headless_execute(tid)
         elif provider == "antigravity" and os.getenv(
             "INNEROS_ANTIGRAVITY_SPAWN_ON_CLAIM", "1"
         ).strip().lower() in {"1", "true", "yes", "on"}:

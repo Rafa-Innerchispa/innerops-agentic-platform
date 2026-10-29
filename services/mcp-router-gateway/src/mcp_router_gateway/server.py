@@ -145,8 +145,12 @@ class RouterHttpHandler(BaseHTTPRequestHandler):
         return auth == f"Bearer {token}"
 
     def _oauth_metadata(self) -> dict[str, Any]:
+        public = (self.router.config.public_url or self.router.config.oauth_resource).rstrip("/")
+        resource = self.router.config.oauth_resource.rstrip("/")
+        if public.endswith("/router/mcp"):
+            resource = public
         return {
-            "resource": self.router.config.oauth_resource,
+            "resource": resource,
             "authorization_servers": [self.router.config.oauth_authorization_server],
             "scopes_supported": [
                 "openid",

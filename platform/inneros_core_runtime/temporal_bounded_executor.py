@@ -196,6 +196,10 @@ def _parse_required_objective_paths(envelope_dict: Dict[str, Any]) -> list[str]:
         lowered = text.lower()
         if "temporal_canary.md" in lowered:
             required.add("docs/TEMPORAL_CANARY.md")
+        if "codex_canary.md" in lowered:
+            required.add("docs/CODEX_CANARY.md")
+        if "antigravity_canary.md" in lowered:
+            required.add("docs/ANTIGRAVITY_CANARY.md")
         for match in re.finditer(r"`((?:docs|tests|src)/[^`\s]+)`", text, flags=re.IGNORECASE):
             required.add(_normalize_repo_path(match.group(1)))
         for match in re.finditer(
@@ -212,17 +216,32 @@ def _apply_required_objective_markers(envelope_dict: Dict[str, Any], worktree: P
     written: list[str] = []
     task_id = str(envelope_dict.get("task_id") or "")
     correlation_id = str(envelope_dict.get("correlation_id") or "")
-    for rel in _parse_required_objective_paths(envelope_dict):
-        if rel.lower() != "docs/temporal_canary.md":
-            continue
-        dest = worktree / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        body = (
+    marker_bodies = {
+        "docs/temporal_canary.md": (
             "# TEMPORAL CANARY\n\n"
             f"task_id={task_id}\n"
             f"correlation_id={correlation_id}\n"
             "marker=persistent_temporal_canary\n"
-        )
+        ),
+        "docs/codex_canary.md": (
+            "# CODEX CANARY\n\n"
+            f"task_id={task_id}\n"
+            f"correlation_id={correlation_id}\n"
+            "marker=innocuous_codex_provider_canary\n"
+        ),
+        "docs/antigravity_canary.md": (
+            "# ANTIGRAVITY CANARY\n\n"
+            f"task_id={task_id}\n"
+            f"correlation_id={correlation_id}\n"
+            "marker=innocuous_antigravity_provider_canary\n"
+        ),
+    }
+    for rel in _parse_required_objective_paths(envelope_dict):
+        body = marker_bodies.get(rel.lower())
+        if not body:
+            continue
+        dest = worktree / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(body, encoding="utf-8")
         written.append(rel)
     return written
@@ -406,7 +425,12 @@ def run_bounded_executor(
 
         sandbox = DockerSandboxExecutor()
         platform_cwd = _repo_platform_dir(wt_path)
-        res = sandbox.run_command(cmd=verify_cmd, worktree_path=platform_cwd, timeout=600)
+        res = sandbox.run_command(
+            cmd=verify_cmd,
+            worktree_path=platform_cwd,
+            timeout=600,
+            env_vars={"PYTHONPATH": str(platform_cwd)},
+        )
         test_results = {
             "exit_code": res.get("exit_code"),
             "ok": bool(res.get("ok")),
