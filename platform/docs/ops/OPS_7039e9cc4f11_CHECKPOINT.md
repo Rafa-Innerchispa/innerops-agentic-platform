@@ -14,7 +14,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **PASS (Git)** | PR [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#237](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/237) **MERGED** → main `39ba41c6…`; local **256 passed** (+13 subtests) @ 2026-10-29T16:24Z; CI main [40910822472](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40910822472) **SUCCESS** |
+| 7 | CI + PR integrador | **PASS (Git)** | PR [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#237](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/237) **MERGED** → main `39ba41c6…`; local **256 passed** (+13 subtests) @ 2026-10-29T16:27Z; CI main [40910822472](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40910822472) **SUCCESS** |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -35,22 +35,23 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:23:14Z; `--expected-sha 39ba41c6…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:26:39Z; `--expected-sha 39ba41c6…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree_sha | `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2` (= main; integrator fast-forward) |
-| before_sha (pre-sesión) | `13ca2aa465f13efc57996b7d8a44fea21a397761` |
+| worktree_sha | `53d99c2abf30926d9f58c629795c26beb3c8bb5e` (integrator docs; **main** `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2`) |
+| before_sha (pre-sesión) | `53d99c2abf30926d9f58c629795c26beb3c8bb5e` |
 | main SHA | `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:24Z |
-| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:24Z) |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:27Z |
+| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:27Z) |
 | CI main post-merge | **SUCCESS** @ 16:21Z (run [40910822472](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40910822472)) |
-| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 39ba41c6…` → `ok: false` @ 16:23Z (Intel SSH; AMD SHA desalineado) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 39ba41c6…` → `ok: false` @ 16:26Z (Intel SSH; AMD SHA desalineado) |
+| verificación sesión | Re-ejecutado gate+FMEA offline; sin cambios de código P0 pendientes en worktree vs main |
 | estado global OPS | **IN_PROGRESS** — gate+RACB en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
 
 ### Autorización owner pendiente (misma OPS, no nueva task)
