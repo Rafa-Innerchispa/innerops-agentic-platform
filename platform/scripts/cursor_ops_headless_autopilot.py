@@ -246,17 +246,23 @@ def _reap_stale_headless_lanes() -> list[dict[str, Any]]:
     return reaped
 
 def _find_resume_on_host(limit: int) -> list[dict[str, Any]]:
+    from inneros_core_runtime import ops_deploy_execution_pause as odep
+
     db = mongo_store.get_db()
     h = lanes.hostname()
     filt = {
-        "status": {"$in": ["in_progress", "claimed", "failed", "verification"]},
+        "status": {"$in": ["in_progress", "claimed"]},
         "assignee": "cursor",
         "claim_token": {"$exists": True},
         "headless_execution_started_at": {"$exists": False},
+        "do_not_auto_dispatch": {"$ne": True},
+        "execution_paused_for_deploy": {"$ne": True},
     }
     rows = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(limit, 1) * 3))
     out: list[dict[str, Any]] = []
     for row in rows:
+        if not odep.headless_resume_allowed(row):
+            continue
         if row.get("do_not_auto_dispatch") is True:
             continue
         hl = row.get("headless_last_result") or {}

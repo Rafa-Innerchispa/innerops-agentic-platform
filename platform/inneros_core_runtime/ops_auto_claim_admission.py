@@ -12,6 +12,7 @@ from typing import Any
 WAITING = frozenset({"queued", "waiting_for_binding", "waiting_for_model_binding", "awaiting_ide_claim"})
 ACTIVE = frozenset({"claimed", "in_progress", "running", "verification"})
 TERMINAL = frozenset({"completed", "done", "failed", "cancelled", "canceled", "superseded", "archived"})
+PAUSED = frozenset({"awaiting_deploy_approval", "blocked_with_cause"})
 INTERNAL_ALIASES = frozenset({
     "dev_swarm", "dev-swarm", "ralfia", "local", "temporal",
     "local-amd-5", "local-intel-4", "local_amd_5", "local_intel_4",
@@ -48,6 +49,8 @@ def claim_admission(
         return denied("different_assignee")
     if status in TERMINAL:
         return denied("terminal_task")
+    if status in PAUSED:
+        return denied("execution_paused_awaiting_owner")
     if status in ACTIVE:
         return denied("already_claimed" if task.get("claim_token") else "active_without_claim")
     if bool(task.get("do_not_auto_dispatch")) or bool(payload.get("do_not_auto_dispatch")):

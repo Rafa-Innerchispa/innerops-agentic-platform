@@ -7,6 +7,7 @@ from inneros_core_runtime import execution_binding as eb
 from inneros_core_runtime import ops_auto_claim_admission as oaca
 from inneros_core_runtime import ops_owner_approval_ha as oah
 from inneros_core_runtime import ops_global_completion_gate as ogcg
+from inneros_core_runtime import ops_deploy_execution_pause as odep
 from inneros_core_runtime import ops_task_requirements as otr
 from scripts import cursor_ops_inbox_consumer as inbox
 
@@ -25,6 +26,7 @@ FMEA_MATRIX = [
     ("INV-11", "double_claim_foreign_provider", lambda: _foreign_claim()),
     ("INV-12", "replay_checkpoint_idempotent", lambda: _checkpoint_replay()),
     ("INV-13", "no_false_completed_global", lambda: _no_false_completed_global()),
+    ("INV-14", "deploy_pause_no_autopilot_respawn", lambda: _deploy_pause_no_respawn()),
 ]
 
 
@@ -145,6 +147,17 @@ def _no_false_completed_global():
     task = {"task_id": "ops_reg", "task_class": "implementation", "repo": "org/r"}
     evidence = {"report": "NO COMPLETED global: falta deploy autorizado."}
     return ogcg.evaluate_global_completion(task, evidence)["ok"] is False
+
+
+def _deploy_pause_no_respawn():
+    task = {
+        "task_id": "ops_97310078a555",
+        "status": odep.STATUS_AWAITING_DEPLOY,
+        "do_not_auto_dispatch": True,
+        "execution_paused_for_deploy": True,
+        "assignee": "cursor",
+    }
+    return not odep.headless_resume_allowed(task) and odep.execution_automation_frozen(task)
 
 
 def test_fmea_invariants_matrix():

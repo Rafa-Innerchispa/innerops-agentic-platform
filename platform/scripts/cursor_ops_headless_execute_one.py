@@ -53,16 +53,9 @@ def _complete_with_live_token(
     )
 
 def _completion_policy_gate_error(message: str) -> bool:
-    msg = (message or "").lower()
-    markers = (
-        "evidence_required",
-        "text_only",
-        "commit_sha",
-        "deployment_requires",
-        "receipt",
-        "objective_paths",
-    )
-    return any(m in msg for m in markers)
+    from inneros_core_runtime import ops_deploy_execution_pause as odep
+
+    return odep.completion_policy_blocked_message(message)
 
 
 def _notify(text: str) -> None:

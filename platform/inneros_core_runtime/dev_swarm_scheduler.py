@@ -852,6 +852,10 @@ def requeue_retryable_blocked_ops(*, limit: int = 80) -> dict[str, Any]:
         blob += " " + str(evidence).lower()
         if not any(marker in blob for marker in retry_markers):
             continue
+        from inneros_core_runtime import ops_deploy_execution_pause as odep
+
+        if odep.should_skip_dev_swarm_requeue(task, blob):
+            continue
         correlation = str(task.get("correlation_id") or "").strip()
         completed_sibling = bool(
             correlation

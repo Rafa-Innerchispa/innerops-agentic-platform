@@ -85,9 +85,11 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
     reserved = db[OPS_TASKS_COL].find_one_and_update(
         {
             "task_id": tid,
-            "status": {"$in": ["in_progress", "claimed", "running", "failed", "verification"]},
+            "status": {"$in": ["in_progress", "claimed", "running"]},
             "claim_token": {"$exists": True},
             "headless_execution_started_at": {"$exists": False},
+            "do_not_auto_dispatch": {"$ne": True},
+            "execution_paused_for_deploy": {"$ne": True},
         },
         {
             "$set": {
