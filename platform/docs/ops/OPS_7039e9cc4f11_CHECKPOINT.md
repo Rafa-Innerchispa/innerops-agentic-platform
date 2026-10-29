@@ -42,16 +42,16 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree_sha | `53d99c2abf30926d9f58c629795c26beb3c8bb5e` (integrator docs; **main** `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2`) |
-| before_sha (pre-sesión) | `53d99c2abf30926d9f58c629795c26beb3c8bb5e` |
+| worktree_sha | `4bd63a13c6b5b4b0c3b09e31e45e3b4f2ea001e9` (integrator docs; **main** `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2`) |
+| before_sha (pre-sesión) | `4bd63a13c6b5b4b0c3b09e31e45e3b4f2ea001e9` |
 | main SHA | `39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:27Z |
-| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:27Z) |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:31Z |
+| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:31Z) |
 | CI main post-merge | **SUCCESS** @ 16:21Z (run [40910822472](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40910822472)) |
-| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 39ba41c6…` → `ok: false` @ 16:26Z (Intel SSH; AMD SHA desalineado) |
-| verificación sesión | Re-ejecutado gate+FMEA offline; sin cambios de código P0 pendientes en worktree vs main |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 39ba41c6…` → `ok: false` @ 16:30:41Z (Intel SSH denied; AMD `f3a4ecdd…` ≠ main) |
+| verificación sesión | Re-ejecutado suite CI local + gate+FMEA offline; código P0 ya en main (`39ba41c6`); integrator solo docs |
 | estado global OPS | **IN_PROGRESS** — gate+RACB en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
 
 ### Autorización owner pendiente (misma OPS, no nueva task)
