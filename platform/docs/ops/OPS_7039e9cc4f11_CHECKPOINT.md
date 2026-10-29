@@ -34,17 +34,18 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:28:20Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; worktree platform @ HEAD post-checkpoint; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:32:27Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; worktree platform @ `ff42d995…`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `db5d6dd7` (tip integrador; ver `git rev-parse HEAD`) |
+| worktree SHA | `ff42d995cfa39a5850497953e859b4456d81f640` |
+| before_sha (pre-sesión) | `db5d6dd7…` |
 | main SHA (merge #234) | `7b10325457979042521dac3f988b0034a1e9e28b` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:30Z |
-| tests | pytest exit 0 — 252 passed, 13 subtests (`critical-runtime-contracts`); gate focal 14 passed + 3 subtests |
-| estado global OPS | **IN_PROGRESS** — código en main; runtime y E2E sin certificar |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:32Z |
+| tests | pytest exit 0 — 252 passed, 13 subtests (`critical-runtime-contracts` re-run 14:32Z) |
+| estado global OPS | **IN_PROGRESS** — gate en main; runtime AMD desalineado; E2E/deploy sin certificar |

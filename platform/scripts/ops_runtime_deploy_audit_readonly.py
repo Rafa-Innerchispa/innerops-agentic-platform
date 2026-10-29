@@ -65,7 +65,10 @@ def _ssh_git_sha(host: str, timeout: int = 8) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task-id", default="ops_96a584f15485")
+    parser.add_argument(
+        "--task-id",
+        default=os.getenv("INNEROS_OPS_TASK_ID", "ops_7039e9cc4f11"),
+    )
     parser.add_argument("--expected-sha", default="", help="Optional merge/deploy target SHA")
     args = parser.parse_args()
 
