@@ -4,13 +4,33 @@ Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #2
 
 Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main `f3b4c112`, integrador docs-only ahead). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); docs pendientes [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
 
+## Receipt sesión Cursor (composer-2.5-fast) — 22:31Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `eecebe57aed866a6e41c665532526fea3f3dd164` |
+| worktree_sha (post-commit docs) | *(commit esta sesión)* |
+| integrator_branch_sha | *(post-commit)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:31Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:31Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; gate fail-closed + regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
 ## Receipt sesión Cursor (composer-2.5-fast) — 22:29Z
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `1f67c313285df39b535678b1491018246bd571a4` |
-| worktree_sha (post-commit docs) | `1c503bfdc8e2a8f2e8b0e8c6f5a4d3b2c1a0f9e8d` |
+| worktree_sha (post-commit docs) | `1c503bfd8dca6709130abde41ef78ac6b4e7cc7c` |
 | integrator_branch_sha | `1c503bfd` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
