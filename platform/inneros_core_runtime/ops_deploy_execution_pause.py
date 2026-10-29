@@ -58,6 +58,12 @@ def task_implies_deploy_pause(task: dict[str, Any]) -> bool:
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     if payload.get("requires_deploy_approval") is True or payload.get("awaiting_deploy_approval"):
         return True
+    # Existing owner instructions used these names before the pause protocol.
+    # Treat them as explicit deployment intent instead of relying on prose regexes.
+    if payload.get("production_deploy_requires_fresh_approval") is True:
+        return True
+    if payload.get("grant_required_per_node_deploy") is True:
+        return True
     if task.get("execution_paused_for_deploy") is True:
         return True
     cause = str(task.get("blocked_with_cause") or payload.get("blocked_with_cause") or "").lower()
