@@ -2,7 +2,27 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` (merge integrador docs [#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247) @ 22:11Z; gate en main desde #241–#242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main `f3b4c112`, integrador docs-only ahead **27+** commits vs origin). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); docs pendientes [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main `f3b4c112`, integrador docs-only ahead **28+** commits vs origin). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); docs pendientes [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:06Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `0c59a108e2cd5b86e0428c80e75a41e0c9b7658e` |
+| worktree_sha (post-commit docs) | *(pendiente post-commit)* |
+| integrator_branch_sha | *(pendiente post-commit)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:06Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:06Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:06Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree HEAD docs-only @ `0c59a108…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 23:03Z
 
@@ -10,8 +30,8 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a9799b63ab420f98eb0fc0c1dbc72e41895dde41` |
-| worktree_sha (post-commit docs) | `23b5285918c2f8a0e3b4d5c6e7f8a9b0c1d2e3f4` |
-| integrator_branch_sha | `23b5285918c2f8a0e3b4d5c6e7f8a9b0c1d2e3f4` |
+| worktree_sha (post-commit docs) | `23b528594615815c6286a5aaf46efbf97f308756` |
+| integrator_branch_sha | `23b528594615815c6286a5aaf46efbf97f308756` |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
