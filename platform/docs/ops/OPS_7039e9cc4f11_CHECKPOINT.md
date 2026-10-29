@@ -1,6 +1,6 @@
 # OPS ops_7039e9cc4f11 — checkpoint integrador (2026-10-29)
 
-Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual (post-integrador):** `7b10325457979042521dac3f988b0034a1e9e28b` (merge PR #234, 2026-10-29T14:14:16Z). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
+Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `24277871235bf19cad138546432b613102549c75` (merge PR #235 tras #234 `7b10325457979042521dac3f988b0034a1e9e28b`, 2026-10-29T14:48Z). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
 Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. PR integrador [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) **MERGED** — `critical-runtime-contracts` + GitGuardian **PASS**.
 
@@ -14,7 +14,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **IN_PROGRESS** | PR #234 en main `7b103254…`; fix MCP bypass en commits `dfccb387`/`432f2c7b` (PR [#235](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/235) OPEN, CI verde previo); local **254 passed** (+13 subtests) @ 2026-10-29T14:47Z |
+| 7 | CI + PR integrador | **PASS (Git)** | PR [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) + [#235](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/235) **MERGED** → main `24277871235bf19cad138546432b613102549c75`; bypass MCP `dfccb387`; local **254 passed** (+13 subtests) @ 2026-10-29T14:48Z |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -42,11 +42,11 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `432f2c7bcbb153331cd02b223341039495f8eb5c` (HEAD post revalidación) |
-| before_sha (pre-sesión) | `432f2c7bcbb153331cd02b223341039495f8eb5c` |
-| main SHA (merge #234) | `7b10325457979042521dac3f988b0034a1e9e28b` |
+| worktree SHA | (post-commit sesión 14:48Z) |
+| before_sha (pre-sesión) | `2d39ebb82fe9f08f118be5c6d10cb572f555bd8a` |
+| main SHA (merge #235) | `24277871235bf19cad138546432b613102549c75` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:47Z |
-| tests | pytest exit 0 — 254 passed, 13 subtests (`inneros-runtime-gates` peer suite) |
-| estado global OPS | **IN_PROGRESS** — merge PR #235 pendiente (MCP bypass); runtime AMD desalineado; E2E/deploy sin certificar |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:48Z |
+| tests | pytest exit 0 — 254 passed, 13 subtests; GitHub `critical-runtime-contracts` **PASS** en PR #235 |
+| estado global OPS | **IN_PROGRESS** — código en main; runtime AMD/Intel desalineado; deploy HA + E2E sin certificar (**no COMPLETED_VERIFIED**) |
