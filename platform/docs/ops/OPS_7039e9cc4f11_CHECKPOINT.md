@@ -2,7 +2,25 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f211e53370e0680f087a84e1e302476c04a594b9` (merge PR [#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242), 2026-10-29T17:42Z; checkpoint docs post-#241). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. Docs pendientes merge: PR [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243).
+
+## Receipt sesión Cursor (composer-2.5-fast) — 17:47Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `59495e9ace17d14c5f7083002cd2942fb91dfc3f` |
+| worktree_sha (post-commit docs) | *(pendiente push)* |
+| main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T17:47Z |
+| tests | pytest exit 0 — **258 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml` @ 17:47Z) |
+| CI main | **SUCCESS** [40923843607](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40923843607) @ `f211e533` (merge PR #242) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f211e533…` → `ok: false` @ 17:47:20Z (Intel SSH denied; AMD SHA `f3a4ecdd…` ≠ main) |
+| delta `.py` vs main | **0 líneas** — remediación falsos cierres ya en main |
+| verificación sesión | Orden definitiva P0: re-cert inventario + suite gate; motor `finalize_verification_to_completed` + RACB CAS + Temporal `shared_pre_temporal_denials` verificados offline; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** + E2E; fases 8–9 bloqueadas owner |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 17:45Z
 
