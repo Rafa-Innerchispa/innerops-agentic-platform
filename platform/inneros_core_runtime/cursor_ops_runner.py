@@ -575,6 +575,21 @@ def complete_ops_task(
             "hint": "El workflow Temporal debe estar vivo (handoff Cursor). No se escribió completed en Mongo.",
         }
 
+    if normalized in {"failed", "blocked"}:
+        # Preserve ordinary terminal failures instead of freezing all retryable cases.
+        # The DevSwarm bounded retry policy remains responsible for requeue decisions.
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": tok},
+            {"$set": {"status": normalized, "executed_at": now,
+                      "updated_at": now, "candidate_evidence": ev,
+                      "candidate_agent_result": agent_result},
+             "$inc": {"revision": 1}},
+        )
+        _publish_task_event("task.execution_failed", task, actor="cursor",
+                            status=normalized, payload={"evidence": ev, "temporal": temporal})
+        return {"ok": True, "task_id": tid, "status": normalized,
+                "evidence": ev, "temporal": temporal}
+
     if normalized in {odep.STATUS_AWAITING_DEPLOY, odep.STATUS_BLOCKED_CAUSE}:
         pause_patch = odep.build_pause_mongo_patch(task, gate_message=gate_hint, evidence=ev, actor="cursor")
         pause_patch["executed_at"] = now
