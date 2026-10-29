@@ -56,9 +56,16 @@ def test_record_grant_idempotent():
 
 
 def test_record_grant_requires_durable_limits():
-    out = oah.record_owner_grant("ops_paid", idempotency_key="no-limits")
+    db = MagicMock()
+    grants = MagicMock()
+    events = MagicMock()
+    db.__getitem__.side_effect = lambda n: grants if n == oah.COL_GRANTS else events
+    grants.find_one.return_value = None
+    with patch.object(oah.mongo_store, "get_db", return_value=db):
+        out = oah.record_owner_grant("ops_paid", idempotency_key="no-limits")
     assert out["ok"] is False
     assert out["error"] == "owner_grant_limits_required"
+    grants.insert_one.assert_not_called()
 
 
 def test_paid_execution_blocked_when_grant_limits_null():
