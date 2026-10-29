@@ -1,0 +1,77 @@
+# Machine-readable FMEA matrix — ops_97310078a555 (offline/stateful)
+task_id: ops_97310078a555
+seed: 97310078
+base_main_sha: 9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d
+scenarios:
+  - id: FMEA-01
+    fault: host_deploy_gate_without_mutation
+    test: platform/tests/test_ops_deploy_scheduler_loop_regression.py::test_blocked_complete_does_not_advance_to_verification
+    status: PASS
+    cause: pytest_only_not_deploy_evidence
+    rollback: status awaiting_deploy_approval; do_not_auto_dispatch
+  - id: FMEA-02
+    fault: temporal_auto_reopen_on_pause
+    test: platform/tests/test_ops_deploy_scheduler_loop_regression.py::test_temporal_reopen_refused_when_deploy_paused
+    status: PASS
+    cause: reopen_ops_temporal_execution loop
+    rollback: temporal_reopen_blocked_deploy_pause
+  - id: FMEA-03
+    fault: headless_autopilot_respawn_verification
+    test: platform/tests/test_ops_deploy_scheduler_loop_regression.py::test_autopilot_resume_skips_verification_and_deploy_pause
+    status: PASS
+    cause: _find_resume_on_host included verification/failed
+    rollback: resume only in_progress/claimed
+  - id: FMEA-04
+    fault: dev_swarm_requeue_deploy_blocked
+    test: platform/tests/test_ops_deploy_scheduler_loop_regression.py::test_scheduler_simulation_20_ticks_no_respawn_on_pause
+    status: PASS
+    cause: requeue_retryable_blocked_ops
+    rollback: should_skip_dev_swarm_requeue
+  - id: FMEA-05
+    fault: false_completed_global
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    cause: agent report denies completion
+    rollback: global_completion_gate_failed
+  - id: FMEA-06
+    fault: deploy_without_owner_grant
+    test: platform/tests/test_ops_global_completion_gate.py
+    status: PASS
+    cause: missing deploy_approved_at
+    rollback: awaiting_deploy_approval reason
+  - id: FMEA-07
+    fault: ack_not_execution
+    test: platform/tests/test_ops_fmea_invariants.py INV-01
+    status: PASS
+    cause: inbox consumer
+    rollback: delivery_semantics ack only
+  - id: FMEA-08
+    fault: paid_model_without_grant
+    test: platform/tests/test_ops_owner_approval_ha.py
+    status: PASS
+    cause: codex/antigravity spend
+    rollback: owner_budget_grant_required
+  - id: FMEA-09
+    fault: runtime_sha_drift_amd
+    test: manual/peer_ops
+    status: AWAITING_DEPLOY_APPROVAL
+    cause: AMD import SHA f3a4ecdd != main
+    rollback: snapshot + canary host
+  - id: FMEA-10
+    fault: intel_ssh_unavailable
+    test: peer_ops AG-41 read-only
+    status: PASS
+    cause: publickey; use peer not SSH
+    rollback: no password prompts
+  - id: FMEA-11
+    fault: stale_failed_task_reclaim
+    test: platform/tests/test_ops_deploy_scheduler_loop_regression.py::test_claimable_statuses_exclude_blocked_failed
+    status: PASS
+    cause: CLAIM_STATUSES included blocked/failed
+    rollback: cursor_claimable_statuses waiting only
+  - id: FMEA-12
+    fault: checkpoint_only_commit_loop
+    test: platform/tests/test_ops_global_completion_gate.py::test_finalize_verification_cas_race_does_not_terminal_close
+    status: PASS
+    cause: CAS race false complete
+    rollback: concurrent_completion_race

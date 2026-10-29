@@ -13,19 +13,11 @@ from raphiia_openai import mongo_store
 from inneros_core_runtime import cursor_execution_plane as cep
 from inneros_core_runtime import execution_binding as eb
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL, _publish_task_event, heartbeat_ops_task
+from inneros_core_runtime.ops_deploy_execution_pause import cursor_claimable_statuses
 
 CURSOR_PINNED_MODEL = os.getenv("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast").strip()
 LEASE_SECONDS = int(os.getenv("CURSOR_OPS_LEASE_SECONDS", "3600"))
-CLAIM_STATUSES = frozenset(
-    {
-        "queued",
-        "waiting_for_binding",
-        "awaiting_cursor_claim",
-        "waiting_for_model_binding",
-        "blocked",
-        "failed",
-    }
-)
+CLAIM_STATUSES = cursor_claimable_statuses()
 
 
 def _now() -> str:
@@ -521,11 +513,16 @@ def complete_ops_task(
     if ev_err:
         return {"ok": False, "error": ev_err, "task_id": tid}
 
+    from inneros_core_runtime import durable_coordination_spine
+    from inneros_core_runtime import ops_deploy_execution_pause as odep
+
+    gate_hint = str(ev.get("notes") or ev.get("pause_reason") or ev.get("verification_error") or "")
     agent_result = _evidence_to_agent_result(ev, status=normalized)
     if normalized in {"failed", "blocked"}:
         agent_result["blocked"] = True
-
-    from inneros_core_runtime import durable_coordination_spine
+        pause_status = odep.classify_terminal_pause_status(task, gate_hint)
+        if pause_status != normalized:
+            normalized = pause_status
 
     signal_payload = {
         "submitted": True,
@@ -544,7 +541,8 @@ def complete_ops_task(
         workflow_id=wf_id,
     )
     _temporal_err = str(temporal.get("error") or "").lower()
-    if not temporal.get("ok") and (
+    allow_reopen = normalized == "completed" and not odep.execution_automation_frozen(task)
+    if not temporal.get("ok") and allow_reopen and (
         "already completed" in _temporal_err or "workflow not found" in _temporal_err
     ):
         from inneros_core_runtime.ops_temporal_recovery import reopen_ops_temporal_execution
@@ -563,13 +561,56 @@ def complete_ops_task(
                 signal_payload,
                 workflow_id=wf_id,
             )
-    if not temporal.get("ok"):
+    if not temporal.get("ok") and normalized == "completed":
         return {
             "ok": False,
             "error": "temporal_completion_signal_failed",
             "task_id": tid,
             "details": temporal,
             "hint": "El workflow Temporal debe estar vivo (handoff Cursor). No se escribió completed en Mongo.",
+        }
+
+    if normalized in {"failed", "blocked", odep.STATUS_AWAITING_DEPLOY, odep.STATUS_BLOCKED_CAUSE}:
+        pause_patch = odep.build_pause_mongo_patch(task, gate_message=gate_hint, evidence=ev, actor="cursor")
+        pause_patch["executed_at"] = now
+        pause_patch["completion_submitted_at"] = now
+        pause_patch["candidate_agent_result"] = agent_result
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": tok},
+            {
+                "$set": pause_patch,
+                "$inc": {"revision": 1},
+                "$unset": {
+                    "headless_execution_started_at": "",
+                    "headless_execution_pid": "",
+                    "headless_execution_unit": "",
+                },
+            },
+        )
+        final_status = str(pause_patch.get("status") or normalized)
+        heartbeat_ops_task(
+            tid,
+            actor="cursor",
+            phase="blocked",
+            current_step="cursor_execution_paused",
+            last_progress=str(pause_patch.get("blocked_with_cause") or "")[:200],
+        )
+        _publish_task_event(
+            "task.deploy_pause",
+            {**task, **pause_patch},
+            actor="cursor",
+            status=final_status,
+            payload={"evidence": ev, "temporal": temporal, "gate_message": gate_hint},
+        )
+        return {
+            "ok": True,
+            "task_id": tid,
+            "status": final_status,
+            "evidence": ev,
+            "temporal": temporal,
+            "paused": True,
+            "blocked_with_cause": pause_patch.get("blocked_with_cause"),
+            "message": "Gate fail-closed: pausa durable sin re-cola ni respawn automático.",
         }
 
     db[OPS_TASKS_COL].update_one(
