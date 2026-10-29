@@ -72,6 +72,27 @@ def main() -> int:
     parser.add_argument("--expected-sha", default="", help="Optional merge/deploy target SHA")
     args = parser.parse_args()
 
+    expected_sha = (args.expected_sha or "").strip()
+    if not expected_sha:
+        repo_root = ROOT.parent
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "origin/main"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if proc.returncode != 0:
+            proc = subprocess.run(
+                ["git", "-C", str(repo_root), "rev-parse", "main"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        if proc.returncode == 0:
+            expected_sha = proc.stdout.strip()
+
     local_platform = ROOT
     local_core = ROOT.parent.parent if ROOT.name == "platform" else ROOT
     report: dict = {
@@ -79,7 +100,7 @@ def main() -> int:
         "generated_at": _utc(),
         "task_id": args.task_id,
         "auditor_host": socket.gethostname(),
-        "expected_sha": args.expected_sha or None,
+        "expected_sha": expected_sha or None,
         "local": {
             "platform_sha": _local_git_sha(local_platform),
             "inneros_core_sha": _local_git_sha(local_core),
@@ -91,7 +112,7 @@ def main() -> int:
         report["fleet"][label] = row
         if not row.get("ok"):
             report["ok"] = False
-    expected = (args.expected_sha or "").strip()
+    expected = expected_sha
     if expected:
         for node in report["fleet"].values():
             if node.get("git_sha") and node["git_sha"] != expected:

@@ -14,7 +14,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **MERGED (código)** | PR #234 → main `7b103254…`; GitHub `critical-runtime-contracts` SUCCESS @ merge; local **252 passed** (+13 subtests) @ 2026-10-29T14:40Z (`PYTHONPATH=platform`, exit 0); delta docs post-#234 → PR [#235](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/235) OPEN |
+| 7 | CI + PR integrador | **IN_PROGRESS** | PR #234 merge gate en main `7b103254…`; fix MCP bypass en rama integrador (pendiente PR); local **254 passed** (+13 subtests) @ 2026-10-29T14:45Z; docs previos en PR [#235](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/235) OPEN |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -23,6 +23,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 - **Causa:** `finalize_verification_to_completed` escribía `status=completed` en Mongo sin evaluar criterio global ni texto del agente.
 - **Remediación:** `ops_global_completion_gate.evaluate_global_completion` + transición RACB CAS (`revision` + `verification`); certificación `COMPLETED_VERIFIED` y `verified_receipt` obligatorios.
 - **Bypass adicional cerrado:** `reconcile_ops_mongo_temporal.py` ya no propone `completed` terminal; solo avanza a `verification` para cierre vía gate.
+- **Bypass MCP (sesión 14:45Z):** `raphiia_openai.coordination_live.complete_ops_task` y transición directa `update_ops_task_state(..., completed)` devuelven `direct_completion_forbidden` / `temporal_owns_task_lifecycle` (alineado con `inneros_core_runtime.coordination_live`).
 
 ## Blockers owner
 
@@ -34,18 +35,18 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:40:18Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; worktree platform @ `0e7be30d…`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:45Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `0e7be30d9ce0ab039f277fcdafbb13deed115189` |
-| before_sha (pre-sesión) | `b156923e5c634eff4723f6b84f7c69eb0af36728` |
+| worktree SHA | *(post-commit sesión 14:45Z)* |
+| before_sha (pre-sesión) | `04a48659b3489f9819039255b0b36c47902553ae` |
 | main SHA (merge #234) | `7b10325457979042521dac3f988b0034a1e9e28b` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:40Z |
-| tests | pytest exit 0 — 252 passed, 13 subtests (`critical-runtime-contracts` re-run 14:40Z) |
-| estado global OPS | **IN_PROGRESS** — gate en main; runtime AMD desalineado; E2E/deploy sin certificar |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:45Z |
+| tests | pytest exit 0 — 254 passed, 13 subtests (CI subset + MCP bypass tests) |
+| estado global OPS | **IN_PROGRESS** — gate en main; fix MCP en rama; runtime AMD desalineado; E2E/deploy sin certificar |
