@@ -517,11 +517,16 @@ def complete_ops_task(
     from inneros_core_runtime import ops_deploy_execution_pause as odep
 
     gate_hint = str(ev.get("notes") or ev.get("pause_reason") or ev.get("verification_error") or "")
+    # Stop BEFORE Temporal verification when a task includes a production deploy
+    # but the worker only supplied code/tests rather than observed host receipts.
+    if normalized == "completed" and odep.completion_requires_deploy_pause(task, ev):
+        normalized = odep.STATUS_AWAITING_DEPLOY
+        gate_hint = "deployment_requires_observed_host_mutation"
     agent_result = _evidence_to_agent_result(ev, status=normalized)
     if normalized in {"failed", "blocked"}:
         agent_result["blocked"] = True
         pause_status = odep.classify_terminal_pause_status(task, gate_hint)
-        if pause_status != normalized:
+        if pause_status in {odep.STATUS_AWAITING_DEPLOY, odep.STATUS_BLOCKED_CAUSE}:
             normalized = pause_status
 
     signal_payload = {
@@ -561,7 +566,7 @@ def complete_ops_task(
                 signal_payload,
                 workflow_id=wf_id,
             )
-    if not temporal.get("ok") and normalized == "completed":
+    if not temporal.get("ok") and normalized not in {odep.STATUS_AWAITING_DEPLOY, odep.STATUS_BLOCKED_CAUSE}:
         return {
             "ok": False,
             "error": "temporal_completion_signal_failed",
@@ -570,7 +575,7 @@ def complete_ops_task(
             "hint": "El workflow Temporal debe estar vivo (handoff Cursor). No se escribió completed en Mongo.",
         }
 
-    if normalized in {"failed", "blocked", odep.STATUS_AWAITING_DEPLOY, odep.STATUS_BLOCKED_CAUSE}:
+    if normalized in {odep.STATUS_AWAITING_DEPLOY, odep.STATUS_BLOCKED_CAUSE}:
         pause_patch = odep.build_pause_mongo_patch(task, gate_message=gate_hint, evidence=ev, actor="cursor")
         pause_patch["executed_at"] = now
         pause_patch["completion_submitted_at"] = now
