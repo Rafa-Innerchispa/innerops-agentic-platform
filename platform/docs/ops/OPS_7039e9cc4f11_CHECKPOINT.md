@@ -1,8 +1,25 @@
 # OPS ops_7039e9cc4f11 — checkpoint integrador (2026-10-29)
 
-Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `83384714247267548e3bcceba25081248999fb1d` (merge PR [#240](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/240), 2026-10-29T16:54Z; incl. RACB tighten `7cd0d907` + cadena #234–#237). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
+Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `c0ce5e40a94b620b6f87a0bfa96f79349d5c9df9` (merge PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241), 2026-10-29T17:39Z; gate Temporal `shared_pre_temporal_denials` + cadena #234–#240). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. PR integrador [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) **MERGED**. PR [#237](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/237) **MERGED** → main incluye `e2d17078` RACB hardening (sin COMPLETED global de la OPS).
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. PR integrador [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) **MERGED**. PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241) **MERGED** @ 17:39Z → main `c0ce5e40` (gate Temporal unificado; **sin COMPLETED global de la OPS**).
+
+## Receipt sesión Cursor (composer-2.5-fast) — 17:40Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `be7e62cc4f47118bfbcc20217e0279679ea7ef7c` |
+| worktree_sha (pre-commit) | `be7e62cc4f47118bfbcc20217e0279679ea7ef7c` |
+| main SHA | `c0ce5e40a94b620b6f87a0bfa96f79349d5c9df9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T17:40Z |
+| tests | pytest exit 0 — **258 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml` @ 17:38Z) |
+| CI PR #241 | **SUCCESS** [40923104668](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40923104668); main post-merge CI **SUCCESS** [40923365167](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40923365167) @ `c0ce5e40` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha c0ce5e40…` → `ok: false` (Intel SSH denied; AMD SHA `f3a4ecdd…` ≠ main) |
+| verificación sesión | Re-cert suite + merge PR #241; checkpoint docs; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** + E2E; fases 8–9 bloqueadas owner |
 
 ## Fases
 
@@ -14,7 +31,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; gate Mongo + **Temporal** (`shared_pre_temporal_denials`); reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **IN_PROGRESS** | Main `83384714…`; PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241) **código+docs** (`3d6c76ae` gate Temporal, pendiente merge); **258 passed** @ 17:37Z; CI main prev [40916025327](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40916025327) **SUCCESS** pre-patch |
+| 7 | CI + PR integrador | **PASS (Git)** | Main `c0ce5e40…`; PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241) **MERGED** @ 17:39Z; **258 passed** @ 17:38Z local; CI PR [40923104668](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40923104668) **SUCCESS**; runtime SHA import pendiente fase 8 |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
