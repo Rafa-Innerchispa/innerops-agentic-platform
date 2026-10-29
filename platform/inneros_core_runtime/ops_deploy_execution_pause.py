@@ -83,6 +83,17 @@ def execution_automation_frozen(task: dict[str, Any]) -> bool:
     return False
 
 
+def completion_requires_deploy_pause(task: dict[str, Any], evidence: dict[str, Any] | None) -> bool:
+    """A coding+deploy task cannot submit COMPLETED before observed host postconditions.
+
+    Uses the same host receipt criterion as the terminal completion policy.
+    Never converts an ordinary transient coding/provider error into deploy pause.
+    """
+    if not task_implies_deploy_pause(task):
+        return False
+    return not ocp._deployment_host_evidence_ok(dict(evidence or {}))
+
+
 def classify_terminal_pause_status(task: dict[str, Any], gate_message: str) -> str:
     """Map a fail-closed gate message to a durable pause status."""
     if gate_message_implies_deploy_pause(gate_message) or task_implies_deploy_pause(task):
