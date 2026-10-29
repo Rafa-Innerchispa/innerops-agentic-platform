@@ -2,7 +2,7 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f878661373aad307489b7de5eaf95d7444d43804` (merge docs [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) @ 19:10Z; código gate en `f211e533` vía #242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (tip docs-only sobre main `f8786613`; head post-sesión pendiente de push). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) → main `f8786613`; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. PR docs abierto: [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) (MERGEABLE; CI SUCCESS @ 21:33Z run [40958677437](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40958677437), head `009e2b78…`).
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (tip docs-only sobre main `f8786613`, head `cba9abb2` post-sesión). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) → main `f8786613`; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. PR docs abierto: [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) (MERGEABLE; CI SUCCESS @ 21:33Z run [40958677437](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40958677437), head `009e2b78…`).
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 21:39Z
 
@@ -10,8 +10,8 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `7485eb745a4764fc8ad8f995a1d99abcab4876cf` |
-| worktree_sha (post-commit docs) | *(commit pendiente)* |
-| integrator_branch_sha | *(post-push)* |
+| worktree_sha (post-commit docs) | `cba9abb2691b76342d818d8bcb43e6f9a0d3efa2` |
+| integrator_branch_sha | `cba9abb2` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
