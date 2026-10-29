@@ -6,15 +6,16 @@ main_merge_sha_pr234: 7b10325457979042521dac3f988b0034a1e9e28b
 main_merge_sha_pr235: 24277871235bf19cad138546432b613102549c75
 main_merge_sha_pr236: 9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d
 main_merge_sha_pr237: 9f51f22e6bfa16ba481d3ad9e1b8d556e21afc39
-main_tip_sha: 39ba41c6d9dd30f6528ef2b4a915d3ca90a739d2
-integrator_branch_sha: 7cd0d9077a236f900e5c6a9cff3fee09e1b31917
+main_merge_sha_pr240: 83384714247267548e3bcceba25081248999fb1d
+main_tip_sha: 83384714247267548e3bcceba25081248999fb1d
+integrator_branch_sha: b3f90582403f09477f57804399e60f1bf64b8135
 integrator_pr: 234
 docs_pr: 237
 docs_pr_merged: true
-last_verified_utc: "2026-10-29T16:47:00Z"
-ci_local_pytest: "257 passed, 13 subtests (inneros-runtime-gates.yml + RACB tighten @ ralphi-ia-ver-10 16:47Z composer-2.5-fast)"
-ci_main_run_id: "40910822472"
-runtime_fleet_audit_utc: "2026-10-29T16:42:40Z"
+last_verified_utc: "2026-10-29T16:59:00Z"
+ci_local_pytest: "257 passed, 13 subtests (inneros-runtime-gates.yml @ ralphi-ia-ver-10 16:58Z composer-2.5-fast)"
+ci_main_run_id: "40916025327"
+runtime_fleet_audit_utc: "2026-10-29T16:58:48Z"
 runtime_fleet_audit_ok: false
 entries:
   - scene: inbox_ack_without_execution

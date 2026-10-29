@@ -35,7 +35,23 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:56:43Z; `--expected-sha 83384714…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:58:48Z; `--expected-sha 83384714…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+
+## Receipt sesión Cursor (composer-2.5-fast) — 16:59Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `b3f90582403f09477f57804399e60f1bf64b8135` |
+| worktree_sha | `b3f90582403f09477f57804399e60f1bf64b8135` (docs-only; **main** `83384714…`) |
+| main SHA | `83384714247267548e3bcceba25081248999fb1d` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:59Z |
+| tests | pytest exit 0 — **257 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml` @ 16:58Z) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 83384714…` → `ok: false` @ 16:58:48Z |
+| verificación sesión | Orden definitiva P0: re-cert read-only + suite completa; gate/RACB/reconcile/MCP ya en main; matriz FMEA SHA alineada; **sin COMPLETED global** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** + E2E; fases 8–9 bloqueadas owner (Intel SSH, AMD SHA, grant HA) |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 16:57Z
 
@@ -43,7 +59,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `b2dfdf9f573f9a6f804e9c05d63d16924d85c294` |
-| worktree_sha | `b2dfdf9f573f9a6f804e9c05d63d16924d85c294` (`5f9439d64daf8e4b0516171ed7c87aa029386f79` |
+| worktree_sha | `b2dfdf9f573f9a6f804e9c05d63d16924d85c294` |
 | main SHA | `83384714247267548e3bcceba25081248999fb1d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
