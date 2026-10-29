@@ -4,6 +4,23 @@ Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #2
 
 Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. Docs pendientes merge: PR [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243).
 
+## Receipt sesión Cursor (composer-2.5-fast) — 18:08Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `f34439147c3b124e73e1049f17f7baee2acd87d8` |
+| main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T18:08Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml` @ 18:08Z) |
+| CI main | **SUCCESS** [40923843607](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40923843607) @ `f211e533` |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f211e533…` → `ok: false` @ 18:08:25Z (Intel SSH denied; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main) |
+| delta `.py` vs main | **0** — gate Mongo/Temporal/RACB/reconcile en main; regresión ops_6e3e49716e6c offline **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7: inventario read-only + suite gate re-ejecutados; **no COMPLETED_VERIFIED** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** + E2E (fases 8–9); Codex/Antigravity **BLOCKED** sin grant |
+
 ## Receipt sesión Cursor (composer-2.5-fast) — 18:05Z
 
 | Campo | Valor |
