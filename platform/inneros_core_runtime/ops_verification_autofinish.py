@@ -110,6 +110,10 @@ def try_fail_verification_no_new_commit(
         return {"ok": False, "task_id": tid, "error": "task_not_found"}
     status = str(task.get("status") or "").lower()
     if status != "verification":
+        if status == "failed" and task.get("reconcile_note") == "verification_failed_no_new_commit_for_task":
+            return {"ok": True, "task_id": tid, "skipped": "already_reconciled_failed"}
+        if status == "completed":
+            return {"ok": True, "task_id": tid, "skipped": "already_completed"}
         return {"ok": False, "task_id": tid, "skipped": f"status:{status}"}
     worktree_raw = str(task.get("worktree") or task.get("local_worktree") or "").strip()
     if not worktree_raw:

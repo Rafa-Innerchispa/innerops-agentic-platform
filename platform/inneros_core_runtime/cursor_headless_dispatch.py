@@ -128,14 +128,7 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
         tid,
     ]
     try:
-        launch = subprocess.run(
-            command,
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            timeout=20,
-            check=False,
-        )
+        launch, unit = hwr.systemd_run_transient(unit=unit, command=command, cwd=root)
         if launch.returncode != 0:
             _clear_spawn_reservation(db, tid, host)
             return {
