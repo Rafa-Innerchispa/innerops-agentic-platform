@@ -42,7 +42,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `cfb340fb1d9fc332ecaa1af640e90eea32877988` (pre-commit sesión; ver commit siguiente en PR #236) |
+| worktree SHA | `8a4c0382` (rama `cursor/ops-7039e9cc4f11-integrator`, PR #236) |
 | before_sha (pre-sesión) | `cfb340fb1d9fc332ecaa1af640e90eea32877988` |
 | main SHA (merge #235) | `24277871235bf19cad138546432b613102549c75` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |

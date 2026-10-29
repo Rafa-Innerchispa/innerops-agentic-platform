@@ -4,7 +4,7 @@ requirements_version: integrator-2026-10-29
 baseline_main_sha: ac4e16e75e31c8d00c89419f0db2badf3c55749c
 main_merge_sha_pr234: 7b10325457979042521dac3f988b0034a1e9e28b
 main_merge_sha_pr235: 24277871235bf19cad138546432b613102549c75
-integrator_branch_sha: cfb340fb
+integrator_branch_sha: 8a4c0382
 integrator_pr: 234
 docs_pr: 236
 docs_pr_merged: false
