@@ -35,21 +35,23 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:13:09Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:16:37Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
+
+**Pendiente merge a main (código):** commit `e2d17078` — `racb_protocol.validate_evidence` exige `verified_receipt` / `global_completion_ack` para `completed` (cierra bypass PASS sin receipt post-#236).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree_sha | `e2d17078ab7142a0bb8fdb3e0b721a20ee940698` (RACB hardening; main gate sigue en `9cf2d1c2` hasta merge) |
-| before_sha (pre-sesión) | `818911aa1704ac93b0698e88d56a63e3468e60d0` |
+| worktree_sha | `cab69ea47a52cfd10a6b572d64552866e4ebc322` (tip integrator; código RACB en ancestro `e2d17078`; main sigue `9cf2d1c2` hasta merge PR #237) |
+| before_sha (pre-sesión) | `cab69ea47a52cfd10a6b572d64552866e4ebc322` |
 | main SHA (merge #236) | `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:14Z |
-| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:14Z; +RACB false-close) |
-| CI integrator PR #237 | workflow `inneros-runtime-gates` — **SUCCESS** @ 16:00Z (run 40906996336) |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:18Z |
+| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:17Z; incl. `test_racb_completed_rejects_pass_without_verified_receipt`) |
+| CI integrator PR #237 | re-ejecutar tras push tip (`e2d17078`+); último SUCCESS @ 16:00Z (run 40906996336, pre-RACB) |
 | runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 9cf2d1c2…` → `ok: false` (Intel SSH; AMD SHA desalineado) |
 | estado global OPS | **IN_PROGRESS** — gate en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
 
