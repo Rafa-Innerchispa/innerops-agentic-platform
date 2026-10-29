@@ -109,3 +109,26 @@ def test_synthetic_canary_never_verifies():
     out = ogcg.evaluate_global_completion(task, evidence)
     assert out["ok"] is False
     assert "synthetic_canary_not_real_provider" in out["reasons"]
+
+
+def test_raphiia_mcp_complete_ops_task_is_fail_closed():
+    from raphiia_openai import coordination_live as raph_cl
+
+    out = raph_cl.complete_ops_task("ops_mcp_bypass", evidence={"commit_sha": "c" * 40})
+    assert out["ok"] is False
+    assert out["error"] == "direct_completion_forbidden"
+    assert out["authority"] == "temporal"
+
+
+def test_raphiia_mcp_direct_completed_transition_denied():
+    from raphiia_openai import coordination_live as raph_cl
+
+    db = MagicMock()
+    tasks = MagicMock()
+    db.__getitem__.return_value = tasks
+    tasks.find_one.return_value = {"task_id": "ops_x", "status": "verification", "revision": 1}
+    with patch("raphiia_openai.mongo_store.get_db", return_value=db):
+        out = raph_cl.update_ops_task_state("ops_x", "completed", actor="codex", evidence={"status": "PASS"})
+    assert out["ok"] is False
+    assert out["error"] == "temporal_owns_task_lifecycle"
+    tasks.update_one.assert_not_called()

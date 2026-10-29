@@ -641,6 +641,18 @@ def heartbeat_ops_task(
     }
 
 
+def _temporal_terminal_close_denied(task_id: str, requested_status: str, *, error: str) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": error,
+        "task_id": task_id,
+        "requested_status": requested_status,
+        "allowed_commands": ["cancelled", "approved", "verification"],
+        "authority": "temporal",
+        "next_action": "submit candidate evidence to the running workflow or finalize via verification gate",
+    }
+
+
 def update_ops_task_state(
     task_id: str,
     status: str,
@@ -652,6 +664,10 @@ def update_ops_task_state(
 ) -> dict[str, Any]:
     """Apply a RACB state transition with ownership and optimistic locking."""
     from raphiia_openai import racb_protocol
+
+    normalized = racb_protocol.normalize_status(status)
+    if normalized == "completed":
+        return _temporal_terminal_close_denied(task_id, normalized, error="temporal_owns_task_lifecycle")
 
     db = mongo_store.get_db()
     task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0})
@@ -772,36 +788,11 @@ def complete_ops_task(
     task_id: str,
     status: str = "completed",
     evidence: dict[str, Any] | None = None,
+    **_: Any,
 ) -> dict[str, Any]:
+    """Reject direct completion; only Temporal verification + global gate may close."""
     st = (status or "completed").strip().lower()
-    transition = update_ops_task_state(
-        task_id=task_id,
-        status=st,
-        actor="system",
-        evidence=evidence,
-        force_handoff=True,
-        allow_legacy_direct=True,
-    )
-    if not transition.get("ok"):
-        return transition
-    db = mongo_store.get_db()
-    task_doc = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
-    notion_out: dict[str, Any] | None = None
-    cid = task_doc.get("correlation_id")
-    if cid:
-        try:
-            from raphiia_openai.notion_coordination import post_response_to_notion
-
-            summary = (evidence or {}).get("summary") or str(evidence or "")[:500] or f"Task {st}"
-            notion_out = post_response_to_notion(
-                correlation_id=cid,
-                status="Completed" if st == "completed" else "Failed",
-                summary=summary,
-                evidence=evidence,
-            )
-        except Exception as exc:
-            notion_out = {"ok": False, "error": str(exc)}
-    return {**transition, "notion_response": notion_out}
+    return _temporal_terminal_close_denied(task_id, st, error="direct_completion_forbidden")
 
 
 def list_ops_tasks(assignee: str | None = None, status: str | None = None, limit: int = 20) -> dict[str, Any]:
