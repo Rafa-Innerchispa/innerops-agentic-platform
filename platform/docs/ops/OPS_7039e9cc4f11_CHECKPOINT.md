@@ -2,7 +2,28 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` (merge integrador docs [#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247) @ 22:11Z; gate en main desde #241–#242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main `f3b4c112`, integrador docs-only **22+** commits ahead de `origin/cursor/ops-7039e9cc4f11-integrator` vía PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (main `f3b4c112`, integrador docs-only **26** commits ahead de `origin/cursor/ops-7039e9cc4f11-integrator` vía PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); gate Temporal `shared_pre_temporal_denials` en main; **sin COMPLETED global de la OPS**.
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:30Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `151c99eafd1177a3842cf9902d608d8e2bd48b30` |
+| worktree_sha (post-commit docs) | `dd916692ad32f00aee36649e9dabf3c8a17cffbf` |
+| integrator_branch_sha | `dd916692` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:30Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:30Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| CI PR #248 | **SUCCESS** @ 23:14Z (run [40971590719](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40971590719), head remoto `22995de4…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:30Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador @ `151c99ea…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 23:28Z
 
@@ -149,7 +170,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 Autorización **distinta** de coding Cursor: despliegue canario main `f3b4c112` + E2E con impacto.
 
-| Host | Riesgo | Estado runtime (read-only @ 23:28Z) |
+| Host | Riesgo | Estado runtime (read-only @ 23:30Z) |
 |------|--------|----------------------------------------|
 | Intel `192.168.1.4` (`ralphi-ia` prod) | Reinicio servicios OPS/Temporal worker; posible gap colas | SSH **Permission denied (publickey)** — auditoría remota bloqueada |
 | AMD `ralfiia-amd` `192.168.1.5` | Mismo + desalineación SHA actual `f3a4ecdd` vs main `f3b4c112` | SSH OK; **no** importar main sin snapshot/rollback aprobado |
