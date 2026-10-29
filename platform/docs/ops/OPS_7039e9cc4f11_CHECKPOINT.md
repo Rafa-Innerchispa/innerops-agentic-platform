@@ -1,8 +1,862 @@
 # OPS ops_7039e9cc4f11 — checkpoint integrador (2026-10-29)
 
-Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `2c1578917e8739712a73e8d9e6f9fc470cb5352d` (merge docs [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) @ 22:10Z; código gate en `f211e533` vía #242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
+Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `430c13ff10f1c8a44422226f6b98326ad6b336c9` (merge PR #238 deploy pause @ 23:34Z; post-#247 docs `c418fa17`). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (docs-only; head en receipt más reciente). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) → main `2c157891`; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**.
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (sync main `430c13ff`; tip `f7014137`; PR [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN mergeable, CI **SUCCESS** @ run 40975006994). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247); **#238** deploy pause en main; **sin COMPLETED global de la OPS**.
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:45Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `5205e77b1080ae4e0c4809bfa78e0b731aa0307a` |
+| worktree_sha (post-commit docs) | `f70141373ce8ed5b77b9f4b655eb41edb5b042fc` |
+| main SHA | `430c13ff10f1c8a44422226f6b98326ad6b336c9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:45Z |
+| tests | pytest exit **0** — **269 passed**, 13 subtests (`inneros-runtime-gates.yml` peer suite; `PYTHONPATH=platform` @ 23:45Z) |
+| CI PR #248 | **SUCCESS** @ 23:44Z (run [40975006994](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40975006994)) |
+| CI main | **SUCCESS** @ 23:34Z (run [40974044408](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40974044408), head `430c13ff…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 430c13ff…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0**; PR #248 añade **+1** test CI (`test_ops_deploy_scheduler_loop_regression`) |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas; gate/RACB/`evaluate_global_completion` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `430c13ff`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:43Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `593394b749c9b805ec6ee944fc2d244a39041161` |
+| worktree_sha (post-commit docs) | `808d1d958862a48c07d5c7f662a41a830f33cdf7` |
+| main SHA | `430c13ff10f1c8a44422226f6b98326ad6b336c9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:43Z |
+| tests | pytest exit **0** — **269 passed**, 13 subtests (`inneros-runtime-gates.yml` completa; `PYTHONPATH=platform` @ 23:43Z) |
+| CI PR #248 | **SUCCESS** @ 23:41Z (run [40974738331](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40974738331)) |
+| CI main | **SUCCESS** @ 23:34Z (run [40974044408](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40974044408), head `430c13ff…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 430c13ff…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas; motor `evaluate_global_completion` / `finalize_verification_to_completed` / RACB / MCP `direct_completion_forbidden` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `430c13ff`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:40Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `47f87975426b7bbbf61a8ce3138d1f1f2f42c821` |
+| worktree_sha (post-commit docs) | `ee9aad1afddbc14d93a656d13109315f736b6db2` |
+| main SHA | `430c13ff10f1c8a44422226f6b98326ad6b336c9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:40Z |
+| tests | pytest exit **0** — **269 passed**, 13 subtests (suite `inneros-runtime-gates.yml` completa incl. `test_ops_deploy_scheduler_loop_regression.py`; `PYTHONPATH=platform` @ 23:40Z) |
+| CI main | **SUCCESS** @ 23:34Z (run [40974044408](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40974044408), head `430c13ff…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 430c13ff…` → `ok: false` @ 23:40Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree @ `47f87975…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0**; delta CI workflow vs main **+1 test** (PR #248 pendiente merge) |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas sesión owner; gate/RACB/`evaluate_global_completion` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `430c13ff`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:39Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `2d0028afc2e2604b36560c0a03122e537f981958` |
+| worktree_sha (post-commit docs) | `6716a534ded6fe341215405c13d552ec093318dd` |
+| main SHA | `430c13ff10f1c8a44422226f6b98326ad6b336c9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:39Z |
+| tests | pytest exit **0** — **269 passed**, 13 subtests (suite CI + `test_ops_deploy_scheduler_loop_regression.py`; `PYTHONPATH=platform` @ 23:38Z) |
+| CI main | **SUCCESS** @ 23:34Z (run [40974044408](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40974044408), head `430c13ff…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 430c13ff…` → `ok: false` @ 23:38Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree @ `2d0028af…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0**; delta CI workflow vs main **+1 test** (pendiente merge) |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas; gate/RACB/`evaluate_global_completion` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `430c13ff`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:36Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `4ce19102316ca0e09dfc0caeeeaa715df4051e31` |
+| worktree_sha (post-merge main) | `d086e5d88217c8caf79665049276077745da70c2` |
+| main SHA | `430c13ff10f1c8a44422226f6b98326ad6b336c9` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:36Z |
+| tests | pytest exit **0** — **269 passed**, 13 subtests (suite CI + `test_ops_deploy_scheduler_loop_regression.py`; `PYTHONPATH=platform` @ 23:36Z) |
+| CI main | **SUCCESS** @ 23:34Z (run [40974044408](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40974044408), head `430c13ff…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 430c13ff…` → `ok: false` @ 23:36Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador @ `d086e5d8…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | merge main **#238** (`ops_deploy_execution_pause`); fases 1–7 re-certificadas; gate/RACB fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `430c13ff`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:32Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `8513e0068bb75b766056d5a1dd6e44f1e214aa4d` |
+| worktree_sha (post-merge main) | `7a324784ae574a5e31f4b14120ede2194b2d44cb` |
+| main SHA | `c418fa173cf580d5255db6d7d1165655f1e70910` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:32Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:32Z) |
+| CI main | **SUCCESS** @ 23:32Z (run [40973707825](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40973707825), head `c418fa17…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha c418fa17…` → `ok: false` @ 23:32Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador @ `8513e006…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; merge main docs-only; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `c418fa17`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:30Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `151c99eafd1177a3842cf9902d608d8e2bd48b30` |
+| worktree_sha (post-commit docs) | `e724d2ab9034de9bc1165421966fe688a180c9db` |
+| integrator_branch_sha | `6ec6e356` *(tip integrador post-receipt)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:30Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:30Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| CI PR #248 | **SUCCESS** @ 23:14Z (run [40971590719](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40971590719), head remoto `22995de4…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:30Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador @ `151c99ea…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:28Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `2fc4b312746ec62bd1215c5cbd1cb5e628c23759` |
+| worktree_sha (post-commit docs) | `a730a288e24a27a64112970fcf226eeecea00738` |
+| integrator_branch_sha | `a730a288` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:28Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:28Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| CI PR #248 | **SUCCESS** @ 23:14Z (run [40971590719](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40971590719), head remoto `22995de4…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:28Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only @ `2fc4b312…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:26Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `07ac4e5dc251d0090275b80eafb522460600e7f6` |
+| worktree_sha (post-commit docs) | `99e68333679b28261d92f627feabb780f9962fb8` |
+| integrator_branch_sha | `99e68333` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:26Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:26Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:26Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only @ `07ac4e5d…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:24Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `ed299c599c3fb2d17f7e2c941570f61fb7d654d9` |
+| worktree_sha (post-commit docs) | `a2d8afb181ffae627daf3af2230976560c3ae375` |
+| integrator_branch_sha | `ae177fbd` *(tip integrador post-SHA fix)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:24Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:24Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:24Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only @ `ed299c59…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:22Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `1f0c8c406c91e866db441e8f02315c50d23c44e5` |
+| worktree_sha (post-commit docs) | `2e8003e5a0eacaa8368c7949879966f900c81d84` |
+| integrator_branch_sha | `b0c85e29` *(tip integrador post-SHA fix)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:22Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:22Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:22Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only @ `1f0c8c40…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:20Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `4e3cb9520aa91a038865a5cbdbbf0b068194902e` |
+| worktree_sha (post-commit docs) | `9abcead071211170c4a2a739a81c2e23823841c1` |
+| integrator_branch_sha | `4ecbed9d` *(tip integrador post-SHA fix)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:20Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:20Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:20Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only @ `4e3cb952…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:18Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `52cc92f943e7b26cad9ec788a1e1d586d3f3f1e5` |
+| worktree_sha (post-commit docs) | `0d40494bee23301fc4dc8b06c4091c54c08b366b` |
+| integrator_branch_sha | `b2a0a765` *(tip integrador post-SHA fix)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:18Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:18Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:18Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only @ `52cc92f9…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:16Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `22995de4b6e2be37457cb82a02a21aeaccc84f0d` |
+| worktree_sha (post-commit docs) | `1e589fa71a89c61d197549be0f4b3da470eb6c93` |
+| integrator_branch_sha | `8f3a75cf` *(tip integrador post-SHA fix)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:16Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:16Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:16Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only @ `22995de4…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD prod); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Checkpoint owner — fases 8–9 (AWAITING_DEPLOY_APPROVAL)
+
+Autorización **distinta** de coding Cursor: despliegue canario main `430c13ff` + E2E con impacto.
+
+| Host | Riesgo | Estado runtime (read-only @ 23:40Z) |
+|------|--------|----------------------------------------|
+| Intel `192.168.1.4` (`ralphi-ia` prod) | Reinicio servicios OPS/Temporal worker; posible gap colas | SSH **Permission denied (publickey)** — auditoría remota bloqueada |
+| AMD `ralfiia-amd` `192.168.1.5` | Mismo + desalineación SHA actual `f3a4ecdd` vs main `430c13ff` | SSH OK; **no** importar main sin snapshot/rollback aprobado |
+| Codex CLI / Antigravity IDE | Gasto externo + ejecución real | **BLOCKED** — sin grant HA (task_id, tope USD, caducidad UTC) |
+
+Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Temporal/logs/SHA → rollback si falla → segundo host → E2E inocuo (fase 9).
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:12Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `94e6cb3d038318ec2e515b96d1f365bac65ebf7b` |
+| worktree_sha (post-commit docs) | `c20d05750c6509679d325993d4b63bc757371c2a` |
+| integrator_branch_sha | `f3fb322e` *(tip integrador post-SHA fix)* |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:12Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:12Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:12Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only @ `94e6cb3d…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:10Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c0a40d91a24de4c14b5ff35dc66be180b5d3a1e0` |
+| worktree_sha (post-commit docs) | `ac35930c0cacd529f7ebf14cd64c199ba808a79f` |
+| integrator_branch_sha | `ac35930c0cacd529f7ebf14cd64c199ba808a79f` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:10Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:10Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:10Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree HEAD docs-only @ `c0a40d91…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:08Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `0406a105c94d9d8e5a402e5f5be1cd0a49c3f798` |
+| worktree_sha (post-commit docs) | `6fe7c3fedff866f7bb92854a4f6daacc102fe135` |
+| integrator_branch_sha | `6fe7c3fedff866f7bb92854a4f6daacc102fe135` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:08Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:08Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:08Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree HEAD docs-only @ `0406a105…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:06Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `0c59a108e2cd5b86e0428c80e75a41e0c9b7658e` |
+| worktree_sha (post-commit docs) | `d359c935a8c05b8487cfb2868f86cf4579681989` |
+| integrator_branch_sha | `d359c935a8c05b8487cfb2868f86cf4579681989` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:06Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:06Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:06Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree HEAD docs-only @ `0c59a108…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 23:03Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `a9799b63ab420f98eb0fc0c1dbc72e41895dde41` |
+| worktree_sha (post-commit docs) | `23b528594615815c6286a5aaf46efbf97f308756` |
+| integrator_branch_sha | `23b528594615815c6286a5aaf46efbf97f308756` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T23:03Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 23:02Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 23:02:21Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `a9799b63…` docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; suite gate completa **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:59Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `700386411c2f452dbb67c2dc6d8596ca952e1b8e` |
+| worktree_sha (post-commit docs) | `76ce68c90eb6e3d4cf6fc60f4314762bdf05c921` |
+| integrator_branch_sha | `76ce68c90eb6e3d4cf6fc60f4314762bdf05c921` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:59Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:59Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:59Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `70038641…` docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:56Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `88235d22ad13a15f7fbff8b4a482e13260eecded` |
+| worktree_sha (post-commit docs) | `0be34d069d2467a31bd00f33a7c91094bdaeb9d9` |
+| integrator_branch_sha | `0be34d069d2467a31bd00f33a7c91094bdaeb9d9` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:56Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:56Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:56:09Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `88235d22…` docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:53Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `c1f10eeea4bf6dfa964bcef9e3d0abbf76d5ed08` |
+| worktree_sha (post-commit docs) | `e0f849f432892a608456d78c01b50cc90479156e` |
+| integrator_branch_sha | `e0f849f432892a608456d78c01b50cc90479156e` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:53Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:53Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:53:51Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `e0f849f4…` docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:52Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `3974f900b949254eabee73fe2381d8569bd0557a` |
+| worktree_sha (post-commit docs) | `a3b1776df116ae088e7e208d240cb025a3b7b4e7` |
+| integrator_branch_sha | `a3b1776df116ae088e7e208d240cb025a3b7b4e7` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:52Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:52Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:52:08Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `a3b1776d…` docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:50Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `80c9fd7c8db0041b993aba01963b9943f2b66f07` |
+| worktree_sha (post-commit docs) | `426a18d0a4ad549a7a70f8fecde9ac48e801f58c` |
+| integrator_branch_sha | `426a18d0a4ad549a7a70f8fecde9ac48e801f58c` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:50Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:50Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:50Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `80c9fd7c…` docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:48Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `8333be15f756bdc46eb949c5dc317546981282e1` |
+| worktree_sha (post-commit docs) | `ce4946660e9974719966ef57361e2565905fb1a7` |
+| integrator_branch_sha | `ce4946660e9974719966ef57361e2565905fb1a7` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:48Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:48Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:48:06Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only `8333be15…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:46Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `2ea4c0c059b5f90c219f457b2a88a48872344396` |
+|  *(commit siguiente a este receipt)*| `87688489058285397e6a4811f384c0fdeeb3de4e` |
+| integrator_branch_sha | `b0fcfd24e3dde840930e3e7e6f94f781f4a77070` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:46Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:46Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:46:06Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only `2ea4c0c0…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:44Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `ee3ec6b0e5260ad18db02e3028e08e5f44466062` |
+|  *(commit siguiente a este receipt)*| `d1d9426ea0e57e5a3d7954c57c7f00158eae9a74` |
+| integrator_branch_sha | `d1d9426ea0e57e5a3d7954c57c7f00158eae9a74` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:44Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:44Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local `ee3ec6b0…` docs-only) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:42Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `4fdc53caadd5698bf096600996f791a153100094` |
+|  *(commit siguiente a este receipt)*| `ed83890a3f6dec2a1568a386ddfaf20c8f30e0c9` |
+| integrator_branch_sha | `ed83890a3f6dec2a1568a386ddfaf20c8f30e0c9` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:42Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:42Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:42:09Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only `4fdc53ca…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:40Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `7c4905081a74700e8d6c14f0fb762519c756b9a1` |
+|  *(commit siguiente a este receipt)*| `ec9b00c94fd4119021ac90d66c96857f410f9575` |
+| integrator_branch_sha | `ec9b00c94fd4119021ac90d66c96857f410f9575` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:40Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:40Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:40:07Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only `7c490508…`) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:38Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `899c65d4b0766e8b94f2b098260923e3caefb3c0` |
+|  *(commit siguiente a este receipt)*| `ad17128895aeed28d2a1efec0e764b0c5e8e7823` |
+| integrator_branch_sha | `ad17128895aeed28d2a1efec0e764b0c5e8e7823` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:38Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:38Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:38:10Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only `899c65d4…` ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; motor `evaluate_global_completion` + RACB `COMPLETED_VERIFIED` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:36Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `959a7d81ed625439b08a9e56125f413fa923041e` |
+|  *(commit siguiente a este receipt)*| `6806f8681c727d956162f5674244d7dd7940ff66` |
+| integrator_branch_sha | `6806f868` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:36Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:36Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:36:08Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only `959a7d81…` ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; `evaluate_global_completion` + `finalize_verification_to_completed` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:35Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `97d9ea5d6c8b469dfa7bdefe999e1bb9b32c181b` |
+|  *(commit siguiente a este receipt)*| `4f08236938a31a5078c2bbfad36720aa65aa952a` |
+| integrator_branch_sha | `4f082369` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:35Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:34Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:34:04Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only `97d9ea5d…` ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; gate `evaluate_global_completion` + `finalize_verification_to_completed` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:33Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `b23aa835ae5f81d6ecd79fe6683fedecab17a5c6` |
+|  *(commit siguiente a este receipt)*| `324760b60245bd2fc7d108de269f2aeab9e0cb1e` |
+| integrator_branch_sha | `324760b6` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:33Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:32Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` @ 22:32:05Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only `b23aa835…` ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; gate fail-closed + regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:31Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `eecebe57aed866a6e41c665532526fea3f3dd164` |
+|  *(commit siguiente a este receipt)*| `cfdb994812f63b188222a81befd7de20a0285a7e` |
+| integrator_branch_sha | `cfdb9948` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:31Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:31Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; gate fail-closed + regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:29Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `1f67c313285df39b535678b1491018246bd571a4` |
+|  *(commit siguiente a este receipt)*| `1c503bfd8dca6709130abde41ef78ac6b4e7cc7c` |
+| integrator_branch_sha | `1c503bfd` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:29Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:28Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; gate fail-closed + regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:27Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `6d361a2cceb366d192da373fe3c3de0157451bb1` |
+|  *(commit siguiente a este receipt)*| `ca6d37de551da6c937b9c50c7f851e021d6e4899` |
+| integrator_branch_sha | `ca6d37de` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:27Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:27Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; gate fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:24Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `321292afef7e63f79c8f0beb75aac590db936ba5` |
+|  *(commit siguiente a este receipt)*| `0b38ab72a38fc61c442cad4903cb44698cc5cdd2` |
+| integrator_branch_sha | `0b38ab72` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:24Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:24Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; gate `evaluate_global_completion` + `finalize_verification_to_completed` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:22Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `98de27de742d81821098d77b297266c197ad3bc3` |
+|  *(commit siguiente a este receipt)*| `f90e3e31f5ae1c28641f8f607b1fd28ba16d66dd` |
+| integrator_branch_sha | `f90e3e31` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:22Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:22Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; delta `.py` vs `origin/main` **0** |
+| verificación sesión | Orden P0 fases 1–7 re-certificadas offline/Git; gate `evaluate_global_completion` + `finalize_verification_to_completed` fail-closed; regresión ops_6e3e49716e6c **PASS**; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:20Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `7fbd558a4020248c49c99b9065afa6b7627522ba` |
+|  *(commit siguiente a este receipt)*| `41567a13320585d70fa0dc053721f530b06f4d7b` |
+| integrator_branch_sha | `41567a13` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:20Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:20Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; import `ops_global_completion_gate` desde worktree `platform/` |
+| delta `.py` vs main | **0** — cierre vía `ops_global_completion_gate` + RACB `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** (canario Intel+AMD @ `f3b4c112`) + E2E; **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:18Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `f433b370c0ba68d9d50bcf00f6f00f5d92a5c5c0` |
+|  *(commit siguiente a este receipt)*| `3d0a861483485fdc2e0193b69195230d79e8f1a6` |
+| integrator_branch_sha | `3d0a8614` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:18Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:18Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener; import `ops_global_completion_gate` desde worktree `platform/` |
+| delta `.py` vs main | **0** — cierre vía `ops_global_completion_gate` + RACB `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:16Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `0e9ff634a1fa1774473cd058275580a00fd920a1` |
+|  *(commit siguiente a este receipt)*| `5a13d3cde2e0b46e63355d396a1f3ea6f4904e42` |
+| integrator_branch_sha | `5a13d3cd` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:16Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:16Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree docs-only ≠ main SHA canónico) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — cierre vía `ops_global_completion_gate` + RACB `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **no COMPLETED_VERIFIED** |
+
+## Receipt sesión Cursor (composer-2.5-fast) — 22:13Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `893fbec318dcc2fc31c604707cd72a4ad7d78ce2` |
+| worktree_sha (post-ff main) | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| integrator_branch_sha | `f3b4c112` |
+| main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T22:13Z |
+| tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 22:14Z) |
+| CI main | **SUCCESS** @ 22:11Z (run [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336), head `f3b4c112…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f3b4c112…` → `ok: false` (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree local **matches** main) |
+| mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
+| inventario local | Host auditor `ralphi-ia-ver-10` (x86_64, ≠ AMD); Temporal `:7233` + Mongo `:27017` + MCP full `:8102`; MCP Small `:8001` sin listener |
+| delta `.py` vs main | **0** — cierre vía `ops_global_completion_gate` + RACB `COMPLETED_VERIFIED`; regresión ops_6e3e49716e6c **PASS** |
+| verificación sesión | Orden definitiva P0 fases 1–7 re-certificadas offline/Git; fases 8–9 **AWAITING_DEPLOY_APPROVAL** / E2E **BLOCKED**; Codex/Antigravity **BLOCKED** sin grant HA |
+| estado global OPS | **IN_PROGRESS** — **no COMPLETED_VERIFIED** |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 22:08Z
 
@@ -10,7 +864,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c625d77d0b49b602f7e6cd039ee003e1192a0a5d` |
-| worktree_sha (post-commit docs) | `94850564ea7c7c4dabbdcb6d08fb1fabae6d4898` |
+|  *(commit siguiente a este receipt)*| `94850564ea7c7c4dabbdcb6d08fb1fabae6d4898` |
 | integrator_branch_sha | `94850564` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -32,7 +886,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a51869841efda7799f84f0b0b3562ce3b0722971` |
-| worktree_sha (post-commit docs) | `1a1c8f53d15089b44619a858121fdced1598cbb7` |
+|  *(commit siguiente a este receipt)*| `1a1c8f53d15089b44619a858121fdced1598cbb7` |
 | integrator_branch_sha | `1a1c8f53` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -54,7 +908,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `1025ba16b4d4f4ad0735d694411c0ef065c7e7e3` |
-| worktree_sha (post-commit docs) | `29f21e7bdec327079abbe000f5fbd23fa28cc8bc` |
+|  *(commit siguiente a este receipt)*| `29f21e7bdec327079abbe000f5fbd23fa28cc8bc` |
 | integrator_branch_sha | `29f21e7b` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -76,7 +930,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c48712659a705f7c5e98c7c1eeb89a4235daf330` |
-| worktree_sha (post-commit docs) | `6e82133acc42b05f6e198179add560799792fb4a` |
+|  *(commit siguiente a este receipt)*| `6e82133acc42b05f6e198179add560799792fb4a` |
 | integrator_branch_sha | `6e82133a` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -98,7 +952,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `4e6a4004ffada4083b2c1111ed8fe98898252e90` |
-| worktree_sha (post-commit docs) | `650e0a09be7d66b81f7dd3ff2b7fb69fec8752de` |
+|  *(commit siguiente a este receipt)*| `650e0a09be7d66b81f7dd3ff2b7fb69fec8752de` |
 | integrator_branch_sha | `650e0a09` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -120,7 +974,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `d47036632094ca9793a8e9353f7c2c80efe5ff7f` |
-| worktree_sha (post-commit docs) | `86a62bf1d3b2f7b184f527eb21344aca33c8f856` |
+|  *(commit siguiente a este receipt)*| `86a62bf1d3b2f7b184f527eb21344aca33c8f856` |
 | integrator_branch_sha | `86a62bf1` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -142,7 +996,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `786b72d9179585b022be1b700888630eecd0b444` |
-| worktree_sha (post-commit docs) | `061147594bad3c7d0ec5bea3db1a0b68c5f9e999` |
+|  *(commit siguiente a este receipt)*| `061147594bad3c7d0ec5bea3db1a0b68c5f9e999` |
 | integrator_branch_sha | `06114759` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -164,7 +1018,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `6ac13de3077e532ba80e4b7392aa065b818dfdde` |
-| worktree_sha (post-commit docs) | `fc5decf55a0656fb10f8876ca2133b1f13ffce87` |
+|  *(commit siguiente a este receipt)*| `fc5decf55a0656fb10f8876ca2133b1f13ffce87` |
 | integrator_branch_sha | `fc5decf5` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -186,7 +1040,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9522d2176ba78b92b48e5306b817e5dd8850bdb6` |
-| worktree_sha (post-commit docs) | `320b0ea37f54a0307747151572ca2e22c722f488` |
+|  *(commit siguiente a este receipt)*| `320b0ea37f54a0307747151572ca2e22c722f488` |
 | integrator_branch_sha | `320b0ea3` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -208,7 +1062,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `e4d1415bf209372166eeaedb6167bf9d4d20d69f` |
-| worktree_sha (post-commit docs) | `ef106ec164e8a6a4a1be859b2e18719cdf33276d` |
+|  *(commit siguiente a este receipt)*| `ef106ec164e8a6a4a1be859b2e18719cdf33276d` |
 | integrator_branch_sha | `ef106ec1` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -230,7 +1084,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `5fee7e433c9dfeef6a9871c2bcaf97f45e05141d` |
-| worktree_sha (post-commit docs) | `1bff60a89b845daf955038a5e56cd0cc8b62d5f2` |
+|  *(commit siguiente a este receipt)*| `1bff60a89b845daf955038a5e56cd0cc8b62d5f2` |
 | integrator_branch_sha | `1bff60a8` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -252,7 +1106,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `88b077fb6210354ca849da30a5b7f83193ad3574` |
-| worktree_sha (post-commit docs) | `8a5f7d599553b8b6451032c8ff74cbb525ac5d97` |
+|  *(commit siguiente a este receipt)*| `8a5f7d599553b8b6451032c8ff74cbb525ac5d97` |
 | integrator_branch_sha | `8a5f7d59` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -274,7 +1128,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `08d4af05bfd0e891627d9a0f0aefb77eb782f56d` |
-| worktree_sha (post-commit docs) | `7814d7bc85ec00532b3cc955431775405bf95512` |
+|  *(commit siguiente a este receipt)*| `7814d7bc85ec00532b3cc955431775405bf95512` |
 | integrator_branch_sha | `7814d7bc` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -296,7 +1150,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `7485eb745a4764fc8ad8f995a1d99abcab4876cf` |
-| worktree_sha (post-commit docs) | `cba9abb2691b76342d818d8bcb43e6f9a0d3efa2` |
+|  *(commit siguiente a este receipt)*| `cba9abb2691b76342d818d8bcb43e6f9a0d3efa2` |
 | integrator_branch_sha | `cba9abb2` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -318,7 +1172,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `009e2b788d4d1e850a80ca0c2e5ff000ad4cfdd1` |
-| worktree_sha (post-commit docs) | `e2877638d59b80be5dd74b8dbac86bbfbe200234` |
+|  *(commit siguiente a este receipt)*| `e2877638d59b80be5dd74b8dbac86bbfbe200234` |
 | integrator_branch_sha | `e2877638` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -340,7 +1194,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `70fbfa67270f42194c9b50ee7b9a80e0a89be404` |
-| worktree_sha (post-commit docs) | `34c4330b145e1be8add75ee3f78ee4f32a7a19e1` |
+|  *(commit siguiente a este receipt)*| `34c4330b145e1be8add75ee3f78ee4f32a7a19e1` |
 | integrator_branch_sha | `34c4330b` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -362,7 +1216,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c1e932e34da8680b8fb0b53c0f44c0cb850a9e1b` |
-| worktree_sha (post-commit docs) | `ef3c67ce0db58404530d158ad564002dc29e3c24` |
+|  *(commit siguiente a este receipt)*| `ef3c67ce0db58404530d158ad564002dc29e3c24` |
 | integrator_branch_sha | `ef3c67ce` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -384,7 +1238,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3453a2b36e6a8815d18a6f5b4f28149343d506cb` |
-| worktree_sha (post-commit docs) | `3837fa14266fbc07c0673c0b9fe7596bcd592bee` |
+|  *(commit siguiente a este receipt)*| `3837fa14266fbc07c0673c0b9fe7596bcd592bee` |
 | integrator_branch_sha | `3837fa14` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -406,7 +1260,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c129dccb281ad0767af3cc43c64486c4408689d9` |
-| worktree_sha (post-commit docs) | `64d69bbe5732b655270be90d537d13477c211660` |
+|  *(commit siguiente a este receipt)*| `64d69bbe5732b655270be90d537d13477c211660` |
 | integrator_branch_sha | `64d69bbe` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -428,7 +1282,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `d27a7db358f5c39a6a6b7a1025ce068269d2529c` |
-| worktree_sha (post-commit docs) | `78beb498097828ff5b43d6173907ae644fc963c4` |
+|  *(commit siguiente a este receipt)*| `78beb498097828ff5b43d6173907ae644fc963c4` |
 | integrator_branch_sha | `78beb498` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -450,7 +1304,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8e89f9ac32b48e3847704748f53755b1ad5155e9` |
-| worktree_sha (post-commit docs) | `1bbc6f7203e134a88551bafa116d2ece86182d5c` |
+|  *(commit siguiente a este receipt)*| `1bbc6f7203e134a88551bafa116d2ece86182d5c` |
 | integrator_branch_sha | `1bbc6f72` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -472,7 +1326,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `22695b8332a711394894848bcaad3163f16e270a` |
-| worktree_sha (post-commit docs) | `cfdfed9153f1cf9606222942bfefb46e9d1e6ff5` |
+|  *(commit siguiente a este receipt)*| `cfdfed9153f1cf9606222942bfefb46e9d1e6ff5` |
 | integrator_branch_sha | `cfdfed91` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -494,7 +1348,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9124ed34ba8412b945fc29e84885dba9b3aa0b97` |
-| worktree_sha (post-commit docs) | `de0f559833ac53b1af27d7b7841fd5b473e6eaa7` |
+|  *(commit siguiente a este receipt)*| `de0f559833ac53b1af27d7b7841fd5b473e6eaa7` |
 | integrator_branch_sha | `de0f5598` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -516,7 +1370,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a6641ed495ccd00f6dddb45ea7b3871f31420fd5` |
-| worktree_sha (post-commit docs) | `bfd6453bcdc50903a253b2629edb26b898803eee` |
+|  *(commit siguiente a este receipt)*| `bfd6453bcdc50903a253b2629edb26b898803eee` |
 | integrator_branch_sha | `bfd6453b` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -538,7 +1392,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `d62711746892e1306df8d6a6be3d1a6fd29f76d7` |
-| worktree_sha (post-commit docs) | `596e763a7b810386c51395642027de619a757d52` |
+|  *(commit siguiente a este receipt)*| `596e763a7b810386c51395642027de619a757d52` |
 | integrator_branch_sha | `596e763a` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -560,7 +1414,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `1b49ad633ab300e73b3201af689fa7c8b106c0d2` |
-| worktree_sha (post-commit docs) | `da0311a3b795cc2d628d19b686bf605dd1e842ad` |
+|  *(commit siguiente a este receipt)*| `da0311a3b795cc2d628d19b686bf605dd1e842ad` |
 | integrator_branch_sha | `da0311a3` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -581,7 +1435,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `85977111e26a9a1e13d374b0033ec921e25f21f5` |
-| worktree_sha (post-commit docs) | `82cc322c9c71ad485460c6c3dd61cf1a489ae195` |
+|  *(commit siguiente a este receipt)*| `82cc322c9c71ad485460c6c3dd61cf1a489ae195` |
 | integrator_branch_sha | `82cc322c` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -602,7 +1456,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `d0b6b00f407f6d42f863121bb96489e8d2a91881` |
-| worktree_sha (post-commit docs) | `9b35c1bc7e553ca0d178e0202f74dd5714b2d985` |
+|  *(commit siguiente a este receipt)*| `9b35c1bc7e553ca0d178e0202f74dd5714b2d985` |
 | integrator_branch_sha | `9b35c1bc` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -624,7 +1478,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `519f74ca20df76f4c362cc47dcca4982b4419a26` |
-| worktree_sha (post-commit docs) | `16207429957b029f5a658c9478a7dd25766b786b` |
+|  *(commit siguiente a este receipt)*| `16207429957b029f5a658c9478a7dd25766b786b` |
 | integrator_branch_sha | `16207429` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -646,7 +1500,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `59ac54da328f02da08a1cd82a9eac388b32ff03c` |
-| worktree_sha (post-commit docs) | `d1226fd2c23ccde47781985564ebdeddb9fd5e2f` |
+|  *(commit siguiente a este receipt)*| `d1226fd2c23ccde47781985564ebdeddb9fd5e2f` |
 | integrator_branch_sha | `d1226fd2` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -668,7 +1522,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `5d3fcd30107360876735471a5ceb52055187743c` |
-| worktree_sha (post-commit docs) | `d5e78b90a62c38294b2f0884469bcef80ce0938c` |
+|  *(commit siguiente a este receipt)*| `d5e78b90a62c38294b2f0884469bcef80ce0938c` |
 | integrator_branch_sha | `d5e78b90` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -690,7 +1544,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c6f9e157b2b009535563c1b6750a6ac2cabbc8f1` |
-| worktree_sha (post-commit docs) | `aaedbcdb73be97ac458dbbf8712f680b58bf7b64` |
+|  *(commit siguiente a este receipt)*| `aaedbcdb73be97ac458dbbf8712f680b58bf7b64` |
 | integrator_branch_sha | `aaedbcdb` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -712,7 +1566,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `1a665c7ed4a0ccf6f2cb02282701672e90e228fd` |
-| worktree_sha (post-commit docs) | `31164cd2000d9d5bb0d6ca727dcddf48985e002b` |
+|  *(commit siguiente a este receipt)*| `31164cd2000d9d5bb0d6ca727dcddf48985e002b` |
 | integrator_branch_sha | `3388c755e5d0870e2c3e50d685fa0a3deac87817` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -734,7 +1588,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `cb9cacbf6018a25b1cc70674b2650dc47504ede5` |
-| worktree_sha (post-commit docs) | `c3c7846b494a088ce1c1cc7f883d4bac0b85d0bd` |
+|  *(commit siguiente a este receipt)*| `c3c7846b494a088ce1c1cc7f883d4bac0b85d0bd` |
 | integrator_branch_sha | `c3c7846b` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -756,7 +1610,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3e51f91feb2a6a7b5da075d46e468bb98d15a87e` |
-| worktree_sha (post-commit docs) | `6f36b9e9838ce1f7d98adbf49e933e448cbd9ffb` |
+|  *(commit siguiente a este receipt)*| `6f36b9e9838ce1f7d98adbf49e933e448cbd9ffb` |
 | integrator_branch_sha | `6f36b9e9` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -778,7 +1632,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `1068fd8c7df92b2412a9f8bdc753dd58ce83d545` |
-| worktree_sha (post-commit docs) | `84c4443b855ba4fd1c81c95dd8ce102242a33b3c` |
+|  *(commit siguiente a este receipt)*| `84c4443b855ba4fd1c81c95dd8ce102242a33b3c` |
 | integrator_branch_sha | `84c4443b` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -800,7 +1654,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `878ccf3bd913bbaa903ea1720a6b5dbef3eefda4` |
-| worktree_sha (post-commit docs) | `fcf91d9fb4ed556e93f3202a07f3359300933fa0` |
+|  *(commit siguiente a este receipt)*| `fcf91d9fb4ed556e93f3202a07f3359300933fa0` |
 | integrator_branch_sha | `fcf91d9f` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -822,7 +1676,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8e1279d5246c7b611fb0d4f94c6070037b23ca35` |
-| worktree_sha (post-commit docs) | `a1376ba14af5160ab41e9220db7e6662494a7812` |
+|  *(commit siguiente a este receipt)*| `a1376ba14af5160ab41e9220db7e6662494a7812` |
 | integrator_branch_sha | `8e1279d5` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -844,7 +1698,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9551f42f285ee92c78193a336fa09b6a3a13d0bb` |
-| worktree_sha (post-commit docs) | `6092d84ec7cffe9152d00a65f251ae1c7ce17c6d` |
+|  *(commit siguiente a este receipt)*| `6092d84ec7cffe9152d00a65f251ae1c7ce17c6d` |
 | integrator_branch_sha | `6092d84e` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -866,7 +1720,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `113df404c237b1b53bac1f0138b8faa20add56d2` |
-| worktree_sha (post-commit docs) | `7cc4225768829d8f7593fd77b5bf76c8ae843559` |
+|  *(commit siguiente a este receipt)*| `7cc4225768829d8f7593fd77b5bf76c8ae843559` |
 | integrator_branch_sha | `7cc42257` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -887,7 +1741,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `93e1ad24e71b6909bf4566aff73bb0ac89b534f3` |
-| worktree_sha (post-commit docs) | `68d4ee030374b5ae48be0b433b79a0e47dd83c21` |
+|  *(commit siguiente a este receipt)*| `68d4ee030374b5ae48be0b433b79a0e47dd83c21` |
 | integrator_branch_sha | `68d4ee03` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -909,7 +1763,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `0b9e2d8057da3635eb523b7343fb53d584c315f3` |
-| worktree_sha (post-commit docs) | `2f3627a4dfb4540912910b5c22bea0cf6b52a6f8` |
+|  *(commit siguiente a este receipt)*| `2f3627a4dfb4540912910b5c22bea0cf6b52a6f8` |
 | integrator_branch_sha | `2f3627a4` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -931,7 +1785,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3c9278fa151787563c3c5b17a200f389af4b79b7` |
-| worktree_sha (post-commit docs) | `46c8bf2c366e24eee66f75c3eaa95e3db82a5f6e` |
+|  *(commit siguiente a este receipt)*| `46c8bf2c366e24eee66f75c3eaa95e3db82a5f6e` |
 | integrator_branch_sha | `cab93925` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -953,7 +1807,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f7b0ecb61160d88e4dc71c5d91d5e0de2eaafd1c` |
-| worktree_sha (post-commit docs) | `5459b108e039a9e78b1af7006559e2921bd64f37` |
+|  *(commit siguiente a este receipt)*| `5459b108e039a9e78b1af7006559e2921bd64f37` |
 | integrator_branch_sha | `5459b108` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -975,7 +1829,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `d3c3654541e8513249a943f523a6688a8f9739ec` |
-| worktree_sha (post-commit docs) | `cb3b9ecffd56e1caab914109e2130ebf536ea9a3` |
+|  *(commit siguiente a este receipt)*| `cb3b9ecffd56e1caab914109e2130ebf536ea9a3` |
 | integrator_branch_sha | `cb3b9ecf` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -997,7 +1851,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `57a988b75e26922b0c1da33b96a00a70bb72d1aa` |
-| worktree_sha (post-commit docs) | `6591cc18bc548cfbcf329c2040fbcafcc6af4f87` |
+|  *(commit siguiente a este receipt)*| `6591cc18bc548cfbcf329c2040fbcafcc6af4f87` |
 | integrator_branch_sha | `6591cc18` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1019,7 +1873,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `34da33961d60202653205e3630de592ba4f232d3` |
-| worktree_sha (post-commit docs) | `778782d8` |
+|  *(commit siguiente a este receipt)*| `778782d8` |
 | integrator_branch_sha | `778782d8` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1040,7 +1894,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `1da17a3608941290e27a714e9f1b235b1696f322` |
-| worktree_sha (post-commit docs) | `2f6f11ec` |
+|  *(commit siguiente a este receipt)*| `2f6f11ec` |
 | integrator_branch_sha | `2f6f11ec` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1061,7 +1915,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `ca8e9f08da62a694277bd1c1cf11f499a36837d3` |
-| worktree_sha (post-commit docs) | `9df258a5` |
+|  *(commit siguiente a este receipt)*| `9df258a5` |
 | integrator_branch_sha | `9df258a5` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1081,7 +1935,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `af4c5026442e994a1155f9c0e24d12b8701f3c03` |
-| worktree_sha (post-commit docs) | `ecae63a4` |
+|  *(commit siguiente a este receipt)*| `ecae63a4` |
 | integrator_branch_sha | `ecae63a4` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1108,7 +1962,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `7b63eb9698f4b410af984715dc2033d8e4351f03` |
-| worktree_sha (post-commit docs) | `9371d779` |
+|  *(commit siguiente a este receipt)*| `9371d779` |
 | integrator_branch_sha | `9371d779` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1128,7 +1982,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8a4f9f0731889bc457a1e030d85758d721f4ac13` |
-| worktree_sha (post-commit docs) | `48d26e5c` |
+|  *(commit siguiente a este receipt)*| `48d26e5c` |
 | integrator_branch_sha | `48d26e5c` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1148,7 +2002,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `b24a4958f9744e41f79525b62e3790ce4115e7be` |
-| worktree_sha (post-commit docs) | `ac901baf` |
+|  *(commit siguiente a este receipt)*| `ac901baf` |
 | integrator_branch_sha | `ac901baf` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1168,7 +2022,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `b50d868be4315564c8b1069047bd4f257b01d352` |
-| worktree_sha (post-commit docs) | `f403e7f5` |
+|  *(commit siguiente a este receipt)*| `f403e7f5` |
 | integrator_branch_sha | `f403e7f5` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1188,7 +2042,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `32ac3610e6605df5e9a99692287e5495d0b5e6d8` |
-| worktree_sha (post-commit docs) | `726d065e` |
+|  *(commit siguiente a este receipt)*| `726d065e` |
 | integrator_branch_sha | `726d065e` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1208,7 +2062,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c3047f2166b52952e0d3106e44daede7ed559354` |
-| worktree_sha (post-commit docs) | `2901db53` |
+|  *(commit siguiente a este receipt)*| `2901db53` |
 | integrator_branch_sha | `2901db53` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1228,7 +2082,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `b151707d26c48a0a8315d595119ea41d1a167026` |
-| worktree_sha (post-commit docs) | `967e389d` |
+|  *(commit siguiente a este receipt)*| `967e389d` |
 | integrator_branch_sha | `967e389d` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1248,7 +2102,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `5126461544c53ba3ad31f5a2f12a093cd0d3a8f1` |
-| worktree_sha (post-commit docs) | `e21577d5` |
+|  *(commit siguiente a este receipt)*| `e21577d5` |
 | integrator_branch_sha | `e21577d5` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1268,7 +2122,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `6e3c5694397f20f8a36bae7a23cd5fe07948a8e5` |
-| worktree_sha (post-commit docs) | `5f8c424a` |
+|  *(commit siguiente a este receipt)*| `5f8c424a` |
 | integrator_branch_sha | `5f8c424a` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1288,7 +2142,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8989981c8031c14980359983a20d188e3e2aade8` |
-| worktree_sha (post-commit docs) | `06d667bc` |
+|  *(commit siguiente a este receipt)*| `06d667bc` |
 | integrator_branch_sha | `06d667bc` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1308,7 +2162,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `14ef9b71f26e675833d2a71d6e0faa613dfafbfb` |
-| worktree_sha (post-commit docs) | `58d397dd` |
+|  *(commit siguiente a este receipt)*| `58d397dd` |
 | integrator_branch_sha | `4a4ef25f` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
@@ -1328,7 +2182,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `feb4d67672f0d4e52cb8b08e89fb67807c028e29` |
-| worktree_sha (post-commit docs) | `e10d1789` |
+|  *(commit siguiente a este receipt)*| `e10d1789` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1347,7 +2201,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `31df85fb06b4e0d0693e0766c7f0e291483618cc` |
-| worktree_sha (post-commit docs) | `443be179` |
+|  *(commit siguiente a este receipt)*| `443be179` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1366,7 +2220,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `5ccd18d1f380a6d54eff911305a23809f9d8a253` |
-| worktree_sha (post-commit docs) | `88a731ea` |
+|  *(commit siguiente a este receipt)*| `88a731ea` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1385,7 +2239,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `be9cb79f33ba77305ff3afd971f1b2293d9598ea` |
-| worktree_sha (post-commit docs) | `f6d97147` |
+|  *(commit siguiente a este receipt)*| `f6d97147` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1405,7 +2259,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9303479c29a0e73295f54d326cee6116f19fce50` |
-| worktree_sha (post-commit docs) | `2b8a596b` |
+|  *(commit siguiente a este receipt)*| `2b8a596b` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1426,7 +2280,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9437dc69207974a0abae290b196cb3c23f425d64` |
-| worktree_sha (post-commit docs) | `68ea6bfa` |
+|  *(commit siguiente a este receipt)*| `68ea6bfa` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1447,7 +2301,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8e0ca08279cf56adbaa80cb99b4a47af65a0091d` |
-| worktree_sha (post-commit docs) | `ac02a2f0` |
+|  *(commit siguiente a este receipt)*| `ac02a2f0` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1468,7 +2322,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `61cdf62d00f7ee3e0b544ced21bd9c0e7650df87` |
-| worktree_sha (post-commit docs) | `3d34ec65` |
+|  *(commit siguiente a este receipt)*| `3d34ec65` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1488,7 +2342,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `4907ee2617b4bd964b81bdfaff509aff1dc285a0` |
-| worktree_sha (post-commit docs) | `ef1389bc` |
+|  *(commit siguiente a este receipt)*| `ef1389bc` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1508,7 +2362,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c03055aa173acdf67beaf7eca136abba9638dca6` |
-| worktree_sha (post-commit docs) | `82a1201b` |
+|  *(commit siguiente a este receipt)*| `82a1201b` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1528,7 +2382,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `43e41bbddaebb100a3dadcc6f1455858ba5ca999` |
-| worktree_sha (post-commit docs) | `c85bd16a` |
+|  *(commit siguiente a este receipt)*| `c85bd16a` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1548,7 +2402,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `509617824619f1eadebdc69ff3ff88fa02be5acd` |
-| worktree_sha (post-commit docs) | `08cb0095` |
+|  *(commit siguiente a este receipt)*| `08cb0095` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1568,7 +2422,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `72d4a41447a65d3fed31d55dd089b356635ecb69` |
-| worktree_sha (post-commit docs) | `153f672a` |
+|  *(commit siguiente a este receipt)*| `153f672a` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1588,7 +2442,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `ac923ba392573e2f62803df1a483763335e3beb9e` |
-| worktree_sha (post-commit docs) | `8a03b229` |
+|  *(commit siguiente a este receipt)*| `8a03b229` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1608,7 +2462,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `d0064391c8d02259447c7632d4dcb5ea1cd56e9e` |
-| worktree_sha (post-commit docs) | `1f3d1d03` |
+|  *(commit siguiente a este receipt)*| `1f3d1d03` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1628,7 +2482,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `24028d3074e15b9b483e41682ed5dae340594075` |
-| worktree_sha (post-commit docs) | `400f2b44` |
+|  *(commit siguiente a este receipt)*| `400f2b44` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1648,7 +2502,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `2bb03088f5b352bceedff696a227525d5fe7ab37` |
-| worktree_sha (post-commit docs) | `106b72a9` |
+|  *(commit siguiente a este receipt)*| `106b72a9` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1667,7 +2521,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f13f5cd4c059d0ceb17c4a6f24619d9d266b48a0` |
-| worktree_sha (post-commit docs) | `240cd854` |
+|  *(commit siguiente a este receipt)*| `240cd854` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1686,7 +2540,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `68d9f8f4881d7319243d24aa38661b5fab205921` |
-| worktree_sha (post-commit docs) | `e328575d` |
+|  *(commit siguiente a este receipt)*| `e328575d` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1705,7 +2559,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `50fa092227bc2ea9393c310e0d859287a70af8a6` |
-| worktree_sha (post-commit docs) | `fb1c6af0` |
+|  *(commit siguiente a este receipt)*| `fb1c6af0` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1724,7 +2578,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `e0fb19ca99e334069df07b6faacc3bd71d035e6d` |
-| worktree_sha (post-commit docs) | `dee5a469` |
+|  *(commit siguiente a este receipt)*| `dee5a469` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1743,7 +2597,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c3de4cdb40ae51454d858dc6afbcc84e20e1f129` |
-| worktree_sha (post-commit docs) | `40c29603` |
+|  *(commit siguiente a este receipt)*| `40c29603` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1763,7 +2617,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `16cf2cafe19ccbcbab88b5d9fb5362253fa20502` |
-| worktree_sha (post-commit docs) | `b2edcdb4` |
+|  *(commit siguiente a este receipt)*| `b2edcdb4` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1783,7 +2637,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3554cf698120cd948983cc200b2af6427fbfa98e` |
-| worktree_sha (post-commit docs) | `a2f30a8a` |
+|  *(commit siguiente a este receipt)*| `a2f30a8a` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1803,7 +2657,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `52691547dbeef8ac509c998bb39a6d76b57c0dff` |
-| worktree_sha (post-commit docs) | `c38fd0c7` |
+|  *(commit siguiente a este receipt)*| `c38fd0c7` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1823,7 +2677,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `43547858adef0d59c30d026ad0d09aa24b04a167` |
-| worktree_sha (post-commit docs) | `b6aa5459` |
+|  *(commit siguiente a este receipt)*| `b6aa5459` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1842,7 +2696,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `bfc3233542c5c1482636717f36c3d3a28b552674` |
-| worktree_sha (post-commit docs) | `a59a7076` |
+|  *(commit siguiente a este receipt)*| `a59a7076` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1861,7 +2715,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c3c43639bfb62517490a67b48e1ed588af497a75` |
-| worktree_sha (post-commit docs) | `4e38f85d` |
+|  *(commit siguiente a este receipt)*| `4e38f85d` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1880,7 +2734,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `cdf822c222672384cadf73d11686d4ce23c6f1fb` |
-| worktree_sha (post-commit docs) | `8ac56656` |
+|  *(commit siguiente a este receipt)*| `8ac56656` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1899,7 +2753,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `004f7198ec92b4711de52fff39716200020a9fb5` |
-| worktree_sha (post-commit docs) | `3037f064` |
+|  *(commit siguiente a este receipt)*| `3037f064` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1918,7 +2772,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9984ecc0ca9e685c9947f9dd14a5bd9fe9a710cd` |
-| worktree_sha (post-commit docs) | `f2a7f05e` |
+|  *(commit siguiente a este receipt)*| `f2a7f05e` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1937,7 +2791,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `e8dfe6505f81a38362cf1838f8dc0b5caabd2e45` |
-| worktree_sha (post-commit docs) | `54cc8bb9` |
+|  *(commit siguiente a este receipt)*| `54cc8bb9` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1975,7 +2829,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `6e5f729eebf3ce7f1e713da994de2f5f60eb270e` |
-| worktree_sha (post-commit docs) | `7b17da01` |
+|  *(commit siguiente a este receipt)*| `7b17da01` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -1995,7 +2849,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f4bdceec7e82583bee6cf5e68a294b102c2a0cd7` |
-| worktree_sha (post-commit docs) | `2abb552c` |
+|  *(commit siguiente a este receipt)*| `2abb552c` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2015,7 +2869,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `518951710833387c0888ff706ef6b48de07d06b0` |
-| worktree_sha (post-commit docs) | `4793f9ea` |
+|  *(commit siguiente a este receipt)*| `4793f9ea` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2035,7 +2889,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8ec8ba3b3414203465db854df3989bb81b5a0b58` |
-| worktree_sha (post-commit docs) | `b9dfdd53` |
+|  *(commit siguiente a este receipt)*| `b9dfdd53` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2055,7 +2909,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `7f55178515af9f5fd130d36f081ed0d74937328d` |
-| worktree_sha (post-commit docs) | `fd2c1f7e` |
+|  *(commit siguiente a este receipt)*| `fd2c1f7e` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2074,7 +2928,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `90183651f22c28d13f71a08da393ede32f60f6a3` |
-| worktree_sha (post-commit docs) | `aec517124802c11ccd562fc0aea581060f29b885` |
+|  *(commit siguiente a este receipt)*| `aec517124802c11ccd562fc0aea581060f29b885` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2093,7 +2947,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `eaa8369036452874b0532b869b8a155cd730f010` |
-| worktree_sha (post-commit docs) | `8fd23678` |
+|  *(commit siguiente a este receipt)*| `8fd23678` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2113,7 +2967,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `79862dcdfedd6282b740a527a95fd7d832358e5d` |
-| worktree_sha (post-commit docs) | `60e5af80` *(tip integrador; ver git)* |
+|  *(commit siguiente a este receipt)*| `60e5af80` *(tip integrador; ver git)* |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2132,7 +2986,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `431e9a83ed38ae50e4c54e79f9640e969c399034` |
-| worktree_sha (post-commit docs) | `76ee27d6` *(tip integrador; ver git)* |
+|  *(commit siguiente a este receipt)*| `76ee27d6` *(tip integrador; ver git)* |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2151,7 +3005,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `036ddcf641b3f232685a968565f4f1d7b8238a9b` |
-| worktree_sha (post-commit docs) | `ae136464` *(tip integrador; ver git)* |
+|  *(commit siguiente a este receipt)*| `ae136464` *(tip integrador; ver git)* |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2169,7 +3023,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9ac0a243a23ff28a52de8b0b915cd9790e75dc9a` |
-| worktree_sha (post-commit docs) | `351c2f6e` *(tip integrador; ver git)* |
+|  *(commit siguiente a este receipt)*| `351c2f6e` *(tip integrador; ver git)* |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2187,7 +3041,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `81cf1cb9e856779b968c280ea35a7c1df09f5cde` |
-| worktree_sha (post-commit docs) | `3c8154c584a2985edffd4308aac94e893ecb01e1` |
+|  *(commit siguiente a este receipt)*| `3c8154c584a2985edffd4308aac94e893ecb01e1` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2205,7 +3059,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `16fce1fda28d8855405749d68eed18a37cd6f2f1` |
-| worktree_sha (post-commit docs) | `33e40968c2dd878e9af8ec344891a0ae63f64237` |
+|  *(commit siguiente a este receipt)*| `33e40968c2dd878e9af8ec344891a0ae63f64237` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2223,7 +3077,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a991aa825d45a39efb7868e94e5ef9c9abf5cebf` |
-| worktree_sha (post-commit docs) | `2e15e5aa505113374f940b7d29a7774060b96cbb` |
+|  *(commit siguiente a este receipt)*| `2e15e5aa505113374f940b7d29a7774060b96cbb` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2241,7 +3095,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `7d3be2bf51e01e9d1f53d2304668f4d2e304602a` |
-| worktree_sha (post-commit docs) | `94a4a352e205b4184277a20d658ba83e5c9059dd` |
+|  *(commit siguiente a este receipt)*| `94a4a352e205b4184277a20d658ba83e5c9059dd` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2259,7 +3113,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `15d71bb886ea6fb3019e79994b16313d9f094a74` |
-| worktree_sha (post-commit docs) | `439b9147266db545b6fed03a2d19c86e2f5d274b` |
+|  *(commit siguiente a este receipt)*| `439b9147266db545b6fed03a2d19c86e2f5d274b` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2277,7 +3131,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f34439147c3b124e73e1049f17f7baee2acd87d8` |
-| worktree_sha (post-commit docs) | `26a7eb00ddd1650adf30c6a39a85bbbdd4f9fe8b` |
+|  *(commit siguiente a este receipt)*| `26a7eb00ddd1650adf30c6a39a85bbbdd4f9fe8b` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2295,7 +3149,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a2e4abf8853da8d825500c6c6c9bb9fb79d0a2f3` |
-| worktree_sha (post-commit docs) | `a69aac4f4933cdb38683ead1090d6e660a9ae49e` |
+|  *(commit siguiente a este receipt)*| `a69aac4f4933cdb38683ead1090d6e660a9ae49e` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2313,7 +3167,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `050e27f8e1837f6df143295e3c18779f2cc7a7c7` |
-| worktree_sha (post-commit docs) | `b528ed0bd451ee0a4836c74d18624df49f44de3c` |
+|  *(commit siguiente a este receipt)*| `b528ed0bd451ee0a4836c74d18624df49f44de3c` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2331,7 +3185,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8909cae3dec384bf48862c02d0aa114b8cf522f2` |
-| worktree_sha (post-commit docs) | `ebc0f29f310213b62516cf9a35113818a61de551` |
+|  *(commit siguiente a este receipt)*| `ebc0f29f310213b62516cf9a35113818a61de551` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2349,7 +3203,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3fc0fe2eb09ab1cd5b0f3e326f4f148798a5677b` |
-| worktree_sha (post-commit docs) | `1df65cc025691f8a93ac939b1155481126e35bb4` |
+|  *(commit siguiente a este receipt)*| `1df65cc025691f8a93ac939b1155481126e35bb4` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2367,7 +3221,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f2db4cbbc6a7ad0cb6d832f42dd0a8fbe9ed61f9` |
-| worktree_sha (post-commit docs) | `485146999aca87c1d7da2a0898202c262d903af2` |
+|  *(commit siguiente a este receipt)*| `485146999aca87c1d7da2a0898202c262d903af2` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2385,7 +3239,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c1042a4ce874fa1828a42961aa4b26aa23d1d98e` |
-| worktree_sha (post-commit docs) | `770560e869a39f1249258bf3919b0f50daefd2a0` |
+|  *(commit siguiente a este receipt)*| `770560e869a39f1249258bf3919b0f50daefd2a0` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2403,7 +3257,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `dd6324ca934338cf60545609bf8838a9172ee1a3` |
-| worktree_sha (post-commit docs) | `92bf20c4656bad8ffab534aa36da43161f765990` |
+|  *(commit siguiente a este receipt)*| `92bf20c4656bad8ffab534aa36da43161f765990` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2421,7 +3275,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `cc6d19524287221dea1dd674d50e787e2609ab9a` |
-| worktree_sha (post-commit docs) | `75062dc4024db51fce98f558392a3144f692199e` |
+|  *(commit siguiente a este receipt)*| `75062dc4024db51fce98f558392a3144f692199e` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2439,7 +3293,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `59495e9ace17d14c5f7083002cd2942fb91dfc3f` |
-| worktree_sha (post-commit docs) | `93db6bdf2b27e099d6f2e7fe3dbbee67914ea4b5` |
+|  *(commit siguiente a este receipt)*| `93db6bdf2b27e099d6f2e7fe3dbbee67914ea4b5` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -2489,13 +3343,13 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 | Fase | Alcance | Estado | Evidencia |
 |------|---------|--------|-----------|
-| 1 | Inventario read-only Git/runtime/fleet | **PARTIAL** | Auditor `ralphi-ia-ver-10`; worktree/platform código **main** `f8786613` (gate código `f211e533` vía #242); Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main → runtime no certificado |
+| 1 | Inventario read-only Git/runtime/fleet | **PARTIAL** | Auditor `ralphi-ia-ver-10`; código runtime en **main** `f3b4c112` (gate #241–#242); Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main → runtime no certificado |
 | 2 | Contrato estados / adendas / CAS | **PASS (offline)** | Heredado PR #232/#233; gate global nuevo en `finalize_verification_to_completed` |
 | 3 | Reintentos / fencing DevSwarm | **PASS (offline)** | Heredado PR #233 `test_dev_swarm_retry_budget_regression` |
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; gate Mongo + **Temporal** (`shared_pre_temporal_denials`); reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **PASS (Git)** | Main tip `f8786613…` (merge PR [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245)); código gate `f211e533…` (PR [#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242)); **258 passed** @ 21:48Z local; CI PR [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) [40960390302](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40960390302); CI main [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928); runtime SHA import pendiente fase 8 |
+| 7 | CI + PR integrador | **PASS (Git)** | Main tip `f3b4c112…` (merge PR [#247](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/247)); gate en main desde #241–#242; **258 passed** @ 22:42Z local; CI main [40963960336](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40963960336); PR docs [#248](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/248) OPEN; runtime SHA import pendiente fase 8 |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -2516,7 +3370,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T21:47:57Z; `--expected-sha f8786613…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`); Temporal `:7233` y Mongo `:27017` escuchando en auditor; MCP Small `:8001` no escucha en este host.
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T22:42:09Z; `--expected-sha f3b4c112…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`); Temporal `:7233` y Mongo `:27017` escuchando en auditor; MCP Small `:8001` no escucha en este host.
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 17:37Z
 
@@ -2910,7 +3764,7 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 
 ### Autorización owner pendiente (misma OPS, no nueva task)
 
-1. **Deploy canario host 1 (AMD)** — alinear `ralfiia-amd` (`192.168.1.5`) con main `f878661373aad307489b7de5eaf95d7444d43804` (actual runtime `f3a4ecdd…`); snapshot/rollback + reinicio servicios solo tras checkpoint HA explícito en esta OPS.
+1. **Deploy canario host 1 (AMD)** — alinear `ralfiia-amd` (`192.168.1.5`) con main `c418fa173cf580d5255db6d7d1165655f1e70910` (actual runtime `f3a4ecdd…`); snapshot/rollback + reinicio servicios solo tras checkpoint HA explícito en esta OPS.
 2. **Deploy canario host 2 (Intel)** — clave SSH/Tailscale para `rlopez@192.168.1.4` (audit actual: **Permission denied**); mismo SHA canario tras AMD verificado.
 3. **Grant HA** — gasto real Codex/Antigravity con tope DURO (fases 5/9 parcial **BLOCKED** sin grant).
 4. **E2E fase 9** — tarea inocua HA→routing→worktree→receipt→Temporal/Mongo→notificación, solo tras deploy canario aprobado.

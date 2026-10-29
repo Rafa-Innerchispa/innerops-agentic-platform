@@ -10,18 +10,20 @@ main_merge_sha_pr240: 83384714247267548e3bcceba25081248999fb1d
 main_merge_sha_pr241: c0ce5e40a94b620b6f87a0bfa96f79349d5c9df9
 main_merge_sha_pr242: f211e53370e0680f087a84e1e302476c04a594b9
 main_merge_sha_pr243: 913219af58a310d0c385be83eff65873976e9acf
-main_tip_sha: 2c1578917e8739712a73e8d9e6f9fc470cb5352d
+main_tip_sha: 430c13ff10f1c8a44422226f6b98326ad6b336c9
 main_merge_sha_pr245: f878661373aad307489b7de5eaf95d7444d43804
 main_merge_sha_pr246: 2c1578917e8739712a73e8d9e6f9fc470cb5352d
-integrator_branch_sha: "ea2f85f6"
+main_merge_sha_pr247: f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727
+main_merge_sha_pr238: 430c13ff10f1c8a44422226f6b98326ad6b336c9
+integrator_branch_sha: "f7014137"
 integrator_pr: 234
-docs_pr: 246
-docs_pr_merged: true
-last_verified_utc: "2026-10-29T22:08:00Z"
-ci_local_pytest: "258 passed, 13 subtests (inneros-runtime-gates.yml @ ralphi-ia-ver-10 22:08Z composer-2.5-fast)"
-ci_main_run_id: "40937741928"
-ci_docs_pr_run_id: "40963535857"
-runtime_fleet_audit_utc: "2026-10-29T22:08:03Z"
+docs_pr: 248
+docs_pr_merged: false
+last_verified_utc: "2026-10-29T23:45:00Z"
+ci_local_pytest: "269 passed, 13 subtests (inneros-runtime-gates.yml @ ralphi-ia-ver-10 23:45Z composer-2.5-fast)"
+ci_main_run_id: "40974044408"
+ci_docs_pr_run_id: "40975006994"
+runtime_fleet_audit_utc: "2026-10-29T23:42:16Z"
 runtime_fleet_audit_ok: false
 entries:
   - scene: inbox_ack_without_execution
