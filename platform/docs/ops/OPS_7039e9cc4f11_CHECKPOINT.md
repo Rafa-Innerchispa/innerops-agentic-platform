@@ -2,7 +2,7 @@
 
 Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `f878661373aad307489b7de5eaf95d7444d43804` (merge docs [#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) @ 19:10Z; código gate en `f211e533` vía #242). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (docs-only sobre main `f8786613`; head integrador post-sesión en receipt más reciente). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) → main `f8786613`; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. PR docs abierto: [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) (MERGEABLE; CI SUCCESS @ 21:38Z run [40959514548](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40959514548), head `08d4af05…`).
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator` (docs-only sobre main `f8786613`; head integrador post-sesión en receipt más reciente). Cadena integrador **MERGED** [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#242](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/242); docs checkpoint **MERGED** [#243](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/243)–[#245](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/245) → main `f8786613`; gate Temporal `shared_pre_temporal_denials` en main desde #241; **sin COMPLETED global de la OPS**. PR docs abierto: [#246](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/246) (MERGEABLE; CI SUCCESS @ 21:38Z run [40959514548](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40959514548), head `2410df06…`).
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 21:40Z
 
@@ -10,14 +10,14 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `08d4af05bfd0e891627d9a0f0aefb77eb782f56d` |
-| worktree_sha (post-commit docs) | *(actualizar en tip commit)* |
-| integrator_branch_sha | *(actualizar en tip commit)* |
+| worktree_sha (post-commit docs) | `2410df06` |
+| integrator_branch_sha | `2410df06` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
 | host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T21:40Z |
 | tests | pytest exit **0** — **258 passed**, 13 subtests (`inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 21:39Z) |
-| CI PR #246 | **SUCCESS** @ 21:38Z (run [40959514548](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40959514548), head `08d4af05…`) |
+| CI PR #246 | **SUCCESS** @ 21:38Z (run [40959514548](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40959514548), head `2410df06…`) |
 | CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
 | runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 21:39Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
 | mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
