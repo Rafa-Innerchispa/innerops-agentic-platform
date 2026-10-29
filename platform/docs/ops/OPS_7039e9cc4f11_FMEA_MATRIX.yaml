@@ -1,0 +1,100 @@
+# Machine-readable FMEA matrix — ops_7039e9cc4f11 (offline/stateful, no live side effects)
+task_id: ops_7039e9cc4f11
+requirements_version: integrator-2026-10-29
+baseline_main_sha: ac4e16e75e31c8d00c89419f0db2badf3c55749c
+entries:
+  - scene: inbox_ack_without_execution
+    invariant: INV-01
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: delivery_semantics ack != task_work_done
+  - scene: forged_owner_grant_on_claim
+    invariant: INV-02
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: ops_auto_claim_admission owner_authorization_not_recorded
+  - scene: completion_with_pending_amendments
+    invariant: INV-03
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: ops_task_requirements.completion_blocked_by_amendments
+  - scene: stale_amendment_cas_version
+    invariant: INV-04
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: apply_amendment stale_amendment_base_version
+  - scene: duplicate_amendment_register
+    invariant: INV-05
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: register_amendment idempotent duplicate
+  - scene: double_continuation_terminal_parent
+    invariant: INV-06
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: create_continuation_for_amendment single child
+  - scene: synthetic_canary_as_real_provider
+    invariant: INV-07
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: EXECUTION_SYNTHETIC_CANARY != EXECUTION_PROVIDER_REAL
+  - scene: peer_ops_without_owner
+    invariant: INV-08
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: execution_binding peer_ops_owner_approval_required
+  - scene: paid_model_without_grant
+    invariant: INV-09
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: ops_owner_approval_ha owner_budget_grant_required
+  - scene: unknown_budget_assumed_zero_usd
+    invariant: INV-10
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: parse_natural_language_budget usd_hard_limit None
+  - scene: foreign_provider_double_claim
+    invariant: INV-11
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: claim_admission different_assignee
+  - scene: checkpoint_replay_after_crash
+    invariant: INV-12
+    test: platform/tests/test_ops_fmea_invariants.py::test_fmea_invariants_matrix
+    status: PASS
+    remediation: process_checkpoint_amendments idempotent empty queue
+  - scene: agent_report_no_completed_global
+    invariant: INV-13
+    test: platform/tests/test_ops_global_completion_gate.py
+    status: PASS
+    remediation: ops_global_completion_gate + finalize_verification_to_completed CAS
+  - scene: temporal_reconcile_bypass_completed
+    invariant: INV-13
+    test: platform/tests/test_reconcile_ops_mongo_temporal.py::test_reconcile_never_proposes_terminal_completed
+    status: PASS
+    remediation: reconcile advances verification only, never terminal completed
+  - scene: ops_6e3e49716e6c_false_close_regression
+    invariant: INV-13
+    test: platform/tests/test_ops_global_completion_gate.py::test_finalize_verification_rejects_agent_denial_cas
+    status: PASS
+    remediation: global_completion_gate_failed blocks Mongo update_one
+  - scene: synthetic_canary_pass_evidence
+    invariant: INV-07
+    test: platform/tests/test_ops_global_completion_gate.py::test_synthetic_canary_never_verifies
+    status: PASS
+    remediation: synthetic_canary_not_real_provider reason
+  - scene: codex_antigravity_real_execution
+    invariant: N/A
+    test: BLOCKED
+    status: BLOCKED
+    remediation: owner grant + CLI/IDE E2E required — no SYNTHETIC_CANARY_PASS
+  - scene: deploy_runtime_canary_host
+    invariant: N/A
+    test: BLOCKED
+    status: AWAITING_DEPLOY_APPROVAL
+    remediation: HA checkpoint per host before service restart
+  - scene: e2e_ha_chatgpt_to_receipt
+    invariant: N/A
+    test: BLOCKED
+    status: BLOCKED
+    remediation: post-merge + grant + impact approval

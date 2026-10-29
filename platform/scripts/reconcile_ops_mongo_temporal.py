@@ -102,7 +102,8 @@ def _proposed_action(task: dict[str, Any], temporal: dict[str, Any]) -> dict[str
             is_coding = str(task.get("task_class") or "coding").lower() == "coding"
             if is_coding and temporal.get("result_gate_passed") is not True:
                 return None
-            new_status = "completed"
+            # Never write terminal completed from reconcile — global gate + verified_receipt only.
+            new_status = "verification"
         else:
             # A successful Temporal RPC can carry a blocked or failed task.
             # Unknown legacy result shape must be reviewed, not completed.

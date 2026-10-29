@@ -52,6 +52,8 @@ jobs:
             platform/inneros_core_runtime/governed_model_writes.py \
             platform/inneros_core_runtime/temporal_bounded_executor.py \
             platform/inneros_core_runtime/interactive_ops_runner.py \
+            platform/inneros_core_runtime/ops_global_completion_gate.py \
+            platform/inneros_core_runtime/ops_lifecycle.py \
             platform/scripts/cursor_ha_e2e_server_probe.py \
             platform/tests/test_governed_model_writes.py \
             platform/inneros_core_runtime/execution_receipts.py \
@@ -110,7 +112,8 @@ jobs:
             platform/tests/test_ops_owner_approval_ha.py \
             platform/tests/test_provider_execution_trust_boundary.py \
             platform/tests/test_ops_fmea_invariants.py \
-            platform/tests/test_dev_swarm_retry_budget_regression.py
+            platform/tests/test_dev_swarm_retry_budget_regression.py \
+            platform/tests/test_ops_global_completion_gate.py
       - name: Produce CI-only provenance manifest
         env:
           INNEROS_COMMIT: ${{ github.sha }}
