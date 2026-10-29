@@ -3,11 +3,13 @@ task_id: ops_7039e9cc4f11
 requirements_version: integrator-2026-10-29
 baseline_main_sha: ac4e16e75e31c8d00c89419f0db2badf3c55749c
 main_merge_sha_pr234: 7b10325457979042521dac3f988b0034a1e9e28b
-integrator_branch_sha: 0e7be30d
+main_merge_sha_pr235: 24277871235bf19cad138546432b613102549c75
+integrator_branch_sha: e7b168d4
 integrator_pr: 234
-docs_pr: 235
-last_verified_utc: "2026-10-29T14:45:00Z"
-ci_local_pytest: "254 passed, 13 subtests (MCP bypass dfccb387 + CI subset 14:47Z)"
+docs_pr: 236
+docs_pr_merged: false
+last_verified_utc: "2026-10-29T15:11:00Z"
+ci_local_pytest: "255 passed, 13 subtests (inneros-runtime-gates @ ralphi-ia-ver-10 15:11Z; main 24277871; PR236 CI 40898337229)"
 runtime_fleet_audit_ok: false
 entries:
   - scene: inbox_ack_without_execution
@@ -85,6 +87,11 @@ entries:
     test: platform/tests/test_ops_global_completion_gate.py::test_finalize_verification_rejects_agent_denial_cas
     status: PASS
     remediation: global_completion_gate_failed blocks Mongo update_one
+  - scene: concurrent_completion_revision_race
+    invariant: INV-13
+    test: platform/tests/test_ops_global_completion_gate.py::test_finalize_verification_cas_race_does_not_terminal_close
+    status: PASS
+    remediation: concurrent_completion_race when CAS modified_count=0; no WhatsApp terminal
   - scene: raphiia_mcp_complete_ops_task_bypass
     invariant: INV-13
     test: platform/tests/test_ops_global_completion_gate.py::test_raphiia_mcp_complete_ops_task_is_fail_closed
