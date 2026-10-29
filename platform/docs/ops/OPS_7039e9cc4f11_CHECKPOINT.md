@@ -10,6 +10,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f34439147c3b124e73e1049f17f7baee2acd87d8` |
+| worktree_sha (post-commit docs) | `26a7eb00ddd1650adf30c6a39a85bbbdd4f9fe8b` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
