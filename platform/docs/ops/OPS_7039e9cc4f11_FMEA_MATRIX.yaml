@@ -12,7 +12,7 @@ main_merge_sha_pr242: f211e53370e0680f087a84e1e302476c04a594b9
 main_merge_sha_pr243: 913219af58a310d0c385be83eff65873976e9acf
 main_tip_sha: f878661373aad307489b7de5eaf95d7444d43804
 main_merge_sha_pr245: f878661373aad307489b7de5eaf95d7444d43804
-integrator_branch_sha: "pending_push"
+integrator_branch_sha: "7cc42257"
 integrator_pr: 234
 docs_pr: 246
 docs_pr_merged: false
