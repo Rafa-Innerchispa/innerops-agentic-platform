@@ -35,18 +35,19 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:46Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `7b103254…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T14:52Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd…` ≠ main `24277871…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-| worktree SHA | `a3071ebcdf5b883c87085b931a8a73b9ed4b4376` |
-| before_sha (pre-sesión) | `2d39ebb82fe9f08f118be5c6d10cb572f555bd8a` |
+| worktree SHA | `452ac27d83976d2cce6f0c8ba26f6a1ae5cd1c3b` (post-commit docs 14:48Z) |
+| before_sha (pre-sesión) | `24277871235bf19cad138546432b613102549c75` |
 | main SHA (merge #235) | `24277871235bf19cad138546432b613102549c75` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:48Z |
-| tests | pytest exit 0 — 254 passed, 13 subtests; GitHub `critical-runtime-contracts` **PASS** en PR #235 |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T14:52Z |
+| tests | pytest exit 0 — 254 passed, 13 subtests (`critical-runtime-contracts` suite local) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py` → `ok: false` (Intel SSH; AMD SHA desalineado) |
 | estado global OPS | **IN_PROGRESS** — código en main; runtime AMD/Intel desalineado; deploy HA + E2E sin certificar (**no COMPLETED_VERIFIED**) |
