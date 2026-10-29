@@ -21,7 +21,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 ## Bug P0 reparado (falsos cierres)
 
 - **Causa:** `finalize_verification_to_completed` escribía `status=completed` en Mongo sin evaluar criterio global ni texto del agente.
-- **Remediación:** `ops_global_completion_gate.evaluate_global_completion` + transición RACB CAS (`revision` + `verification`); certificación `COMPLETED_VERIFIED` y `verified_receipt` obligatorios.
+- **Remediación:** `ops_global_completion_gate.evaluate_global_completion` + transición RACB CAS (`revision` + `verification`); certificación `COMPLETED_VERIFIED` y `verified_receipt` obligatorios; `racb_protocol.validate_evidence` rechaza `PASS`/`OK` sin `global_completion_ack` + receipt (segunda línea de defensa).
 - **Bypass adicional cerrado:** `reconcile_ops_mongo_temporal.py` ya no propone `completed` terminal; solo avanza a `verification` para cierre vía gate.
 - **Bypass MCP (sesión 14:45Z):** `raphiia_openai.coordination_live.complete_ops_task` y transición directa `update_ops_task_state(..., completed)` devuelven `direct_completion_forbidden` / `temporal_owns_task_lifecycle` (alineado con `inneros_core_runtime.coordination_live`).
 
@@ -35,20 +35,20 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:11:25Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:13:09Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
 
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
-|  `434fcb778f6a183f575accadace5edf2cb3cc1e7`| `434fcb778f6a183f575accadace5edf2cb3cc1e7` (rama integrator; gate en main `9cf2d1c2`) |
-| before_sha (pre-sesión) | `434fcb778f6a183f575accadace5edf2cb3cc1e7` |
+| worktree_sha | `e2d17078ab7142a0bb8fdb3e0b721a20ee940698` (RACB hardening; main gate sigue en `9cf2d1c2` hasta merge) |
+| before_sha (pre-sesión) | `818911aa1704ac93b0698e88d56a63e3468e60d0` |
 | main SHA (merge #236) | `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
-| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:11Z |
-| tests | pytest exit 0 — 255 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:11Z) |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:14Z |
+| tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:14Z; +RACB false-close) |
 | CI integrator PR #237 | workflow `inneros-runtime-gates` — **SUCCESS** @ 16:00Z (run 40906996336) |
 | runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 9cf2d1c2…` → `ok: false` (Intel SSH; AMD SHA desalineado) |
 | estado global OPS | **IN_PROGRESS** — gate en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |

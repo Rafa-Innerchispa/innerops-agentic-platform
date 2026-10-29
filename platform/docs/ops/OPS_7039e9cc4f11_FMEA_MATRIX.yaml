@@ -5,12 +5,12 @@ baseline_main_sha: ac4e16e75e31c8d00c89419f0db2badf3c55749c
 main_merge_sha_pr234: 7b10325457979042521dac3f988b0034a1e9e28b
 main_merge_sha_pr235: 24277871235bf19cad138546432b613102549c75
 main_merge_sha_pr236: 9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d
-integrator_branch_sha: ce226e37
+integrator_branch_sha: e2d17078
 integrator_pr: 234
 docs_pr: 237
 docs_pr_merged: false
-last_verified_utc: "2026-10-29T16:11:00Z"
-ci_local_pytest: "255 passed, 13 subtests (inneros-runtime-gates @ ralphi-ia-ver-10 16:11Z composer-2.5-fast; main 9cf2d1c2)"
+last_verified_utc: "2026-10-29T16:14:00Z"
+ci_local_pytest: "256 passed, 13 subtests (inneros-runtime-gates @ ralphi-ia-ver-10 16:14Z composer-2.5-fast; racb completed_verified_receipt_required)"
 docs_pr_open: 237
 runtime_fleet_audit_ok: false
 entries:
@@ -94,6 +94,11 @@ entries:
     test: platform/tests/test_ops_global_completion_gate.py::test_finalize_verification_cas_race_does_not_terminal_close
     status: PASS
     remediation: concurrent_completion_race when CAS modified_count=0; no WhatsApp terminal
+  - scene: racb_pass_only_completed_evidence
+    invariant: INV-13
+    test: platform/tests/test_ops_global_completion_gate.py::test_racb_completed_rejects_pass_without_verified_receipt
+    status: PASS
+    remediation: racb_protocol.validate_evidence requires COMPLETED_VERIFIED + global_completion_ack or verified_receipt
   - scene: raphiia_mcp_complete_ops_task_bypass
     invariant: INV-13
     test: platform/tests/test_ops_global_completion_gate.py::test_raphiia_mcp_complete_ops_task_is_fail_closed
