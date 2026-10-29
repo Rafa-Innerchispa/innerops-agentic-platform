@@ -10,14 +10,14 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `878ccf3bd913bbaa903ea1720a6b5dbef3eefda4` |
-| worktree_sha (post-commit docs) | *(pendiente post-commit)* |
-| integrator_branch_sha | `878ccf3b` |
+| worktree_sha (post-commit docs) | `fcf91d9fb4ed556e93f3202a07f3359300933fa0` |
+| integrator_branch_sha | `fcf91d9f` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
 | host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T20:46Z |
 | tests | pytest exit **0** — **258 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml`; `.venv` + `PYTHONPATH=platform` @ 20:46Z) |
-| CI PR #246 | **SUCCESS** @ 20:44Z (run [40951603689](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40951603689), head `878ccf3b…`) |
+| CI PR #246 | **SUCCESS** @ 20:44Z (run [40951603689](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40951603689), head `fcf91d9f…` tras push) |
 | CI main | **SUCCESS** @ 19:11Z (run [40937741928](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40937741928), head `f8786613…`) |
 | runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha f8786613…` → `ok: false` @ 20:46Z (Intel SSH **Permission denied**; AMD `ralfiia-amd` `f3a4ecdd…` ≠ main; worktree integrador docs-only ≠ main) |
 | mongo/temporal reconcile | `reconcile_ops_mongo_temporal.py --task-id ops_7039e9cc4f11` → `ok: true`, `proposed: 1`, `applied: 0` (dry-run) |
