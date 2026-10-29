@@ -208,3 +208,20 @@ def test_deploy_receipt_does_not_pause_and_can_progress_to_verification():
     assert odep.completion_requires_deploy_pause(
         {"task_class": "coding", "payload": {}}, {}
     ) is False
+
+
+def test_original_live_task_payload_flags_force_pause_without_host_evidence():
+    # Regression: ops_7039e9cc4f11 used a coding task class and this
+    # structured approval flag. Do not depend on objective prose matching.
+    task = {"task_id": "ops_7039e9cc4f11", "task_class": "coding",
+            "payload": {"production_deploy_requires_fresh_approval": True}}
+    assert odep.task_implies_deploy_pause(task) is True
+    assert odep.completion_requires_deploy_pause(
+        task, {"commit_sha": "a" * 40, "test_results": {"ok": True, "exit_code": 0}}
+    ) is True
+
+
+def test_no_extra_pause_for_coding_only_when_deploy_approval_is_optional():
+    task = {"task_class": "coding", "payload": {"external_spend_requires_fresh_approval": True}}
+    assert odep.task_implies_deploy_pause(task) is False
+    assert odep.completion_requires_deploy_pause(task, {}) is False
