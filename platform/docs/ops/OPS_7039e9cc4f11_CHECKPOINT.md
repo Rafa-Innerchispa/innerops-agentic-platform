@@ -1,8 +1,8 @@
 # OPS ops_7039e9cc4f11 — checkpoint integrador (2026-10-29)
 
-Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` (merge PR [#236](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/236) tras #235 `24277871235bf19cad138546432b613102549c75`, 2026-10-29T15:12Z). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
+Baseline pre-integrador: `ac4e16e75e31c8d00c89419f0db2badf3c55749c` (merge PR #233). **Main actual:** `9f51f22e6bfa16ba481d3ad9e1b8d556e21afc39` (merge PR [#237](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/237) RACB + checkpoint integrador, 2026-10-29T16:19Z; ancestro #236 `9cf2d1c2…`). Padres terminales: ops_6e3e49716e6c, ops_2dae642f4ebf (no reabrir).
 
-Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. PR integrador [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) **MERGED** — `critical-runtime-contracts` + GitGuardian **PASS**. PR docs checkpoint [#237](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/237) **OPEN** (solo evidencia; sin COMPLETED global).
+Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9cc4f11-integrator`. PR integrador [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) **MERGED**. PR [#237](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/237) **MERGED** → main incluye `e2d17078` RACB hardening (sin COMPLETED global de la OPS).
 
 ## Fases
 
@@ -14,7 +14,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 | 4 | Aprobaciones HA / presupuesto | **PASS (local)** | Heredado PR #232; sin grant owner para gasto real Codex/Antigravity |
 | 5 | Proveedores reales | **BLOCKED parcial** | Cursor coding en worktree OK; Codex/Antigravity sin grant autorizado |
 | 6 | FMEA / falsos COMPLETED | **PASS (offline)** | INV-13; `ops_global_completion_gate.py`; reconcile→`verification` only; matriz `OPS_7039e9cc4f11_FMEA_MATRIX.yaml` |
-| 7 | CI + PR integrador | **PASS (Git)** | PR [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234) + [#235](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/235) + [#236](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/236) **MERGED** → main `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d`; local **255 passed** (+13 subtests) @ 2026-10-29T15:11Z (test CAS race INV-13 incluido en main) |
+| 7 | CI + PR integrador | **PASS (Git)** | PR [#234](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/234)–[#237](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/237) **MERGED** → main `9f51f22e6bfa16ba481d3ad9e1b8d556e21afc39`; local **256 passed** (+13 subtests) @ 2026-10-29T16:17Z; CI run [40910074667](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40910074667) **SUCCESS** |
 | 8 | Deploy runtime | **AWAITING_DEPLOY_APPROVAL** | Sin reinicio servicios; requiere checkpoint HA por host |
 | 9 | E2E HA→Cursor→receipt | **BLOCKED** | Tras merge + grant + aprobación impacto |
 
@@ -37,8 +37,6 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T16:16:37Z; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel SSH **Permission denied**; AMD `ralfiia-amd` SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main `9cf2d1c2…` (`matches_expected: false`; audit `ok: false`).
 
-**Pendiente merge a main (código):** commit `e2d17078` — `racb_protocol.validate_evidence` exige `verified_receipt` / `global_completion_ack` para `completed` (cierra bypass PASS sin receipt post-#236).
-
 ## Receipt sesión Cursor (composer-2.5-fast)
 
 | Campo | Valor |
@@ -46,14 +44,14 @@ Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.
 | task_id | ops_7039e9cc4f11 |
 | worktree_sha | `cab69ea47a52cfd10a6b572d64552866e4ebc322` (tip integrator; código RACB en ancestro `e2d17078`; main sigue `9cf2d1c2` hasta merge PR #237) |
 | before_sha (pre-sesión) | `cab69ea47a52cfd10a6b572d64552866e4ebc322` |
-| main SHA (merge #236) | `9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d` |
+| main SHA (merge #237) | `9f51f22e6bfa16ba481d3ad9e1b8d556e21afc39` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
 | host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T16:18Z |
 | tests | pytest exit 0 — 256 passed, 13 subtests (`PYTHONPATH=platform`, suite `inneros-runtime-gates` @ 16:17Z; incl. `test_racb_completed_rejects_pass_without_verified_receipt`) |
-| CI integrator PR #237 | re-ejecutar tras push tip (`e2d17078`+); último SUCCESS @ 16:00Z (run 40906996336, pre-RACB) |
-| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 9cf2d1c2…` → `ok: false` (Intel SSH; AMD SHA desalineado) |
-| estado global OPS | **IN_PROGRESS** — gate en main; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
+| CI integrator PR #237 | **SUCCESS** @ 16:19Z (run [40910074667](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40910074667); post-merge main gate) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 9f51f22e…` pendiente post-merge; último `ok: false` @ 16:16Z (Intel SSH; AMD SHA desalineado) |
+| estado global OPS | **IN_PROGRESS** — gate+RACB en main `9f51f22e`; runtime sin SHA importado; **AWAITING_DEPLOY_APPROVAL** + E2E (**no COMPLETED_VERIFIED**) |
 
 ### Autorización owner pendiente (misma OPS, no nueva task)
 
