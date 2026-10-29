@@ -10,7 +10,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `61cdf62d00f7ee3e0b544ced21bd9c0e7650df87` |
-| worktree_sha (post-commit docs) | *(ver tip rama tras commit sesión)* |
+|  *(ver tip rama tras commit sesión)* | *(ver tip rama tras commit sesión)* |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -30,7 +30,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `4907ee2617b4bd964b81bdfaff509aff1dc285a0` |
-| worktree_sha (post-commit docs) | `ef1389bc` |
+|  *(ver tip rama tras commit sesión)* | `ef1389bc` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -50,7 +50,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c03055aa173acdf67beaf7eca136abba9638dca6` |
-| worktree_sha (post-commit docs) | `82a1201b` |
+|  *(ver tip rama tras commit sesión)* | `82a1201b` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -70,7 +70,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `43e41bbddaebb100a3dadcc6f1455858ba5ca999` |
-| worktree_sha (post-commit docs) | `c85bd16a` |
+|  *(ver tip rama tras commit sesión)* | `c85bd16a` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -90,7 +90,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `509617824619f1eadebdc69ff3ff88fa02be5acd` |
-| worktree_sha (post-commit docs) | `08cb0095` |
+|  *(ver tip rama tras commit sesión)* | `08cb0095` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -110,7 +110,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `72d4a41447a65d3fed31d55dd089b356635ecb69` |
-| worktree_sha (post-commit docs) | `153f672a` |
+|  *(ver tip rama tras commit sesión)* | `153f672a` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -130,7 +130,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `ac923ba392573e2f62803df1a483763335e3beb9e` |
-| worktree_sha (post-commit docs) | `8a03b229` |
+|  *(ver tip rama tras commit sesión)* | `8a03b229` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -150,7 +150,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `d0064391c8d02259447c7632d4dcb5ea1cd56e9e` |
-| worktree_sha (post-commit docs) | `1f3d1d03` |
+|  *(ver tip rama tras commit sesión)* | `1f3d1d03` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -170,7 +170,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `24028d3074e15b9b483e41682ed5dae340594075` |
-| worktree_sha (post-commit docs) | `400f2b44` |
+|  *(ver tip rama tras commit sesión)* | `400f2b44` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -190,7 +190,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `2bb03088f5b352bceedff696a227525d5fe7ab37` |
-| worktree_sha (post-commit docs) | `106b72a9` |
+|  *(ver tip rama tras commit sesión)* | `106b72a9` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -209,7 +209,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f13f5cd4c059d0ceb17c4a6f24619d9d266b48a0` |
-| worktree_sha (post-commit docs) | `240cd854` |
+|  *(ver tip rama tras commit sesión)* | `240cd854` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -228,7 +228,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `68d9f8f4881d7319243d24aa38661b5fab205921` |
-| worktree_sha (post-commit docs) | `e328575d` |
+|  *(ver tip rama tras commit sesión)* | `e328575d` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -247,7 +247,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `50fa092227bc2ea9393c310e0d859287a70af8a6` |
-| worktree_sha (post-commit docs) | `fb1c6af0` |
+|  *(ver tip rama tras commit sesión)* | `fb1c6af0` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -266,7 +266,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `e0fb19ca99e334069df07b6faacc3bd71d035e6d` |
-| worktree_sha (post-commit docs) | `dee5a469` |
+|  *(ver tip rama tras commit sesión)* | `dee5a469` |
 | main SHA | `f878661373aad307489b7de5eaf95d7444d43804` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -285,7 +285,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c3de4cdb40ae51454d858dc6afbcc84e20e1f129` |
-| worktree_sha (post-commit docs) | `40c29603` |
+|  *(ver tip rama tras commit sesión)* | `40c29603` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -305,7 +305,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `16cf2cafe19ccbcbab88b5d9fb5362253fa20502` |
-| worktree_sha (post-commit docs) | `b2edcdb4` |
+|  *(ver tip rama tras commit sesión)* | `b2edcdb4` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -325,7 +325,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3554cf698120cd948983cc200b2af6427fbfa98e` |
-| worktree_sha (post-commit docs) | `a2f30a8a` |
+|  *(ver tip rama tras commit sesión)* | `a2f30a8a` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -345,7 +345,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `52691547dbeef8ac509c998bb39a6d76b57c0dff` |
-| worktree_sha (post-commit docs) | `c38fd0c7` |
+|  *(ver tip rama tras commit sesión)* | `c38fd0c7` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -365,7 +365,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `43547858adef0d59c30d026ad0d09aa24b04a167` |
-| worktree_sha (post-commit docs) | `b6aa5459` |
+|  *(ver tip rama tras commit sesión)* | `b6aa5459` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -384,7 +384,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `bfc3233542c5c1482636717f36c3d3a28b552674` |
-| worktree_sha (post-commit docs) | `a59a7076` |
+|  *(ver tip rama tras commit sesión)* | `a59a7076` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -403,7 +403,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c3c43639bfb62517490a67b48e1ed588af497a75` |
-| worktree_sha (post-commit docs) | `4e38f85d` |
+|  *(ver tip rama tras commit sesión)* | `4e38f85d` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -422,7 +422,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `cdf822c222672384cadf73d11686d4ce23c6f1fb` |
-| worktree_sha (post-commit docs) | `8ac56656` |
+|  *(ver tip rama tras commit sesión)* | `8ac56656` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -441,7 +441,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `004f7198ec92b4711de52fff39716200020a9fb5` |
-| worktree_sha (post-commit docs) | `3037f064` |
+|  *(ver tip rama tras commit sesión)* | `3037f064` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -460,7 +460,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9984ecc0ca9e685c9947f9dd14a5bd9fe9a710cd` |
-| worktree_sha (post-commit docs) | `f2a7f05e` |
+|  *(ver tip rama tras commit sesión)* | `f2a7f05e` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -479,7 +479,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `e8dfe6505f81a38362cf1838f8dc0b5caabd2e45` |
-| worktree_sha (post-commit docs) | `54cc8bb9` |
+|  *(ver tip rama tras commit sesión)* | `54cc8bb9` |
 | main SHA | `633f11c9546d797506c9579580070c4b76ccf738` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -517,7 +517,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `6e5f729eebf3ce7f1e713da994de2f5f60eb270e` |
-| worktree_sha (post-commit docs) | `7b17da01` |
+|  *(ver tip rama tras commit sesión)* | `7b17da01` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -537,7 +537,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f4bdceec7e82583bee6cf5e68a294b102c2a0cd7` |
-| worktree_sha (post-commit docs) | `2abb552c` |
+|  *(ver tip rama tras commit sesión)* | `2abb552c` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -557,7 +557,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `518951710833387c0888ff706ef6b48de07d06b0` |
-| worktree_sha (post-commit docs) | `4793f9ea` |
+|  *(ver tip rama tras commit sesión)* | `4793f9ea` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -577,7 +577,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8ec8ba3b3414203465db854df3989bb81b5a0b58` |
-| worktree_sha (post-commit docs) | `b9dfdd53` |
+|  *(ver tip rama tras commit sesión)* | `b9dfdd53` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -597,7 +597,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `7f55178515af9f5fd130d36f081ed0d74937328d` |
-| worktree_sha (post-commit docs) | `fd2c1f7e` |
+|  *(ver tip rama tras commit sesión)* | `fd2c1f7e` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -616,7 +616,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `90183651f22c28d13f71a08da393ede32f60f6a3` |
-| worktree_sha (post-commit docs) | `aec517124802c11ccd562fc0aea581060f29b885` |
+|  *(ver tip rama tras commit sesión)* | `aec517124802c11ccd562fc0aea581060f29b885` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -635,7 +635,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `eaa8369036452874b0532b869b8a155cd730f010` |
-| worktree_sha (post-commit docs) | `8fd23678` |
+|  *(ver tip rama tras commit sesión)* | `8fd23678` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -655,7 +655,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `79862dcdfedd6282b740a527a95fd7d832358e5d` |
-| worktree_sha (post-commit docs) | `60e5af80` *(tip integrador; ver git)* |
+|  *(ver tip rama tras commit sesión)* | `60e5af80` *(tip integrador; ver git)* |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -674,7 +674,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `431e9a83ed38ae50e4c54e79f9640e969c399034` |
-| worktree_sha (post-commit docs) | `76ee27d6` *(tip integrador; ver git)* |
+|  *(ver tip rama tras commit sesión)* | `76ee27d6` *(tip integrador; ver git)* |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -693,7 +693,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `036ddcf641b3f232685a968565f4f1d7b8238a9b` |
-| worktree_sha (post-commit docs) | `ae136464` *(tip integrador; ver git)* |
+|  *(ver tip rama tras commit sesión)* | `ae136464` *(tip integrador; ver git)* |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -711,7 +711,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `9ac0a243a23ff28a52de8b0b915cd9790e75dc9a` |
-| worktree_sha (post-commit docs) | `351c2f6e` *(tip integrador; ver git)* |
+|  *(ver tip rama tras commit sesión)* | `351c2f6e` *(tip integrador; ver git)* |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -729,7 +729,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `81cf1cb9e856779b968c280ea35a7c1df09f5cde` |
-| worktree_sha (post-commit docs) | `3c8154c584a2985edffd4308aac94e893ecb01e1` |
+|  *(ver tip rama tras commit sesión)* | `3c8154c584a2985edffd4308aac94e893ecb01e1` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -747,7 +747,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `16fce1fda28d8855405749d68eed18a37cd6f2f1` |
-| worktree_sha (post-commit docs) | `33e40968c2dd878e9af8ec344891a0ae63f64237` |
+|  *(ver tip rama tras commit sesión)* | `33e40968c2dd878e9af8ec344891a0ae63f64237` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -765,7 +765,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a991aa825d45a39efb7868e94e5ef9c9abf5cebf` |
-| worktree_sha (post-commit docs) | `2e15e5aa505113374f940b7d29a7774060b96cbb` |
+|  *(ver tip rama tras commit sesión)* | `2e15e5aa505113374f940b7d29a7774060b96cbb` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -783,7 +783,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `7d3be2bf51e01e9d1f53d2304668f4d2e304602a` |
-| worktree_sha (post-commit docs) | `94a4a352e205b4184277a20d658ba83e5c9059dd` |
+|  *(ver tip rama tras commit sesión)* | `94a4a352e205b4184277a20d658ba83e5c9059dd` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -801,7 +801,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `15d71bb886ea6fb3019e79994b16313d9f094a74` |
-| worktree_sha (post-commit docs) | `439b9147266db545b6fed03a2d19c86e2f5d274b` |
+|  *(ver tip rama tras commit sesión)* | `439b9147266db545b6fed03a2d19c86e2f5d274b` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -819,7 +819,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f34439147c3b124e73e1049f17f7baee2acd87d8` |
-| worktree_sha (post-commit docs) | `26a7eb00ddd1650adf30c6a39a85bbbdd4f9fe8b` |
+|  *(ver tip rama tras commit sesión)* | `26a7eb00ddd1650adf30c6a39a85bbbdd4f9fe8b` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -837,7 +837,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `a2e4abf8853da8d825500c6c6c9bb9fb79d0a2f3` |
-| worktree_sha (post-commit docs) | `a69aac4f4933cdb38683ead1090d6e660a9ae49e` |
+|  *(ver tip rama tras commit sesión)* | `a69aac4f4933cdb38683ead1090d6e660a9ae49e` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -855,7 +855,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `050e27f8e1837f6df143295e3c18779f2cc7a7c7` |
-| worktree_sha (post-commit docs) | `b528ed0bd451ee0a4836c74d18624df49f44de3c` |
+|  *(ver tip rama tras commit sesión)* | `b528ed0bd451ee0a4836c74d18624df49f44de3c` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -873,7 +873,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `8909cae3dec384bf48862c02d0aa114b8cf522f2` |
-| worktree_sha (post-commit docs) | `ebc0f29f310213b62516cf9a35113818a61de551` |
+|  *(ver tip rama tras commit sesión)* | `ebc0f29f310213b62516cf9a35113818a61de551` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -891,7 +891,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `3fc0fe2eb09ab1cd5b0f3e326f4f148798a5677b` |
-| worktree_sha (post-commit docs) | `1df65cc025691f8a93ac939b1155481126e35bb4` |
+|  *(ver tip rama tras commit sesión)* | `1df65cc025691f8a93ac939b1155481126e35bb4` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -909,7 +909,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `f2db4cbbc6a7ad0cb6d832f42dd0a8fbe9ed61f9` |
-| worktree_sha (post-commit docs) | `485146999aca87c1d7da2a0898202c262d903af2` |
+|  *(ver tip rama tras commit sesión)* | `485146999aca87c1d7da2a0898202c262d903af2` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -927,7 +927,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `c1042a4ce874fa1828a42961aa4b26aa23d1d98e` |
-| worktree_sha (post-commit docs) | `770560e869a39f1249258bf3919b0f50daefd2a0` |
+|  *(ver tip rama tras commit sesión)* | `770560e869a39f1249258bf3919b0f50daefd2a0` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -945,7 +945,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `dd6324ca934338cf60545609bf8838a9172ee1a3` |
-| worktree_sha (post-commit docs) | `92bf20c4656bad8ffab534aa36da43161f765990` |
+|  *(ver tip rama tras commit sesión)* | `92bf20c4656bad8ffab534aa36da43161f765990` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -963,7 +963,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `cc6d19524287221dea1dd674d50e787e2609ab9a` |
-| worktree_sha (post-commit docs) | `75062dc4024db51fce98f558392a3144f692199e` |
+|  *(ver tip rama tras commit sesión)* | `75062dc4024db51fce98f558392a3144f692199e` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
@@ -981,7 +981,7 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 |-------|-------|
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `59495e9ace17d14c5f7083002cd2942fb91dfc3f` |
-| worktree_sha (post-commit docs) | `93db6bdf2b27e099d6f2e7fe3dbbee67914ea4b5` |
+|  *(ver tip rama tras commit sesión)* | `93db6bdf2b27e099d6f2e7fe3dbbee67914ea4b5` |
 | main SHA | `f211e53370e0680f087a84e1e302476c04a594b9` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
