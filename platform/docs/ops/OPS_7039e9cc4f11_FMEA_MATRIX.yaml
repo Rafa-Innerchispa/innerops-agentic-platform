@@ -8,14 +8,14 @@ main_merge_sha_pr236: 9cf2d1c2aca77a2f278e4627a3b57e1e3c25c09d
 main_merge_sha_pr237: 9f51f22e6bfa16ba481d3ad9e1b8d556e21afc39
 main_merge_sha_pr240: 83384714247267548e3bcceba25081248999fb1d
 main_tip_sha: 83384714247267548e3bcceba25081248999fb1d
-integrator_branch_sha: 703a40d21479f030eb8919e62c1c310e03b4116f
+integrator_branch_sha: a954799625481d8a618ef62ed201301c6162b05e
 integrator_pr: 234
 docs_pr: 241
 docs_pr_merged: false
-last_verified_utc: "2026-10-29T17:25:20Z"
-ci_local_pytest: "257 passed, 13 subtests (inneros-runtime-gates.yml @ ralphi-ia-ver-10 17:25Z composer-2.5-fast)"
+last_verified_utc: "2026-10-29T17:28:30Z"
+ci_local_pytest: "257 passed, 13 subtests (inneros-runtime-gates.yml @ ralphi-ia-ver-10 17:28Z composer-2.5-fast)"
 ci_main_run_id: "40916025327"
-runtime_fleet_audit_utc: "2026-10-29T17:24:50Z"
+runtime_fleet_audit_utc: "2026-10-29T17:28:29Z"
 runtime_fleet_audit_ok: false
 entries:
   - scene: inbox_ack_without_execution

@@ -35,7 +35,24 @@ Modelo carril Cursor: `composer-2.5-fast`. Rama integradora: `cursor/ops-7039e9c
 
 **NO COMPLETED_VERIFIED** hasta: gate global desplegado en runtime (SHA importado), E2E con grant, deploy autorizado con verificación en ≥1 host canario.
 
-Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T17:24:50Z; `--expected-sha 83384714…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+Evidencia read-only fase 1: `var/evidence/ops_7039e9cc4f11_runtime_deploy_audit.json` (regenerado 2026-10-29T17:28:29Z; `--expected-sha 83384714…`; sin secretos; gitignored). Auditor: `ralphi-ia-ver-10`; Intel `192.168.1.4` SSH **Permission denied**; AMD `ralfiia-amd` (`192.168.1.5`) SHA `f3a4ecdd53cda50c0f24568cebb781db15c41f15` ≠ main (`matches_expected: false`; audit `ok: false`).
+
+## Receipt sesión Cursor (composer-2.5-fast) — 17:28Z
+
+| Campo | Valor |
+|-------|-------|
+| task_id | ops_7039e9cc4f11 |
+| before_sha (pre-sesión) | `a954799625481d8a618ef62ed201301c6162b05e` |
+| worktree_sha | *(post-commit docs)* |
+| main SHA | `83384714247267548e3bcceba25081248999fb1d` |
+| branch | `cursor/ops-7039e9cc4f11-integrator` |
+| model | `composer-2.5-fast` |
+| host / hora UTC | `ralphi-ia-ver-10` / 2026-10-29T17:28Z |
+| tests | pytest exit 0 — **257 passed**, 13 subtests (suite CI `inneros-runtime-gates.yml` @ 17:28Z) |
+| CI main | **SUCCESS** @ 16:53Z (run [40916025327](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/actions/runs/40916025327), head `83384714…`) |
+| runtime audit | `ops_runtime_deploy_audit_readonly.py --expected-sha 83384714…` → `ok: false` @ 17:28:29Z |
+| verificación sesión | Orden definitiva P0: re-cert inventario + suite gate; código **sin delta `.py`** vs `origin/main`; remediación falsos cierres verificada (`finalize_verification_to_completed` → `evaluate_global_completion` + RACB CAS); PR [#241](https://github.com/Rafa-Innerchispa/innerops-agentic-platform/pull/241) docs OPEN; **sin COMPLETED global** |
+| estado global OPS | **IN_PROGRESS** — **AWAITING_DEPLOY_APPROVAL** + E2E; fases 8–9 bloqueadas owner (Intel SSH, AMD SHA≠main, grant HA Codex/Antigravity) |
 
 ## Receipt sesión Cursor (composer-2.5-fast) — 17:25Z
 
