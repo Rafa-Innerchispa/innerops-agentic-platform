@@ -23,7 +23,7 @@ Tras **APRUEBO** por host: snapshot → deploy canario → verificar API/MCP/Tem
 | task_id | ops_7039e9cc4f11 |
 | before_sha (pre-sesión) | `94e6cb3d038318ec2e515b96d1f365bac65ebf7b` |
 | worktree_sha (post-commit docs) | `c20d05750c6509679d325993d4b63bc757371c2a` |
-| integrator_branch_sha | `c20d05750c6509679d325993d4b63bc757371c2a` |
+| integrator_branch_sha | `f3fb322e` *(tip integrador post-SHA fix)* |
 | main SHA | `f3b4c1120c9e63ef77bc6e9bbb2a4bf00f5eb727` |
 | branch | `cursor/ops-7039e9cc4f11-integrator` |
 | model | `composer-2.5-fast` |
