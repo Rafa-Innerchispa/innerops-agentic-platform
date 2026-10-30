@@ -23,6 +23,7 @@ from temporalio.exceptions import ApplicationError
 from inneros_core_runtime.module_contract import TaskEnvelopeV1, ProtocolMutationGuard
 from inneros_core_runtime import local_model_router
 from inneros_core_runtime import durable_coordination_spine
+from inneros_core_runtime.execution_resource_guard import guard_execution
 
 try:
     from inneros_core_runtime.docker_sandbox_executor import DockerSandboxExecutor
@@ -719,6 +720,13 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             non_retryable=True,
         )
 
+    return await _execute_budgeted_internal_graph(envelope_dict, worktree_info)
+
+
+@guard_execution("temporal", "envelope_dict")
+async def _execute_budgeted_internal_graph(envelope_dict: Dict[str, Any], worktree_info: Dict[str, Any]) -> Dict[str, Any]:
+    envelope = TaskEnvelopeV1.from_dict(envelope_dict)
+    worktree = worktree_info.get("worktree", "")
     prompt_body = envelope.objective or envelope.title
     if envelope.checklist:
         prompt_body = f"{prompt_body}\n\nChecklist:\n" + "\n".join(f"- {item}" for item in envelope.checklist[:40])

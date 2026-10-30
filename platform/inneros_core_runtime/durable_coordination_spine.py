@@ -396,6 +396,9 @@ async def _start_task_workflow_async(task: dict[str, Any]) -> dict[str, Any]:
 
 def start_task_workflow(task: dict[str, Any]) -> dict[str, Any]:
     """Synchronous MCP adapter for canonical Temporal task admission."""
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return {"ok": False, "error": "live_task_admission_forbidden_during_pytest",
+                "task_id": str(task.get("task_id") or ""), "backend": "temporal"}
     try:
         return _run_async(_start_task_workflow_async(task))
     except Exception as exc:

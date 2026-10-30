@@ -1,0 +1,10 @@
+[Unit]
+Description=Audit execution limits once per minute without LLM usage
+
+[Timer]
+OnBootSec=120
+OnUnitInactiveSec=60
+Unit=inneros-execution-resource-audit.service
+
+[Install]
+WantedBy=timers.target

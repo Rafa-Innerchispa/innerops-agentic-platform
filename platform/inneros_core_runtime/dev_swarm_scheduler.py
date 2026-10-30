@@ -21,6 +21,7 @@ from typing import Any
 
 from raphiia_openai import capacity_governor_vnext, coordination_live, dev_swarm_watchdog, durable_coordination_spine, local_execution_plane, local_model_router, mongo_store, project_runtime_registry
 from inneros_core_runtime import coordination_liveness, dev_swarm_dispatch_reconcile
+from inneros_core_runtime.execution_resource_guard import guard_execution
 
 SCHEDULER_STATE_KEY = "dev_swarm_scheduler"
 WORKERS_COL = "ralfia_dev_swarm_workers"
@@ -2964,6 +2965,7 @@ def _fail_worker_early(task_id: str, error: str, outcome: str = "FAIL") -> dict[
     return {"ok": False, "task_id": task_id, "outcome": outcome, "error": error}
 
 
+@guard_execution("dev_swarm", "worker")
 def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = True) -> dict[str, Any]:
     task_id = str(worker.get("task_id") or "")
     repo = _worker_repo(worker)

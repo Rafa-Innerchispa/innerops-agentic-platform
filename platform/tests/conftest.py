@@ -17,7 +17,9 @@ def _offline_coordination_state_in_ci(monkeypatch: pytest.MonkeyPatch):
     state = {"ok": False, "state": {}}
     mock_db = MagicMock()
     mock_db.find_one.return_value = None
-    mock_db.__getitem__ = MagicMock(return_value=MagicMock())
+    mock_collection = MagicMock()
+    mock_collection.find_one.return_value = None
+    mock_db.__getitem__ = MagicMock(return_value=mock_collection)
     targets = (
         ("inneros_core_runtime.mcp_diagnostics.mongo_store.get_coordination_state", state),
         ("raphiia_openai.mongo_store.get_coordination_state", state),
