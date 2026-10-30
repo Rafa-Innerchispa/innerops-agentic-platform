@@ -40,8 +40,8 @@ jobs:
                       try:
                           element.click(timeout=8500)
                           page.wait_for_timeout(1350)
-                          click={'clicked':true}
-                      except Exception as exc:click={'clicked':false,'error':str(exc)[:850]}
+                          click={'clicked':True}
+                      except Exception as exc:click={'clicked':False,'error':str(exc)[:850]}
                       after={'diagnosisSummary':page.locator('#diagnosisSummary').inner_text(),'receipt':page.locator('#receipt').inner_text()[:180],'headline':page.locator('#headline').inner_text()}
                       click.update({'hit':hit,'before':before,'after':after,'view_change':before!=after,'log':page.locator('#eventLog').inner_text()[:1200],'response_log':r['requests'][-8:]})
                       r[button]=click
