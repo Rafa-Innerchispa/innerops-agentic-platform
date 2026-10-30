@@ -1,0 +1,66 @@
+name: Guardian Diagnose feedback verified against live lab backend
+on:
+  push:
+    branches: [chatgpt/guardian-live-health-20261030]
+    paths: [.github/workflows/guardian-diagnose-feedback-preview.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 -m pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium
+      - name: Browser test fixed source with real Guardian API over HTTPS
+        shell: bash
+        run: |
+          mkdir -p diagnose-feedback-proof
+          cat > /tmp/check_feedback.py <<'PY'
+          import json,urllib.request,sys
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          url='https://guardian.creatorcore.ai/'
+          source='https://raw.githubusercontent.com/Rafa-Innerchispa/inneros-nebius-nvidia-physical-ai-2026/main/web/index.html'
+          def fetch(u):
+              with urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':'Guardian-Predeploy-QA'}),timeout=25) as f: return f.read().decode('utf-8','replace')
+          expected=fetch(source)
+          production=fetch(url)
+          report={'provisional_source_commit':'d50a7cc37d307dbbf9403b0050638aeb1f19ca48','public_has_fix':'data-ux="diagnose-feedback-v3"' in production,'runs':[]}
+          assert 'data-ux="diagnose-feedback-v3"' in expected, 'Candidate missing UX marker'
+          with sync_playwright() as p:
+            b=p.chromium.launch(headless=True)
+            for device,viewport in [('desktop',{'width':1440,'height':900}),('mobile',{'width':390,'height':844})]:
+              c=b.new_context(viewport=viewport,is_mobile=device=='mobile',has_touch=device=='mobile')
+              q=c.new_page()
+              errors=[]
+              requests=[]
+              q.on('pageerror',lambda e: errors.append(str(e)))
+              q.on('response',lambda r: requests.append({'status':r.status,'path':r.url.split('/api/guardian/')[-1]}) if '/api/guardian/' in r.url else None)
+              if not report['public_has_fix']:
+                q.route(url,lambda route:route.fulfill(status=200,content_type='text/html',body=expected,headers={'Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'"}))
+              q.goto(url,wait_until='domcontentloaded',timeout=30000)
+              q.wait_for_timeout(5000)
+              q.locator('#diagnose').click(timeout=12000)
+              q.wait_for_timeout(1800)
+              a=q.locator('#guardianToast')
+              one={'shown':a.is_visible(),'text':a.inner_text(),'summary':q.locator('#diagnosisSummary').inner_text(),'api':requests,'js_errors':errors}
+              q.screenshot(path=f'diagnose-feedback-proof/{device}.png',full_page=True)
+              report['runs'].append({'device':device,**one})
+              c.close()
+            b.close()
+          report['pass']=all(x['shown'] and 'Diagnosis complete' in x['text'] and any(y['status']==200 and y['path']=='diagnose' for y in x['api']) and not x['js_errors'] for x in report['runs'])
+          print(json.dumps(report,indent=2))
+          Path('diagnose-feedback-proof/result.json').write_text(json.dumps(report,indent=2))
+          sys.exit(0 if report['pass'] else 2)
+          PY
+          python3 /tmp/check_feedback.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-diagnose-feedback-result
+          path: diagnose-feedback-proof/
+          retention-days: 3
