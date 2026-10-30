@@ -1,0 +1,28 @@
+name: Guardian release smoke check
+on:
+  push:
+    branches: [chatgpt/guardian-live-health-20261030]
+    paths: [.github/workflows/guardian-release-smoke.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect actual public release SHA without mutations
+        shell: bash
+        run: |
+          set -eu
+          curl -fsSL --max-time 20 'https://guardian.creatorcore.ai/' -o /tmp/guardian.html
+          echo "public_http=200"
+          if grep -q 'data-ux="diagnose-feedback-v3"' /tmp/guardian.html; then echo 'new_diagnose_toast_live=true'; else echo 'new_diagnose_toast_live=false'; fi
+          if grep -q 'function showPermit()' /tmp/guardian.html; then echo 'permit_status_live=true'; else echo 'permit_status_live=false'; fi
+          if grep -q 'guardian-voiceops-visual-v2' /tmp/guardian.html; then echo 'voiceops_visual_live=true'; fi
+          curl -sS -o /tmp/overview.json -w 'guardian_overview_http=%{http_code}\n' 'https://guardian.creatorcore.ai/api/guardian/overview'
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/overview.json'))
+          print('guardian_contract='+str(p.get('contract_version')))
+          PY
