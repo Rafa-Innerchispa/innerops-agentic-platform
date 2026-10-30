@@ -32,7 +32,7 @@ jobs:
                   page.on('response',lambda resp:r['requests'].append({'url':resp.url.split('/api/guardian/')[-1],'http':resp.status}) if '/api/guardian/' in resp.url else None)
                   page.on('pageerror',lambda e:r['js_errors'].append(str(e)[:300]))
                   page.goto('https://guardian.creatorcore.ai/',wait_until='domcontentloaded',timeout=25000)
-                  page.wait_for_function("document.getElementById('apiState').textContent !== 'CONNECTING'",timeout=20000)
+                  page.wait_for_timeout(4500)
                   for button in ['diagnose','nodeDiagnose']:
                       before={'diagnosisSummary':page.locator('#diagnosisSummary').inner_text(),'receipt':page.locator('#receipt').inner_text()[:180],'headline':page.locator('#headline').inner_text()}
                       element=page.locator('#'+button)
