@@ -1,0 +1,77 @@
+name: Guardian authentic browser demo capture
+on:
+  push:
+    branches: [chatgpt/guardian-live-health-20261030]
+    paths: [.github/workflows/guardian-demo-recording.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recording:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser recorder
+        run: |
+          python3 -m pip install -q playwright
+          python3 -m playwright install --with-deps chromium
+      - name: Record real live app interactions
+        shell: bash
+        run: |
+          mkdir -p guardian-browser-recording
+          cat >/tmp/guardian_capture.py <<'PY'
+          import json,time,pathlib
+          from playwright.sync_api import sync_playwright
+          root=pathlib.Path("guardian-browser-recording")
+          r={"source":"https://guardian.creatorcore.ai/","kind":"authentic browser recording of synthetic lab","steps":[]}
+          with sync_playwright() as p:
+            b=p.chromium.launch(headless=True,args=['--no-sandbox'])
+            c=b.new_context(viewport={"width":1600,"height":900},record_video_dir=str(root),record_video_size={"width":1600,"height":900},device_scale_factor=1)
+            page=c.new_page()
+            page.on("response",lambda e:r["steps"].append({"type":"api","path":e.url.split('/api/guardian/')[-1],"http":e.status}) if '/api/guardian/' in e.url else None)
+            page.goto(r["source"],wait_until="domcontentloaded",timeout=30000)
+            page.wait_for_timeout(6500)
+            page.screenshot(path=str(root/"start.png"),full_page=False)
+            page.locator("#nodeReason").click()
+            page.wait_for_timeout(7500)
+            page.locator("#runGuided").click()
+            page.wait_for_timeout(7000)
+            page.locator("#evidenceTitle").scroll_into_view_if_needed()
+            page.wait_for_timeout(9500)
+            page.locator("#reset").click()
+            page.wait_for_timeout(1400)
+            page.locator("#diagnose").click()
+            page.wait_for_timeout(9500)
+            page.locator("#plan").click()
+            page.wait_for_timeout(8500)
+            page.locator("#verify").click()
+            page.wait_for_timeout(8500)
+            page.locator("#fetchEvidence").click()
+            page.wait_for_timeout(7500)
+            page.locator("#evidenceTitle").scroll_into_view_if_needed()
+            page.wait_for_timeout(6500)
+            page.screenshot(path=str(root/"completed.png"),full_page=False)
+            page.locator("#runCore").scroll_into_view_if_needed()
+            page.wait_for_timeout(6000)
+            r["status"]={"api":page.locator("#apiState").inner_text(),"evidence":page.locator("#evidenceTitle").inner_text(),"mode":page.locator("#modelMode").inner_text(),"recovery":page.locator("#verificationState").inner_text()}
+            page.close()
+            video=page.video
+            assert video is not None
+            video.save_as(str(root/"guardian_real_browser_capture.webm"))
+            c.close();b.close()
+          (root/"recording.json").write_text(json.dumps(r,indent=2))
+          assert r["status"]["recovery"]=="SIMULATED"
+          assert r["status"]["api"]=="GUARDIAN v1"
+          print(json.dumps(r,indent=2))
+          PY
+          python3 /tmp/guardian_capture.py
+          ffprobe -v error -show_entries format=duration,size -of json guardian-browser-recording/guardian_real_browser_capture.webm
+      - name: Preserve full recording
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-real-live-operator-demo-footage
+          path: guardian-browser-recording/
+          retention-days: 4
+          if-no-files-found: error
