@@ -1,0 +1,81 @@
+name: Guardian live browser E2E
+on:
+  push:
+    branches: [chatgpt/guardian-live-health-20261030]
+    paths: [.github/workflows/guardian-live-browser-e2e.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install browser QA
+        run: |
+          python3 -m pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium
+      - name: E2E browser + screenshots (synthetic lab, no paid inference, no physical execution)
+        shell: bash
+        run: |
+          mkdir -p guardian-e2e-results
+          cat > /tmp/guardian_live_e2e.py <<'PY'
+          import json,sys,time
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          out=Path('guardian-e2e-results')
+          result={'url':'https://guardian.creatorcore.ai/','console_errors':[],'uncaught':[],'desktop':{},'mobile':{},'claims':{}}
+          with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True)
+              page=browser.new_page(viewport={'width':1440,'height':900},device_scale_factor=1)
+              page.on('console',lambda msg: result['console_errors'].append(msg.text[:360]) if msg.type=='error' else None)
+              page.on('pageerror',lambda e: result['uncaught'].append(str(e)[:500]))
+              try:
+                  response=page.goto(result['url'],wait_until='domcontentloaded',timeout=40000)
+                  result['desktop']['http']=response.status if response else None
+                  page.wait_for_timeout(7000)
+                  result['desktop']['release']=page.locator('body').get_attribute('data-release')
+                  result['desktop']['api_state']=page.locator('#apiState').inner_text()
+                  result['desktop']['receipt_badge']=page.locator('#receiptBadge').inner_text()
+                  result['desktop']['run_button_enabled']=page.locator('#runGuided').is_enabled()
+                  page.screenshot(path=str(out/'guardian-desktop-initial.png'),full_page=True)
+                  if result['desktop']['run_button_enabled']:
+                      page.locator('#runGuided').click()
+                      page.wait_for_timeout(9500)
+                      result['desktop']['evidence_title']=page.locator('#evidenceTitle').inner_text()
+                      result['desktop']['execution_state']=page.locator('#executionState').inner_text()
+                      result['desktop']['verification_state']=page.locator('#verificationState').inner_text()
+                      result['desktop']['logs']=page.locator('#eventLog').inner_text()[:2400]
+                      page.screenshot(path=str(out/'guardian-desktop-after-guided-run.png'),full_page=True)
+                      result['desktop']['guided_ok']='PERSISTED GATEWAY EVIDENCE' in result['desktop']['evidence_title']
+              except Exception as exc:
+                  result['desktop']['error']=repr(exc)[:700]
+                  page.screenshot(path=str(out/'guardian-desktop-failed.png'),full_page=True)
+              mobile=browser.new_page(viewport={'width':390,'height':844},device_scale_factor=1,is_mobile=True,has_touch=True)
+              mobile.on('pageerror',lambda e:result['uncaught'].append('mobile: '+str(e)[:500]))
+              try:
+                  response=mobile.goto(result['url'],wait_until='domcontentloaded',timeout=40000)
+                  result['mobile']['http']=response.status if response else None
+                  mobile.wait_for_timeout(6000)
+                  result['mobile']['api_state']=mobile.locator('#apiState').inner_text()
+                  result['mobile']['page_width']=mobile.evaluate('document.documentElement.scrollWidth')
+                  mobile.screenshot(path=str(out/'guardian-mobile.png'),full_page=True)
+              except Exception as exc:
+                  result['mobile']['error']=repr(exc)[:700]
+              browser.close()
+          ok=(result['desktop'].get('release')=='guardian-voiceops-visual-v2' and result['desktop'].get('guided_ok') and result['mobile'].get('http')==200 and not result['uncaught'])
+          result['pass']=bool(ok)
+          (out/'guardian-browser-e2e.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
+          print(json.dumps(result,ensure_ascii=False,indent=2))
+          sys.exit(0 if ok else 2)
+          PY
+          python3 /tmp/guardian_live_e2e.py
+      - name: Preserve result and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-live-e2e-evidence-20261030
+          path: guardian-e2e-results/
+          retention-days: 3
+          if-no-files-found: warn
