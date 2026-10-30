@@ -31,7 +31,7 @@ jobs:
           curl -fL --retry 5 --retry-all-errors --retry-delay 5 --max-time 120 "$browser" -o media-out/browser.mp4
           curl -fL --retry 5 --retry-all-errors --retry-delay 5 --max-time 120 "$poster" -o media-out/poster.jpg
           found=0
-          for n in $(seq 1 8); do
+          for n in $(seq 1 2); do
             if curl -fsSL --max-time 180 "$main" -o media-out/main.mp4 && test "$(stat -c%s media-out/main.mp4)" -gt 1000000; then found=1; break; fi
             echo "Corrected long lip sync unavailable on check $n; do not substitute robotic audio."
             sleep 15
@@ -43,7 +43,7 @@ jobs:
             echo 'Corrected lip-sync still pending. Use the already-generated professional RAFa English audio, NEVER the robotic voice.'
             corrected_audio='https://resource2.heygen.ai/text_to_speech/b1fa31d7ad674d3fabdb78e5b726d067/509b0abb80dd4b409f847c9419e29bec/id=0d60b2da-28d2-468f-bbf0-b0df9fce7b90.wav'
             curl -fL --retry 6 --retry-all-errors --retry-delay 3 --max-time 120 "$corrected_audio" -o media-out/main.wav
-            ffmpeg -hide_banner -loglevel error -y -loop 1 -framerate 30 -i media-out/poster.jpg -i media-out/main.wav -c:v libx264 -preset ultrafast -crf 24 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest media-out/main.mp4
+            ffmpeg -hide_banner -loglevel error -y -loop 1 -framerate 30 -i media-out/poster.jpg -i media-out/main.wav -vf 'scale=1920:1080,setsar=1' -c:v libx264 -preset ultrafast -crf 24 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest media-out/main.mp4
             echo 'GUARDIAN_MAIN_VISUAL_MODE=corrected_voiceover_no_main_avatar' >> "$GITHUB_ENV"
             echo 'corrected professional audio + real lab visuals; only intro shows speaker' > media-out/visual_source.txt
           fi
