@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+from inneros_core_runtime.cursor_headless_policy import MAX_AUTOMATIC_DISPATCHES, headless_denial
 from inneros_core_runtime import headless_worker_runtime as hwr
 from raphiia_openai import mongo_store
 
@@ -69,6 +70,10 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
 
     host = lanes.hostname()
     db = mongo_store.get_db()
+    task = db[OPS_TASKS_COL].find_one({"task_id": tid}) or {}
+    denied = headless_denial(task)
+    if denied:
+        return {"ok": False, "task_id": tid, "error": denied}
     if force_retry:
         db[OPS_TASKS_COL].update_one(
             {"task_id": tid, "assignee": "cursor"},
@@ -86,9 +91,20 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
         {
             "task_id": tid,
             "status": {"$in": ["in_progress", "claimed", "running"]},
-            "claim_token": {"$exists": True},
             "headless_execution_started_at": {"$exists": False},
             "do_not_auto_dispatch": {"$ne": True},
+            "payload.do_not_auto_dispatch": {"$ne": True},
+            "superseded_by": {"$in": [None, ""]},
+            "execution_stop": {"$exists": False},
+            "claim_token": task["claim_token"],
+            "owner_authorized_at": task["owner_authorized_at"],
+            "execution_lane": task.get("execution_lane"),
+            "payload.execution_lane": (task.get("payload") or {}).get("execution_lane"),
+            "headless_last_result.completion_submitted": {"$ne": True},
+            "$or": [
+                {"headless_dispatch_attempts": {"$exists": False}},
+                {"headless_dispatch_attempts": {"$lt": MAX_AUTOMATIC_DISPATCHES, "$gte": 0}},
+            ],
             "execution_paused_for_deploy": {"$ne": True},
         },
         {
@@ -99,7 +115,7 @@ def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[s
                 "cursor_execution_role": lanes.node_role(),
                 "updated_at": _now(),
             },
-            "$inc": {"revision": 1},
+            "$inc": {"revision": 1, "headless_dispatch_attempts": 1},
         },
         return_document=True,
     )
