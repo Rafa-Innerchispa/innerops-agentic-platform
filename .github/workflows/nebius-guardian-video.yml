@@ -1,0 +1,57 @@
+name: InnerOS Guardian - single final video render
+on:
+  push:
+    branches: [chatgpt/nebius-video-render-20261030]
+    paths:
+      - '.github/workflows/nebius-guardian-video.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render-guardian:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Fetch editable sources
+        uses: actions/checkout@v4
+      - name: Prepare FFmpeg and editor
+        run: |
+          command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+          python3 -m pip install --quiet --disable-pip-version-check pillow
+          mkdir -p media-out
+      - name: Download corrected user-owned HeyGen media and lab footage
+        shell: bash
+        run: |
+          set -euo pipefail
+          intro='https://resource2.heygen.ai/video_translate/4b4b8caa781b4d94b0c601b093d02420/original.mp4'
+          main='https://resource2.heygen.ai/video_translate/7d61986367e543c09575f6c99e0b5841/original.mp4'
+          browser='https://raw.githubusercontent.com/Rafa-Innerchispa/inneros-nebius-nvidia-physical-ai-2026/main/media/inneros-guardian-demo-20261027.mp4'
+          poster='https://raw.githubusercontent.com/Rafa-Innerchispa/inneros-nebius-nvidia-physical-ai-2026/main/media/guardian-demo-poster.jpg'
+          curl -fL --retry 5 --retry-all-errors --retry-delay 5 --max-time 120 "$intro" -o media-out/intro.mp4
+          curl -fL --retry 5 --retry-all-errors --retry-delay 5 --max-time 120 "$browser" -o media-out/browser.mp4
+          curl -fL --retry 5 --retry-all-errors --retry-delay 5 --max-time 120 "$poster" -o media-out/poster.jpg
+          found=0
+          for n in $(seq 1 24); do
+            if curl -fsSL --max-time 180 "$main" -o media-out/main.mp4 && test "$(stat -c%s media-out/main.mp4)" -gt 1000000; then found=1; break; fi
+            echo "Corrected long lip sync unavailable on check $n; do not substitute robotic audio."
+            sleep 15
+          done
+          test "$found" = 1 || { echo 'BLOCKED: main corrected HeyGen source has not finished.'; exit 2; }
+          for name in intro main browser; do
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "media-out/$name.mp4" || exit 3
+          done
+      - name: Compose final branded submission MP4
+        run: |
+          python3 scripts/render_nebius_guardian_submission.py media-out/intro.mp4 media-out/main.mp4 media-out/browser.mp4 media-out/poster.jpg media-out/InnerOS_Guardian_Rafael_English_FINAL.mp4
+          ffprobe -v error -show_entries format=duration:stream=codec_type,width,height -of json media-out/InnerOS_Guardian_Rafael_English_FINAL.mp4 > media-out/qa_ffprobe.json
+          test "$(stat -c%s media-out/InnerOS_Guardian_Rafael_English_FINAL.mp4)" -gt 4000000
+      - name: Export one downloadable video and quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: InnerOS-Guardian-Rafael-English-FINAL
+          path: |
+            media-out/InnerOS_Guardian_Rafael_English_FINAL.mp4
+            media-out/InnerOS_Guardian_Rafael_English_FINAL.mp4.json
+            media-out/qa_ffprobe.json
+          retention-days: 7
+          if-no-files-found: error
