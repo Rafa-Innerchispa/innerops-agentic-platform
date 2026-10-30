@@ -20,6 +20,7 @@ from inneros_core_runtime import cursor_ops_runner as cor
 from inneros_core_runtime import execution_receipts as receipts
 from inneros_core_runtime import platform_local_headless_executor as plhe
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+from inneros_core_runtime.cursor_headless_policy import headless_denial
 from raphiia_openai import mongo_store
 
 
@@ -96,6 +97,11 @@ def main() -> int:
         print(json.dumps({"ok": False, "error": "task_not_found"}))
         return 2
 
+    denied = headless_denial(task, check_budget=False)
+    if denied:
+        print(json.dumps({"ok": False, "task_id": tid, "error": denied}))
+        return 2
+
     claim = {
         "ok": True,
         "task_id": tid,
@@ -128,6 +134,11 @@ def main() -> int:
     reason = ""
     proof: dict = {}
     submitted_status = "failed"
+    # Cancellation may arrive after spawn; reject before any paid invocation.
+    denied = headless_denial(_reload_task(tid), check_budget=False)
+    if denied:
+        print(json.dumps({"ok": False, "task_id": tid, "error": denied}))
+        return 2
     try:
         if plhe.offers_local_execution(task):
             result = plhe.run_platform_work(
