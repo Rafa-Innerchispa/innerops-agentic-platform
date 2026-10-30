@@ -11,6 +11,7 @@ from typing import Any
 
 from inneros_core_runtime import cursor_api_credentials as cac
 from inneros_core_runtime import cursor_ops_runner as cor
+from inneros_core_runtime.execution_resource_guard import guard_execution
 
 PINNED = cor.CURSOR_PINNED_MODEL
 API_BASE = os.getenv("CURSOR_CLOUD_API_BASE", "https://api.cursor.com").rstrip("/")
@@ -123,6 +124,7 @@ def git_head_sha(cwd: Path) -> str:
     return ""
 
 
+@guard_execution("cursor", "claim")
 def execute_claimed_task(
     claim: dict[str, Any],
     *,
