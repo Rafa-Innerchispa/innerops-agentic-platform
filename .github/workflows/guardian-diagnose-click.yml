@@ -1,0 +1,60 @@
+name: Guardian Diagnose click regression
+on:
+  push:
+    branches: [chatgpt/guardian-live-health-20261030]
+    paths: [.github/workflows/guardian-diagnose-click.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 -m pip install --quiet playwright
+          python3 -m playwright install chromium --with-deps
+      - name: Exact click diagnosis on desktop and mobile
+        shell: bash
+        run: |
+          mkdir -p diagnose-results
+          cat >/tmp/diag.py <<'PY'
+          import json
+          from playwright.sync_api import sync_playwright,TimeoutError as PTimeout
+          results={'runs':[]}
+          with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True)
+              for typ,view in [('desktop',{'width':1440,'height':900}),('mobile',{'width':390,'height':844})]:
+                  c=browser.new_context(viewport=view,is_mobile=typ=='mobile',has_touch=typ=='mobile')
+                  page=c.new_page()
+                  r={'device':typ,'requests':[],'js_errors':[]}
+                  page.on('response',lambda resp:r['requests'].append({'url':resp.url.split('/api/guardian/')[-1],'http':resp.status}) if '/api/guardian/' in resp.url else None)
+                  page.on('pageerror',lambda e:r['js_errors'].append(str(e)[:300]))
+                  page.goto('https://guardian.creatorcore.ai/',wait_until='domcontentloaded',timeout=25000)
+                  page.wait_for_function("document.getElementById('apiState').textContent !== 'CONNECTING'",timeout=20000)
+                  for button in ['diagnose','nodeDiagnose']:
+                      before={'diagnosisSummary':page.locator('#diagnosisSummary').inner_text(),'receipt':page.locator('#receipt').inner_text()[:180],'headline':page.locator('#headline').inner_text()}
+                      element=page.locator('#'+button)
+                      hit=element.evaluate('el=>{const r=el.getBoundingClientRect();const t=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {rect:{x:r.x,y:r.y,w:r.width,h:r.height},target:t?.id||t?.tagName,disabled:el.disabled,computed:{pointerEvents:getComputedStyle(el).pointerEvents,display:getComputedStyle(el).display}}}')
+                      try:
+                          element.click(timeout=8500)
+                          page.wait_for_timeout(1350)
+                          click={'clicked':true}
+                      except Exception as exc:click={'clicked':false,'error':str(exc)[:850]}
+                      after={'diagnosisSummary':page.locator('#diagnosisSummary').inner_text(),'receipt':page.locator('#receipt').inner_text()[:180],'headline':page.locator('#headline').inner_text()}
+                      click.update({'hit':hit,'before':before,'after':after,'view_change':before!=after,'log':page.locator('#eventLog').inner_text()[:1200],'response_log':r['requests'][-8:]})
+                      r[button]=click
+                      page.screenshot(path=f'diagnose-results/{typ}-{button}.png',full_page=True)
+                  results['runs'].append(r);c.close()
+              browser.close()
+          print(json.dumps(results,indent=2))
+          open('diagnose-results/diagnose-click-result.json','w').write(json.dumps(results,indent=2))
+          PY
+          python3 /tmp/diag.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-diagnose-click-proof
+          path: diagnose-results/
+          retention-days: 3
