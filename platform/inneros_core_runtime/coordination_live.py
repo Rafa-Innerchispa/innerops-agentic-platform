@@ -477,6 +477,9 @@ def create_ops_task(
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
     title_s = (title or "").strip()
+    if task_class == "coding" and execution_lane == "local_dev_swarm" and not any((repo, project_id, related_project)):
+        return {"ok": False, "error": "blocked_missing_task_binding",
+                "executable": False, "blockers": ["missing_repo_binding"]}
     if title_s.startswith("[Correo/"):
         assignee = "ralfia"
         preferred_provider = preferred_provider or "ralfia"

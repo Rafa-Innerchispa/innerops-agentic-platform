@@ -20,6 +20,7 @@ from typing import Any
 
 from raphiia_openai import capacity_governor_vnext, mongo_store, ralfia_time
 from raphiia_openai.settings import COL_AI_ROUTING_LOG, MCP_PUBLIC_URL
+from inneros_core_runtime.execution_resource_guard import guard_local_inference
 
 GPU_ROLE = os.getenv("INNEROS_GPU_ROLE", "").strip().lower()
 
@@ -905,6 +906,7 @@ def route_ai_task(title: str, body: str, task_type: str | None = None) -> dict[s
     }
 
 
+@guard_local_inference
 def run_local_model(
     *,
     task_type: str,

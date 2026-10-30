@@ -1,0 +1,10 @@
+[Unit]
+Description=InnerOS deterministic execution resource audit (no model calls)
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/inneros/inneros_core/platform
+Environment=PYTHONPATH=%h/inneros/inneros_core/platform
+EnvironmentFile=-%h/inneros/inneros_core/platform/.env
+ExecStart=%h/inneros/inneros_core/platform/venv/bin/python3 %h/inneros/inneros_core/platform/scripts/inneros_execution_resource_audit.py
+TimeoutStartSec=60

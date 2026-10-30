@@ -18,6 +18,7 @@ from inneros_core_runtime import ops_model_execution_journal as omj
 from inneros_core_runtime import temporal_bounded_executor as tbe
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL, heartbeat_ops_task
 from raphiia_openai import mongo_store
+from inneros_core_runtime.execution_resource_guard import guard_execution
 
 PROVIDER_CANARY_MARKERS = {
     "codex": "docs/CODEX_CANARY.md",
@@ -243,6 +244,7 @@ def _run_codex_cli(task: dict[str, Any], worktree: Path, *, pinned_model: str) -
         output_path.unlink(missing_ok=True)
 
 
+@guard_execution("", "task_id", provider_argument="provider")
 def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
     """Run real bounded work for a claimed task; never forge COMPLETED without receipts."""
     tid = (task_id or "").strip()
