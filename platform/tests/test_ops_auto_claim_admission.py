@@ -86,6 +86,10 @@ def test_spawn_failure_does_not_leave_fake_running_reservation():
         "task_id": "ops_test",
         "headless_execution_started_at": "2026-10-12T20:00:00+00:00",
     }
+    col.find_one.return_value = {
+        "task_id": "ops_test", "status": "in_progress", "assignee": "cursor",
+        "claim_token": "test", "owner_authorized_at": "2026-10-29T00:00:00Z",
+    }
     with (
         patch.object(dispatch.mongo_store, "get_db", return_value=db),
         patch(
@@ -125,6 +129,10 @@ def test_spawn_uses_persistent_systemd_unit_and_records_pid():
     col = MagicMock()
     db.__getitem__.return_value = col
     col.find_one_and_update.return_value = {"task_id": "ops_demo"}
+    col.find_one.return_value = {
+        "task_id": "ops_demo", "status": "in_progress", "assignee": "cursor",
+        "claim_token": "test", "owner_authorized_at": "2026-10-29T00:00:00Z",
+    }
     launched = subprocess.CompletedProcess([], 0, stdout="", stderr="")
     pid = subprocess.CompletedProcess([], 0, stdout="4321\n", stderr="")
 

@@ -25,6 +25,7 @@ from inneros_core_runtime.ops_auto_claim_admission import (
     pending_admission_summary,
 )
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+from inneros_core_runtime.cursor_headless_policy import headless_denial
 from inneros_core_runtime.memory import agent_messages as am
 from raphiia_openai import mongo_store
 
@@ -261,6 +262,8 @@ def _find_resume_on_host(limit: int) -> list[dict[str, Any]]:
     rows = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(limit, 1) * 3))
     out: list[dict[str, Any]] = []
     for row in rows:
+        if headless_denial(row):
+            continue
         if not odep.headless_resume_allowed(row):
             continue
         if row.get("do_not_auto_dispatch") is True:
