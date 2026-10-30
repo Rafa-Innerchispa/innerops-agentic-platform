@@ -1,4 +1,4 @@
-import json, pathlib, subprocess, sys
+import json, pathlib, subprocess, sys, os
 F='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 FM='/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 def duration(p):
@@ -33,7 +33,7 @@ def main():
  if p.returncode:raise SystemExit(p.stderr[-4500:])
  real=duration(out)
  assert real<180
- info={'seconds':real,'width':1920,'height':1080,'intro_original_seconds':i,'main_original_seconds':b,'main_cut_seconds':cut,'app_footage_seconds':65,'narration':'rafa english via ElevenLabs, existing licensed HeyGen avatar, 1.0x','app_provenance':'Actual browser frames sampled at 1fps; synthetic telemetry; historical model receipt; dry-run actions; simulated recovery'}
+ info={'seconds':real,'width':1920,'height':1080,'intro_original_seconds':i,'main_original_seconds':b,'main_cut_seconds':cut,'app_footage_seconds':65,'narration':'rafa english via ElevenLabs, existing licensed HeyGen avatar, 1.0x','main_visual_source':os.getenv('GUARDIAN_MAIN_VISUAL_MODE','corrected_lipsync'),'app_provenance':'Actual browser frames sampled at 1fps; synthetic telemetry; historical model receipt; dry-run actions; simulated recovery'}
  pathlib.Path(out+'.json').write_text(json.dumps(info,indent=2))
  print(json.dumps(info,indent=2))
 if __name__=='__main__':main()
