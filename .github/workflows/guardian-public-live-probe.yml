@@ -1,0 +1,49 @@
+name: Guardian public deploy reachability and contract
+on:
+  push:
+    branches: [chatgpt/guardian-live-health-20261030]
+    paths: [.github/workflows/guardian-public-live-probe.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe DNS HTTPS and Guardian API (read only; no production mutation)
+        shell: bash
+        run: |
+          mkdir -p reports
+          python3 - <<'PY'
+          import json, socket, ssl, urllib.request, urllib.error, time
+          hostnames=['guardian.creatorcore.ai','voiceops.creatorcore.ai','hotels-survey-cite-webmasters.trycloudflare.com']
+          data={'observed_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'hosts':{}}
+          paths=['/','/healthz','/api/guardian/overview','/examples/nebius-live-receipt.json']
+          for hostname in hostnames:
+              info={'dns':None,'checks':{}}
+              try:info['dns']=sorted({a[4][0] for a in socket.getaddrinfo(hostname,443,type=socket.SOCK_STREAM)})
+              except Exception as e:info['dns_error']=str(e)[:120]
+              if info['dns']:
+                  for path in paths if hostname=='guardian.creatorcore.ai' else ['/']:
+                      u='https://'+hostname+path
+                      try:
+                          req=urllib.request.Request(u,headers={'User-Agent':'InnerOS-Guardian-ReadOnly-Check/1.0'})
+                          with urllib.request.urlopen(req,timeout=10,context=ssl.create_default_context()) as q:
+                              content=q.read(80000);body=content.decode('utf-8','replace')
+                              item={'http_status':q.status,'bytes':len(content),'release_v2': 'guardian-voiceops-visual-v2' in body,'guardian_contract':'guardian.v1' in body,'historical_receipt':'"REAL"' in body}
+                              if q.headers.get('Content-Type','').startswith('application/json'):
+                                  try:item['response_keys']=list(json.loads(body))[:8]
+                                  except:pass
+                          info['checks'][path]=item
+                      except Exception as e:info['checks'][path]={'error':str(e)[:220]}
+              data['hosts'][hostname]=info
+          open('reports/guardian-public-live-probe.json','w').write(json.dumps(data,indent=2))
+          print(json.dumps(data,indent=2))
+          PY
+      - name: Preserve read-only report even when unhealthy
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-live-probe-20261030
+          path: reports/guardian-public-live-probe.json
+          retention-days: 3
