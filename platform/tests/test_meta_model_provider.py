@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -209,6 +210,99 @@ class MetaProviderTest(unittest.TestCase):
         from unittest.mock import patch
         with patch("builtins.__import__", side_effect=RuntimeError("test DB is unavailable")):
             self.assertFalse(meta._has_vault_key())
+
+
+
+    def test_ha_owner_approval_verifier(self):
+        secret = "test_ha_secret_key_123"
+        os.environ["INNEROS_HA_COMPANION_RECEIPT_SECRET"] = secret
+        try:
+            prompt_sha = meta._sha(PROMPT.encode("utf-8"))
+            ref = "task_ha_test_001"
+            # Valid signature
+            payload = f"{ref}|{self.project}|{prompt_sha}|{self.out_cap}"
+            sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+            valid_scope = {
+                "approval_ref": ref,
+                "project_id": self.project,
+                "prompt_sha256": prompt_sha,
+                "model": meta.MODEL,
+                "max_output_tokens": self.out_cap,
+                "owner_actor": "RAFAEL",
+                "signature": sig,
+            }
+            self.assertTrue(meta.verify_ha_owner_approval(valid_scope))
+
+            # Non-RAFAEL actor rejected
+            bad_actor = dict(valid_scope, owner_actor="HACKER")
+            self.assertFalse(meta.verify_ha_owner_approval(bad_actor))
+
+            # Modified prompt sha rejected
+            bad_prompt = dict(valid_scope, prompt_sha256="0" * 64)
+            self.assertFalse(meta.verify_ha_owner_approval(bad_prompt))
+
+            # Excessive token budget rejected
+            bad_tokens = dict(valid_scope, max_output_tokens=1024)
+            self.assertFalse(meta.verify_ha_owner_approval(bad_tokens))
+
+            # Unsigned scope without DB grant fails closed
+            unsigned = dict(valid_scope, signature="")
+            self.assertFalse(meta.verify_ha_owner_approval(unsigned))
+        finally:
+            os.environ.pop("INNEROS_HA_COMPANION_RECEIPT_SECRET", None)
+
+    def test_query_usage_and_project_breakdown(self):
+        grant_a = self._issue(project="project-alpha")
+        grant_b = self._issue(project="project-beta")
+        
+        meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant_a["grant_id"], project_id="project-alpha", prompt=PROMPT,
+            credential_loader=lambda: "fake_key", transport=lambda req, timeout: Response(self._response()),
+        )
+        meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant_b["grant_id"], project_id="project-beta", prompt=PROMPT,
+            credential_loader=lambda: "fake_key", transport=lambda req, timeout: Response(self._response()),
+        )
+
+        all_usage = self.ledger.query_usage()
+        self.assertEqual(2, all_usage["count"])
+        self.assertEqual(130, all_usage["total_tokens"])
+
+        alpha_usage = self.ledger.query_usage(project_id="project-alpha")
+        self.assertEqual(1, alpha_usage["count"])
+        self.assertEqual(65, alpha_usage["total_tokens"])
+        self.assertEqual("project-alpha", alpha_usage["project_id"])
+
+    def test_provider_comparison_summary(self):
+        summary = meta.get_provider_comparison_summary()
+        self.assertTrue(summary["ok"])
+        self.assertIn("amd_local_primary", summary["providers"])
+        self.assertIn("intel_local_standby", summary["providers"])
+        self.assertIn("meta_model_api", summary["providers"])
+        self.assertEqual("amd_local_primary", summary["default_routing"])
+        self.assertEqual(150.0, summary["providers"]["meta_model_api"]["promotional_balance_usd"])
+
+    def test_capability_gateway_meta_discovery_and_invocation(self):
+        from inneros_core_runtime import capability_gateway_model as cgm
+        # Test provider query handler
+        health = cgm._provider_query_handler({"action": "provider_health"}, {})
+        self.assertTrue(health["ok"])
+        self.assertEqual("meta-model-api", health["provider_id"])
+
+        summary = cgm._provider_query_handler({"action": "comparison_summary"}, {})
+        self.assertTrue(summary["ok"])
+        self.assertIn("amd_local_primary", summary["providers"])
+        self.assertIn("meta_model_api", summary["providers"])
+
+        # Test manifest specs
+        specs = []
+        def dummy_register(manifest, handler):
+            specs.append((manifest, handler))
+        count = cgm.register_model_frontier_capabilities(dummy_register)
+        self.assertEqual(2, count)
+        cap_ids = [s[0]["capability_id"] for s in specs]
+        self.assertIn("model.provider.query.v1", cap_ids)
+        self.assertIn("model.frontier.reason.v1", cap_ids)
 
 
 if __name__ == "__main__":

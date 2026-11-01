@@ -4,12 +4,16 @@ on:
     paths:
       - 'platform/inneros_core_runtime/meta_model_provider.py'
       - 'platform/inneros_core_runtime/resource_fabric.py'
+      - 'platform/inneros_core_runtime/capability_gateway_model.py'
+      - 'platform/inneros_core_runtime/capability_gateway.py'
       - 'platform/tests/test_meta_model_provider.py'
       - '.github/workflows/meta-shared-provider-tests.yml'
   pull_request:
     paths:
       - 'platform/inneros_core_runtime/meta_model_provider.py'
       - 'platform/inneros_core_runtime/resource_fabric.py'
+      - 'platform/inneros_core_runtime/capability_gateway_model.py'
+      - 'platform/inneros_core_runtime/capability_gateway.py'
       - 'platform/tests/test_meta_model_provider.py'
       - '.github/workflows/meta-shared-provider-tests.yml'
 permissions:

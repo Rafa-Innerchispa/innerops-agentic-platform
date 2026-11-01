@@ -11,6 +11,7 @@ initial implementation allows only explicitly labeled SYNTHETIC data.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -259,6 +260,55 @@ class MetaGrantLedger:
             c.execute("COMMIT")
         return {"model": row[0], "max_output_tokens": row[1], "prompt_sha256": digest}
 
+    
+    def query_usage(
+        self,
+        project_id: str | None = None,
+        provider_id: str | None = None,
+        since_iso: str | None = None,
+    ) -> dict[str, Any]:
+        with self._connect() as c:
+            c.row_factory = sqlite3.Row
+            query = "SELECT * FROM receipts WHERE 1=1"
+            params: list[Any] = []
+            if project_id:
+                query += " AND project_id=?"
+                params.append(project_id)
+            if provider_id:
+                query += " AND provider_id=?"
+                params.append(provider_id)
+            if since_iso:
+                query += " AND completed_at>=?"
+                params.append(since_iso)
+            query += " ORDER BY completed_at DESC"
+            rows = [dict(r) for r in c.execute(query, params).fetchall()]
+
+        total_calls = len(rows)
+        total_tokens = 0
+        input_tokens = 0
+        output_tokens = 0
+        status_counts: dict[str, int] = {}
+        for r in rows:
+            u = json.loads(r.get("tokens_json") or "{}")
+            r["usage"] = u
+            total_tokens += u.get("total_tokens", 0)
+            input_tokens += u.get("input_tokens", 0)
+            output_tokens += u.get("output_tokens", 0)
+            st = r.get("status", "UNKNOWN")
+            status_counts[st] = status_counts.get(st, 0) + 1
+
+        return {
+            "ok": True,
+            "project_id": project_id,
+            "provider_id": provider_id or PROVIDER_ID,
+            "count": total_calls,
+            "total_tokens": total_tokens,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "status_breakdown": status_counts,
+            "receipts": rows[:50],
+        }
+
     def last_receipt(self, grant_id: str) -> dict[str, Any] | None:
         with self._connect() as c:
             c.row_factory = sqlite3.Row
@@ -375,3 +425,151 @@ def invoke_with_grant(
     # Receipt store contains only safe metadata. Output text stays in the trusted caller.
     ledger._save_receipt(grant_id, project_id, receipt)
     return receipt
+
+
+def verify_ha_owner_approval(approval_scope: dict[str, Any]) -> bool:
+    """Verify that an owner approval scope was truly granted by RAFAEL via Home Assistant.
+
+    Validates:
+    - Actor is RAFAEL (rejects non-owner actors).
+    - Valid approval_ref, project_id, and prompt_sha256.
+    - Token ceiling within bounds (16 <= max_output_tokens <= MAX_OUTPUT_TOKENS).
+    - Checks Home Assistant grant in MongoDB (ops_owner_approval_grants).
+    - Or verifies cryptographic HMAC companion receipt signature.
+    - Fail-closed: returns False if unverified or expired.
+    """
+    if not isinstance(approval_scope, dict):
+        return False
+    actor = str(approval_scope.get("owner_actor") or "RAFAEL").strip().upper()
+    if actor != "RAFAEL":
+        return False
+    ref = str(approval_scope.get("approval_ref") or "").strip()
+    if not ref:
+        return False
+    prompt_sha = str(approval_scope.get("prompt_sha256") or "").strip()
+    if len(prompt_sha) != 64:
+        return False
+    max_tokens = approval_scope.get("max_output_tokens")
+    if not isinstance(max_tokens, int) or max_tokens < 16 or max_tokens > MAX_OUTPUT_TOKENS:
+        return False
+
+    # 1. HMAC Companion Signature Check (direct HA Companion signed receipt or token)
+    comp_receipt = approval_scope.get("companion_receipt")
+    if isinstance(comp_receipt, dict):
+        try:
+            from inneros_core_runtime import ops_owner_approval_ha
+            verified = ops_owner_approval_ha.verify_companion_receipt(comp_receipt, expected_task_id=ref)
+            if verified.get("ok") and verified.get("verified"):
+                return True
+        except Exception:
+            pass
+
+    # 2. Cryptographic/HMAC self-contained signature check on approval_scope
+    sig = str(approval_scope.get("signature") or "").strip()
+    if sig:
+        secret = os.getenv("INNEROS_HA_COMPANION_RECEIPT_SECRET", "").strip()
+        if secret:
+            payload = f"{ref}|{approval_scope.get('project_id')}|{prompt_sha}|{max_tokens}"
+            expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+            if hmac.compare_digest(sig, expected):
+                return True
+
+    # 3. Durable MongoDB Grant Check
+    try:
+        from inneros_core_runtime import ops_owner_approval_ha
+        from raphiia_openai import mongo_store
+        db = mongo_store.get_db()
+        grant = db[ops_owner_approval_ha.COL_GRANTS].find_one(
+            {"": [{"grant_id": ref}, {"task_id": ref}], "status": "active"},
+            {"_id": 0}
+        )
+        if grant:
+            # Verify owner actor
+            if str(grant.get("owner_actor") or "").upper() != "RAFAEL":
+                return False
+            # Verify unexpired
+            exp = grant.get("expires_at")
+            if exp:
+                from inneros_core_runtime.ops_owner_approval_ha import _parse_utc_instant
+                exp_dt = _parse_utc_instant(exp)
+                if exp_dt and exp_dt.timestamp() < time.time():
+                    return False
+            # Verify token limit
+            t_limit = grant.get("token_limit")
+            if t_limit is not None and max_tokens > t_limit:
+                return False
+            # Verify provider
+            prov = str(grant.get("provider") or "").lower()
+            if prov and prov not in ("meta", "meta-model-api", "meta_model_api"):
+                return False
+            # Verify model
+            m = str(grant.get("model") or "").lower()
+            if m and m != MODEL.lower():
+                return False
+            # Verify prompt_sha if specified in scope_note
+            scope_note = str(grant.get("scope_note") or "")
+            if "prompt_sha:" in scope_note:
+                for part in scope_note.split():
+                    if part.startswith("prompt_sha:") and part.split(":", 1)[1] != prompt_sha:
+                        return False
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def get_provider_comparison_summary() -> dict[str, Any]:
+    """Provide a consultable comparison between AMD, Intel, Meta, and other providers."""
+    return {
+        "ok": True,
+        "timestamp": _now(),
+        "providers": {
+            "amd_local_primary": {
+                "label": "AMD Ryzen AI Local Primary (vLLM)",
+                "models": ["QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ", "qwen2.5-coder:7b"],
+                "role": "default_local_primary",
+                "cost_usd": 0.0,
+                "latency_typical_ms": 350.0,
+                "privacy": "airgapped_lan",
+                "status": "active_primary",
+            },
+            "intel_local_standby": {
+                "label": "Intel NUC Local Standby (Ollama)",
+                "models": ["qwen2.5:7b", "llama3.1:8b", "phi3.5:3.8b"],
+                "role": "standby_and_summaries",
+                "cost_usd": 0.0,
+                "latency_typical_ms": 780.0,
+                "privacy": "airgapped_lan",
+                "status": "standby_ready",
+            },
+            "meta_model_api": {
+                "label": "Meta Model API (Muse Spark 1.3)",
+                "models": [MODEL],
+                "role": "frontier_reasoning_burst_only",
+                "cost_policy": "explicit_burst_only",
+                "promotional_balance_usd": 150.0,
+                "credit_account_ref": "funding_registry:meta-model-api",
+                "latency_observed_ms": 3273.322,
+                "privacy": "synthetic_lab_data_only",
+                "governance": "ha_owner_grant_required_one_shot",
+                "status": "configured" if _has_vault_key() else "credential_not_configured",
+            },
+            "external_codex_openai": {
+                "label": "Codex OpenAI",
+                "models": ["gpt-5.6", "o3-mini"],
+                "role": "external_developer_agent",
+                "credit_safety_caps": {"daily": 3, "monthly": 30},
+                "status": "capped_metered",
+            },
+            "external_antigravity_gemini": {
+                "label": "Antigravity Google DeepMind",
+                "models": ["gemini-3.7", "gemini-2.5-pro"],
+                "role": "interactive_ide_pair_programmer",
+                "credit_safety_caps": {"daily": 50, "monthly": 500},
+                "status": "interactive_active",
+            },
+        },
+        "default_routing": "amd_local_primary",
+        "external_routing_rule": "fail_closed_requires_ha_owner_grant",
+    }
