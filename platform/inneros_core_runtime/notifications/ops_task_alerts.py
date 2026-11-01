@@ -12,6 +12,31 @@ from raphiia_openai.notifications.evolution_client import send_alert_whatsapp
 from raphiia_openai.notifications.settings import NOTIFY_COOLDOWN_SEC
 
 NOTIFY_OPS_TASKS = os.getenv("NOTIFY_OPS_TASKS", "1") == "1"
+
+
+def _whatsapp_enabled() -> bool:
+    """Default off: owner notifications go to Home Assistant, then email."""
+    return os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _ha_then_email(
+    task: dict[str, Any],
+    *,
+    body: str,
+    provider: str,
+    email_subject: str,
+) -> dict[str, Any]:
+    from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
+
+    tid = str(task.get("task_id") or "")
+    if ops_ha.ha_auth_enabled():
+        ha_out = ops_ha.notify_companion_scout_alert(
+            title=email_subject[:120],
+            message=body[:3500],
+        )
+        if ha_out.get("ok"):
+            return {"ok": True, "delivery_mode": "ha_companion_ops", "ha": ha_out, "task_id": tid}
+    return _notify_ops_auth_email_fallback(task, body=body, provider=provider, tid=tid)
 TERMINAL_OPS = frozenset({"completed", "failed", "blocked", "partial", "cancelled", "superseded"})
 NOTIFY_CURSOR_CLAIM = os.getenv("NOTIFY_CURSOR_AWAITING_CLAIM", "1") == "1"
 NOTIFY_OPS_CREATE_AUTH = os.getenv("NOTIFY_OPS_CREATE_AUTHORIZATION", "1") == "1"
@@ -191,10 +216,10 @@ def notify_ops_owner_authorization_request(
     except Exception:
         whatsapp_up = False
     ha_primary = ops_ha.ha_auth_enabled()
-    if not whatsapp_up and not ha_primary:
+    if not ha_primary and not _whatsapp_enabled():
         return {
             "ok": False,
-            "skipped": "evolution_whatsapp_down",
+            "skipped": "ha_disabled_and_whatsapp_off",
             "task_id": str(task.get("task_id") or ""),
         }
 
@@ -326,34 +351,33 @@ def notify_ops_owner_authorization_request(
             }
 
     if alert_kind != "external_spend":
-        if not whatsapp_up:
-            email_fallback = _notify_ops_auth_email_fallback(
-                task, body=body, provider=provider, tid=tid
-            )
-            ok = bool(email_fallback.get("ok"))
-            if ok:
-                _mark_sent("owner_auth", alias)
-                _mark_owner_auth_sent_mongo(tid)
-            return {
-                "ok": ok,
-                "result": email_fallback if ok else {"ok": False, "skipped": "whatsapp_down_no_ha"},
-                "task_id": tid,
-                "summary": summary,
-                "delivery_mode": "email_fallback" if ok else "unreachable",
-                "poll_message_id": "",
-                "email_fallback": email_fallback,
-            }
-        result = send_alert_whatsapp(body, prefix_node=True)
-        if result.get("ok"):
-            _mark_sent("owner_auth", tid)
         return {
-            "ok": bool(result.get("ok")),
-            "result": result,
+            "ok": False,
+            "skipped": "internal_no_owner_auth_channel",
             "task_id": tid,
             "summary": summary,
-            "delivery_mode": "text_internal_fix" if alert_kind == "internal_fix" else "text_internal_brief",
+            "delivery_mode": "none",
+        }
+
+    if not _whatsapp_enabled():
+        delivered = _ha_then_email(
+            task,
+            body=body,
+            provider=provider,
+            email_subject=f"[RalfIA OPS] Autorización {provider.upper()} · {short}",
+        )
+        ok = bool(delivered.get("ok"))
+        if ok:
+            _mark_sent("owner_auth", alias)
+            _mark_owner_auth_sent_mongo(tid)
+        return {
+            "ok": ok,
+            "result": delivered,
+            "task_id": tid,
+            "summary": summary,
+            "delivery_mode": delivered.get("delivery_mode") or "unreachable",
             "poll_message_id": "",
-            "email_fallback": None,
+            "email_fallback": delivered if delivered.get("channel") == "email" else None,
         }
 
     from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
@@ -507,10 +531,26 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
     if not _can_send("cursor_claim", key):
         return {"ok": False, "skipped": "cooldown_or_dedupe"}
 
-    result = send_alert_whatsapp(body, prefix_node=True)
-    if result.get("ok"):
+    if _whatsapp_enabled():
+        result = send_alert_whatsapp(body, prefix_node=True)
+        if result.get("ok"):
+            _mark_sent("cursor_claim", key)
+        return {"ok": bool(result.get("ok")), "result": result, "task_id": task.get("task_id"), "status": status}
+    delivered = _ha_then_email(
+        task,
+        body=body,
+        provider=provider,
+        email_subject=f"RalfIA · {title}",
+    )
+    if delivered.get("ok"):
         _mark_sent("cursor_claim", key)
-    return {"ok": bool(result.get("ok")), "result": result, "task_id": task.get("task_id"), "status": status}
+    return {
+        "ok": bool(delivered.get("ok")),
+        "result": delivered,
+        "task_id": task.get("task_id"),
+        "status": status,
+        "delivery_mode": delivered.get("delivery_mode"),
+    }
 
 
 def notify_ops_transition(
@@ -572,9 +612,11 @@ def notify_ops_transition(
     except Exception:
         pass
 
-    result = send_alert_whatsapp(body, prefix_node=False)
-    if result.get("ok"):
-        _mark_sent("ops", key)
+    result = {"ok": False, "skipped": "whatsapp_disabled"}
+    if _whatsapp_enabled():
+        result = send_alert_whatsapp(body, prefix_node=False)
+        if result.get("ok"):
+            _mark_sent("ops", key)
     delivery = "whatsapp" if result.get("ok") else "unreachable"
     if ha_out.get("ok"):
         delivery = "ha_companion_ops"
@@ -620,7 +662,30 @@ def notify_dev_swarm_outcome(
     if not _can_send("swarm", key):
         return {"ok": False, "skipped": "cooldown_or_dedupe"}
 
-    result = send_alert_whatsapp(body, prefix_node=False)
-    if result.get("ok"):
+    ha_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    try:
+        from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
+
+        if ops_ha.ha_auth_enabled():
+            ha_out = ops_ha.notify_companion_scout_alert(
+                title=f"Dev Swarm {outcome_u}",
+                message=body[:3500],
+            )
+    except Exception:
+        pass
+    result = {"ok": False, "skipped": "whatsapp_disabled"}
+    if _whatsapp_enabled():
+        result = send_alert_whatsapp(body, prefix_node=False)
+        if result.get("ok"):
+            _mark_sent("swarm", key)
+    ok = bool(result.get("ok") or ha_out.get("ok"))
+    if ha_out.get("ok"):
         _mark_sent("swarm", key)
-    return {"ok": bool(result.get("ok")), "result": result, "task_id": task_id, "outcome": outcome_u}
+    return {
+        "ok": ok,
+        "result": result,
+        "ha_companion": ha_out,
+        "task_id": task_id,
+        "outcome": outcome_u,
+        "delivery_mode": "ha_companion_ops" if ha_out.get("ok") else ("whatsapp" if result.get("ok") else "unreachable"),
+    }

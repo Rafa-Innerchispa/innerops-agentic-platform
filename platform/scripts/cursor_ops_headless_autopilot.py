@@ -43,7 +43,9 @@ def _execute_enabled() -> bool:
 
 
 def _notify(text: str) -> dict[str, Any]:
-    if os.getenv("CURSOR_OPS_NOTIFY_WHATSAPP", "1") != "1":
+    if os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() not in {"1", "true", "yes", "on"}:
+        return {"ok": False, "skipped": "whatsapp_disabled_use_ha"}
+    if os.getenv("CURSOR_OPS_NOTIFY_WHATSAPP", "0") != "1":
         return {"ok": False, "skipped": "disabled"}
     try:
         from raphiia_openai.notifications.evolution_client import send_alert_whatsapp

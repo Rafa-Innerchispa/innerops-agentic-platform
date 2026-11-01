@@ -65,6 +65,18 @@ def main() -> int:
         notion_poll = nc.poll_pending_coordination_orders(limit=15)
     except Exception as exc:
         notion_poll = {"ok": False, "error": str(exc)[:200]}
+    email_align = {}
+    if os.getenv("INNEROS_EMAIL_OPS_ALIGN_CYCLE", "1").strip().lower() in {"1", "true", "yes"}:
+        try:
+            from inneros_core_runtime.notifications import email_ops_alignment
+
+            email_align = email_ops_alignment.run_email_ops_alignment(
+                dry_run=not apply,
+                hygiene_limit=int(os.getenv("COORD_HYGIENE_LIMIT", "300")),
+                reprocess_limit=0,
+            )
+        except Exception as exc:
+            email_align = {"ok": False, "error": str(exc)[:200]}
     lane_reconcile = {}
     if os.getenv("INNEROS_OPS_LANE_RECONCILE", "1").strip().lower() in {"1", "true", "yes"}:
         try:
@@ -83,6 +95,7 @@ def main() -> int:
         "cursor_autopilot": cursor,
         "ide_ha_notify_backfill": ha_backfill,
         "notion_coordination_poll": notion_poll,
+        "email_ops_alignment": email_align,
         "provider_lane_reconcile": lane_reconcile,
     }
     out = Path(os.environ["INNEROS_CORE_ROOT"]) / "var" / "inneros_autopilot" / "last-coordination-cycle.json"

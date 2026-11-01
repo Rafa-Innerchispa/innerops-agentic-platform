@@ -28,7 +28,7 @@ WORKERS_COL = "ralfia_dev_swarm_workers"
 EXECUTOR_VERSION = "autonomous_impl_v11_strict_output_recovery"
 executor_version = EXECUTOR_VERSION
 DEFAULT_MAX_CONCURRENT = 4
-STALE_WORKER_SECONDS = 3600
+STALE_WORKER_SECONDS = int(os.getenv("DEV_SWARM_STALE_WORKER_SECONDS", "300"))
 STALE_PROGRESS_SECONDS = 1800
 STALE_OPS_TASK_SECONDS = 6 * 3600
 MAX_STALE_RECLAIMS = 2
@@ -1916,6 +1916,10 @@ def executor_tick(limit: int = 2, dry_run: bool = False, run_tests: bool = True)
                 "$or": [
                     {"executor.status": {"$exists": False}},
                     {"executor.status": {"$in": ["pending", "failed_retryable"]}},
+                    {
+                        "executor.status": "running",
+                        "executor.phase": {"$in": ["queued", "launch_pending_worker", "hydrating"]},
+                    },
                 ],
             },
             {"_id": 0},

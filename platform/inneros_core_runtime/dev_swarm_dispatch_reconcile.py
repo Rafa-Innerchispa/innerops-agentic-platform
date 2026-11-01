@@ -77,7 +77,16 @@ def has_active_dev_swarm_worker(db: Any, task_id: str, *, workers_col: str = WOR
             {"executor.status": {"$nin": ["executed", "needs_implementation", "failed", "blocked"]}},
         ],
     }
-    return bool(db[workers_col].find_one(query, {"_id": 1}))
+    worker = db[workers_col].find_one(query, {"_id": 1, "last_heartbeat_at": 1, "updated_at": 1, "executor": 1})
+    if not worker:
+        return False
+    now = datetime.now(timezone.utc)
+    heartbeat = _parse_dt(worker.get("last_heartbeat_at") or worker.get("updated_at"))
+    if heartbeat and (now - heartbeat).total_seconds() > LAUNCH_DISPATCH_STALL_SECONDS:
+        phase = str((worker.get("executor") or {}).get("phase") or "").lower()
+        if phase in {"", "queued", "launch_pending_worker", "hydrating", "worktree_hydration"}:
+            return False
+    return True
 
 
 def dispatch_anchor_time(task: dict[str, Any]) -> datetime | None:
