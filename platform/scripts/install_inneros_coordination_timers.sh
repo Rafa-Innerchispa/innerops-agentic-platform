@@ -22,6 +22,8 @@ UNITS=(
   inneros-coordination-cycle.timer
   inneros-execution-resource-audit.service
   inneros-execution-resource-audit.timer
+  inneros-platform-fleet-sync.service
+  inneros-platform-fleet-sync.timer
   ralfia-external-repair-agent.service
 )
 
@@ -44,6 +46,7 @@ TIMERS=(
   inneros-cursor-inbox-consumer.timer
   inneros-coordination-cycle.timer
   inneros-execution-resource-audit.timer
+  inneros-platform-fleet-sync.timer
 )
 
 # Dev Swarm AG-25 cycle: primary on AMD; optional on Intel via INNEROS_ENABLE_AG25_TIMER=1

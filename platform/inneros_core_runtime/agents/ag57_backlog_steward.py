@@ -334,6 +334,83 @@ def handle_backlog_command(message: str, sender: str) -> dict[str, Any] | None:
     return None
 
 
+def _whatsapp_lane_active() -> bool:
+    import os
+
+    return os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def send_daily_backlog_digest(*, target_email: str | None = None) -> dict[str, Any]:
+    """Recordatorio diario vía HA (P1) y email (P2) cuando WhatsApp está apagado."""
+    import os
+
+    text = format_backlog_whatsapp_text(greeting=True)
+    items = _fetch_open_items(limit=15)
+    number = (NOTIFY_WHATSAPP_TO or "").strip()
+    _save_session(number or "digest", items)
+    channels: list[dict[str, Any]] = []
+    ok = False
+    if os.getenv("NOTIFY_OPS_AUTH_HA", "0").strip().lower() in {"1", "true", "yes", "on"}:
+        try:
+            from inneros_core_runtime import homeassistant_client as ha
+
+            service = (
+                os.getenv("OPS_HA_NOTIFY_SERVICE")
+                or os.getenv("AMBIENT_GUARDIAN_MOBILE_NOTIFY_SERVICE")
+                or "mobile_app_infinix_x6873"
+            ).removeprefix("notify.")
+            ha_out = ha.call_service(
+                "notify",
+                service,
+                data={
+                    "title": f"Backlog InnerOS ({len(items)} abiertos)",
+                    "message": text[:3500],
+                    "data": {"tag": "backlog_daily", "priority": "default", "ttl": 3600},
+                },
+            )
+            channels.append({"channel": "ha", "result": ha_out})
+            ok = ok or bool(ha_out.get("ok"))
+        except Exception as exc:
+            channels.append({"channel": "ha", "error": str(exc)[:200]})
+    try:
+        from inneros_core_runtime.notifications.email_client import send_email
+
+        to_addr = (
+            target_email or os.getenv("RALFIA_ALERTS_EMAIL") or os.getenv("OPS_OWNER_EMAIL") or ""
+        ).strip()
+        if to_addr:
+            mail = send_email(
+                to=to_addr,
+                subject=f"[InnerOS] Backlog diario — {len(items)} items abiertos",
+                body=text,
+                account_hint=os.getenv("EMAIL_OPS_ACCOUNT_HINT", "rlopez@pcdoctor.com.ec"),
+            )
+            channels.append({"channel": "email", "result": mail})
+            ok = ok or bool(mail.get("ok"))
+    except Exception as exc:
+        channels.append({"channel": "email", "error": str(exc)[:200]})
+    record_agent_run(
+        AGENT_ID,
+        action="daily_backlog_digest",
+        summary=f"ok={ok} items={len(items)} channels={len(channels)}",
+        project="coordination",
+        metadata={"channels": [c.get("channel") for c in channels]},
+    )
+    mongo_store.log_coordination(
+        agent=AGENT_ID,
+        summary=f"Recordatorio backlog HA/email ({len(items)} items abiertos)",
+        event="backlog_daily_reminder",
+        project="coordination",
+        tool_used="send_daily_backlog_digest",
+    )
+    return {"ok": ok, "text_chars": len(text), "items": len(items), "channels": channels}
+
+
 def send_daily_backlog_whatsapp(*, target_number: str | None = None, node: str = "primary") -> dict[str, Any]:
     number = (target_number or NOTIFY_WHATSAPP_TO).strip()
     text = format_backlog_whatsapp_text(greeting=True)

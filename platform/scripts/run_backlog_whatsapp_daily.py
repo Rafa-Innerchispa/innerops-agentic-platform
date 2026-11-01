@@ -11,9 +11,12 @@ if ROOT not in sys.path:
 
 
 def main() -> int:
-    from raphiia_openai.agents import ag57_backlog_steward as ag57
+    from inneros_core_runtime.agents import ag57_backlog_steward as ag57
 
-    result = ag57.send_daily_backlog_whatsapp()
+    if ag57._whatsapp_lane_active():
+        result = ag57.send_daily_backlog_whatsapp()
+    else:
+        result = ag57.send_daily_backlog_digest()
     print("ok=", result.get("ok"), "items=", result.get("items"), "chars=", result.get("text_chars"))
     return 0 if result.get("ok") else 1
 

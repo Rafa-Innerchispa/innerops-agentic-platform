@@ -13,7 +13,7 @@ AUTO = os.getenv("RALFIA_SELF_HEAL", "1").strip() not in ("0", "false", "no")
 
 
 def main() -> int:
-    from raphiia_openai.agents import ag42_service_guardian as ag42
+    from inneros_core_runtime.agents import ag42_service_guardian as ag42
 
     result = ag42.run_self_heal_cycle(auto_repair=AUTO, max_repairs=2)
     print(result.get("ok"), "repairs=", len(result.get("repairs") or []))

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from datetime import datetime, timezone
 from time import monotonic
 from typing import Any
@@ -10,6 +12,22 @@ from uuid import uuid4
 from raphiia_openai.agent_auto_log import record_agent_run
 
 AGENT_ID = "AG-42_SERVICE_GUARDIAN"
+
+
+def _whatsapp_lane_active() -> bool:
+    return os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _filter_unhealthy(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = list(items or [])
+    if _whatsapp_lane_active():
+        return out
+    return [i for i in out if str(i.get("service_id") or "").lower() != "evolution"]
 
 
 def _now() -> str:
@@ -26,10 +44,12 @@ def run_service_guardian(*, notify: bool = False) -> dict[str, Any]:
     health = ag31.run_health_watch(notify=notify, trigger="AG-42")
     peers = ag41.peer_ops_snapshot()
 
-    unhealthy = [
-        i for i in (peers.get("items") or [])
-        if i.get("ok") and not i.get("healthy") and not i.get("warm_standby")
-    ]
+    unhealthy = _filter_unhealthy(
+        [
+            i for i in (peers.get("items") or [])
+            if i.get("ok") and not i.get("healthy") and not i.get("warm_standby")
+        ]
+    )
     core_issues = list(reconcile.get("real_core_issues") or [])
     for issue in list(core_issues):
         if issue.get("service") == "raphiia-mcp" and issue.get("tcp_ok"):
@@ -184,6 +204,9 @@ def run_self_heal_cycle(*, auto_repair: bool = False, max_repairs: int = 3) -> d
         sid = str(item.get("service_id") or "").lower()
         node_label = str(item.get("node") or item.get("node_label") or "primary")
         node = "amd" if node_label in (".5", "amd", "192.168.1.5") else "primary"
+        if sid == "evolution" and not _whatsapp_lane_active():
+            repairs.append({"service_id": sid, "node": node, "skipped": True, "reason": "whatsapp_lane_disabled"})
+            continue
         if sid not in _HEALABLE:
             repairs.append({"service_id": sid, "node": node, "skipped": True, "reason": "not_healable"})
             continue

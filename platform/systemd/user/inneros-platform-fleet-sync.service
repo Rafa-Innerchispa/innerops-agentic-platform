@@ -1,0 +1,15 @@
+[Unit]
+Description=InnerOS fleet sync (main → Intel runtime → AMD rsync)
+ConditionPathExists=/home/rlopez/inneros/inneros_core/var/deploy-clones/innerops-agentic-platform-main/.git
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=INNEROS_NODE_ROLE=intel
+Environment=INNEROS_FLEET_MIRROR_HA=0
+EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
+ExecStart=/home/rlopez/inneros/inneros_core/platform/scripts/sync_platform_fleet_from_main.sh
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

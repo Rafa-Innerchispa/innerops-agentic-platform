@@ -114,5 +114,6 @@ for file in \
     exit 9
   fi
 done
+printf '%s\n' "$HEAD" >"$RT/.runtime_git_sha"
 echo "SYNC_OK SHA=$HEAD BACKUP=$ARCHIVE"
 echo "NEXT: validate runtime SHA + canaries; only then use separately approved service actions"

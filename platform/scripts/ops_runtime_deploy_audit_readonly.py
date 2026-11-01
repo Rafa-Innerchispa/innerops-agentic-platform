@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INTEL = os.getenv("INNEROS_INTEL_HOST", "rlopez@192.168.1.4")
 DEFAULT_AMD = os.getenv("INNEROS_AMD_HOST", "rlopez@192.168.1.5")
 GIT_ROOTS = (
+    "~/inneros/inneros_core/var/deploy-clones/innerops-agentic-platform-main",
     "~/inneros/inneros_core",
-    "~/inneros/inneros_core/var/local_execution/worktrees/Rafa-Innerchispa__innerops-agentic-platform/platform",
 )
 
 
@@ -39,6 +39,8 @@ def _local_git_sha(path: Path) -> str | None:
 
 def _ssh_git_sha(host: str, timeout: int = 8) -> dict:
     remote_cmd = (
+        "marker=${HOME}/inneros/inneros_core/platform/.runtime_git_sha; "
+        "if [ -f \"$marker\" ]; then head -1 \"$marker\"; echo runtime_git_sha; hostname; exit 0; fi; "
         "for d in "
         + " ".join(GIT_ROOTS)
         + "; do expanded=${d/#\\~/\\$HOME}; if git -C \"$expanded\" rev-parse HEAD 2>/dev/null; then "
