@@ -184,11 +184,13 @@ def reconcile_misclassified_email_ops(*, dry_run: bool = True, limit: int = 200)
     }
     rows = list(db[OPS_COL].find(filt, {"_id": 0}).sort("updated_at", -1).limit(max(10, min(limit, 500))))
     fixed: list[dict[str, Any]] = []
+    PAID_ASSIGNEES = frozenset({"cursor", "codex", "antigravity", "gemini", "chatgpt"})
     for task in rows:
         tid = str(task.get("task_id") or "")
         repo = str(task.get("repo") or task.get("related_project") or "").strip()
         tc = str(task.get("task_class") or "coding").lower()
-        if repo and tc == "coding":
+        assignee = str(task.get("assignee") or task.get("preferred_provider") or "").strip().lower()
+        if repo and tc == "coding" and assignee not in PAID_ASSIGNEES:
             continue
         noisy, reason = classify_queued_email_op_noise(task)
         if noisy:
@@ -200,6 +202,7 @@ def reconcile_misclassified_email_ops(*, dry_run: bool = True, limit: int = 200)
             }
             action = "cancel"
         else:
+            reason = "email_misrouted_paid_assignee" if assignee in PAID_ASSIGNEES else "email_not_coding_without_repo"
             patch = {
                 "task_class": "business_ops",
                 "execution_lane": "email_intelligence",
@@ -208,10 +211,14 @@ def reconcile_misclassified_email_ops(*, dry_run: bool = True, limit: int = 200)
                 "assignee": "ralfia",
                 "assigned_to": "ralfia",
                 "preferred_provider": "ralfia",
+                "suppress_owner_whatsapp_auth": True,
                 "updated_at": _now(),
                 "routing_repaired_at": _now(),
-                "routing_repair_reason": "email_not_coding_without_repo",
+                "routing_repair_reason": reason,
             }
+            if str(task.get("status") or "") == "awaiting_owner_authorization":
+                patch["status"] = "accepted"
+                patch["last_error"] = None
             if str(task.get("status") or "") in {"waiting_for_binding", "queued", "proposed"}:
                 patch["status"] = "accepted"
                 patch["last_error"] = None

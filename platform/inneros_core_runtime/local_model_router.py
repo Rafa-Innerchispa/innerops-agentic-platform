@@ -354,14 +354,39 @@ def _ollama_ps() -> dict[str, Any]:
     return _http_json(f"{OLLAMA_URL}/api/ps")
 
 
+def _intel_ollama_candidate_urls() -> list[str]:
+    """Intel hosts often bind Ollama on :11435 (docker) when :11434 is down."""
+    ordered: list[str] = []
+    for key, default in (
+        ("INNEROS_INTEL_OLLAMA_URL", "http://127.0.0.1:11434"),
+        ("OLLAMA_ROUTER_URL", "http://127.0.0.1:11435"),
+        ("OLLAMA_URL", OLLAMA_URL),
+    ):
+        url = _env_url(key, default).rstrip("/")
+        if url and url not in ordered:
+            ordered.append(url)
+    if IS_INTEL_NODE:
+        return ordered
+    return [_env_url("INNEROS_INTEL_OLLAMA_URL", "http://192.168.1.4:11434")]
+
+
+def _resolve_live_intel_ollama_url() -> str | None:
+    for url in _intel_ollama_candidate_urls():
+        if _installed_ollama_models(url):
+            return url
+    return None
+
+
 def _ollama_url_for_provider(provider_id: str | None) -> str:
     # Loopback-only Ollama instances must not be accessed through a LAN IP
     # from their own host. Cross-node access requires an explicitly configured
     # private, authenticated or access-controlled transport.
     if provider_id == "local-intel-4":
-        if IS_INTEL_NODE:
-            return _env_url("INNEROS_INTEL_OLLAMA_URL", "http://127.0.0.1:11434")
-        return _env_url("INNEROS_INTEL_OLLAMA_URL", "http://192.168.1.4:11434")
+        live = _resolve_live_intel_ollama_url()
+        if live:
+            return live
+        candidates = _intel_ollama_candidate_urls()
+        return candidates[0] if candidates else OLLAMA_URL
     return OLLAMA_URL
 
 
@@ -394,7 +419,12 @@ def _pick_installed_ollama_model(ollama_url: str, preferred: str | None = None) 
     for fallback in LOCAL_MODEL_FALLBACKS:
         if fallback in available:
             return fallback
-    return next(iter(sorted(available)))
+    ranked = sorted(available)
+    for hint in ("qwen2.5-coder", "qwen3-coder", "qwen2.5", "deepseek-coder", "codellama", "dolphin", "starcoder"):
+        for name in ranked:
+            if hint in name.lower():
+                return name
+    return ranked[0] if ranked else None
 
 
 def _ollama_chat(
@@ -1102,11 +1132,20 @@ def run_local_model(
     model: str | None = None,
     max_tokens: int | None = None,
     temperature: float = 0.2,
+    preferred_node: str | None = None,
+    preferred_model: str | None = None,
 ) -> dict[str, Any]:
     classification = classify_task_runtime(prompt, task_type=task_type)
-    selected = model or classification["recommended_model"] or _pick_model(classification["task_type"])
+    selected = model or preferred_model or classification["recommended_model"] or _pick_model(classification["task_type"])
     provider_id = classification.get("recommended_provider")
     backend = classification.get("recommended_backend")
+    node_hint = str(preferred_node or "").strip().lower()
+    if node_hint in {"intel", "local-intel-4"}:
+        provider_id = "local-intel-4"
+        backend = "ollama"
+    elif node_hint in {"amd", "local-amd-5"}:
+        provider_id = "local-amd-5"
+        backend = "vllm" if backend == "vllm" else backend
     ollama_url = _ollama_url_for_provider(provider_id)
     vllm_url = _vllm_url_for_provider(provider_id)
     health = local_model_health()
@@ -1236,6 +1275,28 @@ def run_local_model(
             "audit_degraded": log.get("ok") is False,
         }
 
+    resolved = _pick_installed_ollama_model(ollama_url, preferred=selected)
+    if not resolved:
+        fb = _safe_local_failover(
+            preferred_provider=provider_id,
+            task_type=classification["task_type"],
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            fallback_reason="intel_ollama_no_installed_model",
+            preferred_model=selected,
+        )
+        if fb.get("ok"):
+            return fb
+        return {
+            "ok": False,
+            "error": "intel_ollama_no_models",
+            "endpoint": ollama_url,
+            "recommended_model": selected,
+            "external_needed": False,
+        }
+    selected = resolved
     payload = {
         "model": selected,
         "messages": [

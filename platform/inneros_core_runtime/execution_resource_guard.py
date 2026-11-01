@@ -17,6 +17,7 @@ STATE = "ralfia_coordination_state"
 MAX_EXECUTIONS = 3
 MAX_MODEL_CALLS = 12
 MAX_TASK_SECONDS = 1800
+STALE_ACTIVE_TOKEN_SECONDS = 900
 LOCAL_SLOTS = 4
 _context = contextvars.ContextVar("inneros_execution_resource", default=None)
 CONTROL_KEY = "execution_resource_guard_control"
@@ -51,9 +52,105 @@ def _reserve_provider_allowance(db, provider: str) -> bool:
     return True
 
 
+def release_stale_active_reservation(task_id: str, *, max_age_seconds: int = STALE_ACTIVE_TOKEN_SECONDS) -> bool:
+    """Drop orphaned active_token so a crashed executor does not block forever."""
+    tid = (task_id or "").strip()
+    if not tid:
+        return False
+    db = mongo_store.get_db()
+    task = db[TASKS].find_one({"task_id": tid}, {"resource_guard": 1}) or {}
+    ledger = task.get("resource_guard") or {}
+    token = ledger.get("active_token")
+    if not token:
+        return False
+    started_raw = ledger.get("started_at")
+    if not started_raw:
+        db[TASKS].update_one(
+            {"task_id": tid, "resource_guard.active_token": token},
+            {"$unset": {"resource_guard.active_token": "", "resource_guard.provider": ""}},
+        )
+        return True
+    try:
+        started = datetime.fromisoformat(str(started_raw).replace("Z", "+00:00"))
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+    except Exception:
+        started = None
+    age_limit = 60 if max_age_seconds is None else int(max_age_seconds)
+    if started is None or (_now() - started).total_seconds() >= age_limit:
+        db[TASKS].update_one(
+            {"task_id": tid, "resource_guard.active_token": token},
+            {
+                "$unset": {"resource_guard.active_token": "", "resource_guard.provider": ""},
+                "$set": {"resource_guard.stale_token_released_at": _now().isoformat()},
+            },
+        )
+        return True
+    return False
+
+
+def maybe_refresh_dev_swarm_retry_budget(task_id: str) -> bool:
+    """Allow owner/local Dev Swarm retries after a failed bounded run without manual Mongo edits."""
+    tid = (task_id or "").strip()
+    if not tid:
+        return False
+    db = mongo_store.get_db()
+    task = db[TASKS].find_one({"task_id": tid}) or {}
+    if not task.get("dev_swarm_retry_requested"):
+        return False
+    ledger = task.get("resource_guard") or {}
+    if ledger.get("active_token"):
+        release_stale_active_reservation(tid, max_age_seconds=0)
+        task = db[TASKS].find_one({"task_id": tid}) or {}
+        ledger = task.get("resource_guard") or {}
+        if ledger.get("active_token"):
+            return False
+    if ledger.get("last_outcome") not in {None, "failed"}:
+        return False
+    attempts = int(ledger.get("attempts") or 0)
+    elapsed = float(ledger.get("elapsed_seconds") or 0)
+    model_calls = int(ledger.get("model_calls") or 0)
+    blocked = (
+        attempts >= MAX_EXECUTIONS
+        or elapsed >= MAX_TASK_SECONDS
+        or model_calls >= MAX_MODEL_CALLS
+    )
+    if ledger.get("last_outcome") == "failed":
+        refreshed_at = ledger.get("retry_budget_refreshed_at")
+        if refreshed_at:
+            try:
+                ts = datetime.fromisoformat(str(refreshed_at).replace("Z", "+00:00"))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                if (_now() - ts).total_seconds() < 45:
+                    return False
+            except Exception:
+                pass
+    elif not blocked:
+        return False
+    db[TASKS].update_one(
+        {"task_id": tid},
+        {
+            "$set": {
+                "resource_guard.attempts": 0,
+                "resource_guard.elapsed_seconds": 0,
+                "resource_guard.model_calls": 0,
+                "resource_guard.retry_budget_refreshed_at": _now().isoformat(),
+            },
+            "$unset": {
+                "resource_guard.stop_reason": "",
+                "resource_guard.last_outcome": "",
+            },
+        },
+    )
+    return True
+
+
 def reserve(task_id: str, provider: str) -> dict[str, Any]:
     """Atomically spend one attempt before executing; never reset on restart."""
     db = mongo_store.get_db()
+    if provider == "dev_swarm":
+        maybe_refresh_dev_swarm_retry_budget(task_id)
     control = db[STATE].find_one({"key": CONTROL_KEY}) or {}
     if (control.get("state") or {}).get("block_new_work"):
         return denied("resource_global_circuit_open")

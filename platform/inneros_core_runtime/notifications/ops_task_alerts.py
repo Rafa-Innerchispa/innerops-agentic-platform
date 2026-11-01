@@ -237,12 +237,16 @@ def notify_ops_owner_authorization_request(
         resolve_execution_binding,
     )
 
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    preferred = str(task.get("preferred_provider") or payload.get("preferred_provider") or "").strip().lower()
+    if preferred in {"dev_swarm", "local-dev-swarm", "local-amd-5", "ralfia"} or "local_dev_swarm" in set(task.get("tags") or []):
+        return {"ok": False, "skipped": "local_dev_swarm_no_owner_auth", "task_id": str(task.get("task_id") or "")}
+
     binding = binding or resolve_execution_binding(task)
     summary = owner_execution_summary(task, binding)
     alert_kind = str(summary.get("owner_whatsapp_alert_kind") or "internal_fix")
     is_internal_carril = title.startswith("[Carril ") and "· interno" in title
     provider = str(summary.get("provider") or task.get("assignee") or "?")
-    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     prov_norm = provider.strip().lower()
     ha_owner_gate = (
         str(task.get("human_task_id") or "").upper().startswith("HA-")

@@ -19,7 +19,15 @@ LOCAL_TASKS: dict[str, dict] = {
     },
     "ops_e8c6e290c53f": {
         "title": "P1 corregir vigilancia Gmail: oportunidades humanas y señales estratégicas",
-        "objective": "Corregir pipeline Gmail/email_intelligence: alertas humanas y señales estratégicas sin IDE de pago.",
+        "objective": (
+            "Corregir vigilancia Gmail en platform/ ONLY: editar "
+            "platform/inneros_core_runtime/notifications/email_intelligence.py, "
+            "platform/raphiia_openai/notifications/email_router.py si aplica, y "
+            "platform/tests/test_email_intelligence*.py. "
+            "NO crear rutas bajo src/agents_pool ni imports con AG-05 en el path Python. "
+            "Añadir reglas para oportunidades humanas (XERJ, hackathons, 2FA) y alertas HA. "
+            "Tests unittest bajo platform/tests."
+        ),
     },
 }
 
@@ -41,6 +49,9 @@ def bootstrap(*, dry_run: bool = True) -> dict:
         if not row:
             out.append({"task_id": tid, "ok": False, "error": "not_found"})
             continue
+        if str(row.get("status") or "") in {"completed", "partial"} and tid == "ops_446a47bf778d":
+            out.append({"task_id": tid, "ok": True, "dry_run": dry_run, "skipped": "already_completed_wordpress"})
+            continue
         payload = dict(row.get("payload") or {})
         payload.update(
             {
@@ -48,7 +59,7 @@ def bootstrap(*, dry_run: bool = True) -> dict:
                 "related_project": payload.get("related_project") or "Rafa-Innerchispa/innerops-agentic-platform",
                 "task_class": payload.get("task_class") or "ops",
                 "assignee": "dev_swarm",
-                "preferred_provider": "dev_swarm",
+                "preferred_provider": "local-intel-4",
                 "provider_transport": "local_dev_swarm",
                 "execution_lane": "local_dev_swarm",
                 "runtime_profile": payload.get("runtime_profile") or "python-tests",
@@ -62,6 +73,7 @@ def bootstrap(*, dry_run: bool = True) -> dict:
             {
                 **row,
                 "task_id": tid,
+                "objective": spec["objective"],
                 "title": row.get("title") or spec["title"],
                 "assignee": "dev_swarm",
                 "status": "proposed",

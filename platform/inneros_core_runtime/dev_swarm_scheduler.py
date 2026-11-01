@@ -300,8 +300,15 @@ def _worker_worktree(worker: dict[str, Any]) -> str | None:
 
 def _worker_objective(worker: dict[str, Any], task: dict[str, Any] | None) -> str:
     if task:
-        lines = [str(task.get("title") or ""), ""]
-        lines.extend(str(item) for item in task.get("checklist") or [])
+        payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+        objective = str(task.get("objective") or payload.get("objective") or "").strip()
+        lines = [str(task.get("title") or "")]
+        if objective:
+            lines.extend(["", objective])
+        checklist = task.get("checklist") or []
+        if checklist:
+            lines.append("")
+            lines.extend(str(item) for item in checklist)
         return "\n".join(lines).strip()
     plan = ((worker.get("launch") or {}).get("plan") or {}) if isinstance(worker.get("launch"), dict) else {}
     return str(plan.get("objective") or worker.get("task_id") or "").strip()
@@ -1758,7 +1765,8 @@ def scheduler_tick(limit: int = 6, dry_run: bool = False, include_fixtures: bool
                 )
             continue
         task_id = str(task.get("task_id"))
-        selected.append({"task_id": task_id, "repo": repo, "priority": task.get("priority"), "preferred_provider": "local-amd-5"})
+        preferred = str(task.get("preferred_provider") or (task.get("payload") or {}).get("preferred_provider") or "local-intel-4")
+        selected.append({"task_id": task_id, "repo": repo, "priority": task.get("priority"), "preferred_provider": preferred})
         if not dry_run:
             _publish_dev_swarm_event(
                 "scheduler.selected",
@@ -1906,39 +1914,134 @@ def _executor_report_markdown(
     return "\n".join(lines)
 
 
-def executor_tick(limit: int = 2, dry_run: bool = False, run_tests: bool = True) -> dict[str, Any]:
-    db = _db()
-    workers = list(
+_DEV_SWARM_TASK_EXECUTABLE = frozenset({"proposed", "claimed", "accepted", "in_progress", "running"})
+_DEV_SWARM_TASK_TERMINAL = frozenset(
+    {"completed", "failed", "blocked", "partial", "cancelled", "superseded", "awaiting_owner_authorization"}
+)
+
+
+def _executor_worker_needs_tick(worker: dict[str, Any]) -> bool:
+    executor = worker.get("executor") or {}
+    status = str(executor.get("status") or "")
+    phase = str(executor.get("phase") or "")
+    if status in {"", "pending", "failed_retryable"}:
+        return True
+    if status == "running" and phase in {"queued", "launch_pending_worker", "hydrating"}:
+        return True
+    if status == "running" and phase in {"inference", "apply", "test"}:
+        from datetime import datetime, timezone
+
+        def _parse(raw: Any) -> datetime | None:
+            if not raw:
+                return None
+            try:
+                dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                return None
+
+        now = datetime.now(timezone.utc)
+        for key in ("last_progress_at", "updated_at", "last_heartbeat_at"):
+            ts = _parse(executor.get(key) if key != "last_heartbeat_at" else worker.get(key))
+            if ts and (now - ts).total_seconds() > 120:
+                return True
+        return False
+    return False
+
+
+def _archive_dev_swarm_worker(db: Any, task_id: str, *, reason: str) -> None:
+    if not task_id:
+        return
+    db[WORKERS_COL].update_one(
+        {"task_id": task_id, "status": {"$in": ["running", "blocked", "starting"]}},
+        {
+            "$set": {
+                "status": "archived",
+                "executor.status": "failed",
+                "executor.phase": "terminal_task",
+                "updated_at": _now(),
+                "archive_reason": reason,
+            }
+        },
+    )
+
+
+def _executor_pick_workers(db: Any, limit: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Prefer runnable local work; skip stale workers bound to terminal/missing ops tasks."""
+    cap = max(1, min(int(limit or 2), 6))
+    pool = list(
         db[WORKERS_COL]
         .find(
             {
                 "status": {"$in": ["running", "blocked"]},
-                "$or": [
-                    {"executor.status": {"$exists": False}},
-                    {"executor.status": {"$in": ["pending", "failed_retryable"]}},
-                    {
-                        "executor.status": "running",
-                        "executor.phase": {"$in": ["queued", "launch_pending_worker", "hydrating"]},
-                    },
-                ],
+                "task_id": {"$regex": r"^ops_"},
             },
             {"_id": 0},
         )
-        .sort("created_at", 1)
-        .limit(max(1, min(int(limit or 2), 6)))
+        .sort("updated_at", -1)
+        .limit(max(cap * 20, 40))
     )
-    executed: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
-    for worker in workers:
+    candidates: list[tuple[int, str, dict[str, Any]]] = []
+    for worker in pool:
+        if not _executor_worker_needs_tick(worker):
+            continue
         task_id = str(worker.get("task_id") or "")
         repo = str(worker.get("repo") or "")
         branch = str(worker.get("branch") or "")
         if not task_id or not repo or not branch:
             skipped.append({"task_id": task_id, "reason": "worker_missing_metadata"})
             continue
+        task = _task_doc(task_id) or {}
+        status = str(task.get("status") or "").lower()
+        if not task:
+            skipped.append({"task_id": task_id, "reason": "ops_task_missing"})
+            _archive_dev_swarm_worker(db, task_id, reason="ops_task_missing")
+            continue
+        if status in _DEV_SWARM_TASK_TERMINAL or status not in _DEV_SWARM_TASK_EXECUTABLE:
+            skipped.append({"task_id": task_id, "reason": f"task_not_executable:{status or 'unknown'}"})
+            _archive_dev_swarm_worker(db, task_id, reason=f"task_terminal:{status}")
+            continue
+        if task.get("execution_stop") or task.get("superseded_by"):
+            skipped.append({"task_id": task_id, "reason": "task_stopped_or_superseded"})
+            _archive_dev_swarm_worker(db, task_id, reason="task_stopped")
+            continue
+        priority = 0
+        tags = set(task.get("tags") or [])
+        if "local_dev_swarm" in tags or task.get("preferred_provider") in {"local-dev-swarm", "dev_swarm", "local-amd-5"}:
+            priority += 100
+        if str(task.get("priority") or "").lower() in {"p0", "p1"}:
+            priority += 50
+        if status in {"in_progress", "accepted", "claimed"}:
+            priority += 10
+        candidates.append((priority, str(task.get("updated_at") or ""), worker))
+    candidates.sort(key=lambda row: (-row[0], row[1]), reverse=False)
+    selected = [w for _, _, w in candidates[:cap]]
+    return selected, skipped
+
+
+def executor_tick(limit: int = 2, dry_run: bool = False, run_tests: bool = True) -> dict[str, Any]:
+    db = _db()
+    workers, skipped = _executor_pick_workers(db, limit)
+    executed: list[dict[str, Any]] = []
+    from inneros_core_runtime.execution_resource_guard import (
+        maybe_refresh_dev_swarm_retry_budget,
+        release_stale_active_reservation,
+    )
+
+    for worker in workers:
+        task_id = str(worker.get("task_id") or "")
+        repo = str(worker.get("repo") or "")
+        branch = str(worker.get("branch") or "")
         if dry_run:
             executed.append({"task_id": task_id, "repo": repo, "branch": branch, "dry_run": True})
             continue
+        release_stale_active_reservation(task_id)
+        maybe_refresh_dev_swarm_retry_budget(task_id)
+        task = _task_doc(task_id)
+        if task and str(task.get("status") or "").lower() == "proposed":
+            coordination_live.update_ops_task_state(task_id, "accepted", actor="dev_swarm")
+            coordination_live.update_ops_task_state(task_id, "in_progress", actor="dev_swarm")
         executed.append(_execute_existing_worker_generic(worker, run_tests=run_tests))
     _save_state({"last_executor_tick_at": _now(), "last_executor_executed": len(executed), "last_executor_skipped": len(skipped)})
     return {"ok": True, "executed": executed, "skipped": skipped}
@@ -2190,6 +2293,19 @@ def _requires_product_writes(objective: str) -> bool:
 def _is_platform_regression_task(objective: str) -> bool:
     text = (objective or "").lower()
     return any(term in text for term in ("platform regression", "executor regression", "contract fixture", "diagnostic fixture"))
+
+
+def _normalized_repo_rel(path: str) -> str:
+    return str(path or "").replace("\\", "/").lstrip("./")
+
+
+def _objective_requires_platform_tree_writes(objective: str) -> bool:
+    text = (objective or "").lower()
+    if "platform/" not in text:
+        return False
+    if any(word in text for word in (" only", "only:", "únicamente", "exclusivamente", "solo ")):
+        return True
+    return "editar platform/" in text
 
 
 def _is_diagnostic_contract_path(path: str) -> bool:
@@ -2646,6 +2762,8 @@ def _quality_gate_guidance(
         instructions.append("Fix the failing command output from the previous attempt before adding new files.")
     if diff_risk_reasons:
         instructions.append("Keep the implementation diff small and additive; avoid replacing critical control-plane files or deleting large sections.")
+    if "platform_tree_write_missing" in reasons:
+        instructions.append("Write product code under platform/inneros_core_runtime/ or platform/tests/; do not satisfy the task with repo-root scaffold or npm-only fixtures.")
     if not instructions:
         instructions.append("Keep the next change smaller and align it to the existing repository architecture.")
     return {
@@ -2882,17 +3000,39 @@ def _worktree_has_python_markers(worktree: Path, files_touched: list[str]) -> bo
     return any(path.is_file() and path.suffix == ".py" for path in (worktree / "tests").rglob("*")) if (worktree / "tests").exists() else False
 
 
+def _ensure_importable_test_packages(worktree: Path, files_touched: list[str]) -> None:
+    for rel in files_touched:
+        text = str(rel)
+        if not (text.startswith("tests/") or text.startswith("platform/tests/")):
+            continue
+        parts = Path(rel).parts[:-1]
+        for i in range(1, len(parts) + 1):
+            directory = worktree.joinpath(*parts[:i])
+            if not directory.is_dir():
+                continue
+            init_file = directory / "__init__.py"
+            if not init_file.exists():
+                init_file.write_text("", encoding="utf-8")
+    platform_tests = worktree / "platform" / "tests"
+    if platform_tests.is_dir():
+        for directory in (worktree / "platform", platform_tests):
+            init_file = directory / "__init__.py"
+            if directory.is_dir() and not init_file.exists():
+                init_file.write_text("", encoding="utf-8")
+
+
 def _test_commands_for_policy(repo: str, worktree: Path, files_touched: list[str]) -> list[list[str]]:
     commands: list[list[str]] = [["git", "diff", "--check"]]
+    has_node = _worktree_has_node_markers(worktree, files_touched)
+    has_python = _worktree_has_python_markers(worktree, files_touched)
     package_roots = _product_roots_for_repo(repo, worktree)
-    if package_roots:
+    if package_roots and not has_python:
         for package_root in package_roots:
             if (worktree / package_root / "package-lock.json").exists() and not (worktree / package_root / "node_modules" / ".bin" / "jest").exists():
                 commands.append(["npm", "--prefix", package_root, "ci"])
-            commands.append(["npm", "--prefix", package_root, "test", "--", "--runInBand"])
+            if (worktree / package_root / "package.json").exists():
+                commands.append(["npm", "--prefix", package_root, "test", "--", "--runInBand"])
         return commands
-    has_node = _worktree_has_node_markers(worktree, files_touched)
-    has_python = _worktree_has_python_markers(worktree, files_touched)
     if (worktree / "package.json").exists():
         commands.append(["npm", "test"])
         return commands
@@ -2910,7 +3050,17 @@ def _test_commands_for_policy(repo: str, worktree: Path, files_touched: list[str
         if "pytest" in pyproject:
             commands.append(["python3", "-m", "pytest", "tests", "-q"])
         else:
-            commands.append(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"])
+            if (worktree / "tests" / "__init__.py").is_file():
+                commands.append(["python3", "-m", "unittest", "discover", "-s", "tests", "-v", "-t", str(worktree)])
+            if (worktree / "tests" / "modules").is_dir():
+                commands.append(["python3", "-m", "unittest", "discover", "-s", "tests/modules", "-v", "-t", str(worktree)])
+            platform_tests = worktree / "platform" / "tests"
+            if platform_tests.is_dir() and (platform_tests / "__init__.py").is_file():
+                commands.append(["python3", "-m", "unittest", "discover", "-s", "platform/tests", "-v", "-t", str(worktree)])
+        for rel in files_touched:
+            if not rel.startswith("tests/") or not rel.endswith(".py"):
+                continue
+            commands.append(["python3", "-m", "unittest", rel.replace("/", ".").removesuffix(".py"), "-v"])
     if len(commands) == 1 and (worktree / "pyproject.toml").exists():
         commands.append(["python3", "-m", "compileall", "-q", "."])
     return commands
@@ -3012,6 +3162,9 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
     final_checks: list[dict[str, Any]] = []
     local_model_ok = False
     last_model_route: dict[str, Any] = {}
+    from inneros_core_runtime import local_model_router as _lmr
+
+    executor_inference_node = "intel" if _lmr.IS_INTEL_NODE else ("amd" if _lmr.IS_AMD_NODE else None)
     product_root = _primary_product_root(repo, worktree)
     path_contract = (
         f"Product root is {product_root}. Return file paths either under {product_root}/... "
@@ -3045,7 +3198,12 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             f"ARCHITECTURE CONTEXT:\n{_repo_architecture_context(repo, worktree, objective, max_chars=1400)}\n\n"
             f"REPOSITORY SNAPSHOT:\n{_fanout_repo_snapshot(worktree, max_chars=1400)}"
         )
-        model = local_model_router.run_local_model(task_type="coding", prompt=prompt, max_tokens=MODEL_OUTPUT_MAX_TOKENS)
+        model = local_model_router.run_local_model(
+            task_type="coding",
+            prompt=prompt,
+            max_tokens=MODEL_OUTPUT_MAX_TOKENS,
+            preferred_node=executor_inference_node,
+        )
         local_model_ok = local_model_ok or bool(model.get("ok"))
         last_model_route = {
             "ok": bool(model.get("ok")),
@@ -3174,6 +3332,31 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
             failures = "At least one product-code write is required and every write must succeed. " + _quality_gate_failure_text(gate)
             attempts.append({"attempt": attempt, "phase": "write", "writes": writes, "write_classes": write_classes, "rejected_files": rejected_files, "quality_gate": gate, "error": failures})
             continue
+        if _objective_requires_platform_tree_writes(objective):
+            platform_writes = [p for p in files_touched if _normalized_repo_rel(p).startswith("platform/")]
+            if not platform_writes:
+                gate = _quality_gate_guidance(
+                    repo=repo,
+                    product_root=product_root or "platform",
+                    rejected_files=rejected_files + [{"path": "", "reason": "platform_tree_write_missing"}],
+                    write_classes=write_classes,
+                )
+                failures = (
+                    "platform_scope_contract: objective requires edits under platform/ (e.g. platform/inneros_core_runtime/...). "
+                    + _quality_gate_failure_text(gate)
+                )
+                attempts.append(
+                    {
+                        "attempt": attempt,
+                        "phase": "write",
+                        "writes": writes,
+                        "write_classes": write_classes,
+                        "rejected_files": rejected_files,
+                        "quality_gate": gate,
+                        "error": failures,
+                    }
+                )
+                continue
         diff_gate = _diff_risk_gate(worktree, files_touched, objective)
         if not diff_gate.get("ok"):
             gate = _quality_gate_guidance(
@@ -3200,6 +3383,7 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
         _cleanup_generated_python_artifacts(worktree)
         checks: list[dict[str, Any]] = []
         if run_tests:
+            _ensure_importable_test_packages(worktree, sorted(set(files_touched)))
             _set_worker_phase(task_id, "test", files_touched=sorted(set(files_touched)), test_status="running")
             for command in _test_commands_for_policy(repo, worktree, sorted(set(files_touched))):
                 result = local_execution_plane.run_command_allowlisted(

@@ -80,6 +80,58 @@ NEWSLETTER_MARKERS = (
 
 FYI_MARKERS = ("para tu informacion", "para tu información", "fyi", "solo informativo", "novedades", "clipping")
 
+# Human/strategic signals that must not be buried as newsletter/FYI (e.g. Gmail CATEGORY_PROMOTIONS).
+STRATEGIC_SIGNAL_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("lead_cliente", (r"\bxerj\b", r"corpus hub", r"founder.*selected.*code", r"selected.*inneros")),
+    ("hackathon_funding_credits", (
+        r"accepted participant",
+        r"you(?:'ve| have) been accepted",
+        r"meta.*(?:hackathon|developer)",
+        r"model api credits",
+        r"devpost",
+        r"claim deadline",
+    )),
+    ("servicio_vencimiento", (
+        r"action required.*two-factor",
+        r"two-factor authentication",
+        r"github.*action required",
+        r"2fa.*required",
+    )),
+    ("calendario_evento", (r"feedback deadline", r"deadline.*\bnov\b", r"agent rush", r"vultr agent rush")),
+)
+
+OPS_LOOP_NOISE_MARKERS = (
+    "[ralfia ops]",
+    "awaiting_antigravity_claim",
+    "awaiting_cursor_claim",
+    "whatsapp disconnect",
+)
+
+
+def _gmail_promotions_bucket(doc: dict[str, Any]) -> bool:
+    labels = doc.get("gmail_labels") or doc.get("labels") or []
+    category = str(doc.get("gmail_category") or doc.get("category") or "").upper()
+    if "PROMOTIONS" in category or "CATEGORY_PROMOTIONS" in category:
+        return True
+    for label in labels:
+        upper = str(label).upper()
+        if "PROMOTIONS" in upper or "CATEGORY_PROMOTIONS" in upper:
+            return True
+    return False
+
+
+def _is_ops_loop_noise(blob: str) -> bool:
+    return any(marker in blob for marker in OPS_LOOP_NOISE_MARKERS)
+
+
+def _find_strategic_document_type(blob: str) -> tuple[str, list[str]] | None:
+    for doc_type, patterns in STRATEGIC_SIGNAL_PATTERNS:
+        hits = [pat for pat in patterns if re.search(pat, blob, re.I)]
+        if hits:
+            return doc_type, hits[:4]
+    return None
+
+
 PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("nota_credito", (r"\bnota\s+de\s+cr[eé]dito\b", r"\bcredit\s+note\b")),
     ("retencion", (r"\bretenci[oó]n\b", r"\bwithholding\b")),
@@ -141,6 +193,11 @@ def _attachment_evidence(doc: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _find_document_type(blob: str) -> tuple[str, list[str]]:
+    if _is_ops_loop_noise(blob):
+        return "fyi", ["ops_loop_noise"]
+    strategic = _find_strategic_document_type(blob)
+    if strategic:
+        return strategic
     newsletter_hits = [m for m in NEWSLETTER_MARKERS if m in blob]
     has_financial = bool(re.search(r"\b(factura|invoice|retenci[oó]n|estado de cuenta|payment receipt|comprobante de pago|clave de acceso)\b", blob, re.I))
     for doc_type, patterns in PATTERNS:
@@ -196,11 +253,17 @@ def decide_email(doc: dict[str, Any], base_analysis: dict[str, Any] | None = Non
     """Return the required durable decision contract for one email."""
     blob = _text(doc)
     document_type, matched = _find_document_type(blob)
+    if document_type in {"fyi", "spam_newsletter"} and _gmail_promotions_bucket(doc):
+        strategic = _find_strategic_document_type(blob)
+        if strategic:
+            document_type, matched = strategic[0], strategic[1] + ["gmail_promotions_override"]
     fields = _extract_fields(blob)
     legal_entity = _resolve_legal_entity(blob, fields)
     route = dict(ROUTE_BY_DOCUMENT_TYPE.get(document_type) or ROUTE_BY_DOCUMENT_TYPE["fyi"])
 
     confidence = 0.9 if document_type not in {"fyi", "spam_newsletter"} else 0.82
+    if "gmail_promotions_override" in matched:
+        confidence = max(confidence, 0.88)
     if document_type in {"factura", "nota_credito", "retencion", "estado_cuenta", "comprobante_pago"} and not (
         fields.get("ruc_candidates") or fields.get("invoice_number") or fields.get("total_candidates") or fields.get("sri_access_keys") or doc.get("has_attachment") or doc.get("attachments")
     ):
