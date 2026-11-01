@@ -1,5 +1,7 @@
 # InnerOS - Inventario permanente de ramas y produccion
 
+**Snapshot manual 2026-11-01 (post-incidente créditos Cursor):** GitHub `main` canónico; ~3888 ramas remotas ya fusionadas en `main`, ~587 sin fusionar (muchas agent/chatgpt/cursor/ops_*). Tras cherry-pick: Codex `#249`/`#250`, dual-node HA 20261010, Notion poll, PR `#238` deploy pause. Regenerar con `GITHUB_TOKEN=… python3 scripts/inneros_branch_ledger.py --repo Rafa-Innerchispa/innerops-agentic-platform`. Política: etiquetar ramas rescatadas `archived/2026-11-integrated`; no borrar masivo sin triage.
+
 Generado automaticamente; no ejecuta ramas, ni fusiona ni elimina codigo.
 Un commit adelantado no implica cambios utiles ausentes del main: revisar
 equivalencia semantica, squash y cherry-pick antes de integrar.

@@ -57,18 +57,33 @@ def main() -> int:
     }
     interactive = _run_script("interactive_provider_autopilot.py")
     cursor = _run_script("cursor_ops_headless_autopilot.py")
+    ha_backfill = _run_script("ops_ide_ha_notify_backfill.py")
+    notion_poll = {}
+    try:
+        from inneros_core_runtime import notion_coordination as nc
+
+        notion_poll = nc.poll_pending_coordination_orders(limit=15)
+    except Exception as exc:
+        notion_poll = {"ok": False, "error": str(exc)[:200]}
+    lane_reconcile = {}
+    if os.getenv("INNEROS_OPS_LANE_RECONCILE", "1").strip().lower() in {"1", "true", "yes"}:
+        try:
+            from inneros_core_runtime import interactive_provider_lanes as ipl
+
+            lane_reconcile = ipl.reconcile_stale_provider_lanes(dry_run=False)
+        except Exception as exc:
+            lane_reconcile = {"ok": False, "error": str(exc)[:200]}
     report = {
         "ok": bool(hygiene.get("ok")),
         "hygiene_apply": apply,
         "hygiene": {k: hygiene.get(k) for k in ("reviewed", "action_count", "counts", "dry_run")},
         "requeue": requeue,
-        "dev_swarm_tick": {
-            "ok": reclaim.get("ok"),
-            "stale_workers_reconciled": reclaim.get("stale_workers_reconciled"),
-            "active_worker_count": reclaim.get("active_worker_count"),
-        },
+        "dev_swarm_tick": reclaim,
         "interactive_autopilot": interactive,
         "cursor_autopilot": cursor,
+        "ide_ha_notify_backfill": ha_backfill,
+        "notion_coordination_poll": notion_poll,
+        "provider_lane_reconcile": lane_reconcile,
     }
     out = Path(os.environ["INNEROS_CORE_ROOT"]) / "var" / "inneros_autopilot" / "last-coordination-cycle.json"
     out.parent.mkdir(parents=True, exist_ok=True)

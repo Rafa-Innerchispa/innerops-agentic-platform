@@ -84,15 +84,78 @@ def active_lane_count(provider: str, *, host: str | None = None) -> int:
     db = mongo_store.get_db()
     filt = {
         "assignee": prov,
-        "status": {"$in": ["in_progress", "claimed", "running", "verification"]},
+        "status": {"$in": ["in_progress", "claimed", "running"]},
         "provider_execution_started_at": {"$exists": True},
         "provider_execution_finished_at": {"$exists": False},
+        "headless_execution_finished_at": {"$exists": False},
         "$or": [
             {"provider_execution_host": h},
             {"provider_execution_host": {"$regex": h.split(".")[0], "$options": "i"}},
         ],
     }
     return db[OPS_TASKS_COL].count_documents(filt)
+
+
+def _pid_alive(pid: int) -> bool:
+    import os as _os
+
+    return pid > 0 and _os.path.exists(f"/proc/{pid}")
+
+
+def reconcile_stale_provider_lanes(*, dry_run: bool = True) -> dict[str, Any]:
+    """Libera reservas de lane cuando el worker murió o la ejecución ya terminó."""
+    db = mongo_store.get_db()
+    h = hostname()
+    cleared: list[dict[str, Any]] = []
+    filt = {
+        "assignee": {"$in": sorted(SUPPORTED)},
+        "provider_execution_started_at": {"$exists": True},
+        "provider_execution_finished_at": {"$exists": False},
+        "$or": [
+            {"provider_execution_host": h},
+            {"provider_execution_host": {"$regex": h.split(".")[0], "$options": "i"}},
+            {"headless_execution_host": h},
+            {"headless_execution_host": {"$regex": h.split(".")[0], "$options": "i"}},
+        ],
+    }
+    projection = {
+        "_id": 0,
+        "task_id": 1,
+        "assignee": 1,
+        "status": 1,
+        "headless_execution_pid": 1,
+        "headless_execution_finished_at": 1,
+    }
+    for row in db[OPS_TASKS_COL].find(filt, projection):
+        tid = str(row.get("task_id") or "")
+        pid = int(row.get("headless_execution_pid") or 0)
+        finished = bool(row.get("headless_execution_finished_at"))
+        status = str(row.get("status") or "")
+        stale = finished or status in {"verification", "superseded", "failed", "blocked", "completed"}
+        if pid and not _pid_alive(pid):
+            stale = True
+        if not stale:
+            continue
+        entry = {"task_id": tid, "assignee": row.get("assignee"), "status": status, "pid": pid}
+        cleared.append(entry)
+        if dry_run:
+            continue
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {
+                "$unset": {
+                    "provider_execution_started_at": "",
+                    "provider_execution_host": "",
+                    "headless_execution_started_at": "",
+                    "headless_execution_host": "",
+                    "headless_execution_pid": "",
+                    "headless_execution_unit": "",
+                },
+                "$set": {"updated_at": _now(), "lane_reconciled_at": _now()},
+                "$inc": {"revision": 1},
+            },
+        )
+    return {"ok": True, "dry_run": dry_run, "cleared_count": len(cleared), "cleared": cleared[:40]}
 
 
 def available_slots(provider: str) -> int:

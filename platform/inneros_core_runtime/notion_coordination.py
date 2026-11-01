@@ -351,6 +351,72 @@ def process_coordination_page_event(
     return {"ok": True, "dispatched": True, "task_id": task_id, "correlation_id": correlation_id}
 
 
+def poll_pending_coordination_orders(*, limit: int = 25) -> dict[str, Any]:
+    """Pull Notion DB (status=Pending, sin task_id) → create_ops_task. No depende del webhook."""
+    coord_db = _db_id()
+    if not coord_db:
+        return {"ok": False, "error": "NOTION_COORDINATION_DATABASE_ID not set"}
+
+    body: dict[str, Any] = {
+        "page_size": max(1, min(limit, 50)),
+        "filter": {
+            "and": [
+                {"property": "status", "select": {"equals": "Pending"}},
+                {"property": "ralfia_task_id", "rich_text": {"is_empty": True}},
+            ]
+        },
+    }
+    with httpx.Client(timeout=45) as client:
+        resp = client.post(
+            f"{NOTION_API_BASE}/databases/{coord_db}/query",
+            headers=_headers(),
+            json=body,
+        )
+    parsed = _ok_or_error(resp)
+    if not parsed.get("ok"):
+        return {"ok": False, "error": "notion_query_failed", "details": parsed}
+
+    results = parsed.get("results") or []
+    dispatched: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for page in results:
+        page_id = str(page.get("id") or "")
+        last_ed = str(page.get("last_edited_time") or _now())
+        parent = page.get("parent") or {}
+        db_parent = str(parent.get("database_id") or coord_db)
+        out = process_coordination_page_event(
+            event_type="poll.pending",
+            page_id=page_id,
+            last_edited_time=last_ed,
+            database_id=db_parent,
+        )
+        entry = {"page_id": page_id, **out}
+        if out.get("dispatched"):
+            dispatched.append(entry)
+            try:
+                from inneros_core_runtime.notifications import ops_task_alerts as ota
+                from raphiia_openai.coordination_live import OPS_TASKS_COL
+
+                tid = str(out.get("task_id") or "")
+                if tid:
+                    task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or {}
+                    if task:
+                        ota.notify_ops_owner_authorization(task, force=True)
+            except Exception:
+                pass
+        else:
+            skipped.append(entry)
+
+    return {
+        "ok": True,
+        "polled": len(results),
+        "dispatched_count": len(dispatched),
+        "skipped_count": len(skipped),
+        "dispatched": dispatched[:15],
+        "skipped": skipped[:10],
+    }
+
+
 def post_response_to_notion(
     *,
     correlation_id: str,
