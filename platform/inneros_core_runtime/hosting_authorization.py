@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from inneros_core_runtime import mongo_store
+from inneros_core_runtime.hosting_locks import is_domain_reserved, RESERVED_CAMPAIGN_DOMAINS
 
 HOSTING_AUTH_COL = "ralfia_hosting_authorizations"
 HOSTING_DOMAINS_COL = "ralfia_hosting_domain_policies"
@@ -64,9 +65,13 @@ def is_domain_mutation_allowed(domain: str) -> bool:
     """
     Validates whether a domain is an authorized account domain.
     Enforces that mutations cannot touch foreign/external domains.
+    Guards reserved campaign domains from unauthorized mutation.
     """
     d = (domain or "").lower().strip()
     if not d:
+        return False
+    # If domain is actively reserved for external campaigns, mutation is disallowed
+    if is_domain_reserved(d):
         return False
     valid_domains = get_all_account_domains()
     return d in valid_domains or any(d.endswith("." + v) for v in valid_domains)
@@ -85,8 +90,20 @@ def request_hosting_authorization(
     Issues a delegated hosting grant for a domain.
     Staging grants are auto-granted with a TTL.
     Production grants strictly require owner approval token.
+    Enforces strict guard on reserved campaign domains.
     """
     d_clean = (domain or "").lower().strip()
+    if is_domain_reserved(d_clean):
+        return {
+            "ok": False,
+            "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+            "domain": d_clean,
+            "message": (
+                f"Domain '{d_clean}' is actively reserved for external Google SEO/ad campaigns. "
+                "Authorizations and modifications are strictly prevented to avoid collision."
+            ),
+        }
+
     if not d_clean or not is_domain_mutation_allowed(d_clean):
         return {
             "ok": False,
@@ -165,6 +182,14 @@ def validate_hosting_authorization(
 ) -> dict[str, Any]:
     """Validates that a hosting operation is authorized under an active delegated grant."""
     d_clean = (domain or "").lower().strip()
+    if is_domain_reserved(d_clean):
+        return {
+            "ok": False,
+            "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+            "domain": d_clean,
+            "message": f"Domain '{d_clean}' is actively reserved for external campaigns. Mutations strictly forbidden.",
+        }
+
     if not d_clean or not is_domain_mutation_allowed(d_clean):
         return {
             "ok": False,

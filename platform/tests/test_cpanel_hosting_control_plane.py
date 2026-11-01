@@ -457,3 +457,223 @@ def test_account_wide_security_audit():
     summary = res.get("result", {}).get("summary", {})
     assert "critical_risk_domains" in summary
     assert res.get("result", {}).get("total_domains_audited") == 24
+
+
+# ======================================================================
+# Concurrency, Reservation, and Guard Governance Tests
+# ======================================================================
+
+def test_pcdoctor_reserved_domain_blocks_all_mutations():
+    """Verifies pcdoctor.ai and pcdoctor.com.ec are strictly protected from all modifications."""
+    from inneros_core_runtime.hosting_control_plane import HostingControlPlane
+    hcp = HostingControlPlane()
+
+    for dom in ["pcdoctor.ai", "pcdoctor.com.ec"]:
+        # 1. request_authorization must reject
+        req_res = capability_invoke(
+            "hosting.cpanel.mutate.v1",
+            {"action": "request_authorization", "domain": dom, "target_env": "staging"},
+            context={"scopes": ["ralfia:read", "ralfia:write"]},
+        )
+        assert req_res.get("result", {}).get("ok") is False
+        assert req_res.get("result", {}).get("error") == "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN"
+
+        # 2. direct capability mutation must reject
+        pub_res = capability_invoke(
+            "hosting.cpanel.mutate.v1",
+            {
+                "action": "publish_file",
+                "domain": dom,
+                "filename": "index.html",
+                "content": "<h1>Malicious Overwrite</h1>",
+                "target_env": "staging"
+            },
+            context={"scopes": ["ralfia:read", "ralfia:write"]},
+        )
+        assert pub_res.get("result", {}).get("ok") is False
+        assert pub_res.get("result", {}).get("error") == "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN"
+
+        # 3. direct HostingControlPlane invocation must reject
+        direct_res = hcp.publish_file(domain=dom, filename="test.txt", content="test")
+        assert direct_res.get("ok") is False
+        assert direct_res.get("error") == "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN"
+
+
+def test_hosting_locks_acquire_and_conflict_rejection():
+    """Tests domain/path concurrency locks, active conflict rejection, and clean release."""
+    dom = "innerspark.live"
+
+    # Acquire lock for actor chatgpt
+    acq1 = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {
+            "action": "acquire_lock",
+            "domain": dom,
+            "path": "*",
+            "target_env": "staging",
+            "reason": "Test deployment lock",
+            "ttl_seconds": 60
+        },
+        context={"scopes": ["ralfia:read", "ralfia:write"], "actor": "chatgpt"},
+    )
+    r1 = acq1.get("result", {})
+    assert r1.get("ok") is True
+    lock_id_1 = r1.get("lock_id")
+    assert lock_id_1 is not None
+
+    # Attempt conflicting lock by different actor
+    acq2 = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {
+            "action": "acquire_lock",
+            "domain": dom,
+            "path": "assets",
+            "target_env": "staging",
+            "reason": "Conflicting worker lock",
+            "ttl_seconds": 60
+        },
+        context={"scopes": ["ralfia:read", "ralfia:write"], "actor": "other_worker"},
+    )
+    r2 = acq2.get("result", {})
+    assert r2.get("ok") is False
+    assert r2.get("error") == "RESOURCE_LOCKED"
+    assert r2.get("active_lock", {}).get("lock_id") == lock_id_1
+
+    # Check locks query
+    chk = capability_invoke(
+        "hosting.cpanel.query.v1",
+        {"action": "check_locks", "domain": dom},
+        context={"scopes": ["ralfia:read"]},
+    )
+    r_chk = chk.get("result", {})
+    assert r_chk.get("ok") is True
+    assert any(lk.get("lock_id") == lock_id_1 for lk in r_chk.get("active_locks", []))
+
+    # Release lock
+    rel = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {"action": "release_lock", "lock_id": lock_id_1, "domain": dom},
+        context={"scopes": ["ralfia:read", "ralfia:write"], "actor": "chatgpt"},
+    )
+    assert rel.get("result", {}).get("ok") is True
+    assert rel.get("result", {}).get("status") == "released"
+
+
+def test_publish_file_optimistic_concurrency_detection():
+    """Tests optimistic concurrency control detecting concurrent server modifications via base SHA-256."""
+    import hashlib
+    dom = "innerspark.live"
+
+    # Ensure authorization
+    auth_res = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {"action": "request_authorization", "domain": dom, "target_env": "staging"},
+        context={"scopes": ["ralfia:read", "ralfia:write"]},
+    )
+    auth_id = auth_res.get("result", {}).get("auth_id")
+
+    # Step 1: Publish base file
+    content_v1 = "console.log('version 1.0.0');\n"
+    sha_v1 = hashlib.sha256(content_v1.encode("utf-8")).hexdigest()
+
+    pub1 = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {
+            "action": "publish_file",
+            "domain": dom,
+            "dir_path": "_staging_occ_test",
+            "filename": "app_occ.js",
+            "content": content_v1,
+            "auth_id": auth_id,
+            "target_env": "staging"
+        },
+        context={"scopes": ["ralfia:read", "ralfia:write"]},
+    )
+    assert pub1.get("result", {}).get("ok") is True
+
+    # Step 2: Publish update with correct expected_base_sha256
+    content_v2 = "console.log('version 2.0.0');\n"
+    pub2 = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {
+            "action": "publish_file",
+            "domain": dom,
+            "dir_path": "_staging_occ_test",
+            "filename": "app_occ.js",
+            "content": content_v2,
+            "expected_base_sha256": sha_v1,
+            "auth_id": auth_id,
+            "target_env": "staging"
+        },
+        context={"scopes": ["ralfia:read", "ralfia:write"]},
+    )
+    assert pub2.get("result", {}).get("ok") is True
+    assert pub2.get("result", {}).get("previous_sha256") == sha_v1
+
+    # Step 3: Attempt update with stale expected_base_sha256 -> must detect concurrent conflict
+    stale_sha = "1111111111111111111111111111111111111111111111111111111111111111"
+    pub3 = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {
+            "action": "publish_file",
+            "domain": dom,
+            "dir_path": "_staging_occ_test",
+            "filename": "app_occ.js",
+            "content": "console.log('version 3.0.0');\n",
+            "expected_base_sha256": stale_sha,
+            "auth_id": auth_id,
+            "target_env": "staging"
+        },
+        context={"scopes": ["ralfia:read", "ralfia:write"]},
+    )
+    r3 = pub3.get("result", {})
+    assert r3.get("ok") is False
+    assert r3.get("error") == "CONCURRENT_MODIFICATION_DETECTED"
+    assert r3.get("expected_base_sha256") == stale_sha
+
+
+def test_deploy_release_acquires_lock_and_generates_manifest():
+    """Tests deploy_release acquires lock, generates .inneros_manifest.json, and releases lock."""
+    dom = "innerspark.live"
+    auth_res = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {"action": "request_authorization", "domain": dom, "target_env": "staging"},
+        context={"scopes": ["ralfia:read", "ralfia:write"]},
+    )
+    auth_id = auth_res.get("result", {}).get("auth_id")
+
+    deploy_res = capability_invoke(
+        "hosting.cpanel.mutate.v1",
+        {
+            "action": "deploy_release",
+            "domain": dom,
+            "release_tag": "v2.5.0-locktest",
+            "target_env": "staging",
+            "auth_id": auth_id,
+            "files": [
+                {"path": "index.html", "content": "<html><body><h1>Locked Release Test</h1></body></html>"},
+                {"path": "version.json", "content": "{\"version\": \"2.5.0\", \"status\": \"deployed\"}"}
+            ]
+        },
+        context={"scopes": ["ralfia:read", "ralfia:write"]},
+    )
+    r = deploy_res.get("result", {})
+    assert r.get("ok") is True
+    assert r.get("published_files_count") == 2
+    assert len(r.get("manifest_sha256", "")) == 64
+    assert ".inneros_manifest.json" in r.get("manifest_file", "")
+
+
+def test_check_quota_and_inodes_reporting():
+    """Tests checking quota, used megabytes, limits, and inode health via capability query."""
+    res = capability_invoke(
+        "hosting.cpanel.query.v1",
+        {"action": "check_quota", "domain": "innerspark.live"},
+        context={"scopes": ["ralfia:read"]},
+    )
+    assert res.get("ok") is True
+    r = res.get("result", {})
+    assert r.get("ok") is True
+    assert r.get("status") in {"HEALTHY", "WARNING", "CRITICAL"}
+    assert "disk" in r
+    assert "inodes" in r

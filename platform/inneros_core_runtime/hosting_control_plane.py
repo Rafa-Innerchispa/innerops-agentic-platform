@@ -22,6 +22,20 @@ from typing import Any
 
 
 from inneros_core_runtime.cpanel_client import CPanelClient, SecurityViolation
+from inneros_core_runtime.hosting_locks import (
+    is_domain_reserved,
+    is_resource_locked,
+    acquire_hosting_lock,
+    release_hosting_lock,
+    check_hosting_locks,
+)
+from inneros_core_runtime.hosting_locks import (
+    is_domain_reserved,
+    is_resource_locked,
+    acquire_hosting_lock,
+    release_hosting_lock,
+    check_hosting_locks,
+)
 from inneros_core_runtime import mongo_store
 
 HOSTING_RELEASES_COL = "ralfia_hosting_releases"
@@ -154,6 +168,20 @@ class HostingControlPlane:
         target_env: str = "staging"
     ) -> dict[str, Any]:
         """Creates a directory within the safe resolved boundary."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
         if not folder_name:
             return {"ok": False, "error": "folder_name_required"}
         target_parent = self.client.resolve_path(domain, dir_path, target_env=target_env)
@@ -174,8 +202,18 @@ class HostingControlPlane:
         content: str | bytes = "",
         is_binary: bool = False,
         expected_sha256: str | None = None,
+        expected_base_sha256: str | None = None,
+        lock_id: str | None = None,
         target_env: str = "staging"
     ) -> dict[str, Any]:
+        """Publishes a single file (text or binary) into the safe resolved domain directory with concurrency and hash guards."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
         """Publishes a single file (text or binary) into the safe resolved domain directory."""
         if not filename:
             return {"ok": False, "error": "filename_required", "message": "Parameter 'filename' is required."}
@@ -183,6 +221,26 @@ class HostingControlPlane:
             return {"ok": False, "error": "content_required", "message": "Parameter 'content' is required."}
 
         target_dir = self.client.resolve_path(domain, dir_path, target_env=target_env)
+        locked, lock_info = is_resource_locked(domain=domain, path=target_dir, current_lock_id=lock_id)
+        if locked and lock_info:
+            return {
+                "ok": False,
+                "error": "RESOURCE_LOCKED",
+                "domain": domain,
+                "path": target_dir,
+                "active_lock": lock_info,
+                "message": f"Resource is locked by {lock_info.get('locked_by')} until {lock_info.get('expires_at')}."
+            }
+        locked, lock_info = is_resource_locked(domain=domain, path=target_dir, current_lock_id=lock_id)
+        if locked and lock_info:
+            return {
+                "ok": False,
+                "error": "RESOURCE_LOCKED",
+                "domain": domain,
+                "path": target_dir,
+                "active_lock": lock_info,
+                "message": f"Resource is locked by {lock_info.get('locked_by')} until {lock_info.get('expires_at')}."
+            }
 
         # Ensure directory hierarchy exists
         docroot = self.client.get_domain_docroot(domain)
@@ -226,6 +284,23 @@ class HostingControlPlane:
         except Exception:
             pass
 
+        # Optimistic concurrency check
+        if expected_base_sha256:
+            if prev_hash != "none" and prev_hash.lower() != expected_base_sha256.lower():
+                return {
+                    "ok": False,
+                    "error": "CONCURRENT_MODIFICATION_DETECTED",
+                    "domain": domain,
+                    "filename": filename,
+                    "dir_path": target_dir,
+                    "current_sha256": prev_hash,
+                    "expected_base_sha256": expected_base_sha256,
+                    "message": (
+                        f"File '{filename}' was modified concurrently on server since last inspection. "
+                        f"Current SHA-256 is {prev_hash}, but expected base was {expected_base_sha256}."
+                    )
+                }
+
         # Write file
         is_bin_ext = filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".zip"))
         if is_binary or is_bin_ext:
@@ -252,9 +327,24 @@ class HostingControlPlane:
         domain: str,
         dir_path: str = ".",
         files: list[dict[str, Any]] | None = None,
+        lock_id: str | None = None,
         target_env: str = "staging"
     ) -> dict[str, Any]:
         """Transfers multiple files or complete directory structure with SHA-256 verification."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
         if not files:
             return {"ok": False, "error": "files_required", "message": "Parameter 'files' list is required."}
 
@@ -293,6 +383,7 @@ class HostingControlPlane:
                 content=file_content,
                 is_binary=is_bin,
                 expected_sha256=exp_hash,
+                lock_id=lock_id,
                 target_env=target_env
             )
             results.append(pub_res)
@@ -323,6 +414,20 @@ class HostingControlPlane:
         target_env: str = "production"
     ) -> dict[str, Any]:
         """Reads authorized file content with deterministic secret redaction."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
         if not filename:
             return {"ok": False, "error": "filename_required"}
         target_dir = self.client.resolve_path(domain, dir_path, target_env=target_env)
@@ -414,6 +519,20 @@ class HostingControlPlane:
         target_env: str = "staging"
     ) -> dict[str, Any]:
         """Renames or moves a file within the resolved domain boundary."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
         src = self.client.resolve_path(domain, source_path, target_env=target_env)
         dst = self.client.resolve_path(domain, dest_path, target_env=target_env)
         res = self.client.rename_file(src, dst)
@@ -432,6 +551,20 @@ class HostingControlPlane:
         target_env: str = "production"
     ) -> dict[str, Any]:
         """Modifies permissions of an authorized file."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
         norm_file = self.client.resolve_path(domain, file_path, target_env=target_env)
         res = self.client.chmod_file(norm_file, mode)
         return {
@@ -449,6 +582,20 @@ class HostingControlPlane:
         target_env: str = "staging"
     ) -> dict[str, Any]:
         """Extracts an uploaded ZIP archive into the destination directory."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
         arc = self.client.resolve_path(domain, archive_path, target_env=target_env)
         dst = self.client.resolve_path(domain, dest_dir, target_env=target_env)
         res = self.client.extract_archive(arc, dst)
@@ -497,8 +644,17 @@ class HostingControlPlane:
     ) -> dict[str, Any]:
         """
         Deploy release with pre-flight quota & inode measurement, staging prep,
-        automatic snapshot, publication, and HTTP health probe.
+        automatic snapshot, publication, manifest generation, and HTTP health probe.
+        Guarantees domain lock release in finally block.
         """
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
+
         domain_info = self.get_domain_details(domain)
         if not domain_info.get("ok"):
             return domain_info
@@ -507,86 +663,136 @@ class HostingControlPlane:
         clean_tag = re.sub(r"[^a-zA-Z0-9_.-]", "_", release_tag)
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        # 1. Quota & Inodes Pre-flight Check
-        quota = self.client.get_quota_info()
+        # Acquire domain-wide deployment lock
+        lock_res = acquire_hosting_lock(
+            domain=domain,
+            path="*",
+            target_env=target_env,
+            locked_by=f"deploy_{clean_tag}",
+            reason=f"Deploy release {clean_tag}",
+            ttl_seconds=300
+        )
+        if not lock_res.get("ok"):
+            return lock_res
+        lock_id = lock_res.get("lock_id")
 
-        # 2. Prepare Snapshot / Backup directory
-        backup_dir_name = f"_backups/release_{clean_tag}_{int(datetime.now(timezone.utc).timestamp())}"
-        snapshot_dir = f"{docroot}/{backup_dir_name}"
         try:
-            self.client.mkdir(docroot, "_backups")
-            self.client.mkdir(f"{docroot}/_backups", f"release_{clean_tag}_{int(datetime.now(timezone.utc).timestamp())}")
-        except Exception:
-            pass
+            # 1. Quota & Inodes Pre-flight Check
+            quota = self.client.get_quota_info()
 
-        # 3. If target_env is staging, publish strictly under _staging_{tag}
-        if target_env == "staging":
-            staging_sub = f"_staging_{clean_tag}"
+            # 2. Prepare Snapshot / Backup directory
+            backup_dir_name = f"_backups/release_{clean_tag}_{int(datetime.now(timezone.utc).timestamp())}"
+            snapshot_dir = f"{docroot}/{backup_dir_name}"
             try:
-                self.client.mkdir(docroot, staging_sub)
+                self.client.mkdir(docroot, "_backups")
+                self.client.mkdir(f"{docroot}/_backups", f"release_{clean_tag}_{int(datetime.now(timezone.utc).timestamp())}")
             except Exception:
                 pass
-            target_dir = f"{docroot}/{staging_sub}"
-        else:
-            target_dir = docroot
 
-        pub_res = self.publish_directory(domain=domain, dir_path=target_dir, files=files, target_env=target_env)
-        if not pub_res.get("ok"):
-            return {
-                "ok": False,
-                "error": "release_publication_failed",
-                "details": pub_res
+            # 3. If target_env is staging, publish strictly under _staging_{tag}
+            if target_env == "staging":
+                staging_sub = f"_staging_{clean_tag}"
+                try:
+                    self.client.mkdir(docroot, staging_sub)
+                except Exception:
+                    pass
+                target_dir = f"{docroot}/{staging_sub}"
+            else:
+                target_dir = docroot
+
+            pub_res = self.publish_directory(
+                domain=domain,
+                dir_path=target_dir,
+                files=files,
+                lock_id=lock_id,
+                target_env=target_env
+            )
+            if not pub_res.get("ok"):
+                return {
+                    "ok": False,
+                    "error": "release_publication_failed",
+                    "details": pub_res
+                }
+
+            # 4. Generate and save deployment manifest
+            manifest_data = {
+                "release_tag": clean_tag,
+                "domain": domain,
+                "target_env": target_env,
+                "target_dir": target_dir,
+                "snapshot_dir": snapshot_dir,
+                "deployed_at": now_iso,
+                "manifest": pub_res.get("manifest", {}),
+                "manifest_sha256": pub_res.get("manifest_sha256", ""),
+                "published_files_count": pub_res.get("published_files_count", 0),
+            }
+            try:
+                self.client.save_file_content(target_dir, ".inneros_manifest.json", json.dumps(manifest_data, indent=2))
+            except Exception:
+                pass
+
+            # 5. HTTP Health Probe
+            http_status = 200
+            probe_err = None
+            try:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                test_url = f"https://{domain}" if target_env == "production" else f"https://{domain}/{os.path.basename(target_dir)}"
+                req = urllib.request.Request(test_url, headers={"User-Agent": "InnerOS-HealthProbe/1.0"})
+                with urllib.request.urlopen(req, timeout=5, context=ctx) as r:
+                    http_status = r.status
+            except Exception as e:
+                probe_err = str(e)
+
+            release_doc = {
+                "release_id": f"rel_{clean_tag}_{secrets.token_hex(4)}",
+                "domain": domain,
+                "release_tag": clean_tag,
+                "target_env": target_env,
+                "target_dir": target_dir,
+                "snapshot_dir": snapshot_dir,
+                "manifest": pub_res.get("manifest"),
+                "manifest_sha256": pub_res.get("manifest_sha256"),
+                "published_files_count": pub_res.get("published_files_count"),
+                "http_status": http_status,
+                "deployed_at": now_iso
             }
 
-        # 4. HTTP Health Probe
-        http_status = 200
-        probe_err = None
-        try:
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            test_url = f"https://{domain}" if target_env == "production" else f"https://{domain}/{os.path.basename(target_dir)}"
-            req = urllib.request.Request(test_url, headers={"User-Agent": "InnerOS-HealthProbe/1.0"})
-            with urllib.request.urlopen(req, timeout=5, context=ctx) as r:
-                http_status = r.status
-        except Exception as e:
-            probe_err = str(e)
+            try:
+                db = mongo_store.get_db()
+                db[HOSTING_RELEASES_COL].insert_one(dict(release_doc))
+            except Exception:
+                pass
 
-        release_doc = {
-            "release_id": f"rel_{clean_tag}_{secrets.token_hex(4)}",
-            "domain": domain,
-            "release_tag": clean_tag,
-            "target_env": target_env,
-            "target_dir": target_dir,
-            "snapshot_dir": snapshot_dir,
-            "manifest": pub_res.get("manifest"),
-            "manifest_sha256": pub_res.get("manifest_sha256"),
-            "published_files_count": pub_res.get("published_files_count"),
-            "http_status": http_status,
-            "deployed_at": now_iso
-        }
-
-        try:
-            db = mongo_store.get_db()
-            db[HOSTING_RELEASES_COL].insert_one(dict(release_doc))
-        except Exception:
-            pass
-
-        return {
-            "ok": True,
-            "domain": domain,
-            "release_tag": clean_tag,
-            "target_env": target_env,
-            "published_files_count": pub_res.get("published_files_count"),
-            "manifest_sha256": pub_res.get("manifest_sha256"),
-            "target_dir": target_dir,
-            "snapshot_id": backup_dir_name,
-            "http_probe": {"status": http_status, "error": probe_err},
-            "deployed_at": now_iso
-        }
+            return {
+                "ok": True,
+                "domain": domain,
+                "release_tag": clean_tag,
+                "target_env": target_env,
+                "target_dir": target_dir,
+                "snapshot_id": backup_dir_name,
+                "published_files_count": pub_res.get("published_files_count"),
+                "manifest_sha256": pub_res.get("manifest_sha256"),
+                "manifest": pub_res.get("manifest"),
+                "manifest_file": f"{target_dir}/.inneros_manifest.json",
+                "http_probe": {"status": http_status, "error": probe_err},
+                "deployed_at": now_iso,
+                "message": f"Release {clean_tag} deployed successfully with lock and manifest."
+            }
+        finally:
+            if lock_id:
+                release_hosting_lock(lock_id=lock_id, domain=domain, released_by=f"deploy_{clean_tag}")
 
     def rollback_release(self, domain: str, release_tag: str) -> dict[str, Any]:
-        """Rolls back files to a previous snapshot version safely."""
+        """Rolls back files to a previous snapshot version safely with manifest verification."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
         clean_tag = re.sub(r"[^a-zA-Z0-9_.-]", "_", release_tag)
         now_iso = datetime.now(timezone.utc).isoformat()
         docroot = self.client.get_domain_docroot(domain)
@@ -843,7 +1049,14 @@ class HostingControlPlane:
         elements: dict[str, Any],
         target_env: str = "staging"
     ) -> dict[str, Any]:
-        """Publishes or updates SEO assets (robots.txt, sitemap.xml, or meta tags)."""
+        if is_domain_reserved(domain):
+            return {
+                "ok": False,
+                "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+                "domain": domain,
+                "message": f"Domain '{domain}' is actively reserved for external campaign development. Modifications are strictly forbidden."
+            }
+        """Updates meta tags, title, schema, or robots safely in staging/production."""
         results = {}
         if "robots_txt" in elements:
             r_res = self.publish_file(domain=domain, dir_path=".", filename="robots.txt", content=elements["robots_txt"], target_env=target_env)
@@ -861,6 +1074,82 @@ class HostingControlPlane:
     # =========================================================================
     # IMAP Mailbox Query
     # =========================================================================
+
+
+    def check_quota(self, domain: str = "") -> dict[str, Any]:
+        """Checks disk quota, used megabytes, limits, and inode health via cPanel UAPI."""
+        quota_raw = self.client.get_quota_info()
+        used_mb = quota_raw.get("megabytes_used", quota_raw.get("bytes_used", 0))
+        limit_mb = quota_raw.get("megabyte_limit", quota_raw.get("bytes_limit", 0))
+        inodes_used = quota_raw.get("inodes_used", quota_raw.get("inode_used", 0))
+        inodes_limit = quota_raw.get("inodes_limit", quota_raw.get("inode_limit", 0))
+
+        pct = 0.0
+        try:
+            if limit_mb and float(limit_mb) > 0:
+                pct = round((float(used_mb) / float(limit_mb)) * 100, 2)
+        except Exception:
+            pct = 0.0
+
+        status = "HEALTHY"
+        if pct >= 90.0:
+            status = "CRITICAL"
+        elif pct >= 75.0:
+            status = "WARNING"
+
+        return {
+            "ok": True,
+            "domain": domain or "account-wide",
+            "status": status,
+            "usage_percent": pct,
+            "disk": {
+                "used_mb": used_mb,
+                "limit_mb": limit_mb,
+            },
+            "inodes": {
+                "used": inodes_used,
+                "limit": inodes_limit,
+            },
+            "raw_data": quota_raw,
+        }
+
+
+    def check_quota(self, domain: str = "") -> dict[str, Any]:
+        """Checks disk quota, used megabytes, limits, and inode health via cPanel UAPI."""
+        quota_raw = self.client.get_quota_info()
+        used_mb = quota_raw.get("megabytes_used", quota_raw.get("bytes_used", 0))
+        limit_mb = quota_raw.get("megabyte_limit", quota_raw.get("bytes_limit", 0))
+        inodes_used = quota_raw.get("inodes_used", quota_raw.get("inode_used", 0))
+        inodes_limit = quota_raw.get("inodes_limit", quota_raw.get("inode_limit", 0))
+
+        pct = 0.0
+        try:
+            if limit_mb and float(limit_mb) > 0:
+                pct = round((float(used_mb) / float(limit_mb)) * 100, 2)
+        except Exception:
+            pct = 0.0
+
+        status = "HEALTHY"
+        if pct >= 90.0:
+            status = "CRITICAL"
+        elif pct >= 75.0:
+            status = "WARNING"
+
+        return {
+            "ok": True,
+            "domain": domain or "account-wide",
+            "status": status,
+            "usage_percent": pct,
+            "disk": {
+                "used_mb": used_mb,
+                "limit_mb": limit_mb,
+            },
+            "inodes": {
+                "used": inodes_used,
+                "limit": inodes_limit,
+            },
+            "raw_data": quota_raw,
+        }
 
     def query_imap_mailbox(
         self,

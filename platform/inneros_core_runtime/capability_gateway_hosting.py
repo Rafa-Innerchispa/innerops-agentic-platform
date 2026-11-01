@@ -15,6 +15,12 @@ import re
 from typing import Any, Dict, List
 
 from inneros_core_runtime.cpanel_client import CPanelClient, SecurityViolation
+from inneros_core_runtime.hosting_locks import (
+    is_domain_reserved,
+    acquire_hosting_lock,
+    release_hosting_lock,
+    check_hosting_locks,
+)
 from inneros_core_runtime.hosting_authorization import (
     check_hosting_authorization,
     is_domain_mutation_allowed,
@@ -133,9 +139,12 @@ def cpanel_hosting_query_handler(parameters: Dict[str, Any], context: Dict[str, 
                 return {"ok": False, "error": "database_required", "message": "Parameter 'database' is required."}
             res = hcp.client.check_database(db_name)
             return {"ok": True, "database": db_name, "result": res}
-        elif action == "get_quota_info":
-            quota = hcp.client.get_quota_info()
-            return {"ok": True, "quota_info": quota}
+        elif action in {"check_quota", "get_quota_info"}:
+            domain = str(parameters.get("domain") or "").strip()
+            return hcp.check_quota(domain=domain)
+        elif action in {"check_locks", "list_locks"}:
+            domain = str(parameters.get("domain") or "").strip()
+            return check_hosting_locks(domain=domain)
         elif action == "list_backups":
             backups = hcp.client.list_backups()
             return {"ok": True, "backups": backups}
@@ -253,6 +262,34 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
     auth_id = str(parameters.get("auth_id") or "").strip()
     approval_token = str(parameters.get("approval_token") or context.get("approval_token") or "").strip()
 
+    # Strictly reject mutations on reserved campaign domains
+    if domain and is_domain_reserved(domain):
+        return {
+            "ok": False,
+            "error": "FORBIDDEN_DOMAIN_RESERVED_EXTERNAL_CAMPAIGN",
+            "domain": domain,
+            "message": f"Domain '{domain}' is actively reserved for external Google SEO/ad campaigns. Mutations strictly forbidden.",
+        }
+
+    # Concurrency Lock management actions
+    if action == "acquire_lock":
+        path = str(parameters.get("path") or "*")
+        ttl = int(parameters.get("ttl_seconds") or 300)
+        reason = str(parameters.get("reason") or "Hosting operation lock")
+        actor = str(context.get("actor") or "chatgpt")
+        return acquire_hosting_lock(
+            domain=domain,
+            path=path,
+            target_env=target_env,
+            locked_by=actor,
+            reason=reason,
+            ttl_seconds=ttl,
+        )
+    elif action == "release_lock":
+        lock_id = str(parameters.get("lock_id") or "").strip()
+        actor = str(context.get("actor") or "chatgpt")
+        return release_hosting_lock(lock_id=lock_id, domain=domain, released_by=actor)
+
     # Special handling for Authorization management actions
     if action == "request_authorization":
         ttl = int(parameters.get("ttl_minutes") or 60)
@@ -321,6 +358,8 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
                     "error": "dir_path_filename_content_required",
                     "message": "Parameters 'filename' and 'content' are required for publishing a file."
                 }
+            exp_base = parameters.get("expected_base_sha256")
+            lock_id = parameters.get("lock_id")
             res = hcp.publish_file(
                 domain=domain,
                 dir_path=dir_path,
@@ -328,6 +367,8 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
                 content=content,
                 is_binary=is_bin,
                 expected_sha256=exp_sha,
+                expected_base_sha256=exp_base,
+                lock_id=lock_id,
                 target_env=target_env
             )
         elif action == "create_directory":
@@ -337,9 +378,10 @@ def cpanel_hosting_mutate_handler(parameters: Dict[str, Any], context: Dict[str,
         elif action == "publish_directory":
             dir_path = str(parameters.get("dir_path") or ".")
             files = parameters.get("files") or []
+            lock_id = parameters.get("lock_id")
             if not files:
                 return {"ok": False, "error": "dir_path_and_files_required", "message": "List of 'files' is required."}
-            res = hcp.publish_directory(domain=domain, dir_path=dir_path, files=files, target_env=target_env)
+            res = hcp.publish_directory(domain=domain, dir_path=dir_path, files=files, lock_id=lock_id, target_env=target_env)
         elif action == "delete_file" or action == "remove_file":
             dir_path = str(parameters.get("dir_path") or ".")
             filename = str(parameters.get("filename") or "")
