@@ -19,13 +19,40 @@ local_host() {
   hostname -s 2>/dev/null || hostname
 }
 
-peer_for() {
-  local me="$1"
-  if [[ "$me" == *intel* ]]; then
-    echo ralfiia-amd
-  else
-    echo ralfiia-intel
+primary_lan_ip() {
+  hostname -I 2>/dev/null | awk "{print \$1}"
+}
+
+node_role() {
+  if [[ -n "${INNEROS_NODE_ROLE:-}" ]]; then
+    echo "${INNEROS_NODE_ROLE}"
+    return
   fi
+  local ip me
+  ip="$(primary_lan_ip)"
+  case "$ip" in
+    192.168.1.4|100.94.99.*) echo intel; return ;;
+    192.168.1.5|100.72.153.*) echo amd; return ;;
+  esac
+  me="$(local_host)"
+  if [[ "$me" == *intel* ]] || [[ "$me" == *ver-10* ]]; then
+    echo intel
+  else
+    echo amd
+  fi
+}
+
+peer_ssh() {
+  local role="$(node_role)"
+  if [[ "$role" == intel ]]; then
+    echo "${INNEROS_AMD_SSH:-rlopez@192.168.1.5}"
+  else
+    echo "${INNEROS_INTEL_SSH:-rlopez@192.168.1.4}"
+  fi
+}
+
+peer_for() {
+  peer_ssh
 }
 
 sync_to_peer() {
