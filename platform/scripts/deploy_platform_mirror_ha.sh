@@ -70,19 +70,24 @@ activate_node() {
     run_remote() { ssh -o BatchMode=yes "$target" "bash -s" <<<"$1"; }
   fi
 
-  local node_role=amd
+  local node_role
   local me
   me="$(local_host)"
-  if [[ "$target" != "localhost" ]] && [[ "$target" != "$me" ]]; then
-    node_role=intel
-  elif [[ "$me" == *intel* ]]; then
-    node_role=intel
+  if [[ "$target" == "localhost" ]] || [[ "$target" == "$me" ]]; then
+    node_role="$(node_role)"
+  else
+    # Remote peer gets the opposite lane role.
+    if [[ "$(node_role)" == intel ]]; then
+      node_role=amd
+    else
+      node_role=intel
+    fi
   fi
   echo "== activate ${target} (INNEROS_NODE_ROLE=${node_role})"
   local cmd
   cmd=$(cat <<EOF
 set -euo pipefail
-export INNEROS_NODE_ROLE=${node_role}
+export INNEROS_NODE_ROLE=${lane_role}
 cd '${PLATFORM}'
 ./scripts/apply_canonical_temporal_worker.sh
 systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service || true
@@ -179,10 +184,8 @@ echo "Local: $ME  Peer: $PEER  Platform: $PLATFORM"
 
 sync_to_peer "$PEER"
 
-LOCAL_ROLE=amd
-[[ "$ME" == *intel* ]] && LOCAL_ROLE=intel
-PEER_ROLE=intel
-[[ "$LOCAL_ROLE" == intel ]] && PEER_ROLE=amd
+LOCAL_ROLE="$(node_role)"
+if [[ "$LOCAL_ROLE" == intel ]]; then PEER_ROLE=amd; else PEER_ROLE=intel; fi
 
 activate_node "localhost"
 activate_node "$PEER"
