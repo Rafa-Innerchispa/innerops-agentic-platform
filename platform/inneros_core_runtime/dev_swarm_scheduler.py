@@ -2975,6 +2975,10 @@ def _execute_existing_worker_generic(worker: dict[str, Any], run_tests: bool = T
     repo = _worker_repo(worker)
     branch = str(worker.get("branch") or "")
     task = _task_doc(task_id)
+    if task and str(task.get("status") or "").lower() == "proposed":
+        coordination_live.update_ops_task_state(task_id, "accepted", actor="dev_swarm")
+        coordination_live.update_ops_task_state(task_id, "in_progress", actor="dev_swarm")
+        task = _task_doc(task_id)
     objective = _worker_objective(worker, task)
     correlation_id = str(((worker.get("launch") or {}).get("plan") or {}).get("correlation_id") or f"dev-swarm-{task_id}")
     worktree_raw = _worker_worktree(worker)
