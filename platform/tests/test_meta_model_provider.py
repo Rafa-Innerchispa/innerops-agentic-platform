@@ -198,5 +198,18 @@ class MetaProviderTest(unittest.TestCase):
         self.assertIsNone(self.ledger.last_receipt(b["grant_id"]))
 
 
+    def test_shared_resource_fabric_registers_meta_once(self):
+        fabric_file = Path(__file__).resolve().parents[1] / "inneros_core_runtime" / "resource_fabric.py"
+        code = fabric_file.read_text(encoding="utf-8")
+        self.assertEqual(1, code.count("meta_model_provider.resource_provider_document()"))
+        self.assertEqual(1, code.count("meta_model_provider.model_provider_document()"))
+        self.assertIn("from raphiia_openai import meta_model_provider", code)
+
+    def test_vault_discovery_is_fail_closed_when_unavailable(self):
+        from unittest.mock import patch
+        with patch("builtins.__import__", side_effect=RuntimeError("test DB is unavailable")):
+            self.assertFalse(meta._has_vault_key())
+
+
 if __name__ == "__main__":
     unittest.main()
