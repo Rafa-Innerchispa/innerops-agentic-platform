@@ -17,6 +17,7 @@ from raphiia_openai import local_discord_plane
 from raphiia_openai import local_gitlab_plane
 from raphiia_openai import assemblyai_provider
 from raphiia_openai import boson_provider
+from raphiia_openai import meta_model_provider
 from raphiia_openai import provider_onboarding_plane
 
 COL_PROVIDERS = "inneros_resource_providers"
@@ -109,6 +110,7 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
         local_discord_plane.resource_provider_document(),
         assemblyai_provider.resource_provider_document(),
         boson_provider.resource_provider_document(),
+        meta_model_provider.resource_provider_document(),
     ]
     provider_ids = {str(row.get("provider_id") or "") for row in providers}
     providers.extend(_registered_manifest_provider_documents(provider_ids))
@@ -129,6 +131,7 @@ def bootstrap_global_resource_fabric(dry_run: bool = False) -> dict[str, Any]:
         },
         gemini_runtime.model_provider_document(),
         digitalocean_amd_provider.model_provider_document(),
+        meta_model_provider.model_provider_document(),
         local_gitlab_plane.model_provider_document(),
     ]
     if dry_run:
