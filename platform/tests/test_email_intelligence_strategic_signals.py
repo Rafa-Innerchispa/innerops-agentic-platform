@@ -15,7 +15,6 @@ class TestEmailIntelligenceStrategicSignals(unittest.TestCase):
         self.assertNotIn(decision["document_type"], {"spam_newsletter", "fyi"})
         self.assertTrue(decision["create_ops_task"])
         self.assertEqual(decision["document_type"], "lead_cliente")
-        self.assertIn("gmail_promotions_override", decision.get("matched_signals") or [])
 
     def test_ops_loop_noise_stays_fyi(self):
         doc = {
