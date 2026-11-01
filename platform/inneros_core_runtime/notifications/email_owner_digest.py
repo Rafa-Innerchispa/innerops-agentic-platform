@@ -135,19 +135,30 @@ def generate_email_owner_digest(*, hours: int = 24, limit: int = 40) -> dict[str
     return result
 
 
-def deliver_email_owner_digest(*, hours: int = 24, limit: int = 40, whatsapp: bool = True) -> dict[str, Any]:
+def deliver_email_owner_digest(*, hours: int = 24, limit: int = 40, whatsapp: bool = False) -> dict[str, Any]:
     digest = generate_email_owner_digest(hours=hours, limit=limit)
-    delivered = False
+    text = str(digest.get("report_text") or "")
+    from inneros_core_runtime.notifications.owner_notify_fanout import notify_owner
+
+    fanout = notify_owner(
+        title=f"Digest correo ({hours}h)",
+        body=text,
+        kind="email_digest",
+        email_always=True,
+    )
+    digest["fanout"] = fanout
+    digest["delivered"] = bool(fanout.get("ok"))
     if whatsapp:
         try:
-            from raphiia_openai.notifications.evolution_client import send_alert_whatsapp
-            from raphiia_openai import whatsapp_identity
+            import os
 
-            text = digest.get("report_text", "")[:3500]
-            for number in whatsapp_identity.notification_destinations()[:1]:
-                if send_alert_whatsapp(text, number=number).get("ok"):
-                    delivered = True
+            if os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() in {"1", "true", "yes", "on"}:
+                from raphiia_openai.notifications.evolution_client import send_alert_whatsapp
+                from raphiia_openai import whatsapp_identity
+
+                for number in whatsapp_identity.notification_destinations()[:1]:
+                    if send_alert_whatsapp(text[:3500], number=number).get("ok"):
+                        digest["delivered"] = True
         except Exception as exc:
             digest["whatsapp_error"] = str(exc)[:180]
-    digest["whatsapp_delivered"] = delivered
     return digest

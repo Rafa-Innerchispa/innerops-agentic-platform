@@ -18,12 +18,16 @@ def main() -> int:
     p.add_argument("--whatsapp", action="store_true")
     args = p.parse_args()
 
-    from raphiia_openai.notifications import email_owner_digest
+    from inneros_core_runtime.notifications import email_owner_digest
 
     if args.whatsapp:
-        result = email_owner_digest.deliver_email_owner_digest(hours=args.hours, limit=args.limit, whatsapp=True)
+        result = email_owner_digest.deliver_email_owner_digest(
+            hours=args.hours, limit=args.limit, whatsapp=True
+        )
     else:
-        result = email_owner_digest.generate_email_owner_digest(hours=args.hours, limit=args.limit)
+        result = email_owner_digest.deliver_email_owner_digest(
+            hours=args.hours, limit=args.limit, whatsapp=False
+        )
     print(result.get("report_text", "")[:8000])
     return 0 if result.get("ok") else 1
 
