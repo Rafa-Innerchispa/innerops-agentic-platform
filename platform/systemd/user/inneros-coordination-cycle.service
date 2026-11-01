@@ -13,8 +13,12 @@ Environment=INNEROS_OPS_OWNER_AUTH_AUTOPILOT=1
 Environment=INNEROS_INTERACTIVE_AUTO_CLAIM=1
 Environment=INNEROS_WHATSAPP_NOTIFICATIONS=0
 Environment=NOTIFY_OPS_AUTH_HA=1
+Environment=NOTIFY_OPS_TELEGRAM=1
+Environment=RALFIA_OPS_AUTH_EMAIL_TO=rafagye@gmail.com
+Environment=NOTIFY_OPS_INTERNAL_CREATE=1
 Environment=DEV_SWARM_STALE_WORKER_SECONDS=300
 Environment=DEV_SWARM_EXECUTOR_LIMIT=4
 EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
+EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env.ops-notify
 ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/inneros_coordination_cycle.py
 TimeoutStartSec=20min
