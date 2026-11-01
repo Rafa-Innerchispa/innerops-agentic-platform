@@ -1,0 +1,32 @@
+name: shared-meta-model-provider
+on:
+  push:
+    paths:
+      - 'platform/inneros_core_runtime/meta_model_provider.py'
+      - 'platform/inneros_core_runtime/resource_fabric.py'
+      - 'platform/tests/test_meta_model_provider.py'
+      - '.github/workflows/meta-shared-provider-tests.yml'
+  pull_request:
+    paths:
+      - 'platform/inneros_core_runtime/meta_model_provider.py'
+      - 'platform/inneros_core_runtime/resource_fabric.py'
+      - 'platform/tests/test_meta_model_provider.py'
+      - '.github/workflows/meta-shared-provider-tests.yml'
+permissions:
+  contents: read
+jobs:
+  pure-stdlib-security-contract:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Test shared Meta provider without network, credentials or cloud spend
+        env:
+          PYTHONPATH: platform
+        run: python -m unittest discover -s platform/tests -p 'test_meta_model_provider.py' -v
