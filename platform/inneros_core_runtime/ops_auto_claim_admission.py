@@ -45,6 +45,13 @@ def claim_admission(
     def denied(reason: str) -> dict[str, Any]:
         return {**result, "reason": reason}
 
+    if owner != target:
+        return denied("different_assignee")
+    if status in TERMINAL:
+        return denied("terminal_task")
+    if status in PAUSED:
+        return denied("execution_paused_awaiting_owner")
+
     from inneros_core_runtime import ops_deploy_execution_pause as odep
     from inneros_core_runtime.ops_headless_execution_policy import PAID_HEADLESS_PROVIDERS, headless_denial
     from inneros_core_runtime.ops_local_execution_policy import local_execution_denial
@@ -60,13 +67,6 @@ def claim_admission(
         paid_block = headless_denial(task, provider=target, check_budget=True)
         if paid_block:
             return denied(paid_block)
-
-    if owner != target:
-        return denied("different_assignee")
-    if status in TERMINAL:
-        return denied("terminal_task")
-    if status in PAUSED:
-        return denied("execution_paused_awaiting_owner")
     if status in ACTIVE:
         return denied("already_claimed" if task.get("claim_token") else "active_without_claim")
     if bool(task.get("do_not_auto_dispatch")) or bool(payload.get("do_not_auto_dispatch")):
