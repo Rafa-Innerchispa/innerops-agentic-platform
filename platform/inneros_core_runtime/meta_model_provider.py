@@ -67,7 +67,9 @@ def _has_vault_key() -> bool:
         from raphiia_openai import owner_vault  # existing central encrypted vault
         result = owner_vault.get_owner_credential(VAULT_KEY, category=VAULT_CATEGORY, reveal=False)
         return bool(result.get("ok"))
-    except (ImportError, OSError, RuntimeError, ValueError):
+    except Exception:
+        # Registry inspection must never fail if Mongo/owner_vault is offline.
+        # This is a status-only path and must not return or log secrets.
         return False
 
 
