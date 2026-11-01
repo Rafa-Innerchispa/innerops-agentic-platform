@@ -1,0 +1,11 @@
+[Unit]
+Description=InnerOS execution resource audit (all agents, no model calls)
+ConditionPathExists=/home/rlopez/inneros/inneros_core/platform/scripts/inneros_execution_resource_audit.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/inneros_execution_resource_audit.py
+TimeoutStartSec=120

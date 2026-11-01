@@ -21,6 +21,7 @@ from inneros_core_runtime.ops_auto_claim_admission import (
     maybe_record_autopilot_owner_auth,
     pending_admission_summary,
 )
+from inneros_core_runtime.ops_headless_execution_policy import headless_denial
 from raphiia_openai import mongo_store
 
 PROVIDERS = ("codex", "antigravity")
@@ -100,6 +101,9 @@ def _tick_provider(provider: str) -> dict[str, Any]:
         if not ok:
             continue
         tid = str(task.get("task_id") or "")
+        if headless_denial(task, provider=provider):
+            started.append({"task_id": tid, "spawn": {"ok": False, "error": "headless_admission_denied"}})
+            continue
         if cld.is_competition_task(task):
             spawn = cld.spawn_competition_execute(tid)
         elif provider == "codex" and os.getenv(

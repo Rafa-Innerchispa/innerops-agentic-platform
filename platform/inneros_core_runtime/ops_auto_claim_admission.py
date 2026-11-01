@@ -45,6 +45,22 @@ def claim_admission(
     def denied(reason: str) -> dict[str, Any]:
         return {**result, "reason": reason}
 
+    from inneros_core_runtime import ops_deploy_execution_pause as odep
+    from inneros_core_runtime.ops_headless_execution_policy import PAID_HEADLESS_PROVIDERS, headless_denial
+    from inneros_core_runtime.ops_local_execution_policy import local_execution_denial
+
+    if odep.execution_automation_frozen(task):
+        return denied("execution_automation_frozen")
+    if task.get("execution_stop") or task.get("superseded_by"):
+        return denied("task_stopped_or_superseded")
+    local_block = local_execution_denial(task, provider=target)
+    if local_block:
+        return denied(local_block)
+    if target in PAID_HEADLESS_PROVIDERS and status in ACTIVE:
+        paid_block = headless_denial(task, provider=target, check_budget=True)
+        if paid_block:
+            return denied(paid_block)
+
     if owner != target:
         return denied("different_assignee")
     if status in TERMINAL:

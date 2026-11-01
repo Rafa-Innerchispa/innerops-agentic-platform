@@ -20,17 +20,18 @@ Checkpoint operativo: `platform/docs/ops/OPS_7039e9cc4f11_CHECKPOINT.md`.
 
 ---
 
-## Controles que deben permanecer en `main` + runtime
+## Controles que deben permanecer en `main` + runtime (todos los agentes)
 
-| Capa | Mecanismo | Archivo / PR |
-|------|-----------|--------------|
-| Deploy pause | `execution_automation_frozen`, `awaiting_deploy_approval`, sin respawn headless ni reopen Temporal | PR **#238** → `ops_deploy_execution_pause.py` |
-| Admission Cursor | Política única resume/dispatch/worker; terminal, superseded, stopped, manual, lanes interactivos | PR **#249** → `cursor_headless_policy.py` |
-| Presupuesto dispatch | Máx. **3** reservas automáticas por tarea (atómico) | `cursor_headless_policy` + dispatch |
-| Fleet budget | Guard + auditoría periódica de recursos de ejecución | PR **#250** → `execution_resource_guard.py`, timer audit |
-| Retry fences | Grants DevSwarm / fences acumulativos | PR **#233** |
-| Regresión CI | `test_ops_deploy_scheduler_loop_regression.py` en runtime gates | commit `2d0028af` |
-| Dual-node HA | Failover inferencia + monitor lease | ADR_018 + cherry-pick rama `chatgpt/inneros-dual-node-ha-20261010` |
+| Capa | Alcance | Mecanismo |
+|------|---------|-----------|
+| Deploy pause | Todos | `ops_deploy_execution_pause.execution_automation_frozen` |
+| Admission IDE de pago | **Cursor, Codex, Antigravity, Gemini** (+ futuros en `PAID_HEADLESS_PROVIDERS`) | `ops_headless_execution_policy.headless_denial` + `ops_paid_headless_dispatch_core` |
+| Presupuesto dispatch | IDE de pago | Máx. **3** `headless_dispatch_attempts` por tarea |
+| Presupuesto ejecución | IDE + local | `execution_resource_guard`: **3** intentos, **12** model calls, **1800 s** / tarea; **4** slots inferencia local |
+| Auto-claim | Todos | `ops_auto_claim_admission` + `ops_local_execution_policy` |
+| Auditoría | Fleet | `inneros-execution-resource-audit.timer` (cada 60 s) |
+| Regresión CI | Scheduler/deploy | `test_ops_deploy_scheduler_loop_regression.py` |
+| Regresión CI | Multi-proveedor | `test_ops_headless_all_providers.py`, `test_cursor_headless_credit_stop.py` |
 
 **Notion → cola OPS:** `poll_pending_coordination_orders` (no estaba en `main`; añadido en commit de coordinación 2026-10-31).
 

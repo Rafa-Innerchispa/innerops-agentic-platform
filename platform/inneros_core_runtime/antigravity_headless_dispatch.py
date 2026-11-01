@@ -61,117 +61,22 @@ def _clear_spawn_reservation(db: Any, task_id: str, host: str) -> None:
 
 def spawn_headless_execute(task_id: str, *, force_retry: bool = False) -> dict[str, Any]:
     """Reserve lane and start antigravity_ops_headless_execute_one in background."""
-    tid = (task_id or "").strip()
-    if not tid:
-        return {"ok": False, "error": "task_id_required"}
-    if not headless_execute_enabled():
-        return {"ok": False, "error": "headless_execute_disabled"}
-    if not cursor_lanes.is_ha_execution_node():
-        return {"ok": False, "error": "not_ha_execution_node"}
-    if ipl.available_slots("antigravity") <= 0 and not force_retry:
-        return {"ok": False, "error": "no_available_slots", "lanes": ipl.lane_status("antigravity")}
-
-    host = ipl.hostname()
-    db = mongo_store.get_db()
-    if force_retry:
-        db[OPS_TASKS_COL].update_one(
-            {"task_id": tid, "assignee": "antigravity"},
-            {
-                "$unset": {
-                    "provider_execution_started_at": "",
-                    "provider_execution_finished_at": "",
-                    "headless_execution_started_at": "",
-                    "headless_execution_pid": "",
-                    "headless_execution_unit": "",
-                },
-                "$set": {"updated_at": _now()},
-            },
-        )
-    reserved = db[OPS_TASKS_COL].find_one_and_update(
-        {
-            "task_id": tid,
-            "assignee": "antigravity",
-            "status": {"$in": ["in_progress", "claimed", "running", "failed", "verification"]},
-            "claim_token": {"$exists": True},
-            "provider_execution_started_at": {"$exists": False},
-        },
-        {
-            "$set": {
-                "provider_execution_started_at": _now(),
-                "provider_execution_host": host,
-                "headless_execution_started_at": _now(),
-                "headless_execution_host": host,
-                "updated_at": _now(),
-            },
-            "$inc": {"revision": 1},
-        },
-        return_document=True,
-    )
-    if not reserved:
-        return {"ok": False, "task_id": tid, "error": "not_claimed_or_already_started"}
+    from inneros_core_runtime import ops_paid_headless_dispatch_core as phd
 
     root = Path(__file__).resolve().parents[1]
-    py = hwr.resolve_headless_python(platform_root=root)
     script = root / "scripts" / "antigravity_ops_headless_execute_one.py"
-    log_path = _headless_log_path(tid)
-    unit = _headless_unit_name(tid)
-    env_file = root / ".env"
-    command = [
-        "systemd-run",
-        "--user",
-        "--quiet",
-        "--collect",
-        f"--unit={unit}",
-        "--property=Type=exec",
-        f"--property=WorkingDirectory={root}",
-        f"--property=EnvironmentFile=-{env_file}",
-        f"--property=Environment=PYTHONPATH={root}",
-        f"--property=StandardOutput=append:{log_path}",
-        f"--property=StandardError=append:{log_path}",
-        str(py),
-        str(script),
-        tid,
-    ]
-    try:
-        launch, unit = hwr.systemd_run_transient(unit=unit, command=command, cwd=root)
-        if launch.returncode != 0:
-            _clear_spawn_reservation(db, tid, host)
-            return {
-                "ok": False,
-                "task_id": tid,
-                "error": "worker_spawn_failed",
-                "detail": (launch.stderr or launch.stdout or "systemd_run_failed")[-500:],
-            }
-        pid_probe = subprocess.run(
-            ["systemctl", "--user", "show", unit, "--property=MainPID", "--value"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-        pid_text = pid_probe.stdout.strip() if pid_probe.returncode == 0 else ""
-        pid = int(pid_text) if pid_text.isdigit() else 0
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        _clear_spawn_reservation(db, tid, host)
-        return {"ok": False, "task_id": tid, "error": "worker_spawn_failed", "detail": type(exc).__name__}
-
-    db[OPS_TASKS_COL].update_one(
-        {"task_id": tid},
-        {
-            "$set": {
-                "headless_execution_pid": pid,
-                "headless_execution_unit": unit,
-                "headless_log_path": str(log_path),
-                "headless_worker_script": str(script.relative_to(root)),
-            }
-        },
+    return phd.spawn_paid_headless(
+        task_id,
+        provider="antigravity",
+        enabled=headless_execute_enabled,
+        is_ha_node=cursor_lanes.is_ha_execution_node,
+        available_slots=lambda: ipl.available_slots("antigravity"),
+        hostname=ipl.hostname,
+        node_role=None,
+        unit_name_for=_headless_unit_name,
+        log_path_for=_headless_log_path,
+        execute_script=script,
+        worker_argv=lambda tid, path: [str(path), tid],
+        clear_reservation=_clear_spawn_reservation,
+        force_retry=force_retry,
     )
-    return {
-        "ok": True,
-        "task_id": tid,
-        "pid": pid,
-        "unit": unit,
-        "host": host,
-        "log_path": str(log_path),
-        "script": str(script),
-    }

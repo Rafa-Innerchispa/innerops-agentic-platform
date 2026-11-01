@@ -27,6 +27,12 @@ def main() -> int:
     if not task:
         print(json.dumps({"ok": False, "error": "task_not_found", "task_id": tid}))
         return 2
+    from inneros_core_runtime.ops_headless_execution_policy import headless_denial
+
+    denied = headless_denial(task, provider="antigravity", check_budget=False)
+    if denied:
+        print(json.dumps({"ok": False, "error": denied, "task_id": tid}))
+        return 2
     token = str(task.get("claim_token") or "").strip()
     if not token:
         print(json.dumps({"ok": False, "error": "claim_token_required", "task_id": tid}))

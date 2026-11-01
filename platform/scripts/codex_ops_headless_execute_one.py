@@ -25,6 +25,12 @@ def main() -> int:
     if not task:
         print(json.dumps({"ok": False, "error": "task_not_found", "task_id": tid}))
         return 2
+    from inneros_core_runtime.ops_headless_execution_policy import headless_denial
+
+    denied = headless_denial(task, provider="codex", check_budget=False)
+    if denied:
+        print(json.dumps({"ok": False, "error": denied, "task_id": tid}))
+        return 2
     result = ipbe.execute_claimed_task(tid, "codex")
     print(json.dumps(result, default=str))
     return 0 if result.get("ok") else 1
