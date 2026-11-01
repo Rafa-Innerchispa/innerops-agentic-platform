@@ -40,11 +40,11 @@ if [[ "$RUN_MIRROR" == "1" ]]; then
   export INNEROS_NODE_ROLE="$ROLE"
   bash "$PLATFORM/scripts/deploy_platform_mirror_ha.sh"
 else
+  export INNEROS_NODE_ROLE=intel
+  "$PLATFORM/scripts/apply_canonical_temporal_worker.sh" >/dev/null
+  systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service 2>/dev/null \
+    || systemctl --user restart ralfia-mcp.service 2>/dev/null || true
   ssh -o BatchMode=yes "$AMD" "export INNEROS_NODE_ROLE=amd; cd '$PLATFORM' && ./scripts/apply_canonical_temporal_worker.sh && systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service 2>/dev/null || systemctl --user restart ralfia-mcp.service 2>/dev/null || true"
-  if [[ "$ROLE" == intel ]] || [[ "$(hostname -I | awk '{print $1}')" == "192.168.1.4" ]]; then
-    export INNEROS_NODE_ROLE=intel
-    "$PLATFORM/scripts/apply_canonical_temporal_worker.sh" >/dev/null
-  fi
 fi
 
 echo "FLEET_SYNC_OK SHA=$HEAD"

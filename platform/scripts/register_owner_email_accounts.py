@@ -175,9 +175,25 @@ def register(*, dry_run: bool = False) -> list[dict]:
         addr = spec["address"].lower()
         preset = _imap_preset(addr)
         password, pw_source = _get_password(addr, spec["password_ref"], db, secrets)
+        if not password and spec["password_ref"] == "existing":
+            existing = db.email_accounts.find_one({"address": addr}) or {}
+            password = str(existing.get("imap_password") or "")
+            if password:
+                pw_source = "existing"
         ok, test_msg = _test_imap(preset["imap_host"], addr, password, int(preset["imap_port"]))
         enabled = ok
         note = test_msg if not ok else f"password:{pw_source}"
+        if not dry_run and not ok:
+            db.email_accounts.update_one(
+                {"address": addr},
+                {
+                    "$set": {
+                        "enabled": False,
+                        "last_error": test_msg[:200],
+                        "updated_at": _now(),
+                    }
+                },
+            )
 
         row = {
             "address": addr,
