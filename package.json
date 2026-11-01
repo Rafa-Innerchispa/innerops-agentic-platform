@@ -1,0 +1,13 @@
+{
+  "name": "inneros-dev-swarm-node-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/scaffold.test.mjs",
+    "lint": "node --check tests/scaffold.test.mjs",
+    "build": "npm test"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
