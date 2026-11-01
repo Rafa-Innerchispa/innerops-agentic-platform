@@ -1912,7 +1912,7 @@ def executor_tick(limit: int = 2, dry_run: bool = False, run_tests: bool = True)
         db[WORKERS_COL]
         .find(
             {
-                "status": "running",
+                "status": {"$in": ["running", "blocked"]},
                 "$or": [
                     {"executor.status": {"$exists": False}},
                     {"executor.status": {"$in": ["pending", "failed_retryable"]}},
