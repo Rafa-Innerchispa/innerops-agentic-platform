@@ -252,12 +252,23 @@ class MetaGrantLedger:
             raise PermissionError("A verified owner approval bound to project, prompt and token budget is required")
         gid = "meta_grant_" + secrets.token_hex(16)
         with self._connect() as c:
+            # Single-use *approval*, not just a single-use grant. Otherwise
+            # the same signed approval could mint unlimited grants in a loop.
+            c.execute("BEGIN IMMEDIATE")
+            existing = c.execute(
+                "SELECT id FROM grants WHERE approval_ref=? LIMIT 1",
+                (scope["approval_ref"],),
+            ).fetchone()
+            if existing is not None:
+                c.execute("ROLLBACK")
+                raise PermissionError("Owner approval already exchanged for a grant")
             c.execute(
                 """INSERT INTO grants(id,project_id,prompt_sha,model,max_output_tokens,
                    expires_epoch,issued_at,approval_ref) VALUES(?,?,?,?,?,?,?,?)""",
                 (gid, project_id, prompt_hash, MODEL, int(max_output_tokens),
                  time.time() + ttl_seconds, _now(), scope["approval_ref"]),
             )
+            c.execute("COMMIT")
         res = {
             "grant_id": gid, "project_id": project_id, "model": MODEL,
             "prompt_sha256": prompt_hash, "max_output_tokens": int(max_output_tokens),
