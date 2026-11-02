@@ -358,6 +358,7 @@ def _gitlab_rails_contributor_paths() -> list[str]:
         "public",
         "spec",
         "rubocop",
+        ".rubocop_todo/mcp/versioned_method_naming.yml",
         "scripts",
         "vendor",
         "AGENTS.md",
