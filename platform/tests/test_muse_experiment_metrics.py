@@ -20,7 +20,7 @@ class MetricsTests(unittest.TestCase):
 
     def test_muse_wonder_pricing_standard(self):
         q = price_quote("muse-wonder-1.0", input_tokens=10000, output_tokens=3000)
-        self.assertEqual("0.10000", q["estimated_cost_usd"])
+        self.assertEqual("0.1", q["estimated_cost_usd"])
         self.assertEqual("LIST_PRICE_ESTIMATE_NOT_META_BILLING", q["cost_truth"])
 
     def test_spark_first_incomplete_price(self):
@@ -29,7 +29,7 @@ class MetricsTests(unittest.TestCase):
 
     def test_cached_input_discount(self):
         q = price_quote("muse-wonder-1.0", input_tokens=10000, cached_input_tokens=5000, output_tokens=3000)
-        self.assertEqual("0.081000", q["estimated_cost_usd"])
+        self.assertEqual("0.0810", q["estimated_cost_usd"])
 
     def test_reasoning_tokens_not_double_billed(self):
         q = quote_from_response("muse-wonder-1.0", {
@@ -40,7 +40,7 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(140, q["reasoning_tokens"])
         self.assertEqual(60, q["visible_output_tokens_estimated"])
         self.assertEqual(300, q["total_tokens_reported"])
-        self.assertEqual("0.004400", q["estimated_cost_usd"])
+        self.assertEqual("0.0044", q["estimated_cost_usd"])
 
     def test_price_refuses_invented_model_cost(self):
         with self.assertRaises(ValueError):
