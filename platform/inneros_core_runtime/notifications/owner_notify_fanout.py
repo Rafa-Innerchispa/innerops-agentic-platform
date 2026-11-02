@@ -67,13 +67,13 @@ def notify_owner(
             from inneros_core_runtime.notifications import ops_owner_delivery as mult
 
             tg_body = f"*{title}*\n\n{plain[:3500]}"
-            r = mult.deliver_text(
+            r = mult.deliver_text_fanout(
                 tg_body,
                 kind=kind,
                 dedupe_key=f"{kind}:{title[:40]}",
                 inline_ops_task_id=task_id,
             )
-            out["channels"]["multichannel"] = r
+            out["channels"]["telegram_fanout"] = r
             if r.get("ok"):
                 out["ok"] = True
         except Exception as exc:

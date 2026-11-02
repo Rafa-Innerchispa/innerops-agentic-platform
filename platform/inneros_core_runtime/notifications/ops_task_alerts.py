@@ -334,6 +334,8 @@ def notify_ops_owner_authorization_request(
 
     from raphiia_openai.notifications.evolution_client import send_alert_whatsapp, send_whatsapp_interactive
 
+    ha_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    tg_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
     if ha_primary:
         ha_out = ops_ha.notify_ops_owner_ha_authorization(
             task,
@@ -341,18 +343,36 @@ def notify_ops_owner_authorization_request(
             headline=f"{icon} {headline}",
             body=body,
         )
+    try:
+        from inneros_core_runtime.notifications import telegram_client as tg
+
+        if tg.telegram_enabled() and tg.configured():
+            tg_out = tg.send_message(
+                body,
+                reply_markup=tg.ops_auth_inline_keyboard(tid),
+                parse_mode="Markdown",
+            )
+    except Exception as exc:
+        tg_out = {"ok": False, "error": str(exc)[:200]}
+    if ha_out.get("ok") or tg_out.get("ok"):
+        _mark_sent("owner_auth", alias)
+        _mark_owner_auth_sent_mongo(tid)
+        modes = []
         if ha_out.get("ok"):
-            _mark_sent("owner_auth", alias)
-            _mark_owner_auth_sent_mongo(tid)
-            return {
-                "ok": True,
-                "result": ha_out,
-                "task_id": tid,
-                "summary": summary,
-                "delivery_mode": "ha_companion_ops",
-                "poll_message_id": "",
-                "email_fallback": None,
-            }
+            modes.append("ha_companion_ops")
+        if tg_out.get("ok"):
+            modes.append("telegram")
+        return {
+            "ok": True,
+            "result": ha_out if ha_out.get("ok") else tg_out,
+            "ha_companion": ha_out,
+            "telegram": tg_out,
+            "task_id": tid,
+            "summary": summary,
+            "delivery_mode": "+".join(modes) or "unreachable",
+            "poll_message_id": "",
+            "email_fallback": None,
+        }
 
     if alert_kind != "external_spend":
         return {
@@ -616,18 +636,33 @@ def notify_ops_transition(
     except Exception:
         pass
 
+    tg_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    try:
+        from inneros_core_runtime.notifications import telegram_client as tg
+
+        if tg.telegram_enabled() and tg.configured():
+            tg_out = tg.send_message(body[:4000], parse_mode="Markdown")
+    except Exception:
+        pass
     result = {"ok": False, "skipped": "whatsapp_disabled"}
     if _whatsapp_enabled():
         result = send_alert_whatsapp(body, prefix_node=False)
         if result.get("ok"):
             _mark_sent("ops", key)
-    delivery = "whatsapp" if result.get("ok") else "unreachable"
+    delivery_parts = []
+    if result.get("ok"):
+        delivery_parts.append("whatsapp")
     if ha_out.get("ok"):
-        delivery = "ha_companion_ops"
+        delivery_parts.append("ha_companion_ops")
+    if tg_out.get("ok"):
+        delivery_parts.append("telegram")
+        _mark_sent("ops", key)
+    delivery = "+".join(delivery_parts) if delivery_parts else "unreachable"
     return {
-        "ok": bool(result.get("ok") or ha_out.get("ok")),
+        "ok": bool(result.get("ok") or ha_out.get("ok") or tg_out.get("ok")),
         "result": result,
         "ha_companion": ha_out,
+        "telegram": tg_out,
         "task_id": task.get("task_id"),
         "status": status,
         "delivery_mode": delivery,
@@ -677,19 +712,35 @@ def notify_dev_swarm_outcome(
             )
     except Exception:
         pass
+    tg_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    try:
+        from inneros_core_runtime.notifications import telegram_client as tg
+
+        if tg.telegram_enabled() and tg.configured():
+            tg_out = tg.send_message(body[:4000], parse_mode="Markdown")
+    except Exception:
+        pass
     result = {"ok": False, "skipped": "whatsapp_disabled"}
     if _whatsapp_enabled():
         result = send_alert_whatsapp(body, prefix_node=False)
         if result.get("ok"):
             _mark_sent("swarm", key)
-    ok = bool(result.get("ok") or ha_out.get("ok"))
-    if ha_out.get("ok"):
+    ok = bool(result.get("ok") or ha_out.get("ok") or tg_out.get("ok"))
+    if ok:
         _mark_sent("swarm", key)
+    modes = []
+    if ha_out.get("ok"):
+        modes.append("ha_companion_ops")
+    if tg_out.get("ok"):
+        modes.append("telegram")
+    if result.get("ok"):
+        modes.append("whatsapp")
     return {
         "ok": ok,
         "result": result,
         "ha_companion": ha_out,
+        "telegram": tg_out,
         "task_id": task_id,
         "outcome": outcome_u,
-        "delivery_mode": "ha_companion_ops" if ha_out.get("ok") else ("whatsapp" if result.get("ok") else "unreachable"),
+        "delivery_mode": "+".join(modes) if modes else "unreachable",
     }
