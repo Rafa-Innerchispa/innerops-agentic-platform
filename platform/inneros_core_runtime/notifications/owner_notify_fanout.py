@@ -80,3 +80,15 @@ def notify_owner(
             out["channels"]["telegram"] = {"ok": False, "error": str(exc)[:200]}
 
     return out
+
+
+def mirror_ops_alert(text: str, *, title: str = "RalfIA") -> dict[str, Any]:
+    """Alertas operativas (ex-WhatsApp): HA + Telegram, sin duplicar email."""
+    return notify_owner(
+        title=title[:120],
+        body=text,
+        kind="ops_alert",
+        email_always=False,
+        ha=True,
+        telegram=True,
+    )

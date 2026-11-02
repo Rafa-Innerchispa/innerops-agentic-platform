@@ -122,3 +122,30 @@ def answer_callback(callback_query_id: str, text: str = "") -> dict[str, Any]:
 
 def get_me() -> dict[str, Any]:
     return _post("getMe", {})
+
+
+def send_photo(
+    photo_bytes: bytes,
+    *,
+    chat_id: str | None = None,
+    caption: str = "",
+    filename: str = "image.jpg",
+) -> dict[str, Any]:
+    if not telegram_enabled():
+        return {"ok": False, "skipped": "NOTIFY_OPS_TELEGRAM disabled"}
+    dest = (chat_id or owner_chat_id()).strip()
+    if not dest:
+        return {"ok": False, "error": "telegram_owner_chat_id_missing"}
+    token = _bot_token()
+    if not token:
+        return {"ok": False, "error": "telegram_bot_token_missing"}
+    url = f"{API_BASE}/bot{token}/sendPhoto"
+    try:
+        files = {"photo": (filename, photo_bytes)}
+        data = {"chat_id": dest, "caption": (caption or "")[:1000]}
+        r = httpx.post(url, data=data, files=files, timeout=60.0)
+        body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        ok = r.status_code == 200 and isinstance(body, dict) and body.get("ok") is True
+        return {"ok": ok, "http_status": r.status_code, "response": body}
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__, "detail": str(exc)[:300]}

@@ -78,6 +78,24 @@ def send_alert_whatsapp(text: str, number: str | None = None, *, prefix_node: bo
     RALFIA_ALERTS_VIA_NODE=primary (default): envía vía Evolution Intel (PC Doctor)
     con failover a AMD si Intel falla.
     """
+    mirror: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    try:
+        from inneros_core_runtime.notifications.owner_notify_fanout import mirror_ops_alert
+
+        mirror = mirror_ops_alert(text.strip(), title="Alerta RalfIA")
+    except Exception as exc:
+        mirror = {"ok": False, "error": str(exc)[:200]}
+    whatsapp_on = os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if not whatsapp_on:
+        if mirror.get("ok"):
+            return {"ok": True, "channel": "owner_fanout", "fanout": mirror, "alert_policy": "whatsapp_off"}
+        return {"ok": False, "channel": "owner_fanout", "fanout": mirror, "alert_policy": "whatsapp_off"}
+
     alerts_via = (os.getenv("RALFIA_ALERTS_VIA_NODE") or "primary").strip().lower()
     dest = (number or os.getenv("RALFIA_ALERTS_TO") or NOTIFY_WHATSAPP_TO or "").strip()
     local = local_node()
@@ -95,6 +113,7 @@ def send_alert_whatsapp(text: str, number: str | None = None, *, prefix_node: bo
             result["via_node"] = "primary"
             result["origin_node"] = local
             result["alert_policy"] = "RALFIA_ALERTS_VIA_NODE=primary"
+            result["owner_fanout"] = mirror
             return result
         if WHATSAPP_AMD_SEND_ENABLED:
             second = send_whatsapp(body, number=dest, node="amd")
@@ -103,6 +122,8 @@ def send_alert_whatsapp(text: str, number: str | None = None, *, prefix_node: bo
                 second["via_node"] = "amd"
                 second["origin_node"] = local
             return second
+        if mirror.get("ok"):
+            return {"ok": True, "channel": "owner_fanout", "fanout": mirror, "whatsapp": result}
         return result
 
     # Legacy: nodo local primero (solo si override explícito)
