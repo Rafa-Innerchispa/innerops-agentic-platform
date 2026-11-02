@@ -556,6 +556,21 @@ class MetaProviderTest(unittest.TestCase):
         self.assertEqual("amd_local_primary", summary["default_routing"])
         self.assertEqual(150.0, summary["providers"]["meta_model_api"]["promotional_balance_usd"])
 
+    def test_public_meta_gateway_rejects_untrusted_receipt_import(self):
+        from inneros_core_runtime import capability_gateway_model as cgm
+        # Receipt provenance must not be a caller-controlled JSON field.
+        with patch.object(meta, "MetaGrantLedger", side_effect=AssertionError("no ledger needed")):
+            result = cgm._frontier_reason_handler({
+                "action": "reconcile_receipt",
+                "receipt_data": {"result": "REAL_SUCCESS", "provider_response_id": "forged"},
+            }, {})
+        self.assertFalse(result["ok"])
+        self.assertEqual("trusted_receipt_reconciliation_only", result["error"])
+
+        specs = cgm.get_model_capabilities_specs()
+        public_manifest = next(m for m, _ in specs if m["capability_id"] == "model.frontier.reason.v1")
+        self.assertNotIn("reconcile_receipt", public_manifest["parameters_schema"]["properties"]["action"]["enum"])
+
     def test_capability_gateway_meta_discovery_and_invocation(self):
         from inneros_core_runtime import capability_gateway_model as cgm
 
