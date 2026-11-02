@@ -318,12 +318,14 @@ class MetaProviderTest(unittest.TestCase):
                 "signature": sig,
             }
             self.assertTrue(meta.verify_ha_owner_approval(valid_scope))
+            offline_db = MagicMock()
+            offline_db.get_db.side_effect = RuntimeError("no DB")
 
             # Old signatures were not tied to model or expiry. Reject even if
             # the caller appends a future expiry value after the fact.
             legacy_payload = f"{ref}|{self.project}|{prompt_sha}|{self.out_cap}"
             legacy_sig = hmac.new(secret.encode(), legacy_payload.encode(), hashlib.sha256).hexdigest()
-            with patch("raphiia_openai.mongo_store.get_db", side_effect=RuntimeError("no DB")):
+            with patch.dict("sys.modules", {"raphiia_openai.mongo_store": offline_db}):
                 self.assertFalse(meta.verify_ha_owner_approval(dict(valid_scope, signature=legacy_sig)))
 
             # A Companion receipt proves only a task action, not the exact
@@ -333,7 +335,7 @@ class MetaProviderTest(unittest.TestCase):
             task_receipt["signature"] = hmac.new(
                 secret.encode(), task_sig_payload.encode(), hashlib.sha256
             ).hexdigest()
-            with patch("raphiia_openai.mongo_store.get_db", side_effect=RuntimeError("no DB")):
+            with patch.dict("sys.modules", {"raphiia_openai.mongo_store": offline_db}):
                 self.assertFalse(meta.verify_ha_owner_approval(dict(valid_scope, signature="", companion_receipt=task_receipt)))
 
             # Non-RAFAEL actor rejected (Section 3.1)
