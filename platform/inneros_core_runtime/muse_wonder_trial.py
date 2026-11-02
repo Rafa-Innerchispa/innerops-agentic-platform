@@ -120,8 +120,9 @@ def run_trial(
     if Decimal(quote["estimated_cost_usd"]) > cap:
         raise ValueError("Worst-case token quote exceeds the owner-approved budget")
     base = Path(record_dir).expanduser()
+    base_existed = base.exists()
     base.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if os.name == "posix":
+    if os.name == "posix" and not base_existed:
         base.chmod(0o700)
     folder = base / trial_id
     folder.mkdir(mode=0o700, exist_ok=False)  # atomic dedupe BEFORE credentials / request
