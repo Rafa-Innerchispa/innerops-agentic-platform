@@ -6,6 +6,7 @@ on:
       - 'platform/tests/test_muse_experiment_metrics.py'
       - 'platform/inneros_core_runtime/muse_wonder_trial.py'
       - 'platform/tests/test_muse_wonder_trial.py'
+      - 'platform/scripts/muse_self_heal_record.py'
       - '.github/workflows/muse-self-heal-metrics.yml'
   pull_request:
     paths:
@@ -13,6 +14,7 @@ on:
       - 'platform/tests/test_muse_experiment_metrics.py'
       - 'platform/inneros_core_runtime/muse_wonder_trial.py'
       - 'platform/tests/test_muse_wonder_trial.py'
+      - 'platform/scripts/muse_self_heal_record.py'
       - '.github/workflows/muse-self-heal-metrics.yml'
 permissions:
   contents: read
@@ -32,3 +34,12 @@ jobs:
         env:
           PYTHONPATH: platform
         run: python -m unittest discover -s platform/tests -p 'test_muse*.py' -v
+      - name: Verify dry-run has no provider call and CLI can record source-backed baseline
+        env:
+          PYTHONPATH: platform
+        run: |
+          python -m inneros_core_runtime.muse_wonder_trial --dry-run --max-output-tokens 4096
+          python platform/scripts/muse_self_heal_record.py quote --model muse-wonder-1.0 --input 10000 --output 3000
+          python platform/scripts/muse_self_heal_record.py init --db /tmp/muse-selfheal-ci.sqlite
+          python platform/scripts/muse_self_heal_record.py report --db /tmp/muse-selfheal-ci.sqlite
+
