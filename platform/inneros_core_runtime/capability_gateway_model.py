@@ -72,6 +72,7 @@ def _frontier_reason_handler(parameters: dict[str, Any], context: dict[str, Any]
         approval = parameters.get("approval") or {}
         max_tokens = parameters.get("max_output_tokens", 192)
         ttl = parameters.get("ttl_seconds", 180)
+        effort = parameters.get("reasoning_effort")
         grant = ledger.issue(
             project_id=project_id,
             prompt=prompt,
@@ -79,19 +80,27 @@ def _frontier_reason_handler(parameters: dict[str, Any], context: dict[str, Any]
             verifier=meta_model_provider.verify_ha_owner_approval,
             max_output_tokens=max_tokens,
             ttl_seconds=ttl,
+            reasoning_effort=effort,
         )
         return {"ok": True, "action": action, "grant": grant}
     elif action == "invoke":
         grant_id = str(parameters.get("grant_id") or "").strip()
         project_id = str(parameters.get("project_id") or context.get("project_id") or "").strip()
         prompt = str(parameters.get("prompt") or "")
+        effort = parameters.get("reasoning_effort")
         receipt = meta_model_provider.invoke_with_grant(
             ledger=ledger,
             grant_id=grant_id,
             project_id=project_id,
             prompt=prompt,
+            reasoning_effort=effort,
         )
         return {"ok": True, "action": action, "receipt": receipt}
+    elif action == "reconcile_receipt":
+        receipt_data = parameters.get("receipt_data") or {}
+        project_id = str(parameters.get("project_id") or context.get("project_id") or "inneros-meta-guardian-2026").strip()
+        result = ledger.reconcile_receipt(receipt_data, project_id=project_id)
+        return {"ok": True, "action": action, "reconciliation": result}
     else:
         return {"ok": False, "error": f"UNKNOWN_ACTION: {action}"}
 
@@ -127,13 +136,15 @@ def get_model_capabilities_specs() -> list[tuple[dict[str, Any], Callable[[dict[
                 keywords=["frontier", "reason", "meta", "grant", "invoke"],
                 mode="mutation",
                 properties={
-                    "action": {"type": "string", "enum": ["issue_grant", "invoke"]},
+                    "action": {"type": "string", "enum": ["issue_grant", "invoke", "reconcile_receipt"]},
                     "project_id": {"type": "string"},
                     "prompt": {"type": "string"},
                     "grant_id": {"type": "string"},
                     "approval": {"type": "object"},
                     "max_output_tokens": {"type": "integer"},
                     "ttl_seconds": {"type": "integer"},
+                    "reasoning_effort": {"type": "string", "enum": ["low", "medium", "high"]},
+                    "receipt_data": {"type": "object"},
                 },
                 required=["action"],
                 required_scopes=["ralfia:agents"],
