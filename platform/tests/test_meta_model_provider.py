@@ -7,6 +7,7 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -278,8 +279,9 @@ class MetaProviderTest(unittest.TestCase):
         try:
             prompt_sha = meta._sha(PROMPT.encode("utf-8"))
             ref = "task_ha_test_001"
-            # Valid signature
-            payload = f"{ref}|{self.project}|{prompt_sha}|{self.out_cap}"
+            # V2 approval binds model, exact context and an explicit short expiry.
+            expires_epoch = int(time.time()) + 180
+            payload = f"{ref}|{self.project}|{meta.MODEL}|{prompt_sha}|{self.out_cap}|{expires_epoch}"
             sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
             valid_scope = {
                 "approval_ref": ref,
@@ -288,9 +290,27 @@ class MetaProviderTest(unittest.TestCase):
                 "model": meta.MODEL,
                 "max_output_tokens": self.out_cap,
                 "owner_actor": "RAFAEL",
+                "expires_epoch": expires_epoch,
                 "signature": sig,
             }
             self.assertTrue(meta.verify_ha_owner_approval(valid_scope))
+
+            # Old signatures were not tied to model or expiry. Reject even if
+            # the caller appends a future expiry value after the fact.
+            legacy_payload = f"{ref}|{self.project}|{prompt_sha}|{self.out_cap}"
+            legacy_sig = hmac.new(secret.encode(), legacy_payload.encode(), hashlib.sha256).hexdigest()
+            with patch("raphiia_openai.mongo_store.get_db", side_effect=RuntimeError("no DB")):
+                self.assertFalse(meta.verify_ha_owner_approval(dict(valid_scope, signature=legacy_sig)))
+
+            # A Companion receipt proves only a task action, not the exact
+            # project/model/prompt/budget. It cannot replace the scoped proof.
+            task_receipt = {"task_id": ref, "grant_id": "g1", "at": "2026-11-02T00:00:00Z"}
+            task_sig_payload = f"{ref}|g1|2026-11-02T00:00:00Z"
+            task_receipt["signature"] = hmac.new(
+                secret.encode(), task_sig_payload.encode(), hashlib.sha256
+            ).hexdigest()
+            with patch("raphiia_openai.mongo_store.get_db", side_effect=RuntimeError("no DB")):
+                self.assertFalse(meta.verify_ha_owner_approval(dict(valid_scope, signature="", companion_receipt=task_receipt)))
 
             # Non-RAFAEL actor rejected (Section 3.1)
             bad_actor = dict(valid_scope, owner_actor="HACKER")
@@ -323,7 +343,7 @@ class MetaProviderTest(unittest.TestCase):
             prompt_sha = meta._sha(PROMPT.encode("utf-8"))
             ref = "task_ha_test_exp"
             exp_past = time.time() - 60  # expired 1 minute ago
-            payload = f"{ref}|{self.project}|{prompt_sha}|{self.out_cap}"
+            payload = f"{ref}|{self.project}|{meta.MODEL}|{prompt_sha}|{self.out_cap}|{exp_past}"
             sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
             expired_scope = {
                 "approval_ref": ref,
@@ -356,8 +376,10 @@ class MetaProviderTest(unittest.TestCase):
             "status": "active",
             "token_limit": 512,
             "provider": "meta-model-api",
+            "project_id": self.project,
+            "prompt_sha256": prompt_sha,
             "model": meta.MODEL,
-            "expires_at": "2099-01-01T00:00:00Z",
+            "expires_at": datetime.fromtimestamp(time.time() + 180, timezone.utc).isoformat(),
         }
         mock_grants.find_one.return_value = valid_doc
 
@@ -369,6 +391,7 @@ class MetaProviderTest(unittest.TestCase):
                 "model": meta.MODEL,
                 "max_output_tokens": self.out_cap,
                 "owner_actor": "RAFAEL",
+                "expires_epoch": time.time() + 120,
             }
             res = meta.verify_ha_owner_approval(scope)
             self.assertTrue(res)
