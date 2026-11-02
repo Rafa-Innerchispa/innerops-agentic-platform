@@ -197,8 +197,11 @@ class ExperimentJournal:
 
     def __init__(self, path: str | Path):
         self.path = Path(path).expanduser()
+        parent_existed = self.path.parent.exists()
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        if os.name == "posix":
+        # Never chmod an already existing parent, especially /tmp or a
+        # user-supplied workspace. The private DB itself stays mode 0600.
+        if os.name == "posix" and not parent_existed:
             self.path.parent.chmod(0o700)
         con = sqlite3.connect(str(self.path), timeout=5)
         try:
