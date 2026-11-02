@@ -4,11 +4,15 @@ on:
     paths:
       - 'platform/inneros_core_runtime/muse_experiment_metrics.py'
       - 'platform/tests/test_muse_experiment_metrics.py'
+      - 'platform/inneros_core_runtime/muse_wonder_trial.py'
+      - 'platform/tests/test_muse_wonder_trial.py'
       - '.github/workflows/muse-self-heal-metrics.yml'
   pull_request:
     paths:
       - 'platform/inneros_core_runtime/muse_experiment_metrics.py'
       - 'platform/tests/test_muse_experiment_metrics.py'
+      - 'platform/inneros_core_runtime/muse_wonder_trial.py'
+      - 'platform/tests/test_muse_wonder_trial.py'
       - '.github/workflows/muse-self-heal-metrics.yml'
 permissions:
   contents: read
@@ -27,4 +31,4 @@ jobs:
       - name: Run isolated measurement and provenance tests
         env:
           PYTHONPATH: platform
-        run: python -m unittest discover -s platform/tests -p 'test_muse_experiment_metrics.py' -v
+        run: python -m unittest discover -s platform/tests -p 'test_muse*.py' -v
