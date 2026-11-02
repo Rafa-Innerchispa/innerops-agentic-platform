@@ -504,15 +504,16 @@ def test_ambient_guardian_has_bounded_default_repo_profile() -> None:
 
 
 def test_gitlab_versioned_method_naming_grace_file_is_the_only_allowed_rubocop_todo():
+    from inneros_core_runtime import local_execution_plane as core_lep
     from inneros_core_runtime import project_runtime_registry as registry
 
     exact = ".rubocop_todo/mcp/versioned_method_naming.yml"
     allowed_profiles = (
-        lep._gitlab_contributor_repo_config("gitlab-org/gitlab")["allowed_paths"],
+        core_lep._gitlab_contributor_repo_config("gitlab-org/gitlab")["allowed_paths"],
         registry._gitlab_rails_contributor_paths(),
     )
     for paths in allowed_profiles:
-        assert lep._validate_relative_path(exact, paths) == exact
+        assert core_lep._validate_relative_path(exact, paths) == exact
         for path in (
             ".rubocop_todo/mcp/another_cop.yml",
             ".rubocop_todo/security.yml",
@@ -520,7 +521,7 @@ def test_gitlab_versioned_method_naming_grace_file_is_the_only_allowed_rubocop_t
             "config/../.rubocop_todo/mcp/versioned_method_naming.yml",
         ):
             try:
-                lep._validate_relative_path(path, paths)
+                core_lep._validate_relative_path(path, paths)
             except PermissionError:
                 pass
             else:
