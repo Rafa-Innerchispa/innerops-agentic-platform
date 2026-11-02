@@ -48,6 +48,21 @@ ALLOWED_METRICS = frozenset({
     "hypotheses_count", "hypotheses_verified", "risks_identified",
     "notes_redacted", "confidence_label", "rollback_verified",
     "passed_after", "retries", "time_saved_ms",
+    "provider_id", "model_version", "model_params_sha256", "host_alias",
+    "inference_backend", "environment_digest", "sampling_seed",
+    "temperature", "top_p", "prompt_bytes", "output_bytes",
+    "context_window_tokens", "network_roundtrip_ms", "provider_queue_ms",
+    "gpu_utilization_pct", "gpu_temperature_c", "gpu_power_watts",
+    "vram_used_mb", "ram_used_mb", "cpu_utilization_pct",
+    "energy_joules_estimate", "hardware_sampling_interval_ms",
+    "queue_depth_before", "queue_depth_after", "ack_latency_ms",
+    "claims_attempted", "claims_rejected", "commit_attempts",
+    "tests_reexecuted", "regressions_found", "new_errors",
+    "verifier_test_url", "worktree_digest", "model_selection_reason",
+    "http_status", "rate_limit_remaining_tokens", "rate_limit_remaining_requests",
+    "provider_completion_status", "cache_hit_ratio",
+    "reviewer_id_pseudonym", "reasoning_quality_score", "patch_quality_score",
+    "first_attempt_correct", "human_intervention_count",
 })
 NUMERIC_FIELDS = frozenset({
     "tests_passed", "tests_failed", "tests_skipped", "tests_total",
@@ -63,6 +78,17 @@ NUMERIC_FIELDS = frozenset({
     "reviewer_accuracy_rating", "reviewer_usefulness_rating",
     "hypotheses_count", "hypotheses_verified", "risks_identified",
     "retries", "time_saved_ms",
+    "sampling_seed", "temperature", "top_p", "prompt_bytes", "output_bytes",
+    "context_window_tokens", "network_roundtrip_ms", "provider_queue_ms",
+    "gpu_utilization_pct", "gpu_temperature_c", "gpu_power_watts",
+    "vram_used_mb", "ram_used_mb", "cpu_utilization_pct",
+    "energy_joules_estimate", "hardware_sampling_interval_ms",
+    "queue_depth_before", "queue_depth_after", "ack_latency_ms",
+    "claims_attempted", "claims_rejected", "commit_attempts",
+    "tests_reexecuted", "regressions_found", "new_errors",
+    "http_status", "rate_limit_remaining_tokens", "rate_limit_remaining_requests",
+    "cache_hit_ratio", "reasoning_quality_score", "patch_quality_score",
+    "human_intervention_count",
 })
 
 
@@ -157,6 +183,8 @@ def _allow_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Invalid or excessive metric payload: " + key)
     if "model" in safe and safe["model"] not in USD_PER_MILLION and safe["model"] not in ("amd-local-qwen", "intel-local-ollama"):
         raise ValueError("Unrecognized model metric")
+    if "first_attempt_correct" in metrics and type(metrics["first_attempt_correct"]) is not bool:
+        raise ValueError("First-attempt correctness must be boolean")
     return safe
 
 
