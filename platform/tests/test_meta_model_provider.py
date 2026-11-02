@@ -51,7 +51,7 @@ class MetaProviderTest(unittest.TestCase):
             "model": meta.MODEL,
             "max_output_tokens": cap or self.out_cap,
             "owner_actor": "RAFAEL",
-            "approval_ref": "ha_owner_approval_test_only",
+            "approval_ref": "ha_owner_approval_test_only_" + (project or self.project),
         }
 
     def _issue(self, project=None, prompt=PROMPT, cap=None, effort=None):
@@ -59,7 +59,7 @@ class MetaProviderTest(unittest.TestCase):
             project_id=project or self.project,
             prompt=prompt,
             approval=self._approval(project, prompt, cap),
-            verifier=lambda approved: approved["approval_ref"] == "ha_owner_approval_test_only",
+            verifier=lambda approved: approved["approval_ref"].startswith("ha_owner_approval_test_only_"),
             max_output_tokens=cap or self.out_cap,
             reasoning_effort=effort,
         )
@@ -173,6 +173,30 @@ class MetaProviderTest(unittest.TestCase):
                 transport=call,
             )
         self.assertEqual(1, len(calls))
+
+    def test_signed_owner_approval_cannot_mint_two_paid_grants(self):
+        self._issue()
+        with self.assertRaisesRegex(PermissionError, "already exchanged"):
+            self._issue()
+
+    def test_same_approval_cannot_be_reused_for_another_project(self):
+        self._issue()
+        # Approval reference must be globally unique within the ledger.
+        with self.assertRaisesRegex(PermissionError, "already exchanged"):
+            self.ledger.issue(
+                project_id="other-project",
+                prompt=PROMPT,
+                approval={
+                    "project_id": "other-project",
+                    "prompt_sha256": meta._sha(PROMPT.encode()),
+                    "model": meta.MODEL,
+                    "max_output_tokens": self.out_cap,
+                    "owner_actor": "RAFAEL",
+                    "approval_ref": "ha_owner_approval_test_only_" + self.project,
+                },
+                verifier=lambda _: True,
+                max_output_tokens=self.out_cap,
+            )
 
     def test_wrong_project_does_not_consume_correct_grant(self):
         grant = self._issue()
