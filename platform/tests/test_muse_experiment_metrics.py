@@ -73,6 +73,17 @@ class MetricsTests(unittest.TestCase):
         if os.name == "posix":
             self.assertEqual(0o600, self.journal.path.stat().st_mode & 0o777)
 
+    def test_does_not_chmod_preexisting_parent_directory(self):
+        parent = Path(self.tmp.name) / "existing"
+        parent.mkdir()
+        if os.name == "posix":
+            parent.chmod(0o755)
+        db = ExperimentJournal(parent / "test.sqlite")
+        self.assertTrue(db.verify()["valid"])
+        if os.name == "posix":
+            self.assertEqual(0o755, parent.stat().st_mode & 0o777)
+            self.assertEqual(0o600, db.path.stat().st_mode & 0o777)
+
     def test_private_journal_rejects_sensitive_or_unknown_fields(self):
         with self.assertRaises(ValueError):
             self.journal.append("META_REQUEST", "meta-selfheal-01", {"api_key": "secret"})
