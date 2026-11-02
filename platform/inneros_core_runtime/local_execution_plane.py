@@ -762,6 +762,7 @@ def _gitlab_contributor_repo_config(repo: str) -> dict[str, Any] | None:
             "public",
             "spec",
             "rubocop",
+            ".rubocop_todo/mcp/versioned_method_naming.yml",
             "scripts",
             "vendor",
             "AGENTS.md",
