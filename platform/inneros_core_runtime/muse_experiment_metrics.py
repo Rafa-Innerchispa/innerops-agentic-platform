@@ -263,13 +263,21 @@ def score_case(events: list[dict[str, Any]]) -> dict[str, Any]:
     a = after["metrics"] if after else {}
     baseline_fail = b.get("tests_failed")
     after_fail = a.get("tests_failed")
+    meta_status = (response or {}).get("metrics", {}).get("status", "NOT_RUN")
+    patch = any(e["event_type"] == "ISOLATED_PATCH" for e in events)
+    approval = any(e["event_type"] == "OWNER_APPROVAL" for e in events)
+    tests_clean = bool(after and baseline and type(baseline_fail) is int and baseline_fail > 0 and after_fail == 0)
     return {
-        "baseline_verified_source": baseline["metrics"]["workflow_run_url"] if baseline else None,
-        "after_verified_source": after["metrics"]["workflow_run_url"] if after else None,
+        "baseline_source_url_unverified": baseline["metrics"]["workflow_run_url"] if baseline else None,
+        "after_source_url_unverified": after["metrics"]["workflow_run_url"] if after else None,
         "baseline_failed": baseline_fail,
         "after_failed": after_fail,
         "failed_tests_delta": baseline_fail - after_fail if type(baseline_fail) is int and type(after_fail) is int else None,
-        "meta_result": (response or {}).get("metrics", {}).get("status", "NOT_RUN"),
-        "claim_self_healed": bool(after and baseline and type(baseline_fail) is int and baseline_fail > 0 and after_fail == 0),
-        "source_warning": "Evidence URLs must be independently checked; journal is not signed provider attestation",
+        "meta_result": meta_status,
+        "patch_event_present": patch,
+        "owner_approval_event_present": approval,
+        "tests_clean_as_reported": tests_clean,
+        "candidate_for_independent_review": bool(tests_clean and patch and approval and meta_status == "REAL_SUCCESS"),
+        "claim_self_healed": False,
+        "source_warning": "Before/after URLs, model receipts, patch provenance and reviewer identity require independent verification before a self-healing success claim.",
     }
