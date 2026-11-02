@@ -173,7 +173,7 @@ def _allow_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
             if type(value) not in (int, float) or value < 0 or value != value:
                 raise ValueError("Invalid nonnegative numeric metric: " + key)
             safe[key] = value
-        elif key in ("rollback_verified", "passed_after"):
+        elif key in ("rollback_verified", "passed_after", "first_attempt_correct"):
             if type(value) is not bool:
                 raise ValueError("Expected boolean: " + key)
             safe[key] = value
