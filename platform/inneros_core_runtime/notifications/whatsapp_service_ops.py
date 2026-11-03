@@ -416,6 +416,42 @@ def format_status_text(node: str | None = None, *, snapshot: dict[str, Any] | No
     return "\n".join(lines).strip()
 
 
+def _service_line(item: dict[str, Any]) -> str:
+    label = str(item.get("label") or item.get("service_id") or "servicio")
+    node = NODE_LABELS.get(str(item.get("node") or ""), str(item.get("node") or "?"))
+    return f"{label} ({node})"
+
+
+def natural_status_summary(snapshot: dict[str, Any] | None = None) -> str:
+    snap = snapshot or status_snapshot()
+    items = [i for i in (snap.get("items") or []) if i.get("ok")]
+    unhealthy = [i for i in items if not i.get("healthy")]
+    reachable = [h for h in (snap.get("hosts") or []) if h.get("reachable")]
+    head = "Intel (.4) y AMD (.5) responden bien" if len(reachable) >= 2 else "Acabo de revisar la flota"
+    if not items:
+        return f"{head}; no leí servicios."
+    hn = len(items) - len(unhealthy)
+    if not unhealthy:
+        return f"{head}. {hn} servicios en verde."
+    bad = ", ".join(_service_line(i) for i in unhealthy[:4])
+    return f"{head}. En rojo: {bad}. Los otros {hn} van bien."
+
+
+def status_detail_reply(message: str, snapshot: dict[str, Any] | None = None) -> str:
+    snap = snapshot or status_snapshot()
+    items = [i for i in (snap.get("items") or []) if i.get("ok")]
+    healthy = [i for i in items if i.get("healthy")]
+    unhealthy = [i for i in items if not i.get("healthy")]
+    if re.search(r"\b(otros|resto|seis|siete)\b", (message or "").lower()):
+        return f"Los que van bien ({len(healthy)}): " + ", ".join(_service_line(i) for i in healthy) + "."
+    lines = []
+    if healthy:
+        lines.append(f"🟢 ({len(healthy)}): " + ", ".join(_service_line(i) for i in healthy))
+    if unhealthy:
+        lines.append(f"🔴 ({len(unhealthy)}): " + ", ".join(_service_line(i) for i in unhealthy))
+    return "\n".join(lines) or "Sin datos de servicios."
+
+
 def sanitize_log(text: str) -> str:
     cleaned = _SECRET_RE.sub(lambda match: f"{match.group(1)}=[REDACTED]", text or "")
     return cleaned[-3000:]

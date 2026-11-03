@@ -188,6 +188,9 @@ def _direct_data_reply(
     context: str,
     context_sources: list[dict[str, Any]],
     intents: list[str],
+    *,
+    route: str = "general",
+    history: list[dict[str, str]] | None = None,
 ) -> str | None:
     """Respuesta determinista cuando ya hay datos reales — evita alucinaciones del LLM."""
     sources = {str(item.get("source") or "") for item in context_sources}
@@ -210,10 +213,14 @@ def _direct_data_reply(
                     body += f" Ejemplos: {examples[:280]}."
                 body += " Pregúntame por uno concreto si necesitas teléfono o correo."
                 return body
-    if "health_snapshot" in sources and "status" in intents:
-        for part in context.split("---"):
-            if "*RalfIA · Estado verificado" in part:
-                return part.strip()[:900]
+    if route == "infra_detail":
+        from raphiia_openai.notifications import whatsapp_service_ops
+
+        return whatsapp_service_ops.status_detail_reply(message)
+    if route == "infra_overview":
+        from raphiia_openai.notifications import whatsapp_service_ops
+
+        return whatsapp_service_ops.natural_status_summary()
     return None
 
 
@@ -800,7 +807,6 @@ def conversational_reply(
             if part
         )
         context_sources.append({"source": "audio_transcript", "trust": "user_authored_derived_text"})
-    history = _load_history(sender, conversation_id=conversation_id) if sender or conversation_id else []
 
     for model in (_DEFAULT_MODEL, _FALLBACK_MODEL):
         try:
