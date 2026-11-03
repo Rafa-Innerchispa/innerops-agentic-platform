@@ -1,0 +1,15 @@
+[Unit]
+Description=InnerOS Temporal Worker (LangGraph + Docker Sandbox)
+After=network.target docker.service
+
+[Service]
+Type=simple
+Environment=PYTHONPATH=/home/rlopez/inneros/inneros_core/platform
+Environment=TEMPORAL_HOST=127.0.0.1:7233
+Environment=MONGODB_URI=mongodb://127.0.0.1:27017
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 -m inneros_core_runtime.temporal_worker --queues inneros-general-ops,inneros-intel-ops
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

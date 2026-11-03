@@ -41,10 +41,12 @@ if [[ "$RUN_MIRROR" == "1" ]]; then
   bash "$PLATFORM/scripts/deploy_platform_mirror_ha.sh"
 else
   export INNEROS_NODE_ROLE=intel
+  "$PLATFORM/scripts/ensure_systemd_user_units.sh" >/dev/null
   "$PLATFORM/scripts/apply_canonical_temporal_worker.sh" >/dev/null
+  systemctl --user enable --now inneros-telegram-ops-poll.service 2>/dev/null || true
   systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service 2>/dev/null \
     || systemctl --user restart ralfia-mcp.service 2>/dev/null || true
-  ssh -o BatchMode=yes "$AMD" "export INNEROS_NODE_ROLE=amd; cd '$PLATFORM' && ./scripts/apply_canonical_temporal_worker.sh && systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service 2>/dev/null || systemctl --user restart ralfia-mcp.service 2>/dev/null || true"
+  ssh -o BatchMode=yes "$AMD" "export INNEROS_NODE_ROLE=amd; cd '$PLATFORM' && ./scripts/ensure_systemd_user_units.sh && ./scripts/apply_canonical_temporal_worker.sh && systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service 2>/dev/null || systemctl --user restart ralfia-mcp.service 2>/dev/null || true"
 fi
 
 echo "FLEET_SYNC_OK SHA=$HEAD"

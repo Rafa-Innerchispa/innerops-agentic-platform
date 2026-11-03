@@ -27,6 +27,7 @@ UNITS=(
   inneros-coordination-owner-summary.service
   inneros-coordination-owner-summary.timer
   inneros-telegram-ops-poll.service
+  inneros-temporal-worker.service
   ralfia-external-repair-agent.service
 )
 

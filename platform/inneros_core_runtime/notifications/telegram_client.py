@@ -124,6 +124,35 @@ def get_me() -> dict[str, Any]:
     return _post("getMe", {})
 
 
+def send_voice(
+    audio_bytes: bytes,
+    *,
+    chat_id: str | None = None,
+    caption: str = "",
+    filename: str = "voice.ogg",
+) -> dict[str, Any]:
+    if not telegram_enabled():
+        return {"ok": False, "skipped": "NOTIFY_OPS_TELEGRAM disabled"}
+    dest = (chat_id or owner_chat_id()).strip()
+    if not dest:
+        return {"ok": False, "error": "telegram_owner_chat_id_missing"}
+    token = _bot_token()
+    if not token:
+        return {"ok": False, "error": "telegram_bot_token_missing"}
+    url = f"{API_BASE}/bot{token}/sendVoice"
+    try:
+        files = {"voice": (filename, audio_bytes)}
+        data: dict[str, str] = {"chat_id": dest}
+        if caption:
+            data["caption"] = caption[:1000]
+        r = httpx.post(url, data=data, files=files, timeout=90.0)
+        body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        ok = r.status_code == 200 and isinstance(body, dict) and body.get("ok") is True
+        return {"ok": ok, "http_status": r.status_code, "response": body}
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__, "detail": str(exc)[:300]}
+
+
 def send_photo(
     photo_bytes: bytes,
     *,

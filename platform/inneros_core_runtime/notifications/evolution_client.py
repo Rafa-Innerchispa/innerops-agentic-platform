@@ -269,12 +269,32 @@ def send_whatsapp(text: str, number: str | None = None, *, instance: str | None 
     if blocked:
         return blocked
     dest = (number or NOTIFY_WHATSAPP_TO or "").strip()
+    tg_mirror: dict[str, Any] = {"ok": False, "skipped": "not_owner"}
+    try:
+        from inneros_core_runtime.notifications.telegram_owner_channel import (
+            deliver_owner_message,
+            is_owner_destination,
+        )
+
+        if is_owner_destination(dest):
+            tg_mirror = deliver_owner_message(text)
+    except Exception as exc:
+        tg_mirror = {"ok": False, "error": str(exc)[:200]}
+
+    whatsapp_on = os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     base, default_inst = _node_config(node)
     inst = instance or default_inst
     if not dest:
         return {"ok": False, "status": "error", "message": "NOTIFY_WHATSAPP_TO vacío"}
-    if not EVOLUTION_API_KEY or not inst:
-        return {"ok": False, "status": "error", "message": "Evolution no configurado en .env"}
+    if not whatsapp_on or not EVOLUTION_API_KEY or not inst:
+        if tg_mirror.get("ok"):
+            return {"ok": True, "status": "sent", "channel": "telegram", "telegram": tg_mirror}
+        return {"ok": False, "status": "error", "message": "Evolution off", "telegram": tg_mirror}
     target, normalized = _normalize_destination(dest)
     if not target:
         return {"ok": False, "status": "error", "message": "número o groupJid inválido"}
@@ -314,8 +334,12 @@ def send_whatsapp(text: str, number: str | None = None, *, instance: str | None 
             )
         except Exception:
             result["ledger"] = {"ok": False, "error": "ledger_unavailable"}
+        if tg_mirror.get("ok"):
+            result["telegram_mirror"] = tg_mirror
         return result
     except Exception as exc:
+        if tg_mirror.get("ok"):
+            return {"ok": True, "status": "sent", "channel": "telegram", "telegram": tg_mirror}
         return {"ok": False, "status": "error", "message": str(exc)}
 
 

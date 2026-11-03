@@ -146,12 +146,24 @@ def _save_turn(
     db[CHAT_COL].insert_one(doc)
 
 
+_SERVER_STATUS_NL_RE = re.compile(
+    r"\b(c[oó]mo\s+(?:va|est[aá]|van)|qu[eé]\s+tal|estado\s+del?\s+servidor)\b",
+    re.I,
+)
+
+
 def _detect_intents(message: str) -> list[str]:
     found: list[str] = []
     for pattern, intent in _INTENT_TOOLS:
         if pattern.search(message) and intent not in found:
             found.append(intent)
-    return found[:3]
+    if _SERVER_STATUS_NL_RE.search(message or "") and "status" not in found:
+        found.insert(0, "status")
+    return found[:4]
+
+
+def _operational_status_focus(message: str, intents: list[str]) -> bool:
+    return "status" in intents or bool(_SERVER_STATUS_NL_RE.search(message or ""))
 
 
 def _specific_memory_query(message: str) -> bool:
@@ -245,9 +257,11 @@ def _gather_context(
                     )
                     if current.get("found") and (current.get("state") or {}).get("summary"):
                         states.append(f"{state_key}: {str(current['state']['summary'])[:300]}")
-                if states:
-                    blocks.append("CURRENT STATE PRIVADO:\n" + "\n".join(states[:3]))
-                if _specific_memory_query(message):
+                if states and not _operational_status_focus(message, intents):
+                    blocks.append(
+                        "CURRENT STATE PRIVADO (interno; no citar al usuario):\n" + "\n".join(states[:3])
+                    )
+                if _specific_memory_query(message) and not _operational_status_focus(message, intents):
                     memories = daily_memory.search_memory(
                         {"owner_id": "RAFAEL", "query": message, "actor": "RAFAEL", "limit": 3}
                     )
@@ -555,24 +569,36 @@ def _ollama_chat(
     history: list[dict[str, str]],
     context: str,
     model: str,
+    channel: str = "whatsapp",
+    route: str = "general",
 ) -> dict[str, Any]:
     from raphiia_openai.local_model_router import _http_json, OLLAMA_URL
+    from raphiia_openai.notifications import owner_conversation_router as ocr
 
     system = _SYSTEM
+    if channel == "telegram":
+        system = (
+            "Eres RalfIA por Telegram. Español natural, usa el historial; "
+            "no repitas la respuesta anterior si piden detalle.\n" + _SYSTEM
+        )
     if "CONTEXTO DERIVADO DE IMAGEN" in context:
         system = f"{system}\n{_IMAGE_POLICY}"
+    system = f"{system}\n\nRUTA: {route}. {ocr.route_system_hint(route)}"
     if context:
-        system = f"{_SYSTEM}\n\n{context}"
+        system = f"{system}\n\n{context}"
 
     messages: list[dict[str, str]] = [{"role": "system", "content": system}]
-    messages.extend(history[-6:])
+    messages.extend(history[-(8 if channel == "telegram" else 6) :])
     messages.append({"role": "user", "content": user_message.strip()})
 
     payload = {
         "model": model,
         "messages": messages,
         "stream": False,
-        "options": {"temperature": 0.18, "num_predict": 220},
+        "options": {
+            "temperature": 0.22 if channel == "telegram" else 0.18,
+            "num_predict": 360 if channel == "telegram" else 240,
+        },
     }
     result = _http_json(f"{OLLAMA_URL}/api/chat", method="POST", body=payload, timeout=90)
     if not result.get("ok"):
@@ -731,6 +757,7 @@ def conversational_reply(
             "ok": True,
             "text": body,
             "source": "direct_data",
+            "route": route,
             "intents": intents,
             "had_context": bool(context),
             "context_sources": context_sources,
@@ -764,9 +791,14 @@ def conversational_reply(
                 history=history,
                 context=context,
                 model=model,
+                channel=channel,
+                route=route,
             )
             if llm.get("ok") and llm.get("response"):
-                candidate = _trim(llm["response"])
+                limit = 1200 if channel == "telegram" else 520
+                candidate = llm["response"]
+                if len(candidate) > limit:
+                    candidate = candidate[: limit - 3].rstrip() + "..."
                 body, grounding = _validate_grounded_response(candidate, context_sources)
                 evidence_refs = [str(item.get("evidence_ref")) for item in context_sources if item.get("evidence_ref")]
                 tool_call_ids = [str(item.get("tool_call_id")) for item in context_sources if item.get("tool_call_id")]
