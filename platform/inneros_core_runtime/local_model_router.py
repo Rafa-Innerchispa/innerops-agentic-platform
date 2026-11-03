@@ -679,7 +679,12 @@ def _safe_local_failover(
         failures.append(str(result.get("error") or "local_failover_unavailable"))
     return {
         "ok": False,
-        "error": "all_local_model_routes_unavailable",
+        # Keep the first concrete local-fallback error instead of erasing it
+        # with a generic aggregate reason; the full ordered list remains.
+        "error": next(
+            (reason for reason in failures if reason and reason != "local_failover_unavailable"),
+            "all_local_model_routes_unavailable",
+        ),
         "failures": failures,
         "external_needed": False,
         "fallback_silent": False,
