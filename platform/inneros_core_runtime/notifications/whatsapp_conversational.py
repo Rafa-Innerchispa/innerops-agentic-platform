@@ -649,15 +649,16 @@ def _validate_grounded_response(
     return body, {"status": "grounded", "reasons": []}
 
 
-def _fallback(message: str, intents: list[str]) -> str:
-    if "status" in intents:
-        return "Puedo revisar el servidor — escribe *estado* o cuéntame qué servicio te preocupa."
+def _fallback(message: str, intents: list[str], *, route: str = "general") -> str:
+    from raphiia_openai.notifications import whatsapp_service_ops
+
+    if route == "infra_detail":
+        return whatsapp_service_ops.status_detail_reply(message)
+    if route == "infra_overview" or "status" in intents:
+        return whatsapp_service_ops.natural_status_summary()
     if "emails" in intents:
-        return "Sobre correos: *correo* (resumen) o *correo de [nombre]*. ¿Qué buscas?"
-    return (
-        "Te escucho 👋 Soy RalfIA. Pregúntame con naturalidad o usa *ayuda*.\n"
-        "Ejemplos: «¿cómo va el servidor?», «revisa este equipo», «correos del banco»."
-    )
+        return "Sobre correos puedo resumir la bandeja o buscar uno concreto."
+    return "Te escucho. Cuéntame qué necesitas y lo vemos."
 
 
 def conversational_reply(
@@ -669,11 +670,14 @@ def conversational_reply(
     untrusted_media_context: str | None = None,
     media_kind: str | None = None,
     identity: dict[str, Any] | None = None,
+    channel: str = "whatsapp",
 ) -> dict[str, Any]:
     """Agente local: memoria + contexto operativo + Ollama (0 tokens cloud)."""
+    channel = (channel or "whatsapp").strip().lower()
     text_in = (message or "").strip()
+    history = _load_history(sender, conversation_id=conversation_id) if sender or conversation_id else []
     if not text_in:
-        return {"ok": True, "text": _fallback("", []), "source": "fallback"}
+        return {"ok": True, "text": _fallback("", [], route="general"), "source": "fallback"}
 
     # Confirmación de acciones sensibles pendientes
     if sender:
@@ -722,6 +726,9 @@ def conversational_reply(
         return {"ok": True, "text": HELP_TEXT, "source": "help"}
 
     intents = _detect_intents(text_in)
+    from raphiia_openai.notifications import owner_conversation_router as ocr
+
+    route = ocr.classify_owner_turn(text_in, intents=intents, history=history)
 
     # Acción sensible NL: «quiero revisar el correo» → preview + confirmación
     if "poll" in intents and sender:
@@ -739,9 +746,20 @@ def conversational_reply(
         entity_id=entity_id,
         identity=identity,
     )
-    direct = _direct_data_reply(text_in, context, context_sources, intents)
+    if route == "web":
+        from raphiia_openai.notifications import owner_web_research as owr
+
+        web_ctx, web_meta = owr.build_web_research_context(text_in)
+        if web_ctx.strip():
+            context = "\n---\n".join(part for part in (context, web_ctx) if part)
+            context_sources.append({"source": "owner_web_research", "trust": "model_generated", **web_meta})
+    direct = None
+    if route in {"infra_overview", "infra_detail"}:
+        direct = _direct_data_reply(
+            text_in, context, context_sources, intents, route=route, history=history,
+        )
     if direct:
-        body = _trim(direct)
+        body = _trim(direct) if channel != "telegram" else direct[:1200]
         if sender:
             _save_turn(sender, "user", text_in, conversation_id=conversation_id, is_group=is_group, entity_id=entity_id)
             _save_turn(
@@ -836,7 +854,7 @@ def conversational_reply(
     else:
         last_err = "ollama_failed"
 
-    body = _fallback(text_in, intents)
+    body = _fallback(text_in, intents, route=route)
     if sender:
         _save_turn(sender, "user", text_in, conversation_id=conversation_id, is_group=is_group, entity_id=entity_id)
         _save_turn(sender, "assistant", body, conversation_id=conversation_id, is_group=is_group, entity_id=entity_id)
