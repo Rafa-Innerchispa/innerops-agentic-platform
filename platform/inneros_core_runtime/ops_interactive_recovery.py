@@ -44,7 +44,19 @@ def requires_manual_interactive_lane(task: dict[str, Any]) -> bool:
     if lane in MANUAL_INTERACTIVE_LANES or lane.endswith("_interactive"):
         return True
     binding = ((task.get("evidence") or {}).get("execution_binding") or {})
-    if binding.get("interactive_execution") is True:
+    if isinstance(binding, dict) and binding.get("interactive_execution") is True:
+        return True
+    top_binding = task.get("execution_binding") or {}
+    if isinstance(top_binding, dict) and top_binding.get("interactive_execution") is True:
+        return True
+    state_binding = (task.get("current_execution_state") or {}).get("execution_binding") or {}
+    if isinstance(state_binding, dict) and state_binding.get("interactive_execution") is True:
+        return True
+    claimed_by = str(task.get("claimed_by") or "").strip().lower()
+    if claimed_by in MANUAL_INTERACTIVE_LANES or f"{claimed_by}_interactive" in MANUAL_INTERACTIVE_LANES:
+        return True
+    preferred = str(task.get("preferred_provider") or "").strip().lower()
+    if preferred in MANUAL_INTERACTIVE_LANES or f"{preferred}_interactive" in MANUAL_INTERACTIVE_LANES:
         return True
     return False
 
@@ -84,12 +96,14 @@ def external_repair_may_auto_claim(task: dict[str, Any]) -> tuple[bool, str]:
 
 def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
     db = mongo_store.get_db()
+    now_iso = _now()
     filt = {
         "status": {"$in": list(ORPHAN_STATUSES)},
         "$or": [
             {"claim_token": {"$exists": False}},
             {"claim_token": None},
             {"claim_token": ""},
+            {"lease_until": {"$lt": now_iso}},
         ],
     }
     rows = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(5, min(limit * 4, 80))))
@@ -109,8 +123,16 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
             continue
         target = awaiting_claim_status_for_task(task)
         now = _now()
+        cas_filter: dict[str, Any] = {
+            "task_id": tid,
+            "$or": [
+                {"claim_token": {"$in": [None, ""]}},
+                {"lease_until": task.get("lease_until")},
+                {"claim_token": task.get("claim_token")},
+            ],
+        }
         db[OPS_TASKS_COL].update_one(
-            {"task_id": tid, "claim_token": {"$in": [None, ""]}},
+            cas_filter,
             {
                 "$set": {
                     "status": target,
@@ -119,6 +141,7 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
                     "orphan_recovery_at": now,
                 },
                 "$unset": {
+                    "claim_token": "",
                     "claimed_at": "",
                     "lease_until": "",
                     "claimed_by": "",

@@ -677,9 +677,14 @@ def _safe_local_failover(
         if result.get("ok") and str(result.get("response") or "").strip():
             return result
         failures.append(str(result.get("error") or "local_failover_unavailable"))
+    primary_error = (
+        failures[0]
+        if failures and failures[0] not in {"local_failover_unavailable", "local_failover_attempt_failed"}
+        else "all_local_model_routes_unavailable"
+    )
     return {
         "ok": False,
-        "error": "all_local_model_routes_unavailable",
+        "error": primary_error,
         "failures": failures,
         "external_needed": False,
         "fallback_silent": False,
@@ -1169,7 +1174,7 @@ def run_local_model(
             return fb
         return {
             "ok": False,
-            "error": "all_local_model_routes_unavailable",
+            "error": fb.get("error") or "all_local_model_routes_unavailable",
             "endpoint": vllm_url if provider_id == "local-amd-5" else ollama_url,
             "provider_health": provider_health,
             "recommended_model": selected,
