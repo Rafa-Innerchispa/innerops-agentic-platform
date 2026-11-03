@@ -1,4 +1,4 @@
-"""Owner notifications: HA (P1) + email rafagye@gmail.com (P2) + Telegram (P3)."""
+"""Owner notifications: Telegram (P1) + HA companion (P2) + email (P3)."""
 
 from __future__ import annotations
 
@@ -34,6 +34,23 @@ def notify_owner(
     body = (body or "").strip()
     plain = body.replace("**", "").replace("#", "")[:12000]
 
+    if telegram and os.getenv("NOTIFY_OPS_TELEGRAM", "1").strip().lower() not in {"0", "false", "no", "off"}:
+        try:
+            from inneros_core_runtime.notifications import ops_owner_delivery as mult
+
+            tg_body = f"*{title}*\n\n{plain[:3500]}"
+            r = mult.deliver_text_fanout(
+                tg_body,
+                kind=kind,
+                dedupe_key=f"{kind}:{title[:40]}",
+                inline_ops_task_id=task_id,
+            )
+            out["channels"]["telegram_fanout"] = r
+            if r.get("ok"):
+                out["ok"] = True
+        except Exception as exc:
+            out["channels"]["telegram"] = {"ok": False, "error": str(exc)[:200]}
+
     if ha and os.getenv("NOTIFY_OPS_AUTH_HA", "0").strip().lower() in {"1", "true", "yes", "on"}:
         try:
             from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
@@ -62,22 +79,63 @@ def notify_owner(
         except Exception as exc:
             out["channels"]["email"] = {"ok": False, "error": str(exc)[:200]}
 
-    if telegram and os.getenv("NOTIFY_OPS_TELEGRAM", "1").strip().lower() not in {"0", "false", "no", "off"}:
-        try:
-            from inneros_core_runtime.notifications import ops_owner_delivery as mult
+    return out
 
-            tg_body = f"*{title}*\n\n{plain[:3500]}"
-            r = mult.deliver_text_fanout(
-                tg_body,
-                kind=kind,
-                dedupe_key=f"{kind}:{title[:40]}",
-                inline_ops_task_id=task_id,
-            )
-            out["channels"]["telegram_fanout"] = r
-            if r.get("ok"):
+
+def notify_owner_photo(
+    *,
+    caption: str,
+    image_bytes: bytes,
+    title: str = "Vigilancia",
+    filename: str = "guardian.jpg",
+    ha: bool = True,
+    whatsapp_fallback: bool = True,
+) -> dict[str, Any]:
+    """Foto perimetral / Physical Guardian → Telegram primero, luego HA push y WhatsApp si está activo."""
+    out: dict[str, Any] = {"ok": False, "channels": {}, "kind": "owner_photo"}
+    cap = (caption or title or "Alerta").strip()[:900]
+    title = (title or "Vigilancia").strip()[:120]
+    if not image_bytes:
+        return {**out, "error": "empty_image"}
+
+    if os.getenv("NOTIFY_OPS_TELEGRAM", "1").strip().lower() not in {"0", "false", "no", "off"}:
+        try:
+            from inneros_core_runtime.notifications import telegram_client as tg
+
+            tg_cap = f"*{title}*\n{cap}" if title else cap
+            tg_r = tg.send_photo(image_bytes, caption=tg_cap[:1000], filename=filename)
+            out["channels"]["telegram"] = tg_r
+            if tg_r.get("ok"):
                 out["ok"] = True
         except Exception as exc:
             out["channels"]["telegram"] = {"ok": False, "error": str(exc)[:200]}
+
+    if ha and os.getenv("NOTIFY_OPS_AUTH_HA", "0").strip().lower() in {"1", "true", "yes", "on"}:
+        try:
+            from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
+
+            ha_r = ops_ha.notify_companion_scout_alert(title=title, message=cap[:3500])
+            out["channels"]["ha"] = ha_r
+            if ha_r.get("ok"):
+                out["ok"] = True
+        except Exception as exc:
+            out["channels"]["ha"] = {"ok": False, "error": str(exc)[:200]}
+
+    if whatsapp_fallback and os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        try:
+            from inneros_core_runtime.notifications.evolution_client import send_alert_whatsapp_image
+
+            wa_r = send_alert_whatsapp_image(cap, image_bytes)
+            out["channels"]["whatsapp"] = wa_r
+            if wa_r.get("ok"):
+                out["ok"] = True
+        except Exception as exc:
+            out["channels"]["whatsapp"] = {"ok": False, "error": str(exc)[:200]}
 
     return out
 

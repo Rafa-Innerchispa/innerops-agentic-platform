@@ -753,6 +753,78 @@ def send_whatsapp_audio(
             return {"ok": False, "status": "error", "message": str(exc)}
 
 
+def send_alert_whatsapp_image(
+    caption: str,
+    image: bytes,
+    *,
+    mimetype: str = "image/jpeg",
+    prefix_node: bool = False,
+) -> dict[str, Any]:
+    """Imagen de alerta (Physical Guardian, cámara): Telegram primero; WhatsApp solo si está activo."""
+    import base64
+
+    cap = (caption or "").strip()
+    if prefix_node and cap and "— vía " not in cap.lower():
+        cap = f"{cap.rstrip()}\n— vía {node_label(local_node())}"
+    fanout: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    try:
+        from inneros_core_runtime.notifications.owner_notify_fanout import notify_owner_photo
+
+        fanout = notify_owner_photo(
+            caption=cap,
+            image_bytes=image,
+            title="Vigilancia",
+            filename="physical-guardian-event.jpg",
+            ha=True,
+            whatsapp_fallback=False,
+        )
+    except Exception as exc:
+        fanout = {"ok": False, "error": str(exc)[:200]}
+
+    whatsapp_on = os.getenv("INNEROS_WHATSAPP_NOTIFICATIONS", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if not whatsapp_on:
+        if fanout.get("ok"):
+            return {"ok": True, "channel": "owner_photo_fanout", "fanout": fanout, "alert_policy": "whatsapp_off"}
+        return {"ok": False, "channel": "owner_photo_fanout", "fanout": fanout, "alert_policy": "whatsapp_off"}
+
+    dest = (os.getenv("RALFIA_ALERTS_TO") or NOTIFY_WHATSAPP_TO or "").strip()
+    target, normalized = _normalize_destination(dest)
+    if not target or mimetype != "image/jpeg" or not image:
+        return fanout if fanout.get("ok") else {"ok": False, "fanout": fanout, "whatsapp": {"ok": False}}
+    encoded = base64.b64encode(image).decode("ascii")
+    for node in _connected_alert_nodes():
+        base, instance = _node_config(node)
+        if not base or not instance or not EVOLUTION_API_KEY:
+            continue
+        try:
+            r = httpx.post(
+                f"{base}/message/sendMedia/{instance}",
+                headers=_headers(),
+                json={
+                    "number": target,
+                    "mediatype": "image",
+                    "mimetype": mimetype,
+                    "fileName": "physical-guardian-event.jpg",
+                    "caption": cap[:900],
+                    "media": encoded,
+                },
+                timeout=30.0,
+            )
+        except Exception:
+            continue
+        if r.status_code in (200, 201):
+            wa = {"ok": True, "status": "sent", "via_node": node}
+            return {"ok": True, "channel": "whatsapp", "whatsapp": wa, "owner_fanout": fanout}
+    if fanout.get("ok"):
+        return {"ok": True, "channel": "owner_photo_fanout", "fanout": fanout, "whatsapp_failed": True}
+    return {"ok": False, "fanout": fanout, "whatsapp": {"ok": False, "status": "delivery_error"}}
+
+
 def send_whatsapp_document(
     file_path: str,
     number: str | None = None,

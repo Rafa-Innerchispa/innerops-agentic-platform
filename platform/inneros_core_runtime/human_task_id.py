@@ -215,6 +215,45 @@ def format_list_line(task: dict[str, Any]) -> str:
     return f"{alias} | {status} | {assignee} | {tid} | {title}"
 
 
+def format_telegram_owner_body(
+    *,
+    task: dict[str, Any],
+    headline: str,
+    provider: str,
+    objective: str,
+    spends: str,
+    detail: str,
+    alert_kind: str,
+    short_ops_suffix: str,
+    related: list[dict[str, Any]] | None = None,
+) -> str:
+    """Mensaje sobrio para Telegram: código humano visible, IDs técnicos al mínimo."""
+    alias = str(task.get("human_task_id") or task.get("task_alias") or generate_human_task_id(
+        correlation_id=str(task.get("correlation_id") or ""),
+        title=str(task.get("title") or ""),
+    ))
+    lines = [
+        f"*{headline.strip()}*",
+        "",
+        f"*Ref:* `{alias}`",
+        f"*Agente:* {provider.upper()}",
+        f"*Qué:* {objective[:200]}",
+    ]
+    if spends.strip():
+        lines.append(spends.strip())
+    if detail.strip():
+        lines.append(detail.strip()[:400])
+    if alert_kind == "external_spend":
+        lines.append("")
+        lines.append("Usa *Confirmar* o *Cancelar* abajo.")
+        lines.append(f"Sin botones: responde `CONFIRMAR {short_ops_suffix}` o `CANCELAR {short_ops_suffix}`.")
+    tid = str(task.get("task_id") or "")
+    if tid:
+        lines.append("")
+        lines.append(f"_id interno:_ `{tid[:22]}`")
+    return "\n".join(lines)
+
+
 def format_whatsapp_owner_body(
     *,
     task: dict[str, Any],

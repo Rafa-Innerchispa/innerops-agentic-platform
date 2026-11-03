@@ -325,6 +325,17 @@ def notify_ops_owner_authorization_request(
         short_ops_suffix=short,
         related=related,
     )
+    tg_body = hti.format_telegram_owner_body(
+        task=task,
+        headline=f"{icon} {headline}",
+        provider=provider,
+        objective=objective,
+        spends=spends,
+        detail=detail,
+        alert_kind=alert_kind,
+        short_ops_suffix=short,
+        related=related,
+    )
     alias = str(task.get("human_task_id") or tid)
     key = _dedupe_key("owner_auth", alias)
     if not _can_send("owner_auth", alias, force=force):
@@ -348,7 +359,7 @@ def notify_ops_owner_authorization_request(
 
         if tg.telegram_enabled() and tg.configured():
             tg_out = tg.send_message(
-                body,
+                tg_body,
                 reply_markup=tg.ops_auth_inline_keyboard(tid),
                 parse_mode="Markdown",
             )
