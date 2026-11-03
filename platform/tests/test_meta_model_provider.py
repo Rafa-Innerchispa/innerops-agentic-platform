@@ -599,5 +599,125 @@ class MetaProviderTest(unittest.TestCase):
         self.assertIn("model.frontier.reason.v1", cap_ids)
 
 
+    def test_wonder_one_shot_grant_is_model_bound_and_cannot_replay(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda scope: scope["model"] == "muse-wonder-1.0",
+            max_output_tokens=self.out_cap, model="muse-wonder-1.0",
+        )
+        self.assertEqual("muse-wonder-1.0", grant["model"])
+        model = self.ledger._consume(grant["grant_id"], self.project, PROMPT)
+        self.assertEqual("muse-wonder-1.0", model["model"])
+        with self.assertRaises(PermissionError):
+            self.ledger._consume(grant["grant_id"], self.project, PROMPT)
+        with self.assertRaises(PermissionError):
+            self.ledger.issue(
+                project_id=self.project, prompt=PROMPT,
+                approval=approved, verifier=lambda _: True,
+                max_output_tokens=self.out_cap, model="muse-wonder-1.0",
+            )
+
+    def test_wonder_provider_response_enforces_approved_model_without_live_network(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        response = self._response()
+        response["model"] = "muse-wonder-1.0"
+        captured = []
+        def fake_transport(req, timeout):
+            captured.append(json.loads(req.data.decode("utf-8")))
+            return Response(response)
+        receipt = meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant["grant_id"],
+            project_id=self.project, prompt=PROMPT,
+            credential_loader=lambda: "unit-test-placeholder-not-real-key",
+            transport=fake_transport,
+        )
+        self.assertEqual("REAL_SUCCESS", receipt["status"])
+        self.assertEqual("muse-wonder-1.0", receipt["model"])
+        self.assertEqual("muse-wonder-1.0", captured[0]["model"])
+        self.assertEqual(1, len(captured))
+        self.assertEqual(0, receipt["automatic_retries"])
+
+    def test_wonder_model_mismatch_is_not_real_success(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        # A transport returning Spark for a Wonder grant is NOT Wonder proof.
+        receipt = meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant["grant_id"],
+            project_id=self.project, prompt=PROMPT,
+            credential_loader=lambda: "unit-test-placeholder-not-real-key",
+            transport=lambda req, timeout: Response(self._response()),
+        )
+        self.assertNotEqual("REAL_SUCCESS", receipt["status"])
+        self.assertEqual("MODEL_MISMATCH", receipt["error_type"])
+
+    def test_wonder_ha_scope_signature_binds_model_and_expiry(self):
+        secret = "unit-test-only-not-a-real-approval"
+        expiry = int(time.time()) + 120
+        prompt_sha = meta._sha(PROMPT.encode("utf-8"))
+        ref = "approved-unit-test-wonder"
+        signed = f"{ref}|{self.project}|muse-wonder-1.0|{prompt_sha}|{self.out_cap}|{expiry}"
+        scope = {
+            "approval_ref": ref, "project_id": self.project,
+            "prompt_sha256": prompt_sha, "model": "muse-wonder-1.0",
+            "max_output_tokens": self.out_cap, "expires_epoch": expiry,
+            "owner_actor": "RAFAEL",
+            "signature": hmac.new(secret.encode(), signed.encode(), hashlib.sha256).hexdigest(),
+        }
+        with patch.dict(os.environ, {"INNEROS_HA_COMPANION_RECEIPT_SECRET": secret}):
+            self.assertTrue(meta.verify_ha_owner_approval(scope))
+            fake_mongo = MagicMock()
+            fake_mongo.get_db.side_effect = RuntimeError("no trusted grant DB")
+            with patch.dict("sys.modules", {"raphiia_openai.mongo_store": fake_mongo}):
+                self.assertFalse(meta.verify_ha_owner_approval(dict(scope, model="muse-spark-1.3")))
+                self.assertFalse(meta.verify_ha_owner_approval(dict(scope, expires_epoch=expiry + 20)))
+                self.assertFalse(meta.verify_ha_owner_approval(dict(scope, signature="")))
+
+    def test_mcp_wonder_selection_is_explicit_and_rejects_unknown(self):
+        from inneros_core_runtime import capability_gateway_model as cgm
+        ledger = MagicMock()
+        ledger.issue.return_value = {
+            "grant_id": "grant-test-mock", "model": "muse-wonder-1.0",
+        }
+        with patch.object(meta, "MetaGrantLedger", return_value=ledger):
+            result = cgm._frontier_reason_handler({
+                "action": "issue_grant", "model": "muse-wonder-1.0",
+                "project_id": self.project, "prompt": PROMPT,
+                "approval": self._approval(),
+                "max_output_tokens": self.out_cap,
+            }, {})
+            self.assertTrue(result["ok"])
+            self.assertEqual("muse-wonder-1.0", ledger.issue.call_args.kwargs["model"])
+            ledger.issue.reset_mock()
+            result = cgm._frontier_reason_handler({
+                "action": "issue_grant", "model": "unregistered-expensive-model",
+                "project_id": self.project, "prompt": PROMPT,
+            }, {})
+            self.assertFalse(result["ok"])
+            self.assertEqual("meta_model_not_allowlisted", result["error"])
+            ledger.issue.assert_not_called()
+        specs = cgm.get_model_capabilities_specs()
+        manifest = next(m for m, _ in specs if m["capability_id"] == "model.frontier.reason.v1")
+        self.assertEqual(
+            ["muse-spark-1.3", "muse-wonder-1.0"],
+            manifest["parameters_schema"]["properties"]["model"]["enum"],
+        )
+        status = meta.provider_status()
+        self.assertIn("muse-wonder-1.0", status["supported_models"])
+        self.assertFalse(status["muse_wonder_eligible"])
+
+
 if __name__ == "__main__":
     unittest.main()
