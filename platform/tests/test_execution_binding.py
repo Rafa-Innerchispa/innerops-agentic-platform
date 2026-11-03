@@ -165,6 +165,20 @@ class ExecutionBindingTests(unittest.TestCase):
         self.assertTrue(binding["allowed"])
         self.assertEqual(binding["runner"], eb.INTERNAL_BOUNDED_RUNNER)
 
+    def test_execute_agent_graph_email_intelligence_skips_bounded_executor(self) -> None:
+        envelope = {
+            "task_id": "ops_email_temporal",
+            "task_class": "business_ops",
+            "execution_lane": "email_intelligence",
+            "correlation_id": "email:nonexistent_mail_for_unit_test",
+            "assignee": "ralfia",
+            "preferred_provider": "ralfia",
+        }
+        result = asyncio.run(ta.activity_execute_agent_graph(envelope, {"worktree": ""}))
+        self.assertFalse(result.get("blocked"))
+        self.assertEqual(result.get("objective_files_count"), 0)
+        self.assertIn("email", str(result.get("response") or "").lower())
+
     def test_execute_agent_graph_does_not_run_bounded_when_blocked(self) -> None:
         envelope = {
             "task_id": "ops_blocked",

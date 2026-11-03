@@ -55,6 +55,35 @@ def _safe_heartbeat(details: str):
         pass
 
 
+def _resolve_email_mail_id(envelope_dict: Dict[str, Any]) -> str:
+    corr = str(envelope_dict.get("correlation_id") or "").strip()
+    if corr.startswith("email:"):
+        return corr.split(":", 1)[1].strip()
+    payload = envelope_dict.get("payload") if isinstance(envelope_dict.get("payload"), dict) else {}
+    return str(payload.get("mail_id") or envelope_dict.get("mail_id") or "").strip()
+
+
+def _run_email_intelligence_local(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
+    mail_id = _resolve_email_mail_id(envelope_dict)
+    if not mail_id:
+        return {
+            "ok": False,
+            "error": "email_mail_id_missing",
+            "response": "email_intelligence requires correlation_id email:<mail_id> or payload.mail_id",
+        }
+    from raphiia_openai import mongo_store
+    from inneros_core_runtime.notifications import email_router
+
+    doc = mongo_store.get_db().email_messages.find_one({"mail_id": mail_id}, {"_id": 0})
+    if not doc:
+        return {"ok": False, "error": "email_message_not_found", "mail_id": mail_id}
+    try:
+        intel = email_router.process_email_intelligence(doc, create_task=False)
+    except Exception as exc:
+        return {"ok": False, "error": type(exc).__name__, "detail": str(exc)[:240], "mail_id": mail_id}
+    return {"ok": bool(intel.get("ok")), "mail_id": mail_id, "email_intelligence_result": intel}
+
+
 @activity.defn
 async def activity_validate_envelope(envelope_dict: Dict[str, Any]) -> Dict[str, Any]:
     _safe_heartbeat("validating_envelope")
@@ -83,10 +112,17 @@ async def activity_hydrate_worktree(envelope_dict: Dict[str, Any]) -> Dict[str, 
     _safe_heartbeat("hydrating_worktree")
     from inneros_core_runtime import execution_binding as _binding
     peer_binding = _binding.resolve_execution_binding(envelope_dict)
-    if peer_binding.get("allowed") and peer_binding.get("runner") == _binding.PEER_OPS_RUNNER:
-        # Observing a host is not a coding task. Do not create or mutate any
-        # Git worktree on its behalf.
-        return {"ok": True, "worktree": "", "source": "peer_ops_read_only"}
+    if peer_binding.get("allowed") and peer_binding.get("runner") in {
+        _binding.PEER_OPS_RUNNER,
+        _binding.EMAIL_INTELLIGENCE_RUNNER,
+    }:
+        # Read-only planes: no Git worktree (peer status, email intelligence).
+        source = (
+            "email_intelligence_read_only"
+            if peer_binding.get("runner") == _binding.EMAIL_INTELLIGENCE_RUNNER
+            else "peer_ops_read_only"
+        )
+        return {"ok": True, "worktree": "", "source": source}
     envelope = TaskEnvelopeV1.from_dict(envelope_dict)
     repo = str(envelope_dict.get("repo") or envelope_dict.get("related_project") or "").strip()
     if repo:
@@ -326,6 +362,23 @@ async def activity_validate_completion_gate(envelope_dict: Dict[str, Any], agent
         }
 
     lane = str(envelope_dict.get("execution_lane") or "").lower()
+    task_class = str(envelope_dict.get("task_class") or "").lower()
+    title = str(envelope_dict.get("title") or "")
+    if lane == "email_intelligence" or task_class == "business_ops" or title.startswith("[Correo/"):
+        intel = agent_result.get("email_intelligence_result") if isinstance(agent_result.get("email_intelligence_result"), dict) else {}
+        if agent_result.get("ok") is True and intel.get("ok") is True:
+            return {
+                "passed": True,
+                "mode": "email_intelligence_local",
+                "mail_id": agent_result.get("mail_id") or intel.get("mail_id"),
+            }
+        return {
+            "passed": False,
+            "error": "Completion prohibited: email_intelligence local pipeline did not succeed",
+            "mail_id": agent_result.get("mail_id"),
+            "detail": agent_result.get("error") or intel.get("error"),
+        }
+
     if lane == "peer_ops":
         from inneros_core_runtime import execution_binding as _binding
 
@@ -579,6 +632,27 @@ async def activity_execute_agent_graph(envelope_dict: Dict[str, Any], worktree_i
             },
             "candidate_only": False,
             "requires_bounded_executor": False,
+        }
+
+    if binding.get("runner") == execution_binding.EMAIL_INTELLIGENCE_RUNNER:
+        intel_out = _run_email_intelligence_local(envelope_dict)
+        ok = bool(intel_out.get("ok"))
+        return {
+            "ok": ok,
+            "blocked": False,
+            "execution_binding": binding,
+            "files_count": 0,
+            "objective_files_count": 0,
+            "objective_paths": [],
+            "code_diff": "",
+            "response": "email_intelligence_local" if ok else str(intel_out.get("error") or "email_intelligence_failed"),
+            "test_results": {"exit_code": 0 if ok else 1, "ok": ok, "reason": intel_out.get("error")},
+            "evidence": {"email_intelligence": intel_out},
+            "mail_id": intel_out.get("mail_id"),
+            "email_intelligence_result": intel_out.get("email_intelligence_result"),
+            "candidate_only": False,
+            "requires_bounded_executor": False,
+            "read_only": True,
         }
 
     if binding.get("runner") == execution_binding.PEER_OPS_RUNNER:
