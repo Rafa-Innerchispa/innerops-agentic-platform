@@ -32,6 +32,18 @@ def test_no_reclaim_of_active_or_foreign_task():
 def test_manual_tasks_are_never_auto_claimed():
     assert claim_admission(_task(do_not_auto_dispatch=True), provider="cursor", ready=True)["reason"] == "manual_dispatch_only"
 
+def test_manual_only_task_precedes_global_freeze():
+    # Manual intent must not be obscured by a global freeze. This function
+    # is classification-only and must never trigger dispatch or paid inference.
+    from unittest.mock import patch
+    from inneros_core_runtime import ops_deploy_execution_pause as pause
+
+    with patch.object(pause, "execution_automation_frozen", return_value=True) as frozen:
+        decision = claim_admission(_task(do_not_auto_dispatch=True), provider="cursor", ready=True)
+    assert decision["eligible"] is False
+    assert decision["reason"] == "manual_dispatch_only"
+    frozen.assert_not_called()
+
 
 def test_internal_dev_swarm_proposed_only():
     row = {"task_id": "x", "assignee": "dev_swarm", "status": "proposed"}

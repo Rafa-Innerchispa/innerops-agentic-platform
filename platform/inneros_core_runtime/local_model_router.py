@@ -679,7 +679,12 @@ def _safe_local_failover(
         failures.append(str(result.get("error") or "local_failover_unavailable"))
     return {
         "ok": False,
-        "error": "all_local_model_routes_unavailable",
+        # Keep the first concrete local-fallback error instead of erasing it
+        # with a generic aggregate reason; the full ordered list remains.
+        "error": next(
+            (reason for reason in failures if reason and reason != "local_failover_unavailable"),
+            "all_local_model_routes_unavailable",
+        ),
         "failures": failures,
         "external_needed": False,
         "fallback_silent": False,
@@ -1169,7 +1174,9 @@ def run_local_model(
             return fb
         return {
             "ok": False,
-            "error": "all_local_model_routes_unavailable",
+            # Preserve the causal Intel/AMD error from _safe_local_failover.
+            # Do not mislabel a specific failed route as an opaque outage.
+            "error": fb.get("error") or "all_local_model_routes_unavailable",
             "endpoint": vllm_url if provider_id == "local-amd-5" else ollama_url,
             "provider_health": provider_health,
             "recommended_model": selected,

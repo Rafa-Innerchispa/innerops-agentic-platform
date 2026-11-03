@@ -35,7 +35,9 @@ def test_codex_real_path_blocked_without_grant_and_env():
     task = {
         "task_id": "ops_real",
         "claim_token": "tok",
+        "git_baseline_sha": "a" * 40,
         "worktree": "/tmp/nope",
+        "status": "claimed",
         "assignee": "codex",
         "owner_authorized_at": "2026-10-29T00:00:00Z",
     }
@@ -48,6 +50,16 @@ def test_codex_real_path_blocked_without_grant_and_env():
     wt.__truediv__ = lambda self, other: MagicMock(exists=lambda: True)
     with (
         patch.object(ipbe.mongo_store, "get_db", return_value=db),
+        # Isolate the lower-level reservation in this test: its dedicated
+        # tests cover resource budgets. This test MUST reach the owner-grant
+        # gate without issuing any paid provider request.
+        patch("inneros_core_runtime.execution_resource_guard.reserve", return_value={
+            "ok": True, "task_id": "ops_real", "token": "offline-unit-token", "provider": "codex",
+        }),
+        patch("inneros_core_runtime.execution_resource_guard.finish"),
+        patch.object(ipbe, "heartbeat_ops_task", return_value={"ok": True}),
+        patch.object(ipbe.omj, "record_model_execution", return_value={"ok": True}),
+        patch.object(ipbe, "_run_codex_cli", side_effect=AssertionError("No external call expected")) as cli,
         patch.object(ipbe, "Path", return_value=wt),
         patch.object(ipbe, "is_innocuous_canary_task", return_value=False),
         patch.dict(os.environ, {"INNEROS_CODEX_OPS_ALLOW_MODEL_EXEC": "1"}, clear=False),
@@ -57,3 +69,4 @@ def test_codex_real_path_blocked_without_grant_and_env():
         out = ipbe.execute_claimed_task("ops_real", "codex")
     assert out["error"] == "owner_budget_grant_required"
     complete.assert_called_once()
+    cli.assert_not_called()

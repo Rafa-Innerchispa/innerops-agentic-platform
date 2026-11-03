@@ -341,6 +341,29 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         err = ocp.validate_mutating_completion_evidence(task, ev, worktree=repo, before_sha=baseline)
         self.assertIsNone(err)
 
+    def test_antigravity_headless_without_owner_grant_does_not_complete(self) -> None:
+        """A missing owner grant must never reach complete_ops_task."""
+        script = Path(__file__).resolve().parents[1] / "scripts" / "antigravity_ops_headless_execute_one.py"
+        spec = importlib.util.spec_from_file_location("antigravity_ops_no_owner_probe", script)
+        assert spec and spec.loader
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        row = {"task_id": "ops_missing_owner", "claim_token": "tok",
+               "status": "claimed", "assignee": "antigravity"}
+        col = MagicMock()
+        col.find_one.return_value = row
+        db = MagicMock()
+        db.__getitem__.return_value = col
+        stdout = io.StringIO()
+        with patch.object(sys, "argv", ["antigravity_ops_headless_execute_one.py", "ops_missing_owner"]):
+            with patch.object(mod.mongo_store, "get_db", return_value=db):
+                with patch.object(mod.ior, "complete_ops_task") as complete:
+                    with patch.object(sys, "stdout", stdout):
+                        rc = mod.main()
+        self.assertEqual(rc, 2)
+        self.assertEqual(json.loads(stdout.getvalue())["error"], "authorization_or_claim_missing")
+        complete.assert_not_called()
+
     def test_antigravity_headless_script_declares_bounded_executor_plan(self) -> None:
         """Hotfix script must fail-closed with verifiable bounded-executor plan (not silent COMPLETED)."""
         script = Path(__file__).resolve().parents[1] / "scripts" / "antigravity_ops_headless_execute_one.py"
@@ -348,7 +371,13 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         assert spec and spec.loader
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        task = {"task_id": "ops_antigravity_plan_probe", "claim_token": "tok"}
+        task = {
+            "task_id": "ops_antigravity_plan_probe",
+            "claim_token": "tok",
+            "status": "claimed",
+            "assignee": "antigravity",
+            "owner_authorized_at": "2026-11-02T20:00:00Z",
+        }
         col = MagicMock()
         col.find_one.return_value = task
         db = MagicMock()
