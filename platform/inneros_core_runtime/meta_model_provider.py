@@ -657,7 +657,7 @@ def verify_ha_owner_approval(approval_scope: dict[str, Any]) -> bool:
     if sig:
         secret = os.getenv("INNEROS_HA_COMPANION_RECEIPT_SECRET", "").strip()
         if secret:
-            signed = f"{ref}|{project_id}|{MODEL}|{prompt_sha}|{max_tokens}|{str(exp_scope).strip()}"
+            signed = f"{ref}|{project_id}|{scope_model}|{prompt_sha}|{max_tokens}|{str(exp_scope).strip()}"
             expected = hmac.new(secret.encode(), signed.encode(), hashlib.sha256).hexdigest()
             if hmac.compare_digest(sig, expected):
                 return True
@@ -678,7 +678,7 @@ def verify_ha_owner_approval(approval_scope: dict[str, Any]) -> bool:
             return False
         if str(grant.get("project_id") or "").strip() != project_id:
             return False
-        if str(grant.get("model") or "").strip().lower() not in [m.lower() for m in SUPPORTED_MODELS]:
+        if str(grant.get("model") or "").strip().lower() != scope_model:
             return False
         if str(grant.get("provider") or "").strip().lower() not in (
             "meta", "meta-model-api", "meta_model_api"
