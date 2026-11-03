@@ -86,6 +86,51 @@ def has_active_valid_claim(task: dict[str, Any], *, grace_seconds: int = 30) -> 
     return (now - lease).total_seconds() <= grace_seconds
 
 
+def is_worker_active(task: dict[str, Any]) -> tuple[bool, str]:
+    """Verify whether the claimed worker is still active.
+
+    Checks recent heartbeat timestamps, live local process IDs, and active worktree git locks.
+    Returns (True, reason) if worker is definitely or likely still running.
+    Returns (False, "worker_inactive") if no active worker is detected.
+    """
+    # 1. Heartbeat check (heartbeat within last 180s indicates active worker)
+    hb_val = str(task.get("heartbeat_at") or task.get("last_heartbeat") or task.get("heartbeat") or "").strip()
+    hb = _parse_ts(hb_val)
+    if hb:
+        now = datetime.now(timezone.utc)
+        if hb.tzinfo is None:
+            hb = hb.replace(tzinfo=timezone.utc)
+        if (now - hb).total_seconds() < 180:
+            return True, f"recent_heartbeat_{int((now - hb).total_seconds())}s"
+
+    # 2. Local OS process check (if worker PID is recorded)
+    pid = task.get("headless_execution_pid") or task.get("worker_pid")
+    if pid is not None:
+        try:
+            pid_int = int(pid)
+            if pid_int > 0:
+                import os
+                os.kill(pid_int, 0)
+                return True, f"worker_pid_{pid_int}_alive"
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            return True, f"worker_pid_{pid}_permission_denied"
+        except (ValueError, TypeError):
+            pass
+
+    # 3. Worktree git lock check
+    wt = task.get("worktree") or task.get("local_worktree")
+    if wt:
+        try:
+            if (Path(str(wt)) / ".git" / "index.lock").exists():
+                return True, "worktree_git_locked"
+        except OSError:
+            pass
+
+    return False, "worker_inactive"
+
+
 def external_repair_may_auto_claim(task: dict[str, Any]) -> tuple[bool, str]:
     if task.get("do_not_auto_dispatch") is True:
         return False, "do_not_auto_dispatch"
@@ -115,8 +160,12 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
             continue
         if has_active_valid_claim(task):
             continue
+        # Active worker verification: if PID alive, recent heartbeat, or worktree locked -> ZERO writes!
+        worker_alive, reason = is_worker_active(task)
+        if worker_alive:
+            continue
         if _usable_worktree(task) and str(task.get("status") or "") in {"in_progress", "running"}:
-            # Worktree present but no claim — still recover so interactive runner can reclaim.
+            # Worktree present but no claim and worker inactive — recover so interactive runner can reclaim.
             pass
         tid = str(task.get("task_id") or "")
         if not tid:
@@ -125,13 +174,18 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
         now = _now()
         cas_filter: dict[str, Any] = {
             "task_id": tid,
-            "$or": [
-                {"claim_token": {"$in": [None, ""]}},
-                {"lease_until": task.get("lease_until")},
-                {"claim_token": task.get("claim_token")},
-            ],
+            "status": task.get("status"),
         }
-        db[OPS_TASKS_COL].update_one(
+        if task.get("claim_token"):
+            cas_filter["claim_token"] = task.get("claim_token")
+        else:
+            cas_filter["claim_token"] = {"$in": [None, ""]}
+        if task.get("lease_until") is not None:
+            cas_filter["lease_until"] = task.get("lease_until")
+        if "revision" in task and task["revision"] is not None:
+            cas_filter["revision"] = task["revision"]
+
+        up_res = db[OPS_TASKS_COL].update_one(
             cas_filter,
             {
                 "$set": {
@@ -153,5 +207,10 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
                 "$inc": {"revision": 1},
             },
         )
+        modified = getattr(up_res, "modified_count", None)
+        if isinstance(modified, int) and modified < 1:
+            # Concurrent renewal or racing recovery occurred; do not declare recovered
+            continue
+
         recovered.append({"task_id": tid, "status": target})
     return {"ok": True, "recovered": recovered, "scanned": len(rows)}
