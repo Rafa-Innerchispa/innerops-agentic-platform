@@ -321,7 +321,7 @@ def claim_ops_task(
         wt = _claim_worktree_with_retry(
             repo=repo,
             base_branch=str(claimed.get("base_ref") or "main"),
-            work_branch=str(claimed.get("work_branch") or f"{prov}/ops-{tid.replace('ops_', '')}"),
+            work_branch=str(claimed.get("work_branch") or (claimed.get("payload") or {}).get("target_branch") or (claimed.get("payload") or {}).get("work_branch") or f"{prov}/ops-{tid.replace('ops_', '')}"),
             actor=prov,
             task_id=tid,
             correlation_id=str(claimed.get("correlation_id") or tid),

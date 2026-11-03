@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import socket
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from inneros_core_runtime.coordination_live import OPS_TASKS_COL
 from inneros_core_runtime.ops_awaiting_claim import awaiting_claim_status_for_task
@@ -23,6 +25,9 @@ MANUAL_INTERACTIVE_LANES = frozenset(
 
 ORPHAN_STATUSES = ("accepted", "in_progress", "running", "claimed")
 
+_AMD_ALIASES = frozenset({"ralfiia-amd", "ralphiiaamd", "inneros-5", "inneros-5-lan", "ralphi-ia-amd", "amd"})
+_INTEL_ALIASES = frozenset({"ralphi-ia-ver-10", "ralphiia", "ralfiia", "inneros-4", "inneros-4-lan", "ralphi-ia-intel", "ralfiia-intel", "intel"})
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -35,6 +40,44 @@ def _parse_ts(value: str | None) -> datetime | None:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def _local_host_aliases() -> frozenset[str]:
+    host = socket.gethostname().strip().lower()
+    env_node = os.getenv("INNEROS_NODE_NAME", "").strip().lower()
+    aliases = {"localhost", "127.0.0.1"}
+    if host:
+        aliases.add(host)
+    if env_node:
+        aliases.add(env_node)
+    if host in _AMD_ALIASES or env_node in _AMD_ALIASES:
+        aliases.update(_AMD_ALIASES)
+    if host in _INTEL_ALIASES or env_node in _INTEL_ALIASES:
+        aliases.update(_INTEL_ALIASES)
+    return frozenset(aliases)
+
+
+def _resolve_git_lock_paths(wt_path: Path) -> list[Path]:
+    """Resolve index.lock and HEAD.lock for both standard .git dirs and linked worktree .git files."""
+    locks: list[Path] = []
+    dot_git = wt_path / ".git"
+    try:
+        if dot_git.is_file():
+            content = dot_git.read_text(encoding="utf-8", errors="replace")
+            for line in content.splitlines():
+                if line.strip().lower().startswith("gitdir:"):
+                    raw_target = line.split(":", 1)[1].strip()
+                    if raw_target:
+                        target_path = Path(raw_target)
+                        gitdir = target_path if target_path.is_absolute() else (wt_path / target_path).resolve()
+                        locks.append(gitdir / "index.lock")
+                        locks.append(gitdir / "HEAD.lock")
+        elif dot_git.is_dir():
+            locks.append(dot_git / "index.lock")
+            locks.append(dot_git / "HEAD.lock")
+    except OSError:
+        pass
+    return locks
 
 
 def requires_manual_interactive_lane(task: dict[str, Any]) -> bool:
@@ -86,12 +129,18 @@ def has_active_valid_claim(task: dict[str, Any], *, grace_seconds: int = 30) -> 
     return (now - lease).total_seconds() <= grace_seconds
 
 
-def is_worker_active(task: dict[str, Any]) -> tuple[bool, str]:
+def is_worker_active(
+    task: dict[str, Any],
+    *,
+    remote_liveness_verifier: Callable[[str, int | None], bool | None] | None = None,
+) -> tuple[bool, str]:
     """Verify whether the claimed worker is still active.
 
-    Checks recent heartbeat timestamps, live local process IDs, and active worktree git locks.
-    Returns (True, reason) if worker is definitely or likely still running.
-    Returns (False, "worker_inactive") if no active worker is detected.
+    Checks recent heartbeat timestamps, cross-host claim provenance (fail-closed if remote
+    host is unverified), live local process IDs, and active worktree git locks (including
+    linked worktree .git pointer files).
+    Returns (True, reason) if worker is definitely or potentially still running.
+    Returns (False, "worker_inactive") only when worker absence is verified.
     """
     # 1. Heartbeat check (heartbeat within last 180s indicates active worker)
     hb_val = str(task.get("heartbeat_at") or task.get("last_heartbeat") or task.get("heartbeat") or "").strip()
@@ -103,28 +152,50 @@ def is_worker_active(task: dict[str, Any]) -> tuple[bool, str]:
         if (now - hb).total_seconds() < 180:
             return True, f"recent_heartbeat_{int((now - hb).total_seconds())}s"
 
-    # 2. Local OS process check (if worker PID is recorded)
     pid = task.get("headless_execution_pid") or task.get("worker_pid")
+    pid_int: int | None = None
     if pid is not None:
         try:
             pid_int = int(pid)
-            if pid_int > 0:
-                import os
-                os.kill(pid_int, 0)
-                return True, f"worker_pid_{pid_int}_alive"
+        except (ValueError, TypeError):
+            pid_int = None
+
+    # 2. Cross-host provenance verification (fail-closed if claim belongs to another host)
+    task_host = str(
+        task.get("claim_host")
+        or task.get("headless_execution_host")
+        or task.get("worker_host")
+        or ""
+    ).strip().lower()
+    if task_host and task_host not in _local_host_aliases():
+        if task.get("remote_worker_verified_absent") is True:
+            pass
+        elif remote_liveness_verifier is not None:
+            try:
+                remote_alive = remote_liveness_verifier(task_host, pid_int)
+            except Exception:
+                remote_alive = None
+            if remote_alive is not False:
+                return True, f"remote_host_active_or_unverified:{task_host}"
+        else:
+            return True, f"remote_host_unverified:{task_host}"
+    elif pid_int is not None and pid_int > 0:
+        # 3. Local OS process check (only valid when claim belongs to this host)
+        try:
+            os.kill(pid_int, 0)
+            return True, f"worker_pid_{pid_int}_alive"
         except ProcessLookupError:
             pass
         except PermissionError:
-            return True, f"worker_pid_{pid}_permission_denied"
-        except (ValueError, TypeError):
-            pass
+            return True, f"worker_pid_{pid_int}_permission_denied"
 
-    # 3. Worktree git lock check
+    # 4. Worktree git lock check (supports both .git/ dir and linked worktree .git pointer file)
     wt = task.get("worktree") or task.get("local_worktree")
     if wt:
         try:
-            if (Path(str(wt)) / ".git" / "index.lock").exists():
-                return True, "worktree_git_locked"
+            for lock_path in _resolve_git_lock_paths(Path(str(wt))):
+                if lock_path.exists():
+                    return True, "worktree_git_locked"
         except OSError:
             pass
 
@@ -139,7 +210,11 @@ def external_repair_may_auto_claim(task: dict[str, Any]) -> tuple[bool, str]:
     return True, "ok"
 
 
-def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
+def recover_orphan_interactive_ops_tasks(
+    *,
+    limit: int = 20,
+    remote_liveness_verifier: Callable[[str, int | None], bool | None] | None = None,
+) -> dict[str, Any]:
     db = mongo_store.get_db()
     now_iso = _now()
     filt = {
@@ -153,6 +228,7 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
     }
     rows = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(5, min(limit * 4, 80))))
     recovered: list[dict[str, Any]] = []
+    skipped_active: list[dict[str, Any]] = []
     for task in rows:
         if len(recovered) >= limit:
             break
@@ -160,12 +236,13 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
             continue
         if has_active_valid_claim(task):
             continue
-        # Active worker verification: if PID alive, recent heartbeat, or worktree locked -> ZERO writes!
-        worker_alive, reason = is_worker_active(task)
+        # Active worker verification: if PID alive, recent heartbeat, remote host unverified, or worktree locked -> ZERO writes!
+        worker_alive, reason = is_worker_active(task, remote_liveness_verifier=remote_liveness_verifier)
         if worker_alive:
+            skipped_active.append({"task_id": str(task.get("task_id") or ""), "reason": reason})
             continue
         if _usable_worktree(task) and str(task.get("status") or "") in {"in_progress", "running"}:
-            # Worktree present but no claim and worker inactive — recover so interactive runner can reclaim.
+            # Worktree present but no claim and worker inactive ? recover so interactive runner can reclaim.
             pass
         tid = str(task.get("task_id") or "")
         if not tid:
@@ -213,4 +290,4 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
             continue
 
         recovered.append({"task_id": tid, "status": target})
-    return {"ok": True, "recovered": recovered, "scanned": len(rows)}
+    return {"ok": True, "recovered": recovered, "skipped_active": skipped_active, "scanned": len(rows)}

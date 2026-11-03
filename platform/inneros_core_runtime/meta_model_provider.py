@@ -439,7 +439,7 @@ class MetaGrantLedger:
                    provider_response_id,request_sha,response_sha,latency_ms,tokens_json,error_type,
                    completed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 ("meta_receipt_" + secrets.token_hex(12), grant_id, project_id,
-                 PROVIDER_ID, MODEL, receipt["status"], receipt["http_status"],
+                 PROVIDER_ID, receipt.get("model") or MODEL, receipt["status"], receipt["http_status"],
                  receipt.get("provider_response_id"), receipt["request_sha256"],
                  receipt.get("response_sha256"), receipt["latency_ms"],
                  json.dumps(receipt.get("usage") or {}, sort_keys=True),
@@ -493,6 +493,19 @@ class MetaGrantLedger:
         return {"ok": True, "reconciled": True, "receipt_id": receipt_id, "grant_id": grant_id}
 
 
+ALLOWLISTED_DIAGNOSTIC_TOOLS = frozenset({
+    "get_ncp_state",
+    "get_pending_tasks",
+    "get_worker_health",
+    "get_agent_task_history",
+    "get_mcp_gateway_health",
+    "get_recent_errors",
+    "get_repo_status",
+    "read_source_file",
+    "read_log_excerpt",
+})
+
+
 def _extract_output(response: dict[str, Any]) -> str:
     chunks: list[str] = []
     for item in response.get("output", []) or []:
@@ -504,10 +517,38 @@ def _extract_output(response: dict[str, Any]) -> str:
     return "\n".join(chunks).strip()
 
 
+def _extract_tool_calls(response: dict[str, Any]) -> list[dict[str, Any]]:
+    calls: list[dict[str, Any]] = []
+    for item in response.get("output", []) or []:
+        if not isinstance(item, dict) or item.get("type") != "function_call":
+            continue
+        name = str(item.get("name") or "").strip()
+        call_id = str(item.get("call_id") or item.get("id") or "").strip()
+        raw_args = item.get("arguments")
+        parsed_args: dict[str, Any] = {}
+        if isinstance(raw_args, dict):
+            parsed_args = raw_args
+        elif isinstance(raw_args, str) and raw_args.strip():
+            try:
+                loaded = json.loads(raw_args)
+                if isinstance(loaded, dict):
+                    parsed_args = loaded
+            except (ValueError, TypeError):
+                parsed_args = {}
+        if name:
+            calls.append({
+                "call_id": call_id or f"call_{secrets.token_hex(6)}",
+                "name": name,
+                "arguments": parsed_args,
+            })
+    return calls
+
+
 def invoke_with_grant(
     *, ledger: MetaGrantLedger, grant_id: str, project_id: str,
     prompt: str, classification: str = SOURCE_POLICY,
     reasoning_effort: str | None = None,
+    tools: list[dict[str, Any]] | None = None,
     transport: Callable[..., Any] | None = None,
     credential_loader: Callable[[], str] | None = None,
     timeout_seconds: int = 12,
@@ -528,6 +569,19 @@ def invoke_with_grant(
     }
     if reasoning_effort and str(reasoning_effort).lower() in ("low", "medium", "high"):
         body["reasoning"] = {"effort": str(reasoning_effort).lower()}
+    if tools is not None:
+        validated_tools: list[dict[str, Any]] = []
+        for t in tools:
+            if not isinstance(t, dict) or str(t.get("name") or "") not in ALLOWLISTED_DIAGNOSTIC_TOOLS:
+                raise PermissionError(f"Tool not allowlisted for governed Meta investigation: {t}")
+            validated_tools.append({
+                "type": "function",
+                "name": str(t["name"]),
+                "description": str(t.get("description") or ""),
+                "parameters": dict(t.get("parameters") or {"type": "object", "properties": {}}),
+            })
+        if validated_tools:
+            body["tools"] = validated_tools
 
     raw = _serial(body)
     receipt: dict[str, Any] = {
@@ -578,6 +632,9 @@ def invoke_with_grant(
                 receipt["error_type"] = "INVALID_JSON"
             else:
                 rid, output = response.get("id"), _extract_output(response)
+                tool_calls = _extract_tool_calls(response)
+                if tool_calls:
+                    receipt["tool_calls"] = tool_calls
                 usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
                 receipt["usage"] = usage
                 resp_status = str(response.get("status") or "").lower()
@@ -589,6 +646,9 @@ def invoke_with_grant(
                     elif resp_status == "completed" and output:
                         receipt["status"] = "REAL_SUCCESS"
                         receipt["output_text"] = output
+                    elif resp_status == "completed" and tool_calls:
+                        receipt["status"] = "TOOL_CALL_REQUESTED"
+                        receipt["output_text"] = "" 
                     elif resp_status == "incomplete":
                         receipt["status"] = "INCOMPLETE_MODEL_RESPONSE"
                         inc_details = response.get("incomplete_details") if isinstance(response.get("incomplete_details"), dict) else {}

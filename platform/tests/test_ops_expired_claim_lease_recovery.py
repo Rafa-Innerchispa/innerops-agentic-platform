@@ -242,3 +242,112 @@ def test_awaiting_claim_precedence_for_orchestrated_tasks():
         "assignee": "antigravity",
     }
     assert oac.awaiting_claim_status_for_task(t_direct) == "awaiting_antigravity_claim"
+
+
+def test_expired_lease_on_remote_host_unverified_is_never_recovered():
+    """5. Lease vencido en host remoto (Intel 1.4) sin verificacion de ausencia -> CERO WRITES."""
+    past_lease = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    task = {
+        "task_id": "ops_remote_intel_worker",
+        "status": "claimed",
+        "assignee": "inneros_orchestrator",
+        "preferred_provider": "antigravity",
+        "execution_lane": "antigravity_interactive",
+        "claim_token": "token_remote_intel",
+        "claim_host": "ralphi-ia-ver-10",
+        "lease_until": past_lease,
+        "claimed_by": "antigravity",
+        "headless_execution_pid": 42424,
+        "revision": 4,
+    }
+
+    mock_db = MagicMock()
+    mock_col = MagicMock()
+    mock_db.__getitem__.return_value = mock_col
+    mock_col.find.return_value.sort.return_value.limit.return_value = [task]
+
+    with patch("socket.gethostname", return_value="ralfiia-amd"):
+        with patch.object(oir.mongo_store, "get_db", return_value=mock_db):
+            res = oir.recover_orphan_interactive_ops_tasks(limit=10)
+
+    assert res["ok"] is True
+    assert len(res["recovered"]) == 0
+    assert len(res["skipped_active"]) == 1
+    assert "remote_host_unverified:ralphi-ia-ver-10" in res["skipped_active"][0]["reason"]
+    mock_col.update_one.assert_not_called()
+
+
+def test_expired_lease_on_remote_host_with_verified_absence_is_recovered():
+    """5b. Lease vencido en host remoto con verificador explicito de ausencia (False) -> recupera con CAS."""
+    past_lease = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    task = {
+        "task_id": "ops_remote_intel_verified_dead",
+        "status": "claimed",
+        "assignee": "inneros_orchestrator",
+        "preferred_provider": "antigravity",
+        "execution_lane": "antigravity_interactive",
+        "claim_token": "token_remote_dead",
+        "claim_host": "ralphi-ia-ver-10",
+        "lease_until": past_lease,
+        "claimed_by": "antigravity",
+        "headless_execution_pid": 42424,
+        "revision": 4,
+    }
+
+    mock_db = MagicMock()
+    mock_col = MagicMock()
+    mock_db.__getitem__.return_value = mock_col
+    mock_col.find.return_value.sort.return_value.limit.return_value = [task]
+    mock_col.update_one.return_value = MagicMock(modified_count=1)
+
+    with patch("socket.gethostname", return_value="ralfiia-amd"):
+        with patch.object(oir.mongo_store, "get_db", return_value=mock_db):
+            res = oir.recover_orphan_interactive_ops_tasks(
+                limit=10,
+                remote_liveness_verifier=lambda host, pid: False,
+            )
+
+    assert res["ok"] is True
+    assert len(res["recovered"]) == 1
+    assert res["recovered"][0]["task_id"] == "ops_remote_intel_verified_dead"
+    mock_col.update_one.assert_called_once()
+
+
+def test_expired_lease_with_linked_worktree_gitdir_file_lock_is_never_recovered(tmp_path):
+    """6. Worktree con archivo .git ('gitdir: ...') y lock activo en gitdir real -> CERO WRITES."""
+    real_gitdir = tmp_path / "repo_root" / ".git" / "worktrees" / "wt_repair"
+    real_gitdir.mkdir(parents=True)
+    (real_gitdir / "index.lock").write_text("locked", encoding="utf-8")
+
+    wt_dir = tmp_path / "worktrees" / "wt_repair"
+    wt_dir.mkdir(parents=True)
+    (wt_dir / ".git").write_text(f"gitdir: {real_gitdir}\n", encoding="utf-8")
+
+    past_lease = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    task = {
+        "task_id": "ops_gitdir_file_locked",
+        "status": "claimed",
+        "assignee": "inneros_orchestrator",
+        "preferred_provider": "antigravity",
+        "execution_lane": "antigravity_interactive",
+        "claim_token": "token_wt_locked",
+        "lease_until": past_lease,
+        "claimed_by": "antigravity",
+        "worktree": str(wt_dir),
+        "revision": 2,
+    }
+
+    mock_db = MagicMock()
+    mock_col = MagicMock()
+    mock_db.__getitem__.return_value = mock_col
+    mock_col.find.return_value.sort.return_value.limit.return_value = [task]
+
+    with patch.object(oir.mongo_store, "get_db", return_value=mock_db):
+        res = oir.recover_orphan_interactive_ops_tasks(limit=10)
+
+    assert res["ok"] is True
+    assert len(res["recovered"]) == 0
+    assert len(res["skipped_active"]) == 1
+    assert res["skipped_active"][0]["reason"] == "worktree_git_locked"
+    mock_col.update_one.assert_not_called()
+

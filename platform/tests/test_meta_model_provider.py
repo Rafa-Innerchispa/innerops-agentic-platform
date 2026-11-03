@@ -719,5 +719,69 @@ class MetaProviderTest(unittest.TestCase):
         self.assertFalse(status["muse_wonder_eligible"])
 
 
+
+    def test_wonder_receipt_persists_actual_model_and_supports_allowlisted_tool_calls(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        tool_resp = {
+            "id": "resp_wonder_tool_call_01",
+            "model": "muse-wonder-1.0",
+            "status": "completed",
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_ncp_01",
+                    "name": "get_ncp_state",
+                    "arguments": "{\"include_workers\": true}",
+                }
+            ],
+            "usage": {"input_tokens": 120, "output_tokens": 45, "total_tokens": 165},
+        }
+        captured = []
+        def fake_transport(req, timeout):
+            captured.append(json.loads(req.data.decode("utf-8")))
+            return Response(tool_resp)
+
+        receipt = meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant["grant_id"],
+            project_id=self.project, prompt=PROMPT,
+            tools=[{"name": "get_ncp_state", "description": "Inspect NCP state", "parameters": {"type": "object", "properties": {}}}],
+            credential_loader=lambda: "unit-test-placeholder-not-real-key",
+            transport=fake_transport,
+        )
+        self.assertEqual("TOOL_CALL_REQUESTED", receipt["status"])
+        self.assertEqual("muse-wonder-1.0", receipt["model"])
+        self.assertEqual(1, len(receipt["tool_calls"]))
+        self.assertEqual("get_ncp_state", receipt["tool_calls"][0]["name"])
+        self.assertEqual({"include_workers": True}, receipt["tool_calls"][0]["arguments"])
+        self.assertEqual("get_ncp_state", captured[0]["tools"][0]["name"])
+
+        saved = self.ledger.last_receipt(grant["grant_id"])
+        self.assertEqual("muse-wonder-1.0", saved["model"])
+
+        # Unallowlisted tools must fail-closed before consuming or dispatching
+        approved2 = self._approval()
+        approved2["approval_ref"] = "approved-unit-test-2"
+        approved2["model"] = "muse-wonder-1.0"
+        grant2 = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved2,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        with self.assertRaises(PermissionError):
+            meta.invoke_with_grant(
+                ledger=self.ledger, grant_id=grant2["grant_id"],
+                project_id=self.project, prompt=PROMPT,
+                tools=[{"name": "arbitrary_shell_exec", "description": "Forbidden"}],
+                credential_loader=lambda: "unit-test-placeholder-not-real-key",
+                transport=fake_transport,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
