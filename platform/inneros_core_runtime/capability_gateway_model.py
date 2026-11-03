@@ -63,6 +63,10 @@ def _provider_query_handler(parameters: dict[str, Any], context: dict[str, Any])
 
 def _frontier_reason_handler(parameters: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     action = str(parameters.get("action") or "invoke").strip().lower()
+    # A caller-supplied JSON dict is not an authenticated Meta billing receipt.
+    # Import/reconciliation must happen in an offline trusted operator path.
+    if action == "reconcile_receipt":
+        return {"ok": False, "error": "trusted_receipt_reconciliation_only"}
     from inneros_core_runtime import meta_model_provider
     ledger = meta_model_provider.MetaGrantLedger()
 
@@ -73,6 +77,11 @@ def _frontier_reason_handler(parameters: dict[str, Any], context: dict[str, Any]
         max_tokens = parameters.get("max_output_tokens", 192)
         ttl = parameters.get("ttl_seconds", 180)
         effort = parameters.get("reasoning_effort")
+        # Model selection is explicit, allowlisted, and cryptographically
+        # bound to this exact owner-approved prompt/grant (no global repoint).
+        requested_model = str(parameters.get("model") or meta_model_provider.MODEL).strip().lower()
+        if requested_model not in meta_model_provider.SUPPORTED_MODELS:
+            return {"ok": False, "error": "meta_model_not_allowlisted"}
         grant = ledger.issue(
             project_id=project_id,
             prompt=prompt,
@@ -81,6 +90,7 @@ def _frontier_reason_handler(parameters: dict[str, Any], context: dict[str, Any]
             max_output_tokens=max_tokens,
             ttl_seconds=ttl,
             reasoning_effort=effort,
+            model=requested_model,
         )
         return {"ok": True, "action": action, "grant": grant}
     elif action == "invoke":
@@ -96,11 +106,6 @@ def _frontier_reason_handler(parameters: dict[str, Any], context: dict[str, Any]
             reasoning_effort=effort,
         )
         return {"ok": True, "action": action, "receipt": receipt}
-    elif action == "reconcile_receipt":
-        receipt_data = parameters.get("receipt_data") or {}
-        project_id = str(parameters.get("project_id") or context.get("project_id") or "inneros-meta-guardian-2026").strip()
-        result = ledger.reconcile_receipt(receipt_data, project_id=project_id)
-        return {"ok": True, "action": action, "reconciliation": result}
     else:
         return {"ok": False, "error": f"UNKNOWN_ACTION: {action}"}
 
@@ -136,15 +141,16 @@ def get_model_capabilities_specs() -> list[tuple[dict[str, Any], Callable[[dict[
                 keywords=["frontier", "reason", "meta", "grant", "invoke"],
                 mode="mutation",
                 properties={
-                    "action": {"type": "string", "enum": ["issue_grant", "invoke", "reconcile_receipt"]},
+                    "action": {"type": "string", "enum": ["issue_grant", "invoke"]},
                     "project_id": {"type": "string"},
                     "prompt": {"type": "string"},
                     "grant_id": {"type": "string"},
+                    "model": {"type": "string", "enum": ["muse-spark-1.3", "muse-wonder-1.0"]},
                     "approval": {"type": "object"},
                     "max_output_tokens": {"type": "integer"},
                     "ttl_seconds": {"type": "integer"},
                     "reasoning_effort": {"type": "string", "enum": ["low", "medium", "high"]},
-                    "receipt_data": {"type": "object"},
+                    # No caller-controlled receipt import / spend reconciliation.
                 },
                 required=["action"],
                 required_scopes=["ralfia:agents"],
