@@ -131,6 +131,8 @@ def provider_status() -> dict[str, Any]:
         "credential_ref": CREDENTIAL_REF,
         "secret_returned": False,
         "model": MODEL,
+        "supported_models": list(SUPPORTED_MODELS),
+        "muse_wonder_eligible": False,  # a supported model is not an approved execution
         "live_model_inference_verified": False,  # status is updated only via verified receipts
         "credit_balance_usd": None,  # never infer balance from a promotional award screenshot
         "default_execution": "blocked_until_owner_grant",
