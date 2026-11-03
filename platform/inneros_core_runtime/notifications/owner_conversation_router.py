@@ -88,7 +88,11 @@ def classify_owner_turn(
         return "email"
 
     infra_context = "status" in intents or _recent_infra_thread(history)
-    if infra_context and _STATUS_DETAIL_RE.search(text):
+    detail_hint = bool(
+        _STATUS_DETAIL_RE.search(text)
+        and re.search(r"\b(otros|resto|seis|siete|servicios|servidor|en verde|van bien)\b", text, re.I)
+    )
+    if (infra_context and _STATUS_DETAIL_RE.search(text)) or detail_hint:
         return "infra_detail"
     if _STATUS_OVERVIEW_RE.search(text) and "status" in intents:
         return "infra_overview"
