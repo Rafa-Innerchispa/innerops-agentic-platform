@@ -7,6 +7,7 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -50,7 +51,7 @@ class MetaProviderTest(unittest.TestCase):
             "model": meta.MODEL,
             "max_output_tokens": cap or self.out_cap,
             "owner_actor": "RAFAEL",
-            "approval_ref": "ha_owner_approval_test_only",
+            "approval_ref": "ha_owner_approval_test_only_" + (project or self.project),
         }
 
     def _issue(self, project=None, prompt=PROMPT, cap=None, effort=None):
@@ -58,7 +59,7 @@ class MetaProviderTest(unittest.TestCase):
             project_id=project or self.project,
             prompt=prompt,
             approval=self._approval(project, prompt, cap),
-            verifier=lambda approved: approved["approval_ref"] == "ha_owner_approval_test_only",
+            verifier=lambda approved: approved["approval_ref"].startswith("ha_owner_approval_test_only_"),
             max_output_tokens=cap or self.out_cap,
             reasoning_effort=effort,
         )
@@ -120,14 +121,14 @@ class MetaProviderTest(unittest.TestCase):
             )
 
     def test_reject_large_budget(self):
-        # Exceeding MAX_ALLOWED_OUTPUT_TOKENS (1024) must raise ValueError
+        # Exceeding MAX_ALLOWED_OUTPUT_TOKENS (4096) must raise ValueError
         with self.assertRaises(ValueError):
             self.ledger.issue(
                 project_id=self.project,
                 prompt=PROMPT,
-                approval=self._approval(cap=4096),
+                approval=self._approval(cap=8192),
                 verifier=lambda _: True,
-                max_output_tokens=4096,
+                max_output_tokens=8192,
             )
 
     def test_accept_reasoning_1024_tokens(self):
@@ -172,6 +173,30 @@ class MetaProviderTest(unittest.TestCase):
                 transport=call,
             )
         self.assertEqual(1, len(calls))
+
+    def test_signed_owner_approval_cannot_mint_two_paid_grants(self):
+        self._issue()
+        with self.assertRaisesRegex(PermissionError, "already exchanged"):
+            self._issue()
+
+    def test_same_approval_cannot_be_reused_for_another_project(self):
+        self._issue()
+        # Approval reference must be globally unique within the ledger.
+        with self.assertRaisesRegex(PermissionError, "already exchanged"):
+            self.ledger.issue(
+                project_id="other-project",
+                prompt=PROMPT,
+                approval={
+                    "project_id": "other-project",
+                    "prompt_sha256": meta._sha(PROMPT.encode()),
+                    "model": meta.MODEL,
+                    "max_output_tokens": self.out_cap,
+                    "owner_actor": "RAFAEL",
+                    "approval_ref": "ha_owner_approval_test_only_" + self.project,
+                },
+                verifier=lambda _: True,
+                max_output_tokens=self.out_cap,
+            )
 
     def test_wrong_project_does_not_consume_correct_grant(self):
         grant = self._issue()
@@ -278,8 +303,9 @@ class MetaProviderTest(unittest.TestCase):
         try:
             prompt_sha = meta._sha(PROMPT.encode("utf-8"))
             ref = "task_ha_test_001"
-            # Valid signature
-            payload = f"{ref}|{self.project}|{prompt_sha}|{self.out_cap}"
+            # V2 approval binds model, exact context and an explicit short expiry.
+            expires_epoch = int(time.time()) + 180
+            payload = f"{ref}|{self.project}|{meta.MODEL}|{prompt_sha}|{self.out_cap}|{expires_epoch}"
             sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
             valid_scope = {
                 "approval_ref": ref,
@@ -288,9 +314,29 @@ class MetaProviderTest(unittest.TestCase):
                 "model": meta.MODEL,
                 "max_output_tokens": self.out_cap,
                 "owner_actor": "RAFAEL",
+                "expires_epoch": expires_epoch,
                 "signature": sig,
             }
             self.assertTrue(meta.verify_ha_owner_approval(valid_scope))
+            offline_db = MagicMock()
+            offline_db.get_db.side_effect = RuntimeError("no DB")
+
+            # Old signatures were not tied to model or expiry. Reject even if
+            # the caller appends a future expiry value after the fact.
+            legacy_payload = f"{ref}|{self.project}|{prompt_sha}|{self.out_cap}"
+            legacy_sig = hmac.new(secret.encode(), legacy_payload.encode(), hashlib.sha256).hexdigest()
+            with patch.dict("sys.modules", {"raphiia_openai.mongo_store": offline_db}):
+                self.assertFalse(meta.verify_ha_owner_approval(dict(valid_scope, signature=legacy_sig)))
+
+            # A Companion receipt proves only a task action, not the exact
+            # project/model/prompt/budget. It cannot replace the scoped proof.
+            task_receipt = {"task_id": ref, "grant_id": "g1", "at": "2026-11-02T00:00:00Z"}
+            task_sig_payload = f"{ref}|g1|2026-11-02T00:00:00Z"
+            task_receipt["signature"] = hmac.new(
+                secret.encode(), task_sig_payload.encode(), hashlib.sha256
+            ).hexdigest()
+            with patch.dict("sys.modules", {"raphiia_openai.mongo_store": offline_db}):
+                self.assertFalse(meta.verify_ha_owner_approval(dict(valid_scope, signature="", companion_receipt=task_receipt)))
 
             # Non-RAFAEL actor rejected (Section 3.1)
             bad_actor = dict(valid_scope, owner_actor="HACKER")
@@ -323,7 +369,7 @@ class MetaProviderTest(unittest.TestCase):
             prompt_sha = meta._sha(PROMPT.encode("utf-8"))
             ref = "task_ha_test_exp"
             exp_past = time.time() - 60  # expired 1 minute ago
-            payload = f"{ref}|{self.project}|{prompt_sha}|{self.out_cap}"
+            payload = f"{ref}|{self.project}|{meta.MODEL}|{prompt_sha}|{self.out_cap}|{exp_past}"
             sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
             expired_scope = {
                 "approval_ref": ref,
@@ -356,12 +402,16 @@ class MetaProviderTest(unittest.TestCase):
             "status": "active",
             "token_limit": 512,
             "provider": "meta-model-api",
+            "project_id": self.project,
+            "prompt_sha256": prompt_sha,
             "model": meta.MODEL,
-            "expires_at": "2099-01-01T00:00:00Z",
+            "expires_at": datetime.fromtimestamp(time.time() + 180, timezone.utc).isoformat(),
         }
         mock_grants.find_one.return_value = valid_doc
 
-        with patch.dict("sys.modules", {"raphiia_openai.mongo_store": mock_store}):
+        mock_pkg = MagicMock()
+        mock_pkg.mongo_store = mock_store
+        with patch.dict("sys.modules", {"raphiia_openai": mock_pkg, "raphiia_openai.mongo_store": mock_store}):
             scope = {
                 "approval_ref": ref,
                 "project_id": self.project,
@@ -369,6 +419,7 @@ class MetaProviderTest(unittest.TestCase):
                 "model": meta.MODEL,
                 "max_output_tokens": self.out_cap,
                 "owner_actor": "RAFAEL",
+                "expires_epoch": time.time() + 120,
             }
             res = meta.verify_ha_owner_approval(scope)
             self.assertTrue(res)
@@ -509,6 +560,21 @@ class MetaProviderTest(unittest.TestCase):
         self.assertEqual("amd_local_primary", summary["default_routing"])
         self.assertEqual(150.0, summary["providers"]["meta_model_api"]["promotional_balance_usd"])
 
+    def test_public_meta_gateway_rejects_untrusted_receipt_import(self):
+        from inneros_core_runtime import capability_gateway_model as cgm
+        # Receipt provenance must not be a caller-controlled JSON field.
+        with patch.object(meta, "MetaGrantLedger", side_effect=AssertionError("no ledger needed")):
+            result = cgm._frontier_reason_handler({
+                "action": "reconcile_receipt",
+                "receipt_data": {"result": "REAL_SUCCESS", "provider_response_id": "forged"},
+            }, {})
+        self.assertFalse(result["ok"])
+        self.assertEqual("trusted_receipt_reconciliation_only", result["error"])
+
+        specs = cgm.get_model_capabilities_specs()
+        public_manifest = next(m for m, _ in specs if m["capability_id"] == "model.frontier.reason.v1")
+        self.assertNotIn("reconcile_receipt", public_manifest["parameters_schema"]["properties"]["action"]["enum"])
+
     def test_capability_gateway_meta_discovery_and_invocation(self):
         from inneros_core_runtime import capability_gateway_model as cgm
 
@@ -531,6 +597,126 @@ class MetaProviderTest(unittest.TestCase):
         cap_ids = [s[0]["capability_id"] for s in specs]
         self.assertIn("model.provider.query.v1", cap_ids)
         self.assertIn("model.frontier.reason.v1", cap_ids)
+
+
+    def test_wonder_one_shot_grant_is_model_bound_and_cannot_replay(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda scope: scope["model"] == "muse-wonder-1.0",
+            max_output_tokens=self.out_cap, model="muse-wonder-1.0",
+        )
+        self.assertEqual("muse-wonder-1.0", grant["model"])
+        model = self.ledger._consume(grant["grant_id"], self.project, PROMPT)
+        self.assertEqual("muse-wonder-1.0", model["model"])
+        with self.assertRaises(PermissionError):
+            self.ledger._consume(grant["grant_id"], self.project, PROMPT)
+        with self.assertRaises(PermissionError):
+            self.ledger.issue(
+                project_id=self.project, prompt=PROMPT,
+                approval=approved, verifier=lambda _: True,
+                max_output_tokens=self.out_cap, model="muse-wonder-1.0",
+            )
+
+    def test_wonder_provider_response_enforces_approved_model_without_live_network(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        response = self._response()
+        response["model"] = "muse-wonder-1.0"
+        captured = []
+        def fake_transport(req, timeout):
+            captured.append(json.loads(req.data.decode("utf-8")))
+            return Response(response)
+        receipt = meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant["grant_id"],
+            project_id=self.project, prompt=PROMPT,
+            credential_loader=lambda: "unit-test-placeholder-not-real-key",
+            transport=fake_transport,
+        )
+        self.assertEqual("REAL_SUCCESS", receipt["status"])
+        self.assertEqual("muse-wonder-1.0", receipt["model"])
+        self.assertEqual("muse-wonder-1.0", captured[0]["model"])
+        self.assertEqual(1, len(captured))
+        self.assertEqual(0, receipt["automatic_retries"])
+
+    def test_wonder_model_mismatch_is_not_real_success(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        # A transport returning Spark for a Wonder grant is NOT Wonder proof.
+        receipt = meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant["grant_id"],
+            project_id=self.project, prompt=PROMPT,
+            credential_loader=lambda: "unit-test-placeholder-not-real-key",
+            transport=lambda req, timeout: Response(self._response()),
+        )
+        self.assertNotEqual("REAL_SUCCESS", receipt["status"])
+        self.assertEqual("MODEL_MISMATCH", receipt["error_type"])
+
+    def test_wonder_ha_scope_signature_binds_model_and_expiry(self):
+        secret = "unit-test-only-not-a-real-approval"
+        expiry = int(time.time()) + 120
+        prompt_sha = meta._sha(PROMPT.encode("utf-8"))
+        ref = "approved-unit-test-wonder"
+        signed = f"{ref}|{self.project}|muse-wonder-1.0|{prompt_sha}|{self.out_cap}|{expiry}"
+        scope = {
+            "approval_ref": ref, "project_id": self.project,
+            "prompt_sha256": prompt_sha, "model": "muse-wonder-1.0",
+            "max_output_tokens": self.out_cap, "expires_epoch": expiry,
+            "owner_actor": "RAFAEL",
+            "signature": hmac.new(secret.encode(), signed.encode(), hashlib.sha256).hexdigest(),
+        }
+        with patch.dict(os.environ, {"INNEROS_HA_COMPANION_RECEIPT_SECRET": secret}):
+            self.assertTrue(meta.verify_ha_owner_approval(scope))
+            fake_mongo = MagicMock()
+            fake_mongo.get_db.side_effect = RuntimeError("no trusted grant DB")
+            with patch.dict("sys.modules", {"raphiia_openai.mongo_store": fake_mongo}):
+                self.assertFalse(meta.verify_ha_owner_approval(dict(scope, model="muse-spark-1.3")))
+                self.assertFalse(meta.verify_ha_owner_approval(dict(scope, expires_epoch=expiry + 20)))
+                self.assertFalse(meta.verify_ha_owner_approval(dict(scope, signature="")))
+
+    def test_mcp_wonder_selection_is_explicit_and_rejects_unknown(self):
+        from inneros_core_runtime import capability_gateway_model as cgm
+        ledger = MagicMock()
+        ledger.issue.return_value = {
+            "grant_id": "grant-test-mock", "model": "muse-wonder-1.0",
+        }
+        with patch.object(meta, "MetaGrantLedger", return_value=ledger):
+            result = cgm._frontier_reason_handler({
+                "action": "issue_grant", "model": "muse-wonder-1.0",
+                "project_id": self.project, "prompt": PROMPT,
+                "approval": self._approval(),
+                "max_output_tokens": self.out_cap,
+            }, {})
+            self.assertTrue(result["ok"])
+            self.assertEqual("muse-wonder-1.0", ledger.issue.call_args.kwargs["model"])
+            ledger.issue.reset_mock()
+            result = cgm._frontier_reason_handler({
+                "action": "issue_grant", "model": "unregistered-expensive-model",
+                "project_id": self.project, "prompt": PROMPT,
+            }, {})
+            self.assertFalse(result["ok"])
+            self.assertEqual("meta_model_not_allowlisted", result["error"])
+            ledger.issue.assert_not_called()
+        specs = cgm.get_model_capabilities_specs()
+        manifest = next(m for m, _ in specs if m["capability_id"] == "model.frontier.reason.v1")
+        self.assertEqual(
+            ["muse-spark-1.3", "muse-wonder-1.0"],
+            manifest["parameters_schema"]["properties"]["model"]["enum"],
+        )
+        status = meta.provider_status()
+        self.assertIn("muse-wonder-1.0", status["supported_models"])
+        self.assertFalse(status["muse_wonder_eligible"])
 
 
 if __name__ == "__main__":
