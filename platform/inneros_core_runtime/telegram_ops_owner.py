@@ -199,8 +199,10 @@ def _handle_message(msg: dict[str, Any]) -> dict[str, Any]:
     if text.startswith("/start"):
         tg.persist_owner_chat_id(chat_id)
         tg.send_message(
-            "RalfIA por Telegram — habla natural: servidor, correo, clientes.\n"
-            "Alertas aquí + Home Assistant. Voz: nota de voz → respuesta texto+audio.",
+            "Hola 👋 Soy RalfIA, tu asistente operativo en InnerOS.\n\n"
+            "¿En qué te ayudo? Puedo revisar el servidor, correos, clientes o finanzas — "
+            "escríbeme con naturalidad (ej.: «¿cómo va el servidor?», «quién eres»).\n\n"
+            "Alertas aquí y en Home Assistant. Nota de voz → transcribo y respondo (texto + audio si está activo).",
             chat_id=chat_id,
             parse_mode="",
         )

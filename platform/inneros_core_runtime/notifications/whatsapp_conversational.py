@@ -147,19 +147,108 @@ def _save_turn(
 
 
 _SERVER_STATUS_NL_RE = re.compile(
-    r"\b(c[oó]mo\s+(?:va|est[aá]|van)|qu[eé]\s+tal|estado\s+del?\s+servidor)\b",
+    r"\b(c[oó]mo\s+(?:va|est[aá]|van)|estado\s+del?\s+servidor)\b",
+    re.I,
+)
+_GREETING_ONLY_RE = re.compile(
+    r"^\s*(hola|hey|saludos|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|qu[eé]\s+tal)\s*[!.?]*\s*$",
+    re.I,
+)
+_GREETING_PREFIX_RE = re.compile(
+    r"^\s*(hola|hey|saludos|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches)\b",
+    re.I,
+)
+_IDENTITY_RE = re.compile(
+    r"\b("
+    r"qui[eé]n\s+eres|quien\s+eres|qu[eé]\s+eres|que\s+eres|"
+    r"c[oó]mo\s+te\s+llamas|present[aá]te|your\s+name|who\s+are\s+you|"
+    r"eres\s+ralf|soy\s+ralf|qu[eé]\s+es\s+ralf"
+    r")\b",
+    re.I,
+)
+_THANKS_RE = re.compile(r"\b(gracias|thank\s+you|mil\s+gracias|te\s+lo\s+agradezco)\b", re.I)
+_CAPABILITIES_RE = re.compile(
+    r"\b(qu[eé]\s+puedes\s+hacer|para\s+qu[eé]\s+sirves|qu[eé]\s+sabes\s+hacer|"
+    r"c[oó]mo\s+me\s+ayudas|en\s+qu[eé]\s+me\s+ayudas)\b",
     re.I,
 )
 
 
 def _detect_intents(message: str) -> list[str]:
     found: list[str] = []
+    text = (message or "").strip()
     for pattern, intent in _INTENT_TOOLS:
-        if pattern.search(message) and intent not in found:
+        if pattern.search(text) and intent not in found:
             found.append(intent)
-    if _SERVER_STATUS_NL_RE.search(message or "") and "status" not in found:
+    if _SERVER_STATUS_NL_RE.search(text) and "status" not in found:
         found.insert(0, "status")
+    if re.search(r"\bqu[eé]\s+tal\b", text, re.I) and not _SERVER_STATUS_NL_RE.search(text):
+        if _GREETING_ONLY_RE.match(text) or len(text.split()) <= 4:
+            found = [i for i in found if i != "status"]
     return found[:4]
+
+
+def _owner_display_name(identity: dict[str, Any] | None) -> str:
+    ident = identity or {}
+    if ident.get("verified_owner") or str(ident.get("role") or "").lower() in {"owner", "rafael"}:
+        return "Rafael"
+    return str(ident.get("display_name") or "").strip() or ""
+
+
+def _direct_chitchat_reply(
+    message: str,
+    *,
+    channel: str,
+    identity: dict[str, Any] | None,
+    history: list[dict[str, str]] | None,
+) -> str | None:
+    """Respuestas naturales sin LLM (saludo, identidad, capacidades)."""
+    text = (message or "").strip()
+    if not text:
+        return None
+    owner = _owner_display_name(identity)
+    tg = channel == "telegram"
+    name_bit = f", {owner}" if owner else ""
+
+    if _IDENTITY_RE.search(text):
+        if tg:
+            return (
+                f"Hola{name_bit}. Soy **RalfIA**, tu asistente operativo en InnerOS / PC Doctor. "
+                "Estoy conectado a tus servidores Intel y AMD: puedo contarte cómo va el sistema, "
+                "resumir correos, clientes o temas de Contífico. Pregúntame con naturalidad."
+            )
+        return (
+            f"Soy RalfIA, asistente operativo de Rafael. "
+            "Puedo revisar servidor, correos y datos locales con comandos o lenguaje natural."
+        )
+
+    if _CAPABILITIES_RE.search(text):
+        return (
+            "Puedo ayudarte con: estado del servidor y servicios, bandeja de correo, "
+            "clientes registrados, finanzas (Contífico/bancos) y alertas OPS. "
+            "Ejemplos: «¿cómo va el servidor?», «correos del banco», «estado» o *ayuda* para la lista completa."
+        )
+
+    if _THANKS_RE.search(text) and len(text.split()) <= 12:
+        return "De nada. Si necesitas algo más, aquí estoy."
+
+    if _GREETING_ONLY_RE.match(text) or (
+        _GREETING_PREFIX_RE.match(text) and len(text.split()) <= 6 and not _IDENTITY_RE.search(text)
+    ):
+        hist = history or []
+        first_turn = len(hist) <= 1
+        if tg:
+            if first_turn:
+                return (
+                    f"Hola{name_bit} 👋 Soy RalfIA. ¿En qué te ayudo hoy? "
+                    "Puedo revisar el servidor, correos, clientes o finanzas — solo pregúntame."
+                )
+            return f"Hola de nuevo{name_bit}. ¿Qué revisamos: servidor, correo u otra cosa?"
+        return (
+            f"Hola{name_bit} 👋 Soy RalfIA. Pregúntame con naturalidad o escribe *ayuda*."
+        )
+
+    return None
 
 
 def _operational_status_focus(message: str, intents: list[str]) -> bool:
@@ -656,16 +745,42 @@ def _validate_grounded_response(
     return body, {"status": "grounded", "reasons": []}
 
 
-def _fallback(message: str, intents: list[str], *, route: str = "general") -> str:
+def _fallback(
+    message: str,
+    intents: list[str],
+    *,
+    route: str = "general",
+    channel: str = "whatsapp",
+    identity: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
+) -> str:
     from raphiia_openai.notifications import whatsapp_service_ops
+
+    chitchat = _direct_chitchat_reply(
+        message, channel=channel, identity=identity, history=history,
+    )
+    if chitchat:
+        return chitchat
 
     if route == "infra_detail":
         return whatsapp_service_ops.status_detail_reply(message)
     if route == "infra_overview" or "status" in intents:
         return whatsapp_service_ops.natural_status_summary()
     if "emails" in intents:
-        return "Sobre correos puedo resumir la bandeja o buscar uno concreto."
-    return "Te escucho. Cuéntame qué necesitas y lo vemos."
+        return "Sobre correos puedo resumir la bandeja o buscar uno concreto — prueba «correo» o «correos del banco»."
+    if "backlog" in intents or re.search(r"\bpendientes\b", message or "", re.I):
+        return "Escribe *pendientes* para ver la cola de proyectos o *estado* para el servidor."
+    owner = _owner_display_name(identity)
+    name_bit = f", {owner}" if owner else ""
+    if channel == "telegram":
+        return (
+            f"Entendido{name_bit}. Soy RalfIA — si el modelo local no está disponible, "
+            "igual puedo ayudarte: prueba «¿cómo va el servidor?», «correo» o *ayuda*."
+        )
+    return (
+        "Te escucho 👋 Soy RalfIA. Pregúntame con naturalidad o usa *ayuda*.\n"
+        "Ejemplos: «¿cómo va el servidor?», «correos del banco»."
+    )
 
 
 def conversational_reply(
@@ -684,7 +799,11 @@ def conversational_reply(
     text_in = (message or "").strip()
     history = _load_history(sender, conversation_id=conversation_id) if sender or conversation_id else []
     if not text_in:
-        return {"ok": True, "text": _fallback("", [], route="general"), "source": "fallback"}
+        return {
+            "ok": True,
+            "text": _fallback("", [], route="general", channel=channel, identity=identity, history=history),
+            "source": "fallback",
+        }
 
     # Confirmación de acciones sensibles pendientes
     if sender:
@@ -736,6 +855,30 @@ def conversational_reply(
     from raphiia_openai.notifications import owner_conversation_router as ocr
 
     route = ocr.classify_owner_turn(text_in, intents=intents, history=history)
+
+    chitchat = _direct_chitchat_reply(
+        text_in, channel=channel, identity=identity, history=history,
+    )
+    if chitchat:
+        body = chitchat if channel != "telegram" else chitchat[:1200]
+        if sender:
+            _save_turn(sender, "user", text_in, conversation_id=conversation_id, is_group=is_group, entity_id=entity_id)
+            _save_turn(
+                sender,
+                "assistant",
+                body,
+                conversation_id=conversation_id,
+                is_group=is_group,
+                entity_id=entity_id,
+                metadata={"source": "direct_chitchat", "route": route},
+            )
+        return {
+            "ok": True,
+            "text": body,
+            "source": "direct_chitchat",
+            "route": route,
+            "intents": intents,
+        }
 
     # Acción sensible NL: «quiero revisar el correo» → preview + confirmación
     if "poll" in intents and sender:
@@ -860,7 +1003,9 @@ def conversational_reply(
     else:
         last_err = "ollama_failed"
 
-    body = _fallback(text_in, intents, route=route)
+    body = _fallback(
+        text_in, intents, route=route, channel=channel, identity=identity, history=history,
+    )
     if sender:
         _save_turn(sender, "user", text_in, conversation_id=conversation_id, is_group=is_group, entity_id=entity_id)
         _save_turn(sender, "assistant", body, conversation_id=conversation_id, is_group=is_group, entity_id=entity_id)
