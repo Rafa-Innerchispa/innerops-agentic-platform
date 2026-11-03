@@ -77,6 +77,11 @@ def _frontier_reason_handler(parameters: dict[str, Any], context: dict[str, Any]
         max_tokens = parameters.get("max_output_tokens", 192)
         ttl = parameters.get("ttl_seconds", 180)
         effort = parameters.get("reasoning_effort")
+        # Model selection is explicit, allowlisted, and cryptographically
+        # bound to this exact owner-approved prompt/grant (no global repoint).
+        requested_model = str(parameters.get("model") or meta_model_provider.MODEL).strip().lower()
+        if requested_model not in meta_model_provider.SUPPORTED_MODELS:
+            return {"ok": False, "error": "meta_model_not_allowlisted"}
         grant = ledger.issue(
             project_id=project_id,
             prompt=prompt,
@@ -85,6 +90,7 @@ def _frontier_reason_handler(parameters: dict[str, Any], context: dict[str, Any]
             max_output_tokens=max_tokens,
             ttl_seconds=ttl,
             reasoning_effort=effort,
+            model=requested_model,
         )
         return {"ok": True, "action": action, "grant": grant}
     elif action == "invoke":
@@ -139,11 +145,12 @@ def get_model_capabilities_specs() -> list[tuple[dict[str, Any], Callable[[dict[
                     "project_id": {"type": "string"},
                     "prompt": {"type": "string"},
                     "grant_id": {"type": "string"},
+                    "model": {"type": "string", "enum": ["muse-spark-1.3", "muse-wonder-1.0"]},
                     "approval": {"type": "object"},
                     "max_output_tokens": {"type": "integer"},
                     "ttl_seconds": {"type": "integer"},
                     "reasoning_effort": {"type": "string", "enum": ["low", "medium", "high"]},
-                    "receipt_data": {"type": "object"},
+                    # No caller-controlled receipt import / spend reconciliation.
                 },
                 required=["action"],
                 required_scopes=["ralfia:agents"],

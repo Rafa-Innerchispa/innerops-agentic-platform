@@ -131,6 +131,8 @@ def provider_status() -> dict[str, Any]:
         "credential_ref": CREDENTIAL_REF,
         "secret_returned": False,
         "model": MODEL,
+        "supported_models": list(SUPPORTED_MODELS),
+        "muse_wonder_eligible": False,  # a supported model is not an approved execution
         "live_model_inference_verified": False,  # status is updated only via verified receipts
         "credit_balance_usd": None,  # never infer balance from a promotional award screenshot
         "default_execution": "blocked_until_owner_grant",
@@ -581,7 +583,10 @@ def invoke_with_grant(
                 resp_status = str(response.get("status") or "").lower()
                 if isinstance(rid, str) and rid:
                     receipt["provider_response_id"] = rid
-                    if resp_status == "completed" and output:
+                    if response.get("model") and response.get("model") != info["model"]:
+                        receipt["status"] = "UNVERIFIED_PROVIDER_RESPONSE"
+                        receipt["error_type"] = "MODEL_MISMATCH"
+                    elif resp_status == "completed" and output:
                         receipt["status"] = "REAL_SUCCESS"
                         receipt["output_text"] = output
                     elif resp_status == "incomplete":
