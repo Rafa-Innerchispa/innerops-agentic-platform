@@ -6,11 +6,13 @@ state. Never treat a self-declared payload flag as owner authorization.
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 WAITING = frozenset({"queued", "waiting_for_binding", "waiting_for_model_binding", "awaiting_ide_claim"})
 ACTIVE = frozenset({"claimed", "in_progress", "running", "verification"})
 TERMINAL = frozenset({"completed", "done", "failed", "cancelled", "canceled", "superseded", "archived"})
+PAUSED = frozenset({"awaiting_deploy_approval", "blocked_with_cause"})
 INTERNAL_ALIASES = frozenset({
     "dev_swarm", "dev-swarm", "ralfia", "local", "temporal",
     "local-amd-5", "local-intel-4", "local_amd_5", "local_intel_4",
@@ -47,10 +49,28 @@ def claim_admission(
         return denied("different_assignee")
     if status in TERMINAL:
         return denied("terminal_task")
-    if status in ACTIVE:
-        return denied("already_claimed" if task.get("claim_token") else "active_without_claim")
+    if status in PAUSED:
+        return denied("execution_paused_awaiting_owner")
+
+    from inneros_core_runtime import ops_deploy_execution_pause as odep
+    from inneros_core_runtime.ops_headless_execution_policy import PAID_HEADLESS_PROVIDERS, headless_denial
+    from inneros_core_runtime.ops_local_execution_policy import local_execution_denial
+
     if bool(task.get("do_not_auto_dispatch")) or bool(payload.get("do_not_auto_dispatch")):
         return denied("manual_dispatch_only")
+    if odep.execution_automation_frozen(task):
+        return denied("execution_automation_frozen")
+    if task.get("execution_stop") or task.get("superseded_by"):
+        return denied("task_stopped_or_superseded")
+    local_block = local_execution_denial(task, provider=target)
+    if local_block:
+        return denied(local_block)
+    if target in PAID_HEADLESS_PROVIDERS and status in ACTIVE:
+        paid_block = headless_denial(task, provider=target, check_budget=True)
+        if paid_block:
+            return denied(paid_block)
+    if status in ACTIVE:
+        return denied("already_claimed" if task.get("claim_token") else "active_without_claim")
     if target in INTERNAL_ALIASES:
         if status != "proposed":
             return denied("internal_task_not_proposed")
@@ -62,6 +82,40 @@ def claim_admission(
     if not ready:
         return denied(not_ready_reason)
     return {**result, "eligible": True, "reason": "ready_for_claim"}
+
+
+def _autopilot_owner_trust_enabled() -> bool:
+    return os.getenv("INNEROS_OPS_OWNER_AUTH_AUTOPILOT", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def maybe_record_autopilot_owner_auth(task: dict[str, Any], *, provider: str) -> dict[str, Any]:
+    """Record owner_authorized_at for private-cluster autopilot (not a WhatsApp ACK).
+
+    Gated by INNEROS_OPS_OWNER_AUTH_AUTOPILOT. Never applies to do_not_auto_dispatch tasks.
+    """
+    if not _autopilot_owner_trust_enabled():
+        return {"ok": False, "skipped": "autopilot_owner_trust_disabled"}
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if bool(task.get("do_not_auto_dispatch")) or bool(payload.get("do_not_auto_dispatch")):
+        return {"ok": False, "skipped": "manual_dispatch_only"}
+    if task.get("owner_authorized_at"):
+        return {"ok": True, "skipped": "already_authorized", "task_id": str(task.get("task_id") or "")}
+    from inneros_core_runtime import interactive_ops_runner as ior
+
+    tid = str(task.get("task_id") or "").strip()
+    if not tid:
+        return {"ok": False, "error": "task_id_required"}
+    return ior.authorize_ops_task(
+        provider,
+        tid,
+        owner_actor=str(os.getenv("RALFIA_OWNER_ID") or "INNEROS_AUTOPILOT"),
+        channel="autopilot_trust",
+    )
 
 
 def pending_admission_summary(
