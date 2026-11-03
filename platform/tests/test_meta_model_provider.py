@@ -409,7 +409,9 @@ class MetaProviderTest(unittest.TestCase):
         }
         mock_grants.find_one.return_value = valid_doc
 
-        with patch.dict("sys.modules", {"raphiia_openai.mongo_store": mock_store}):
+        mock_pkg = MagicMock()
+        mock_pkg.mongo_store = mock_store
+        with patch.dict("sys.modules", {"raphiia_openai": mock_pkg, "raphiia_openai.mongo_store": mock_store}):
             scope = {
                 "approval_ref": ref,
                 "project_id": self.project,
