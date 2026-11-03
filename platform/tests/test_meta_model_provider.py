@@ -121,14 +121,14 @@ class MetaProviderTest(unittest.TestCase):
             )
 
     def test_reject_large_budget(self):
-        # Exceeding MAX_ALLOWED_OUTPUT_TOKENS (1024) must raise ValueError
+        # Exceeding MAX_ALLOWED_OUTPUT_TOKENS (4096) must raise ValueError
         with self.assertRaises(ValueError):
             self.ledger.issue(
                 project_id=self.project,
                 prompt=PROMPT,
-                approval=self._approval(cap=4096),
+                approval=self._approval(cap=8192),
                 verifier=lambda _: True,
-                max_output_tokens=4096,
+                max_output_tokens=8192,
             )
 
     def test_accept_reasoning_1024_tokens(self):

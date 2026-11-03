@@ -24,6 +24,7 @@ from urllib import error, request
 
 PROVIDER_ID = "meta-model-api"
 MODEL = "muse-spark-1.3"
+SUPPORTED_MODELS = ("muse-spark-1.3", "muse-wonder-1.0")
 BASE_URL = "https://api.meta.ai/v1"
 RESPONSES_URL = BASE_URL + "/responses"
 VAULT_CATEGORY = "model_api_provider"
@@ -32,7 +33,7 @@ CREDENTIAL_REF = f"owner_vault:{VAULT_CATEGORY}/{VAULT_KEY}"
 SOURCE_POLICY = "SYNTHETIC"
 
 DEFAULT_MAX_OUTPUT_TOKENS = 256
-MAX_ALLOWED_OUTPUT_TOKENS = 1024
+MAX_ALLOWED_OUTPUT_TOKENS = 4096
 MAX_OUTPUT_TOKENS = MAX_ALLOWED_OUTPUT_TOKENS
 MAX_INPUT_CHARS = 6000
 DEFAULT_DB = "~/.local/state/inneros/model-provider-meta.sqlite3"
@@ -226,6 +227,7 @@ class MetaGrantLedger:
         classification: str = SOURCE_POLICY,
         max_output_tokens: int = 192, ttl_seconds: int = 180,
         reasoning_effort: str | None = None,
+        model: str = MODEL,
     ) -> dict[str, Any]:
         prompt = _validate_prompt(prompt, classification)
         if not project_id or len(project_id) > 96:
@@ -236,13 +238,15 @@ class MetaGrantLedger:
             raise ValueError("Grant TTL must be within 1–300 seconds")
         if reasoning_effort is not None and str(reasoning_effort).lower() not in ("low", "medium", "high"):
             raise ValueError("reasoning_effort must be 'low', 'medium', or 'high'")
+        if model not in SUPPORTED_MODELS:
+            raise ValueError(f"model must be one of {SUPPORTED_MODELS}")
 
         prompt_hash = _sha(prompt.encode("utf-8"))
         scope = dict(approval or {})
         if (
             scope.get("project_id") != project_id
             or scope.get("prompt_sha256") != prompt_hash
-            or scope.get("model") != MODEL
+            or scope.get("model") != model
             or scope.get("max_output_tokens") != int(max_output_tokens)
             or not isinstance(scope.get("approval_ref"), str)
             or not scope.get("approval_ref")
@@ -265,12 +269,12 @@ class MetaGrantLedger:
             c.execute(
                 """INSERT INTO grants(id,project_id,prompt_sha,model,max_output_tokens,
                    expires_epoch,issued_at,approval_ref) VALUES(?,?,?,?,?,?,?,?)""",
-                (gid, project_id, prompt_hash, MODEL, int(max_output_tokens),
+                (gid, project_id, prompt_hash, model, int(max_output_tokens),
                  time.time() + ttl_seconds, _now(), scope["approval_ref"]),
             )
             c.execute("COMMIT")
         res = {
-            "grant_id": gid, "project_id": project_id, "model": MODEL,
+            "grant_id": gid, "project_id": project_id, "model": model,
             "prompt_sha256": prompt_hash, "max_output_tokens": int(max_output_tokens),
             "expires_in_seconds": ttl_seconds, "approval_ref": scope["approval_ref"],
         }
@@ -624,7 +628,7 @@ def verify_ha_owner_approval(approval_scope: dict[str, Any]) -> bool:
         return False
     if type(max_tokens) is not int or not 16 <= max_tokens <= MAX_ALLOWED_OUTPUT_TOKENS:
         return False
-    if scope_model != MODEL.lower():
+    if scope_model not in [m.lower() for m in SUPPORTED_MODELS]:
         return False
     if scope_provider and scope_provider not in ("meta", "meta-model-api", "meta_model_api"):
         return False
@@ -674,7 +678,7 @@ def verify_ha_owner_approval(approval_scope: dict[str, Any]) -> bool:
             return False
         if str(grant.get("project_id") or "").strip() != project_id:
             return False
-        if str(grant.get("model") or "").strip().lower() != MODEL.lower():
+        if str(grant.get("model") or "").strip().lower() not in [m.lower() for m in SUPPORTED_MODELS]:
             return False
         if str(grant.get("provider") or "").strip().lower() not in (
             "meta", "meta-model-api", "meta_model_api"
