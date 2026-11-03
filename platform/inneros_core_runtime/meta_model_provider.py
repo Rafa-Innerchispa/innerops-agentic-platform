@@ -583,7 +583,10 @@ def invoke_with_grant(
                 resp_status = str(response.get("status") or "").lower()
                 if isinstance(rid, str) and rid:
                     receipt["provider_response_id"] = rid
-                    if resp_status == "completed" and output:
+                    if response.get("model") and response.get("model") != info["model"]:
+                        receipt["status"] = "UNVERIFIED_PROVIDER_RESPONSE"
+                        receipt["error_type"] = "MODEL_MISMATCH"
+                    elif resp_status == "completed" and output:
                         receipt["status"] = "REAL_SUCCESS"
                         receipt["output_text"] = output
                     elif resp_status == "incomplete":
