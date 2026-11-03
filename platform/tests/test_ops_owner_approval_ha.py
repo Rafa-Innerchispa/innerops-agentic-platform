@@ -1,6 +1,9 @@
 """Owner approval HA view: budget unknown≠0, grant gate, push hook."""
 from __future__ import annotations
 
+import hashlib
+import hmac
+import os
 from unittest.mock import MagicMock, patch
 
 from inneros_core_runtime import ops_owner_approval_ha as oah
@@ -144,3 +147,23 @@ def test_push_owner_approval_ha_uses_checkpoint():
         out = oah.push_owner_approval_ha("ops_x", notes="test")
     assert out["ok"] is True
     pub.assert_called_once()
+
+
+def test_companion_receipt_without_secret_fails_closed():
+    receipt = {"task_id": "task_123", "grant_id": "grant_test", "at": "2026-11-02T12:00:00Z"}
+    with patch.dict(os.environ, {"INNEROS_HA_COMPANION_RECEIPT_SECRET": ""}):
+        result = oah.verify_companion_receipt(receipt, expected_task_id="task_123")
+    assert result["ok"] is False
+    assert result["error"] == "receipt_verification_secret_missing"
+
+
+def test_companion_receipt_requires_valid_signature_and_fields():
+    key = "test_only_companion_secret"
+    receipt = {"task_id": "task_456", "grant_id": "grant_456", "at": "2026-11-02T12:00:00Z"}
+    message = "task_456|grant_456|2026-11-02T12:00:00Z"
+    receipt["signature"] = hmac.new(key.encode(), message.encode(), hashlib.sha256).hexdigest()
+    with patch.dict(os.environ, {"INNEROS_HA_COMPANION_RECEIPT_SECRET": key}):
+        assert oah.verify_companion_receipt(receipt, expected_task_id="task_456")["verified"] is True
+        assert oah.verify_companion_receipt(dict(receipt, grant_id="different"), expected_task_id="task_456")["ok"] is False
+        assert oah.verify_companion_receipt(dict(receipt, signature=""), expected_task_id="task_456")["ok"] is False
+        assert oah.verify_companion_receipt(dict(receipt, at=""), expected_task_id="task_456")["ok"] is False
