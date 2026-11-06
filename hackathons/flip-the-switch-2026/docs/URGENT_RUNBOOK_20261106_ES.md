@@ -93,7 +93,7 @@ Todas estas acciones deben llegar como **eventos dirigidos** (`addressed=true`) 
 
 ## Bloqueos actuales verificados desde ChatGPT
 
-- La herramienta de acceso a InnerOS/MCP falla internamente; no prueba conectividad a AMD/Intel y **no autoriza afirmar acceso al LAN desde el contenedor de ChatGPT**.
+- **Actualizado el 6 de noviembre a las 12:02 Ecuador:** MCP Small y AG-41 responden; snapshots de solo lectura confirman AMD e Intel online. Esto NO confirma que el Windows del participante pueda entrar a ambos por sus interfaces Wi-Fi, ni que Switch esté instalado. La inferencia de AMD está ligada a loopback; usar únicamente túnel SSH autorizado si hace falta.
 - El conector GitHub actual puede publicar en repositorios existentes, pero no crear uno nuevo directamente.
 - Sin la instalación de Switch, la clave de registro generada por el propietario y una sala autenticada, no puede certificarse el demo de extremo a extremo.
 
