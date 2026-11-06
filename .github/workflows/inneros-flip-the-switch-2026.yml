@@ -1,0 +1,30 @@
+name: InnerOS Incident Room - Offline Confidence Gate
+on:
+  push:
+    branches:
+      - hackathon/flip-the-switch-20261106
+    paths:
+      - "hackathons/flip-the-switch-2026/**"
+      - ".github/workflows/inneros-flip-the-switch-2026.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-offline:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hackathons/flip-the-switch-2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install local project without paid services
+        run: python -m pip install -e ".[switch]"
+      - name: Offline tests and basic secret checks
+        run: python scripts/submission_preflight.py
+      - name: Clarify scope
+        run: echo "Offline tests are NOT proof of a live Switch room, physical HA action, or hackathon submission."
