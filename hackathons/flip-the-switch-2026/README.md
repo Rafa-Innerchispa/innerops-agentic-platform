@@ -35,6 +35,27 @@ Human posts synthetic alert in team chat
 
 Switch must be central and **a human must demonstrably collaborate with an agent**. A standalone local simulation is useful preparation, but cannot substitute for the Switch event-period workflow.
 
+
+## LIVE physical-device demonstration (6 November 2026, event-period code)
+
+A separate real-device runtime is now available: `scripts/run_live_homeassistant.py`.
+It queries the operator's actual Home Assistant for allowlisted `light.*` states
+and can switch **one explicitly chosen light** only when `HA_ENABLE_REAL_ACTIONS=YES`
+and an authenticated human approves the exact action inside Switch. After a live
+HA service call, it reads the light state again and reports VERIFIED/UNVERIFIED.
+There is **NO synthetic device fallback** in this mode. The legacy synthetic
+tests remain only as pre-existing preparation and regression coverage.
+
+A second optional command `!inneros` fetches the **real** home-lab communication
+coverage via the InnerOS MCP read-only capability. It correctly distinguishes
+registered inventory from telemetry verified live. Both the actual Switch room
+and the new MCP client still require proof on the owner's Windows instance.
+
+**Full Spanish instructions:** [REAL HOME ASSISTANT DEMO](docs/DEMO_REAL_HOME_ASSISTANT_20261106_ES.md).
+
+Do not publish Home Assistant tokens, device identifiers for private homes,
+actual IP addresses or the live room/user IDs.
+
 ## Pre-existing reusable synthetic primitives
 
 - Portable, offline Python domain contracts for synthetic incidents and action proposals.
@@ -152,3 +173,23 @@ The exact command sequence for Windows and dual Wi-Fi access is in that guide.
 **Actual contest submission:** only after real Switch/Mattermost messages,
 README validation, video and a standalone public repository. The participant
 must personally submit via WeMakeDevs.
+
+## Voice-first optional side track: Code with Wispr
+
+You can use Wispr Flow on Windows to dictate prompts, room instructions and README
+documentation. The dictation tool inserts text into Switch; it is not an
+InnerOS transport or a local speech model. Voice text does not authorize any
+physical action. The live HA bridge recognizes several exact Spanish read/propose
+phrases and still requires a separate `!approve HA-ID` from the authorized human.
+See [Wispr instructions](docs/WISPR_FLOW_HACKATHON_20261106_ES.md).
+
+Evidence must be genuine: a real Switch room, real HA state changes, and
+a Wispr Insights usage screenshot if entering the optional voice prize.
+
+## Switch Console Windows troubleshooting (6 Nov 2026)
+
+If the admin agent appears as running but never answers, do not reinstall or
+remove Mattermost. Two recent upstream bugs in Switch Console 0.40.1 can cause
+this symptom. See [Windows diagnosis](docs/SWITCH_DIAGNOSIS_20261106.md) and
+run the read-only [PowerShell diagnostic](scripts/diagnostico_switch_windows.ps1)
+on the **user's Windows machine**. This does not diagnose Windows remotely.
