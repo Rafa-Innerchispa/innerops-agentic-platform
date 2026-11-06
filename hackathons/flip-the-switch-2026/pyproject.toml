@@ -13,6 +13,8 @@ dependencies = []
 
 [project.optional-dependencies]
 switch = ["websockets>=14,<17"]
+inneros = ["mcp>=2,<3", "httpx2"]
+live = ["websockets>=14,<17", "mcp>=2,<3", "httpx2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
