@@ -193,3 +193,16 @@ remove Mattermost. Two recent upstream bugs in Switch Console 0.40.1 can cause
 this symptom. See [Windows diagnosis](docs/SWITCH_DIAGNOSIS_20261106.md) and
 run the read-only [PowerShell diagnostic](scripts/diagnostico_switch_windows.ps1)
 on the **user's Windows machine**. This does not diagnose Windows remotely.
+
+## 7 Nov fast-path: Windows live demo and truthful submission
+
+The required local-first readiness commands are:
+
+```powershell
+.\scripts\preflight_windows.ps1
+py scripts\submission_preflight.py
+```
+
+`preflight_windows.ps1` is read-only. `submission_preflight.py` only tests local code and expressly reports **live_switch_verified=false** and **live_home_assistant_verified=false** until a real room run exists. Do not mistake 78 passing tests for a completed Switch integration. Spanish operational instructions: [Reentry and submission](docs/REENTRADA_Y_ENTREGA_20261106_ES.md).
+
+No paid cloud models, custom remote agents or physical-network changes are required to run the software. Live Home Assistant commands are strictly limited to explicitly allowed `light.*` entity IDs and require an authenticated Switch operator to approve each action.
