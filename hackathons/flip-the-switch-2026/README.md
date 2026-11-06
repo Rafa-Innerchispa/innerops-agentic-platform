@@ -2,8 +2,8 @@
 
 **Human + AI agent incident response for real-world infrastructure, with safe local-first execution and auditable evidence.**
 
-> **Status (2026-10-26): Preparation only. Not a functioning Switch integration or a hackathon submission.**
-> This folder contains reusable, synthetic incident-domain primitives and event planning documents created **before** the competition build window. The Switch connector, human-agent collaborative room, and actual event workflow **must be implemented and verified during the event**, and are NOT present here yet.
+> **Status (2026-11-06): Event-period candidate Switch client implemented and locally tested against a fake Switch-compatible server. REAL Switch/Mattermost connectivity and hackathon submission remain unverified.**
+> Pre-existing generic synthetic incident primitives are attributed separately. The event-period WebSocket/HTTP client and workflow were developed on November 6; no claim of live Switch connection or actual submission until evidenced.
 
 ## Competition
 
@@ -20,7 +20,7 @@ An operator and at least one AI agent work in the **same Switch-connected team-c
 
 **Planned example:** a *Bellini-inspired, wholly synthetic* camera connectivity incident. No real customer network information, passwords, IP ranges, device IDs or identifiable CCTV footage will be published. Production customer integrations are out of scope for the competition demo unless separately authorized, sanitized and independently verified.
 
-### Proposed event-period sequence (NOT yet implemented)
+### Intended real Switch workflow (client implemented; server-side E2E NOT verified)
 
 ```text
 Human posts synthetic alert in team chat
@@ -35,7 +35,7 @@ Human posts synthetic alert in team chat
 
 Switch must be central and **a human must demonstrably collaborate with an agent**. A standalone local simulation is useful preparation, but cannot substitute for the Switch event-period workflow.
 
-## What works today (pre-existing reusable local preparation)
+## Pre-existing reusable synthetic primitives
 
 - Portable, offline Python domain contracts for synthetic incidents and action proposals.
 - Fail-closed approval and scope guard for a synthetic `simulate_restart` operation.
@@ -84,6 +84,21 @@ Every output explicitly includes `fixture_only: true`, `switch_connected: false`
 - `docs/PROJECT_BRIEF_ES.md`: overview in Spanish
 - `AGENTS.md`: bounded coding-agent instructions
 
+
+## 6 Nov 2026: hackathon-period adapter (candidate)
+
+A Switch WebSocket + HTTP single-agent integration candidate is now implemented
+in `src/inneros_incident_room/switch_event.py`, with 17 new offline tests.
+The combined suite passes **41/41 local tests**. It has NOT been connected to a
+real Switch/Mattermost instance, so the contest workflow and submission remain
+**unverified and incomplete**. See `docs/EVENT_IMPLEMENTATION_20261106.md`.
+
+```bash
+python -m pip install -e ".[switch]"
+python -m unittest discover -s tests -v
+python -m inneros_incident_room.switch_event  # requires private env vars
+```
+
 ## Safety and limits
 
 - **No live device mutations** from this repository.
@@ -106,3 +121,34 @@ InnerOS/ARIA, RalphiIA, MCP, DevSwarm, FieldOps, model routing, physical-infrast
 - [Switch source](https://github.com/sandbox-quantum/switch)
 
 Prepared by InnerChispa LLC. See `docs/SUBMISSION_CHECKLIST.md` for remaining work and explicit TODOs.
+
+
+## Updated 6 Nov 2026: runnable Switch client, still requiring real server proof
+
+The event-period implementation now includes a WebSocket/HTTP Switch client,
+fail-closed identity checks, persistent synthetic approval/reply state, an
+optional OpenAI-compatible **local** model reasoner, one-time private-file
+agent registration, a read-only Switch API doctor, and room discovery.
+All tests that use a Switch transport run against an **explicit fake server**;
+this is not evidence that Switch was deployed or used for the competition.
+
+**Start here:** [Urgent Spanish runbook](docs/URGENT_RUNBOOK_20261106_ES.md).
+The exact command sequence for Windows and dual Wi-Fi access is in that guide.
+
+- `scripts/register_agent.py`: creates a Switch agent once; saves its API key
+  outside Git in the current user's home directory (no stdout secret).
+- `scripts/discover_rooms.py`: lists registered agent's rooms/participants.
+- `scripts/run_agent.py --doctor`: checks API health + agent API-key access,
+  without changing settings or publishing room messages.
+- `scripts/run_agent.py`: runs the actual Switch WS/HTTP agent after configured.
+- `scripts/diagnostico_lan.ps1`: Windows LAN connectivity/routing diagnostics;
+  **read-only**, no automatic routing modifications.
+- `src/inneros_incident_room/local_reasoner.py`: sends ONLY synthetic facts to
+  a local vLLM/Ollama OpenAI-compatible endpoint. If inaccessible, deterministic
+  triage continues; the model cannot approve or change any action.
+- `tests/test_switch_transport_integration.py`: real socket and HTTP test against
+  an explicitly fake Switch-compatible server.
+
+**Actual contest submission:** only after real Switch/Mattermost messages,
+README validation, video and a standalone public repository. The participant
+must personally submit via WeMakeDevs.
