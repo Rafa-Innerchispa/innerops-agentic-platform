@@ -254,7 +254,7 @@ def post_room_message(config: SwitchConfig, content: str) -> None:
             raise RuntimeError("Switch message rejected")
 
 
-async def serve(config: SwitchConfig) -> None:
+async def serve(config: SwitchConfig, *, policy_factory=None) -> None:
     """Real transport. Requires Switch running and websocket credentials.
 
     A dedicated queue processes each domain event while the receiving coroutine
@@ -266,8 +266,9 @@ async def serve(config: SwitchConfig) -> None:
         raise RuntimeError("Install websockets>=14 for a live Switch connection") from exc
     state = ConnectionState(config)
     local_reasoner = LocalReasoner.from_env()
-    policy = RoomPolicy(config.room_id, config.approver_id,
-                        model_reasoner=(local_reasoner.diagnose if local_reasoner else None))
+    policy = (policy_factory() if policy_factory is not None else
+              RoomPolicy(config.room_id, config.approver_id,
+                         model_reasoner=(local_reasoner.diagnose if local_reasoner else None)))
     if state.policy_snapshot:
         policy.restore(state.policy_snapshot)
     backoff = 1
@@ -287,7 +288,7 @@ async def serve(config: SwitchConfig) -> None:
                             mid = str((frame.get("data") or {}).get("payload", {}).get("message_id") or "")
                             response = state.pending_replies.get(mid) if mid else None
                             if response is None:
-                                response = policy.handle(frame)
+                                response = await asyncio.to_thread(policy.handle, frame)
                                 if response is not None and mid:
                                     # Atomic intent journal BEFORE HTTP delivery. No credentials.
                                     state.pending_replies[mid] = response
