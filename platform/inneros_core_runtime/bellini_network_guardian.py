@@ -475,30 +475,26 @@ class BelliniNetworkGuardian:
         ap_targets = [r for r in targets if r["device_type"] == "ap"]
         offline_aps = [r for r in ap_targets if not r["online"]]
 
+        # Network probes are symptoms, never calibrated physical failure proof.
         incident_trigger = None
-        root_cause = "NORMAL_OPERATION"
-        confidence = 1.0
+        root_cause = "NO_CONFIRMED_ROOT_CAUSE"
+        confidence = None
 
         if not gw_online:
             incident_trigger = "GATEWAY_UNREACHABLE"
-            root_cause = "CORE_ROUTER_OR_POWER_OUTAGE"
-            confidence = 0.98
+            root_cause = "GATEWAY_NO_RESPONSE_CAUSE_UNKNOWN"
         elif gw_rtt > 100.0 and ts.get("derp"):
             incident_trigger = "TAILSCALE_DERP_HIGH_LATENCY"
-            root_cause = "REMOTE_ACCESS_TAILSCALE_DERP_DEGRADATION"
-            confidence = 0.95
-        elif not sw185.get("online") and not ap188.get("online") and gw_online:
+            root_cause = "REMOTE_ACCESS_RELAY_LATENCY_OBSERVED"
+        elif sw185.get("online") is False and ap188.get("online") is False and gw_online:
             incident_trigger = "ADMIN_SEGMENT_DROP"
-            root_cause = "ADMIN_SEGMENT_PHYSICAL_FAILURE"
-            confidence = 0.92
+            root_cause = "ADMIN_SEGMENT_MULTIPLE_NO_REPLY_CAUSE_UNKNOWN"
         elif len(offline_aps) >= 2 and gw_online:
             incident_trigger = "MULTIPLE_AP_OUTAGE"
-            root_cause = "WIFI_DISTRIBUTION_SWITCH_OR_POE_DROP"
-            confidence = 0.88
+            root_cause = "MULTIPLE_AP_NO_REPLY_CAUSE_UNKNOWN"
         elif len(offline_aps) == 1:
             incident_trigger = f"SINGLE_AP_OUTAGE_{offline_aps[0]['asset_id']}"
-            root_cause = "SINGLE_AP_OR_POE_DROP"
-            confidence = 0.90
+            root_cause = "SINGLE_AP_NO_REPLY_CAUSE_UNKNOWN"
 
         if incident_trigger:
             if not self.active_incident:
@@ -512,8 +508,11 @@ class BelliniNetworkGuardian:
                     "trigger": incident_trigger,
                     "root_cause_candidate": root_cause,
                     "confidence": confidence,
+                    "confidence_qualifier": "unverified_not_calibrated",
+                    "root_cause_verified": False,
+                    "observation_basis": "ICMP_TCP_TAILSCALE_ONLY",
                     "affected_devices": [r["asset_id"] for r in targets if not r["online"]],
-                    "first_failed_component": targets[0]["asset_id"] if not gw_online else (offline_aps[0]["asset_id"] if offline_aps else "unknown"),
+                    "first_failed_component": "unknown",  # No timestamp-ordered component evidence
                     "timeline": [{"timestamp": sample["timestamp"], "event": f"Triggered: {incident_trigger}"}],
                     "raw_snapshot": {
                         "tailscale": ts,
@@ -680,20 +679,147 @@ def get_guardian() -> BelliniNetworkGuardian:
     return _guardian_instance
 
 
+
+def _read_mongo_sample_evidence(
+    db: Any, current_timestamp: str | None
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Read two recent, independently stored Bellini samples, fail closed.
+
+    The latest state in bellini_guardian_state is one upserted document and
+    cannot itself demonstrate two independent measurements. We therefore
+    require distinct _id AND timestamp from bellini_telemetry.
+    """
+    try:
+        cursor = (
+            db.bellini_telemetry.find(
+                {"site_id": SITE_ID},
+                {"_id": 1, "timestamp": 1, "targets": 1},
+            )
+            .sort("created_at", -1)
+            .limit(10)
+        )
+        now = datetime.datetime.now(datetime.timezone.utc)
+        distinct: list[dict[str, Any]] = []
+        seen_times: set[str] = set()
+        seen_ids: set[str] = set()
+        previous: dict[str, Any] | None = None
+        try:
+            current_time = datetime.datetime.fromisoformat(
+                (current_timestamp or "").replace("Z", "+00:00")
+            )
+        except ValueError:
+            current_time = None
+        for item in cursor:
+            ts = item.get("timestamp")
+            sample_id = str(item.get("_id") or "")
+            if not isinstance(ts, str) or not sample_id or ts in seen_times or sample_id in seen_ids:
+                continue
+            try:
+                parsed = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                age = (now - parsed).total_seconds()
+            except (ValueError, TypeError):
+                continue
+            if parsed.tzinfo is None:
+                continue
+            seen_times.add(ts)
+            seen_ids.add(sample_id)
+            if current_time is not None and current_time.tzinfo is not None and parsed < current_time:
+                if previous is None:
+                    previous = {"timestamp": ts, "targets": item.get("targets", [])}
+            distinct.append({
+                "id": sample_id, "timestamp": ts,
+                "recent": -300 <= age <= 3600,
+            })
+            if len(distinct) >= 2:
+                break
+        two_fresh = len(distinct) >= 2 and all(x["recent"] for x in distinct[:2])
+        return {
+            "source": "bellini_telemetry",
+            "status": "VERIFIED_TWO_RECENT" if two_fresh else "INSUFFICIENT",
+            "two_recent_distinct_samples": two_fresh,
+            "samples": distinct,
+            "read_only": True,
+        }, previous
+    except Exception as exc:
+        return {
+            "source": "bellini_telemetry",
+            "status": "UNAVAILABLE",
+            "two_recent_distinct_samples": False,
+            "samples": [],
+            "error": type(exc).__name__,
+            "read_only": True,
+        }, None
+
+
+def _enrich_guardian_status(status: dict[str, Any], previous: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Add read-only incident diagnostics without claiming physical root causes.
+
+    The TARGETS topology is configured but unverified in the physical network.
+    """
+    try:
+        from inneros_core_runtime.ag60_causal_diagnostics import report
+        from inneros_core_runtime.device_fabric import device_fabric_inventory
+
+        inventory = device_fabric_inventory(client_id=CLIENT_ID, site_id=SITE_ID, live=False)
+        topology = {
+            target["asset_id"]: {
+                "upstream_asset_id": target.get("upstream_device"),
+                "switch_port": target.get("upstream_port"),
+                "relationship_source": "guardian_target_config_unverified",
+                "relationship_verified": False,
+            }
+            for target in TARGETS if target.get("asset_id")
+        }
+        status["diagnostics"] = report(status, inventory, topology=topology, previous=previous)
+    except Exception as exc:
+        status["diagnostics"] = {"status": "UNAVAILABLE",
+                                 "root_cause_verified": False,
+                                 "error": type(exc).__name__}
+    return status
+
+
 def bellini_guardian_status() -> dict[str, Any]:
     """Retorna el estado operativo en vivo y telemetría de Bellini Network Guardian."""
     db = get_mongo_db()
     if db is not None:
         state = db.bellini_guardian_state.find_one({"site_id": SITE_ID}, {"_id": 0})
         if state:
-            return {"ok": True, "source": "mongodb_guardian_state", **state}
+            evidence, previous = _read_mongo_sample_evidence(db, state.get("timestamp"))
+            enriched = _enrich_guardian_status(
+                {"ok": True, "source": "mongodb_guardian_state", **state},
+                previous=previous,
+            )
+            enriched["mongo_sample_evidence"] = evidence
+            return enriched
     g = get_guardian()
-    return {"ok": True, "source": "live_sweep", **g.capture_single_sweep()}
+    enriched = _enrich_guardian_status({"ok": True, "source": "live_sweep", **g.capture_single_sweep()})
+    enriched["mongo_sample_evidence"] = {
+        "status": "UNAVAILABLE", "source": "bellini_telemetry",
+        "two_recent_distinct_samples": False, "samples": [], "read_only": True,
+    }
+    return enriched
 
 
 def bellini_guardian_dashboard() -> dict[str, Any]:
     """Retorna el panel operativo de Bellini I-II con métricas, incidentes y telemetría."""
     status = bellini_guardian_status()
+    # Cloud is queried only on explicit dashboard access, never during
+    # periodic Guardian sampling or ordinary MCP status reads.
+    source_reconciliation: dict[str, Any]
+    try:
+        from inneros_core_runtime.device_fabric import device_fabric_inventory
+        from inneros_core_runtime.ag60_source_reconciliation import reconcile
+        inventory = device_fabric_inventory(client_id=CLIENT_ID, site_id=SITE_ID, live=True)
+        source_reconciliation = reconcile(
+            status, inventory, cloud=inventory.get("cloud_live")
+        )
+    except Exception as exc:
+        source_reconciliation = {
+            "status": "UNAVAILABLE",
+            "reason": type(exc).__name__,
+            "root_cause_verified": False,
+            "mutations_performed": False,
+        }
     db = get_mongo_db()
     recent_incidents = []
     if db is not None:
@@ -718,6 +844,9 @@ def bellini_guardian_dashboard() -> dict[str, Any]:
         "tailscale": status.get("tailscale", {}),
         "summary": status.get("summary", {}),
         "device_matrix": status.get("targets", []),
+        "diagnostics": status.get("diagnostics", {}),
+        "source_reconciliation": source_reconciliation,
+        "mongo_sample_evidence": status.get("mongo_sample_evidence", {}),
         "recent_incidents": recent_incidents,
         "mutation_policy": MUTATION_POLICY,
         "generated_at": _now(),
