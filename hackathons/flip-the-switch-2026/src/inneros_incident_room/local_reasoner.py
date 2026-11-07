@@ -32,6 +32,50 @@ class LocalReasoner:
             return None
         return cls(endpoint.rstrip("/"), os.getenv("LOCAL_MODEL_NAME", "local-qwen"))
 
+    def analyze_light(self, observation: dict) -> str:
+        """Explain a LIVE read-only HA observation; never plan or perform writes.
+
+        Only validated entity id, state and timestamps go to the optional local
+        model. The model's output is non-authoritative and cannot enter the
+        approval/action policy; a separate deterministic gate owns writes.
+        """
+        entity = observation.get("entity_id", "")
+        state = observation.get("state", "")
+        if not (isinstance(entity, str) and entity.startswith("light.")
+                and entity[6:].replace("_", "").isalnum()
+                and state in {"on", "off"}):
+            raise ValueError("Invalid or unavailable live HA observation")
+        prompt = (
+            "A Home Assistant REST read just reported light entity " + entity
+            + " in state " + state + ". Its HA last_updated is "
+            + str(observation.get("last_updated", "unknown"))[:48]
+            + ". Explain what this proves, what it does not prove about the physical bulb,"
+            + " and the safest next observation. No tools or actuator actions."
+        )
+        payload = {
+            "model": self.model, "temperature": 0, "max_tokens": 180,
+            "messages": [
+                {"role": "system", "content": (
+                    "You are a local read-only physical-operations analyst. "
+                    "Summarize the observation in one or two sentences. "
+                    "Never assert independent physical verification, authorize actions, "
+                    "fabricate telemetry or provide an actuation instruction.")},
+                {"role": "user", "content": prompt},
+            ],
+        }
+        req = Request(self.endpoint.rstrip("/") + "/chat/completions",
+                      data=json.dumps(payload).encode("utf-8"), method="POST",
+                      headers={"Content-Type": "application/json"})
+        try:
+            with urlopen(req, timeout=self.timeout) as response:
+                raw = json.load(response)
+            value = raw["choices"][0]["message"]["content"].strip()
+            if not value:
+                raise ValueError("Empty model answer")
+            return "[QWEN LOCAL, READ ONLY, NON-AUTHORITATIVE] " + value[:450].replace("\n", " ")
+        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            return "[LOCAL AI UNAVAILABLE] Live HA state remains available; no claim of model analysis."
+
     def diagnose(self, incident_id: str) -> str:
         """Send only fabricated fixture facts; failures are clearly labelled."""
         payload = {
