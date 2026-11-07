@@ -114,3 +114,13 @@ Only a restricted, reviewable demonstration adapter is shared. Customer installa
 - [When an agent doesn't answer](https://docs.switchagents.ai/switch-rooms/using/agent-not-answering)
 
 **Status honesty:** No claimed live physical demonstration, judge submission or prize until backed by actual recorded evidence.
+
+## Optional local Qwen explanation of real telemetry
+
+If the operator can reach a **locally hosted**, OpenAI-compatible model endpoint (for example via an SSH tunnel to the AMD host), set `LOCAL_MODEL_URL` and the exact `LOCAL_MODEL_NAME` privately. The `!analyze light.ACTUAL_ID` command obtains a fresh, allowlisted Home Assistant state and asks Qwen to explain uncertainty. This read-only model output is never used as approval and cannot call HA actions. Without a model endpoint, the command still returns the verified HA observation with `LOCAL AI NOT CONFIGURED`. Its availability must not be represented as part of the demo unless tested.
+
+Current offline acceptance: **83 local tests** (including five read-only local AI safeguards). These do not certify a live Switch room or physical device.
+
+### Copy-ready hackathon submission
+
+[Submission form answers (English)](docs/FINAL_SUBMISSION_FORM_20261106_EN.md) and [actual video shot list](docs/JUDGES_VIDEO_SCRIPT_EN.md). Both distinguish complete offline code from real Switch/HA E2E evidence.
