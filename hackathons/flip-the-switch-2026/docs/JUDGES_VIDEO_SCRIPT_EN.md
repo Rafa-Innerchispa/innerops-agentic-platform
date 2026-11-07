@@ -1,47 +1,47 @@
-# Judge demo narrative — 2:35 (record after real Switch works)
+# Judge video script: real physical evidence, under 3 minutes
 
-> No prerecorded mock footage should be presented as a live Switch integration. All camera and network data are intentionally synthetic. Replace `[SCREEN]` with genuine recordings.
+**Record only the actual working flow** on Switch Console / Mattermost, Home Assistant and, where possible, a visible physical lamp. This is a proposed script, not a claim that the run is already complete. No synthesized screenshots, fake Switch server or fake HA endpoint may be represented as real. Avoid personal account details, local IPs, tokens and authorization headers.
 
-**00:00–00:20 / Open real Switch room**
+## 00:00–00:22 — Hook, show physical lamp and active room
 
-"Hi, I'm Rafael from InnerChispa. Our IT operators face a common problem: an alert can be easy to raise but hard to investigate, authorize, and close with evidence. InnerOS Incident Room uses Switch to bring an operator and an agent into one shared incident room."
+> "Most AI agents can tell you to turn a device on. Our question is harder: who authorized the change, and did the real device actually respond? I'm Rafael from InnerChispa, and this is InnerOS LiveOps, built on Switch."
 
-**00:20–00:55 / Human requests incident investigation**
+[Show a real lamp and a running Switch Mattermost room named `#inneros-live-operations`.]
 
-[SCREEN: A human types `@inneros-incident-triage !incident` in the REAL Mattermost room; the agent replies.]
+## 00:22–00:58 — One real observation, not a simulated alert
 
-"The camera is offline. A separate synthetic network source says the link is up. Our local-first triage tells us what is known and what we still cannot prove. Switch delivers the human's request to the agent and returns its analysis to the same room."
+> "The operator asks the agent for a live reading. Switch delivers the request and brings the result into our shared room. This state comes from Home Assistant on our own network, not from a fabricated fixture."
 
-**00:55–01:20 / Denial and fail-closed policy**
+[Show a HUMAN posting `@inneros-incident-triage !state light.ACTUAL_ID` and the agent replying with current on/off and fetch timestamp. Make sure this actually works before narrating it.]
 
-[SCREEN: The operator sends a denial for the proposed action; the state remains degraded.]
+## 00:58–01:22 — Optional local AI explains uncertainty
 
-"The model cannot take a corrective action just because a prompt suggests it. The approval guard is enforced in code. Here, the authorized operator denies the request, and nothing changes."
+> "Local Qwen can interpret what the data means and, just as importantly, what it cannot prove. The model can explain; it cannot act on a device."
 
-**01:20–01:55 / New request + human-approved synthetic response**
+[Show `!analyze light.ACTUAL_ID` only if a real local model replied. Otherwise omit this section and spend 24 seconds on architecture with true status flags.]
 
-[SCREEN: New incident, human approves exact action ID, visible agent reply.]
+## 01:22–02:12 — Deny, approve, independent service readback
 
-"This time the operator approves a bounded response. The demo executor changes a synthetic camera state only, then performs a simulated readback. We do not connect to or control production cameras."
+> "Actions are governed by code, not promises in a prompt. A human proposes one operation for one allowed light, sees a time-limited approval ID, and explicitly decides. A denied action does nothing. An approved action uses Home Assistant and then checks the state again. An unavailable device is reported as unverified, not fixed."
 
-**01:55–02:20 / Audit and failure modes**
+[First show a denied proposal. Then propose again and approve only if operator allows a change to an agreed low-risk light. Camera pointed at the lamp should capture the physical response while the HA readback appears on screen. If actuation remains unavailable, DO NOT pretend it happened: show only legitimate read-only collaboration.]
 
-[SCREEN: Evidence receipt in same room and a terminal showing the tested replay/identity safeguards.]
+## 02:12–02:43 — Technical validation and business relevance
 
-"The result includes a correlation ID, policy decision, final state and a SHA-256 integrity digest. It blocks wrong identities, wrong rooms, replayed messages and expired approvals. A hash is an integrity check, not a cryptographic signature."
+> "Our Python agent joins through Switch's official WebSocket and HTTP protocol. The code verifies the sender, the room, the exact action and the expiry. It includes 83 local tests and an explicit list of what is and is not proven. The same approach can help a support team manage real facilities without handing unrestricted device controls to an AI model."
 
-**02:20–02:35 / Technical proof**
+[Show the actual GitHub project directory/README, running test command and results, and the live room again.]
 
-[SCREEN: Actual repository and successful tests, with PRE-EXISTING versus HACKATHON-BUILT disclosure.]
+## 02:43–02:55 — Close
 
-"Our agent works through Switch's WebSocket and HTTP protocol, while optional inference runs locally on our AMD server. The repository includes reproducible tests and documents what we reused and what we built during the competition."
+> "Switch makes the human and the agent teammates. InnerOS makes the device operation local, controlled and verifiable. That's InnerOS LiveOps."
 
-## Claims checklist before final video
+## Prohibited exaggerations
 
-- [ ] REAL Switch room footage (not test double)
-- [ ] Human operator typed into Mattermost
-- [ ] Agent returned a response through Switch
-- [ ] REJECT and APPROVE tested using actual Switch participants
-- [ ] All synthetic labels visible
-- [ ] No private IPs, credentials, customer information or raw logs
-- [ ] Final repo public and accessible to judges
+- A Home Assistant readback is not an independent optical/physical sensor; the physical lamp footage adds separate human-visible evidence.
+- SHA-256 checksum is not a digital signature or immutable ledger.
+- The offline synthetic tests are not proof of a genuine Switch round trip.
+- No live room response, no completed integration claim.
+- Optional Qwen reasoning must be shown on a genuine endpoint to be described as active.
+
+Deadline: Saturday Nov 7, 2026, 13:29 Ecuador (23:59 IST).
