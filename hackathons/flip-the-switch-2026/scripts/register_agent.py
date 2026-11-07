@@ -29,7 +29,7 @@ def registration_payload(name: str) -> dict:
     return {
         "name": name,
         "display_name": "InnerOS Incident Room",
-        "description": "Synthetic-only incident triage with a human approval gate and evidence receipt",
+        "description": "Local-first Switch agent for real Home Assistant light observations and human-approved actions",
         "connector_type": "inneros-local-python",
         "integration_profile": {
             "connection_model": "always_on",
