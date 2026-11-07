@@ -125,6 +125,7 @@ class LiveRoomPolicy:
     pending: dict | None = None
     processed_messages: set[str] = field(default_factory=set)
     inneros_reader: Callable[[], dict] | None = None
+    model_reasoner: Callable[[dict], str] | None = None
 
     def handle(self, frame: dict) -> str | None:
         if frame.get("event") != "message":
@@ -163,6 +164,18 @@ class LiveRoomPolicy:
                 value = self.ha.state(tokens[1])
                 return (f"[HA LIVE READ] {value['entity_id']}={value['state']}; "
                         f"fetched_at_utc={value['fetched_at']}; HA last_updated={value['last_updated']}")
+            if cmd == "!analyze" and len(tokens) == 2:
+                self._guard_entity(tokens[1])
+                observed = self.ha.state(tokens[1])
+                prefix = (f"[HA LIVE READ] {observed['entity_id']}={observed['state']}; "
+                          f"fetched_at_utc={observed['fetched_at']}; ")
+                if self.model_reasoner is None:
+                    return prefix + "[LOCAL AI NOT CONFIGURED] Read-only state verified via HA API."
+                try:
+                    analysis = self.model_reasoner(observed)
+                except Exception:
+                    return prefix + "[LOCAL AI UNAVAILABLE] Observation is still real."
+                return prefix + str(analysis)[:650]
             if cmd == "!propose" and len(tokens) == 3 and tokens[2].lower() in {"on", "off"}:
                 return self._propose(sender, tokens[1], tokens[2].lower())
             if cmd in {"!approve", "!deny"} and len(tokens) == 2:
@@ -181,7 +194,7 @@ class LiveRoomPolicy:
             if cmd == "!status" and len(tokens) == 1:
                 status = "LIVE_HA_WRITES_ENABLED" if self.actions_enabled else "LIVE_HA_READ_ONLY"
                 return f"[INNEROS] {status}; allowed_light_count={len(self.allowed_lights)}; pending={bool(self.pending)}"
-            return "[HA LIVE] Commands: !inneros, !lights, !state ENTITY, !propose ENTITY on|off, !approve ID, !deny ID, !status."
+            return "[HA LIVE] Commands: !inneros, !lights, !state ENTITY, !analyze ENTITY, !propose ENTITY on|off, !approve ID, !deny ID, !status."
         except LiveHAError as exc:
             return "[HA LIVE ERROR] " + str(exc) + ". No successful state claimed."
 
@@ -289,6 +302,11 @@ def policy_from_env(room_id: str, approver_id: str) -> LiveRoomPolicy:
     if mcp_url:
         from .inneros_live import InnerOSLiveReader
         reader = InnerOSLiveReader(mcp_url, mcp_token).read_summary
+    # The optional local model interprets read-only telemetry. Its text is never
+    # accepted by the action policy, and no external model is required.
+    from .local_reasoner import LocalReasoner
+    local_model = LocalReasoner.from_env()
     return LiveRoomPolicy(room_id, approver_id, HomeAssistantClient(url, token),
                           allowed, actions_enabled=os.getenv("HA_ENABLE_REAL_ACTIONS") == "YES",
-                          inneros_reader=reader)
+                          inneros_reader=reader,
+                          model_reasoner=(local_model.analyze_light if local_model else None))
