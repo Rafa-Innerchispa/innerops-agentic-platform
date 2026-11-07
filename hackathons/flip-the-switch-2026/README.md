@@ -31,7 +31,7 @@ flowchart TD
 
 | Component | Status |
 |---|---|
-| Python domain contracts, evidence checks, 78 offline unit tests | Tested locally |
+| Python domain contracts, evidence checks, 83 offline unit tests | Tested locally |
 | Agent protocol WebSocket + HTTP, reconnect journal, identity and replay guards | Tested against fake server, *not production Switch* |
 | Real HA REST client with entity allowlist and guarded `light.*` writes | Implemented; tests run with fakes |
 | Optional InnerOS MCP read-only adapter and voice dictation normalization | Implemented; live endpoint not yet proven |
