@@ -348,7 +348,7 @@ class AntigravityFalseCompletionRegressionTests(unittest.TestCase):
         assert spec and spec.loader
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        task = {"task_id": "ops_antigravity_plan_probe", "claim_token": "tok"}
+        task = {"task_id": "ops_antigravity_plan_probe", "status": "claimed", "assignee": "antigravity", "claim_token": "tok", "owner_authorized_at": "2026-10-29T00:00:00Z"}
         col = MagicMock()
         col.find_one.return_value = task
         db = MagicMock()
