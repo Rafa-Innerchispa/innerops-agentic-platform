@@ -6,6 +6,8 @@ on:
       - 'platform/inneros_core_runtime/project_runtime_registry.py'
       - 'platform/tests/test_local_execution_plane.py'
       - 'platform/inneros_core_runtime/capability_gateway_lep.py'
+      - 'platform/inneros_core_runtime/local_gitlab_plane.py'
+      - 'platform/tests/test_capability_gateway_gitlab_read.py'
       - 'platform/tests/test_local_execution_plane_safe_source_reads.py'
       - 'platform/scripts/sync_platform_runtime_from_git.sh'
       - 'platform/tests/test_guarded_runtime_sync.py'
@@ -41,3 +43,9 @@ jobs:
           PYTHONPATH: platform
         run: |
           python -m pytest -q platform/tests/test_local_execution_plane.py -k gitlab_versioned_method_naming_grace_file
+
+      - name: Verify guarded GitLab MR rebase API preflight
+        env:
+          PYTHONPATH: platform
+        run: |
+          python -m pytest -q platform/tests/test_capability_gateway_gitlab_read.py
