@@ -761,6 +761,87 @@ def get_reviewed_merge_request_conflicts(
 
 
 
+
+
+def get_reviewed_merge_request_diffs(
+    project_id_or_path: str,
+    mr_iid: int,
+    expected_source_sha: str,
+) -> dict[str, Any]:
+    """Read a bounded first page of the exact GitLab MR's changed-file diffs.
+
+    The REST diff endpoint is independent of GraphQL conflictStatus, which can
+    remain UNCHECKED while a merge/rebase is blocked. This returns evidence
+    only; it does not imply any file is conflicting or mutate source history.
+    """
+    if str(project_id_or_path or "").strip() != "gitlab-org/gitlab":
+        return {"ok": False, "error": "diff_project_not_allowlisted"}
+    iid, error = _positive_int(mr_iid, "mr_iid")
+    if error:
+        return error
+    if iid != 255760:
+        return {"ok": False, "error": "diff_mr_not_allowlisted"}
+    sha = str(expected_source_sha or "").strip().lower()
+    if not re.fullmatch(r"[a-f0-9]{40}", sha):
+        return {"ok": False, "error": "expected_source_sha_required"}
+    inspected = get_merge_request("gitlab-org/gitlab", iid)
+    if not inspected.get("ok"):
+        return {"ok": False, "error": "diff_preflight_unavailable"}
+    mr = inspected.get("merge_request") or {}
+    observed = str(mr.get("sha") or "").lower()
+    if observed != sha:
+        return {"ok": False, "error": "diff_source_sha_changed",
+                "observed_sha": observed}
+    if mr.get("state") != "opened" or (
+        mr.get("source_branch") != "chatgpt/607885-versioned-method-naming"
+        or mr.get("target_branch") != "master"
+    ):
+        return {"ok": False, "error": "diff_mr_identity_mismatch"}
+
+    encoded = project_api_path("gitlab-org/gitlab")
+    fetched = _request(
+        "GET", f"/projects/{encoded}/merge_requests/{iid}/diffs",
+        query={"page": 1, "per_page": 30},
+        timeout=60,
+    )
+    if not fetched.get("ok"):
+        return {"ok": False, "error": "diff_provider_unavailable",
+                "status": fetched.get("status")}
+    rows = fetched.get("data")
+    if not isinstance(rows, list):
+        return {"ok": False, "error": "diff_provider_invalid"}
+    files = []
+    budget = 36000
+    for item in rows[:30]:
+        if not isinstance(item, dict):
+            return {"ok": False, "error": "diff_file_invalid"}
+        old_path = str(item.get("old_path") or "")[:240]
+        new_path = str(item.get("new_path") or "")[:240]
+        raw = str(item.get("diff") or "")
+        content = _redact(raw[:min(budget, 8000)])
+        budget -= min(budget, len(content))
+        files.append({
+            "old_path": old_path,
+            "new_path": new_path,
+            "new_file": bool(item.get("new_file")),
+            "deleted_file": bool(item.get("deleted_file")),
+            "renamed_file": bool(item.get("renamed_file")),
+            "too_large": bool(item.get("too_large")),
+            "collapsed": bool(item.get("collapsed")),
+            "diff": content,
+            "diff_truncated": len(raw) > len(content),
+        })
+    return {
+        "ok": True, "read_only": True, "mr_iid": iid,
+        "source_sha": sha, "target_branch": "master",
+        "count_on_first_page": len(files),
+        "pagination_may_continue": len(rows) >= 30,
+        "files": files,
+        "note": "MR diff is not a full merge conflict resolution.",
+    }
+
+
+
 def list_merge_request_discussions(project_id_or_path: str, mr_iid: int, limit: int = 100) -> dict[str, Any]:
     iid, error = _positive_int(mr_iid, "mr_iid")
     if error:
