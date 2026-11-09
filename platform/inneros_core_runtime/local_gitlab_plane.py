@@ -619,6 +619,125 @@ def rebase_reviewed_merge_request(
     }
 
 
+
+def get_reviewed_merge_request_conflicts(
+    project_id_or_path: str,
+    mr_iid: int,
+    expected_source_sha: str,
+) -> dict[str, Any]:
+    """Read bounded conflicted file previews for the exact reviewed GitLab MR.
+
+    GitLab GraphQL conflictFiles is experimental. Fail closed if the schema,
+    authentication, source SHA or GitLab permissions have changed. Never run
+    source-control operations, create a merge commit or resolve conflicts.
+    """
+    if (project_id_or_path or "").strip() != "gitlab-org/gitlab":
+        return {"ok": False, "error": "conflicts_project_not_allowlisted"}
+    iid, error = _positive_int(mr_iid, "mr_iid")
+    if error:
+        return error
+    if iid != 255760:
+        return {"ok": False, "error": "conflicts_mr_not_allowlisted"}
+    expected = str(expected_source_sha or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}", expected):
+        return {"ok": False, "error": "expected_source_sha_required"}
+
+    mr_result = get_merge_request("gitlab-org/gitlab", iid)
+    if not mr_result.get("ok"):
+        return {"ok": False, "error": "conflicts_preflight_unavailable"}
+    mr = mr_result.get("merge_request") or {}
+    if mr.get("state") != "opened":
+        return {"ok": False, "error": "conflicts_mr_not_open"}
+    observed_sha = str(mr.get("sha") or "").lower()
+    if observed_sha != expected:
+        return {"ok": False, "error": "conflicts_source_sha_changed",
+                "observed_sha": observed_sha}
+
+    token, source = _token()
+    if not token:
+        return {"ok": False, "error": "gitlab_token_missing",
+                "token_source": source}
+    # Static GraphQL document: no caller-controlled query or endpoint.
+    query = (
+        '{ project(fullPath: "gitlab-org/gitlab") {'
+        ' mergeRequest(iid: "255760") {'
+        ' diffHeadSha conflictStatus conflicts'
+        ' conflictFiles { ourPath theirPath content }'
+        ' } } }'
+    )
+    data = json.dumps({"query": query}).encode("utf-8")
+    req = urllib.request.Request(
+        "https://gitlab.com/api/graphql",
+        data=data,
+        method="POST",
+        headers={
+            "PRIVATE-TOKEN": token,
+            "Content-Type": "application/json",
+            "User-Agent": "InnerOS-ContributorOps-Conflict-Reader/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=35) as resp:
+            if not (200 <= resp.status < 300):
+                return {"ok": False, "error": "graphql_http_error",
+                        "status": resp.status}
+            raw = resp.read(196609)
+            if len(raw) > 196608:
+                return {"ok": False, "error": "graphql_response_too_large"}
+            parsed = json.loads(raw.decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return {"ok": False, "error": "graphql_http_error",
+                "status": exc.code}
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return {"ok": False, "error": "graphql_unavailable"}
+    if not isinstance(parsed, dict):
+        return {"ok": False, "error": "graphql_invalid_response"}
+    if parsed.get("errors"):
+        return {"ok": False, "error": "graphql_schema_or_permission_error",
+                "error_count": len(parsed["errors"])}
+    project = (parsed.get("data") or {}).get("project") or {}
+    response = project.get("mergeRequest") or {}
+    if not isinstance(response, dict):
+        return {"ok": False, "error": "graphql_mr_unavailable"}
+    graph_sha = str(response.get("diffHeadSha") or "").lower()
+    if graph_sha and graph_sha != expected:
+        return {"ok": False, "error": "graphql_source_sha_changed",
+                "observed_sha": graph_sha}
+
+    files = response.get("conflictFiles")
+    if files is None:
+        return {
+            "ok": True, "mr_iid": iid, "source_sha": expected,
+            "conflict_status": response.get("conflictStatus"),
+            "has_conflicts": bool(response.get("conflicts")),
+            "files_available": False, "files": [],
+        }
+    if not isinstance(files, list):
+        return {"ok": False, "error": "graphql_conflict_files_invalid"}
+    bounded = []
+    for file in files[:10]:
+        if not isinstance(file, dict):
+            continue
+        content = file.get("content")
+        path_ours = str(file.get("ourPath") or "")[:240]
+        path_theirs = str(file.get("theirPath") or "")[:240]
+        bounded.append({
+            "our_path": path_ours,
+            "their_path": path_theirs,
+            "content": _redact(str(content)[:8000]) if content is not None else None,
+            "content_truncated": content is not None and len(str(content)) > 8000,
+        })
+    return {
+        "ok": True, "mr_iid": iid, "source_sha": expected,
+        "conflict_status": response.get("conflictStatus"),
+        "has_conflicts": bool(response.get("conflicts")),
+        "files_available": True, "files_count": len(files),
+        "files_truncated": len(files) > 10,
+        "files": bounded,
+    }
+
+
+
 def list_merge_request_discussions(project_id_or_path: str, mr_iid: int, limit: int = 100) -> dict[str, Any]:
     iid, error = _positive_int(mr_iid, "mr_iid")
     if error:
