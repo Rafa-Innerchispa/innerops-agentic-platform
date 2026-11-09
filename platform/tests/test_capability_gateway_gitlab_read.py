@@ -348,3 +348,78 @@ def test_conflict_reader_reports_unavailable_files_without_false_success():
     assert result["files_available"] is False
     assert result["conflict_status"] == "NO_PUSH_ACCESS"
     assert result["has_conflicts"] is True
+
+
+
+def test_conflict_reader_requests_mergeability_recheck_on_list_endpoint():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    head = "b62d6cabf2d74fbdef10817109eb6d25ae2b5cf6"
+    full = _approved_gitlab_mr()
+    with mock.patch.object(gl, "_request", side_effect=[
+        {"ok": True, "data": [{"iid": 255760}]},
+        {"ok": True, "data": full},
+    ]) as req:
+        result = gl.get_merge_request(
+            "gitlab-org/gitlab", 255760, refresh_merge_status=True
+        )
+    assert result["ok"] is True
+    assert result["merge_request"]["sha"] == head
+    assert req.call_count == 2
+    assert req.call_args_list[0].args[1].endswith("/merge_requests")
+    assert req.call_args_list[0].kwargs["query"] == {
+        "iids[]": 255760,
+        "with_merge_status_recheck": "true",
+        "per_page": 1,
+    }
+    assert req.call_args_list[1].args[1].endswith("/merge_requests/255760")
+
+
+def test_recheck_rejects_nonallowlisted_merge_requests_and_invalid_rows():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    with mock.patch.object(gl, "_request") as req:
+        forbidden = gl.get_merge_request(
+            "gitlab-org/gitlab", 257991, refresh_merge_status=True
+        )
+    assert forbidden["error"] == "merge_recheck_not_allowlisted"
+    req.assert_not_called()
+    with mock.patch.object(gl, "_request", return_value={
+        "ok": True, "data": [{"iid": 42}]
+    }) as req:
+        malformed = gl.get_merge_request(
+            "gitlab-org/gitlab", 255760, refresh_merge_status=True
+        )
+    assert malformed["error"] == "merge_recheck_mr_missing"
+    assert req.call_count == 1
+
+
+def test_recheck_denied_reports_unavailable_without_claiming_refreshed_status():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    with mock.patch.object(gl, "_request", return_value={
+        "ok": False, "status": 403,
+    }) as req:
+        result = gl.get_merge_request(
+            "gitlab-org/gitlab", 255760, refresh_merge_status=True
+        )
+    assert result["error"] == "merge_recheck_list_unavailable"
+    assert result["status"] == 403
+    assert req.call_count == 1
+
+
+def test_graphql_conflict_reader_calls_rechecked_gitlab_mr():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    with mock.patch.object(gl, "get_merge_request", return_value={
+        "ok": True, "merge_request": {
+            "state": "opened", "sha": "b" * 40
+        }
+    }) as get_mr, mock.patch.object(gl, "_token", return_value=("", "missing")):
+        result = gl.get_reviewed_merge_request_conflicts(
+            "gitlab-org/gitlab", 255760, "b" * 40
+        )
+    assert result["error"] == "gitlab_token_missing"
+    get_mr.assert_called_once_with(
+        "gitlab-org/gitlab", 255760, refresh_merge_status=True
+    )

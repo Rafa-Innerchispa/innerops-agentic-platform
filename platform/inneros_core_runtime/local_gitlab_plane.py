@@ -481,11 +481,34 @@ def _positive_int(value: Any, field: str) -> tuple[int | None, dict[str, Any] | 
     return parsed, None
 
 
-def get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
+def get_merge_request(
+    project_id_or_path: str,
+    mr_iid: int,
+    refresh_merge_status: bool = False,
+) -> dict[str, Any]:
     iid, error = _positive_int(mr_iid, "mr_iid")
     if error:
         return error
     encoded = project_api_path(project_id_or_path)
+    # GitLab documents 'with_merge_status_recheck' on LIST requests only,
+    # not on GET /merge_requests/:iid. It requests but does not guarantee an
+    # async recomputation; GitLab can ignore it without Developer permission.
+    if refresh_merge_status:
+        if (project_id_or_path, iid) != ("gitlab-org/gitlab", 255760):
+            return {"ok": False, "error": "merge_recheck_not_allowlisted"}
+        check = _request(
+            "GET", f"/projects/{encoded}/merge_requests",
+            query={
+                "iids[]": iid, "with_merge_status_recheck": "true",
+                "per_page": 1,
+            },
+        )
+        if not check.get("ok"):
+            return {"ok": False, "error": "merge_recheck_list_unavailable",
+                    "status": check.get("status")}
+        rows = check.get("data")
+        if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict) or rows[0].get("iid") != iid:
+            return {"ok": False, "error": "merge_recheck_mr_missing"}
     res = _request("GET", f"/projects/{encoded}/merge_requests/{iid}", query={"include_rebase_in_progress": "true"})
     if not res.get("ok"):
         return {key: value for key, value in res.items() if key != "data"}
@@ -642,7 +665,7 @@ def get_reviewed_merge_request_conflicts(
     if not re.fullmatch(r"[0-9a-f]{40}", expected):
         return {"ok": False, "error": "expected_source_sha_required"}
 
-    mr_result = get_merge_request("gitlab-org/gitlab", iid)
+    mr_result = get_merge_request("gitlab-org/gitlab", iid, refresh_merge_status=True)
     if not mr_result.get("ok"):
         return {"ok": False, "error": "conflicts_preflight_unavailable"}
     mr = mr_result.get("merge_request") or {}
