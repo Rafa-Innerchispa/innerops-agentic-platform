@@ -496,6 +496,25 @@ def register_local_execution_capabilities() -> int:
         ),
         (
             _gitlab_manifest(
+                "local_gitlab.rebase_reviewed_merge_request.v1",
+                title="Guarded rebase of approved GitLab merge request",
+                description="Request asynchronous GitLab API rebase of the exact approved MR after source SHA/fork/branch verification; dry-run by default, CI never skipped.",
+                keywords=["rebase", "resolve merge conflicts", "GitLab 19.6", "255760"],
+                mode="mutation",
+                risk_class="high",
+                properties={
+                    "project_id_or_path": {"type": "string"},
+                    "mr_iid": {"type": "integer"},
+                    "expected_source_sha": {"type": "string"},
+                    "dry_run": {"type": "boolean"},
+                },
+                required=["project_id_or_path", "mr_iid", "expected_source_sha"],
+                required_scopes=["ralfia:agents"],
+            ),
+            _handler(gl.rebase_reviewed_merge_request),
+        ),
+        (
+            _gitlab_manifest(
                 "local_gitlab.create_draft_merge_request.v1",
                 title="Create GitLab draft merge request",
                 description="Open a draft MR on allowlisted GitLab source/target project pairs.",
