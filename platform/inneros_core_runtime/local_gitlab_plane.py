@@ -507,7 +507,7 @@ def get_merge_request(
             return {"ok": False, "error": "merge_recheck_list_unavailable",
                     "status": check.get("status")}
         rows = check.get("data")
-        if not isinstance(rows, list) or len(rows) != 1 or rows[0].get("iid") != iid:
+        if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict) or rows[0].get("iid") != iid:
             return {"ok": False, "error": "merge_recheck_mr_missing"}
     res = _request("GET", f"/projects/{encoded}/merge_requests/{iid}", query={"include_rebase_in_progress": "true"})
     if not res.get("ok"):
