@@ -423,3 +423,90 @@ def test_graphql_conflict_reader_calls_rechecked_gitlab_mr():
     get_mr.assert_called_once_with(
         "gitlab-org/gitlab", 255760, refresh_merge_status=True
     )
+
+
+def test_reviewed_mr_diff_reader_registered_read_only():
+    cgl.register_local_execution_capabilities()
+    manifest = cg.capability_describe("local_gitlab.get_reviewed_merge_request_diffs.v1")
+    assert manifest["ok"] is True
+    assert manifest["capability"]["mode"] == "read_only"
+    assert "expected_source_sha" in manifest["capability"]["parameters_schema"]["required"]
+
+
+def test_reviewed_mr_diffs_require_exact_sha_and_limit_paths():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    head = "b62d6cabf2d74fbdef10817109eb6d25ae2b5cf6"
+    mr = _approved_gitlab_mr()
+    with (
+        mock.patch.object(gl, "get_merge_request", return_value={
+            "ok": True, "merge_request": mr,
+        }),
+        mock.patch.object(gl, "_request", return_value={
+            "ok": True, "data": [
+                {
+                    "old_path": "doc/example.md", "new_path": "doc/example.md",
+                    "diff": "@@ -1 +1 @@\\n-old\\n+new",
+                    "collapsed": False, "too_large": False,
+                },
+                {
+                    "old_path": "spec/test.rb", "new_path": "spec/test.rb",
+                    "diff": "a" * 19000, "too_large": True,
+                },
+            ],
+        }) as req,
+    ):
+        result = gl.get_reviewed_merge_request_diffs(
+            "gitlab-org/gitlab", 255760, head,
+        )
+    assert result["ok"] and result["read_only"]
+    assert result["source_sha"] == head
+    assert result["count_on_first_page"] == 2
+    assert result["files"][0]["diff"].startswith("@@ -1 +1 @@")
+    assert result["files"][1]["diff_truncated"] is True
+    assert result["files"][1]["too_large"] is True
+    assert req.call_args.args[1].endswith("/255760/diffs")
+    assert req.call_args.kwargs["query"] == {"page": 1, "per_page": 30}
+
+
+def test_reviewed_mr_diffs_fail_closed_on_other_mr_and_moved_head():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    head = "b62d6cabf2d74fbdef10817109eb6d25ae2b5cf6"
+    with mock.patch.object(gl, "get_merge_request") as mr:
+        result = gl.get_reviewed_merge_request_diffs(
+            "gitlab-org/gitlab", 257991, head
+        )
+    assert result["error"] == "diff_mr_not_allowlisted"
+    mr.assert_not_called()
+    with (
+        mock.patch.object(gl, "get_merge_request", return_value={
+            "ok": True, "merge_request": _approved_gitlab_mr(),
+        }),
+        mock.patch.object(gl, "_request") as req,
+    ):
+        changed = gl.get_reviewed_merge_request_diffs(
+            "gitlab-org/gitlab", 255760, "a" * 40
+        )
+    assert changed["error"] == "diff_source_sha_changed"
+    req.assert_not_called()
+
+
+def test_reviewed_mr_diffs_reject_provider_failure_or_malformed_data():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    head = "b62d6cabf2d74fbdef10817109eb6d25ae2b5cf6"
+    for response, error in [
+        ({"ok": False, "status": 403}, "diff_provider_unavailable"),
+        ({"ok": True, "data": {"unexpected": 1}}, "diff_provider_invalid"),
+    ]:
+        with (
+            mock.patch.object(gl, "get_merge_request", return_value={
+                "ok": True, "merge_request": _approved_gitlab_mr(),
+            }),
+            mock.patch.object(gl, "_request", return_value=response),
+        ):
+            result = gl.get_reviewed_merge_request_diffs(
+                "gitlab-org/gitlab", 255760, head
+            )
+        assert result["error"] == error

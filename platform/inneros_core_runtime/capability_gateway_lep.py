@@ -496,6 +496,23 @@ def register_local_execution_capabilities() -> int:
         ),
         (
             _gitlab_manifest(
+                "local_gitlab.get_reviewed_merge_request_diffs.v1",
+                title="Inspect GitLab MR changed-file diffs (read-only)",
+                description="Read bounded REST diffs for the exact approved MR and expected SHA when GraphQL conflicts are unchecked.",
+                keywords=["diff", "merge request", "changed files", "GitLab 255760"],
+                mode="read_only",
+                risk_class="low",
+                properties={
+                    "project_id_or_path": {"type": "string"},
+                    "mr_iid": {"type": "integer"},
+                    "expected_source_sha": {"type": "string"},
+                },
+                required=["project_id_or_path", "mr_iid", "expected_source_sha"],
+            ),
+            _handler(gl.get_reviewed_merge_request_diffs),
+        ),
+        (
+            _gitlab_manifest(
                 "local_gitlab.get_reviewed_merge_request_conflicts.v1",
                 title="Read GitLab MR source/target conflict files",
                 description="Inspect bounded raw conflict markers for the exact authorized merge request; no source edits, no merge or rebase.",
