@@ -204,3 +204,147 @@ def test_get_merge_request_exposes_rebase_status_for_async_polling():
     assert result["merge_request"]["rebase_in_progress"] is True
     assert result["merge_request"]["merge_error"] == "Rebase failed"
     assert request.call_args.kwargs["query"]["include_rebase_in_progress"] == "true"
+
+
+def test_conflict_reader_is_registered_as_read_only_and_sha_scoped():
+    cgl.register_local_execution_capabilities()
+    result = cg.capability_describe(
+        "local_gitlab.get_reviewed_merge_request_conflicts.v1"
+    )
+    assert result["ok"] is True
+    manifest = result["capability"]
+    assert manifest["mode"] == "read_only"
+    assert "expected_source_sha" in manifest["parameters_schema"]["required"]
+
+
+def test_conflict_reader_rejects_other_mrs_without_network():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    with mock.patch.object(gl, "get_merge_request") as get_mr:
+        result = gl.get_reviewed_merge_request_conflicts(
+            "gitlab-org/gitlab", 257991, "b" * 40,
+        )
+    assert result["error"] == "conflicts_mr_not_allowlisted"
+    get_mr.assert_not_called()
+
+
+def test_conflict_reader_rejects_changed_source_without_graphql():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    with (
+        mock.patch.object(gl, "get_merge_request", return_value={
+            "ok": True, "merge_request": {"sha": "b" * 40, "state": "opened"},
+        }),
+        mock.patch.object(gl.urllib.request, "urlopen") as http,
+    ):
+        result = gl.get_reviewed_merge_request_conflicts(
+            "gitlab-org/gitlab", 255760, "c" * 40
+        )
+    assert result["error"] == "conflicts_source_sha_changed"
+    http.assert_not_called()
+
+
+def test_conflict_reader_returns_bounded_markers_and_expected_paths():
+    from unittest import mock
+    import json
+    from inneros_core_runtime import local_gitlab_plane as gl
+    expected_sha = "b" * 40
+    conflict_text = (
+        "<<<<<<< HEAD\\nour source\\n=======\\ntheir master\\n>>>>>>> master"
+    )
+    payload = json.dumps({"data": {"project": {"mergeRequest": {
+        "diffHeadSha": expected_sha,
+        "conflictStatus": "HAS_CONFLICTS",
+        "conflicts": True,
+        "conflictFiles": [{
+            "ourPath": "doc/development/duo_agent_platform/mcp/graphql_integration.md",
+            "theirPath": "doc/development/duo_agent_platform/mcp/graphql_integration.md",
+            "content": conflict_text,
+        }],
+    }}}}).encode("utf-8")
+    response = mock.MagicMock()
+    response.status = 200
+    response.read.return_value = payload
+    with (
+        mock.patch.object(gl, "get_merge_request", return_value={
+            "ok": True, "merge_request": {"sha": expected_sha, "state": "opened"},
+        }),
+        mock.patch.object(gl, "_token", return_value=("secret-unprinted", "test")),
+        mock.patch.object(gl.urllib.request, "urlopen") as http,
+    ):
+        http.return_value.__enter__.return_value = response
+        result = gl.get_reviewed_merge_request_conflicts(
+            "gitlab-org/gitlab", 255760, expected_sha
+        )
+    assert result["ok"] and result["files_available"]
+    assert result["files_count"] == 1
+    assert result["files"][0]["content"] == conflict_text
+    assert result["files"][0]["our_path"].startswith("doc/development")
+    request = http.call_args.args[0]
+    assert request.full_url == "https://gitlab.com/api/graphql"
+    assert request.get_method() == "POST"
+    assert "secret-unprinted" not in json.dumps(result)
+
+
+def test_conflict_reader_handles_missing_access_or_graphql_schema():
+    from unittest import mock
+    import json
+    from inneros_core_runtime import local_gitlab_plane as gl
+    expected_sha = "a" * 40
+    initial = {"ok": True, "merge_request": {"sha": expected_sha, "state": "opened"}}
+    with (
+        mock.patch.object(gl, "get_merge_request", return_value=initial),
+        mock.patch.object(gl, "_token", return_value=("", "missing")),
+    ):
+        denied = gl.get_reviewed_merge_request_conflicts(
+            "gitlab-org/gitlab", 255760, expected_sha
+        )
+    assert denied["error"] == "gitlab_token_missing"
+    response = mock.MagicMock()
+    response.status = 200
+    response.read.return_value = json.dumps({
+        "errors": [{"message": "Cannot query field conflictFiles on MergeRequest"}],
+    }).encode("utf-8")
+    with (
+        mock.patch.object(gl, "get_merge_request", return_value=initial),
+        mock.patch.object(gl, "_token", return_value=("secret", "test")),
+        mock.patch.object(gl.urllib.request, "urlopen") as http,
+    ):
+        http.return_value.__enter__.return_value = response
+        invalid = gl.get_reviewed_merge_request_conflicts(
+            "gitlab-org/gitlab", 255760, expected_sha
+        )
+    assert invalid["error"] == "graphql_schema_or_permission_error"
+    assert invalid["error_count"] == 1
+
+
+def test_conflict_reader_reports_unavailable_files_without_false_success():
+    from unittest import mock
+    import json
+    from inneros_core_runtime import local_gitlab_plane as gl
+    expected_sha = "a" * 40
+    response = mock.MagicMock()
+    response.status = 200
+    response.read.return_value = json.dumps({"data": {"project": {
+        "mergeRequest": {
+            "diffHeadSha": expected_sha,
+            "conflicts": True,
+            "conflictStatus": "NO_PUSH_ACCESS",
+            "conflictFiles": None,
+        },
+    }}}).encode("utf-8")
+    with (
+        mock.patch.object(gl, "get_merge_request", return_value={
+            "ok": True, "merge_request": {"sha": expected_sha, "state": "opened"},
+        }),
+        mock.patch.object(gl, "_token", return_value=("token", "test")),
+        mock.patch.object(gl.urllib.request, "urlopen") as http,
+    ):
+        http.return_value.__enter__.return_value = response
+        result = gl.get_reviewed_merge_request_conflicts(
+            "gitlab-org/gitlab", 255760, expected_sha
+        )
+    assert result["ok"] is True
+    assert result["files_available"] is False
+    assert result["conflict_status"] == "NO_PUSH_ACCESS"
+    assert result["has_conflicts"] is True
