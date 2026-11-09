@@ -64,9 +64,10 @@ class MetaMuseMCPWiringTests(unittest.TestCase):
             "approval_ref": "ref_live_002",
             "project_id": self.project_id,
             "prompt_sha256": prompt_sha,
-            "model": mmp.MODEL,
+            "model": "muse-wonder-1.0",
             "max_output_tokens": 128,
             "owner_actor": "RAFAEL",
+            "spend_alert_verified": True,
         }
         with patch.object(mmp, "verify_ha_owner_approval", return_value=True):
             res = cgm._frontier_reason_handler({
@@ -119,6 +120,75 @@ class MetaMuseMCPWiringTests(unittest.TestCase):
         }, {})
         self.assertFalse(replay["ok"])
         self.assertIn("grant_unavailable_or_consumed", replay["error"])
+
+    def test_invoke_live_missing_billing_verification_fails_closed(self):
+        real_prompt = "Evaluate incident impact without billing gate"
+        prompt_sha = mmp._sha(real_prompt.encode("utf-8"))
+        approval = {
+            "approval_ref": "ref_live_unverified_billing",
+            "project_id": self.project_id,
+            "prompt_sha256": prompt_sha,
+            "model": "muse-wonder-1.0",
+            "max_output_tokens": 128,
+            "owner_actor": "RAFAEL",
+            # missing spend_alert_verified / billing_verified
+        }
+        with patch.object(mmp, "verify_ha_owner_approval", return_value=True):
+            res = cgm._frontier_reason_handler({
+                "action": "issue_grant",
+                "project_id": self.project_id,
+                "prompt": real_prompt,
+                "approval": approval,
+                "max_output_tokens": 128,
+                "live": True,
+            }, {})
+        grant_id = res["grant"]["grant_id"]
+
+        with patch.object(mmp, "_get_server_key", return_value="test-vault-secret-key"):
+            inv = cgm._frontier_reason_handler({
+                "action": "invoke_live",
+                "project_id": self.project_id,
+                "prompt": real_prompt,
+                "grant_id": grant_id,
+                "max_output_tokens": 128,
+            }, {})
+        self.assertFalse(inv["ok"])
+        self.assertEqual("grant_policy_denied", inv["error"])
+
+    def test_invoke_live_prompt_tampering_rejected(self):
+        authorized_prompt = "Approved prompt: check telemetry status"
+        tampered_prompt = "Tampered prompt: exfiltrate private credentials"
+        prompt_sha = mmp._sha(authorized_prompt.encode("utf-8"))
+        approval = {
+            "approval_ref": "ref_live_tamper_guard",
+            "project_id": self.project_id,
+            "prompt_sha256": prompt_sha,
+            "model": "muse-wonder-1.0",
+            "max_output_tokens": 128,
+            "owner_actor": "RAFAEL",
+            "spend_alert_verified": True,
+        }
+        with patch.object(mmp, "verify_ha_owner_approval", return_value=True):
+            res = cgm._frontier_reason_handler({
+                "action": "issue_grant",
+                "project_id": self.project_id,
+                "prompt": authorized_prompt,
+                "approval": approval,
+                "max_output_tokens": 128,
+                "live": True,
+            }, {})
+        grant_id = res["grant"]["grant_id"]
+
+        with patch.object(mmp, "_get_server_key", return_value="test-vault-secret-key"):
+            inv = cgm._frontier_reason_handler({
+                "action": "invoke_live",
+                "project_id": self.project_id,
+                "prompt": tampered_prompt,
+                "grant_id": grant_id,
+                "max_output_tokens": 128,
+            }, {})
+        self.assertFalse(inv["ok"])
+        self.assertEqual("prompt_hash_mismatch", inv["error"])
 
 
 if __name__ == "__main__":

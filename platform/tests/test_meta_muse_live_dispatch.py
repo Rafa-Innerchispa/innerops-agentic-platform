@@ -129,6 +129,20 @@ class MuseDispatchTests(unittest.TestCase):
         with self.assertRaisesRegex(MuseDispatchError, "^meta_http_401$"):
             self.invoke(transport=denied)
 
+    def test_prompt_hash_mismatch_denied(self):
+        grant_with_hash = replace(self.grant, prompt_sha256="0" * 64)
+        with self.assertRaisesRegex(MuseDispatchError, "prompt_hash_mismatch"):
+            self.invoke(grant=grant_with_hash, prompt="Different prompt")
+        self.assertFalse(self.calls)
+
+    def test_spark_model_allowed_when_in_grant(self):
+        grant_spark = replace(self.grant, model="muse-spark-1.3")
+        res = self.invoke(grant=grant_spark)
+        self.assertEqual(res["output_text"], "PONG")
+        req, _ = self.calls[-1]
+        payload = json.loads(req.data)
+        self.assertEqual(payload["model"], "muse-spark-1.3")
+
     def test_missing_key_denied_without_network(self):
         with self.assertRaisesRegex(MuseDispatchError, "meta_credential_unavailable"):
             invoke_muse(prompt="Test", grant_id="g-1", grant_store=FakeStore(self.grant),

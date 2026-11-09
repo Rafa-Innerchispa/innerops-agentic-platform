@@ -73,13 +73,13 @@ class _MetaGrantStoreAdapter:
         with self.ledger._connect() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute(
-                "SELECT project_id, max_output_tokens, expires_epoch, consumed_epoch, approval_ref FROM grants WHERE id=?",
+                "SELECT project_id, max_output_tokens, expires_epoch, consumed_epoch, approval_ref, model, prompt_sha, billing_verified FROM grants WHERE id=?",
                 (grant_id,),
             ).fetchone()
             if row is None:
                 c.execute("ROLLBACK")
                 raise meta_muse_live_dispatch.MuseDispatchError("grant_not_found")
-            project_id, max_output_tokens, expires_epoch, consumed_epoch, approval_ref = row
+            project_id, max_output_tokens, expires_epoch, consumed_epoch, approval_ref, grant_model, prompt_sha, billing_verified = row
             if consumed_epoch is not None:
                 c.execute("ROLLBACK")
                 raise meta_muse_live_dispatch.MuseDispatchError("grant_already_consumed")
@@ -100,13 +100,14 @@ class _MetaGrantStoreAdapter:
             grant_id=grant_id,
             project_id=project_id,
             provider="meta",
-            model=meta_muse_live_dispatch.MODEL,
+            model=grant_model or meta_muse_live_dispatch.MODEL,
             expires_at=exp_dt,
             max_output_tokens=max_output_tokens,
             max_prompt_chars=6000,
             max_cost_usd=0.50,
             owner_approved=bool(approval_ref),
-            billing_hard_limit_verified=True,
+            billing_hard_limit_verified=bool(billing_verified),
+            prompt_sha256=prompt_sha or "",
         )
 
 

@@ -13,7 +13,9 @@ from datetime import datetime, timezone
 from typing import Callable, Protocol, Any
 
 API_URL = "https://api.meta.ai/v1/responses"
-MODEL = "muse-wonder-1.0"
+SUPPORTED_MODELS = ("muse-wonder-1.0", "muse-spark-1.3")
+DEFAULT_MODEL = "muse-wonder-1.0"
+MODEL = DEFAULT_MODEL
 
 
 class MuseDispatchError(RuntimeError):
@@ -32,6 +34,7 @@ class MuseGrant:
     max_cost_usd: float
     owner_approved: bool
     billing_hard_limit_verified: bool
+    prompt_sha256: str = ""
 
 
 class TrustedGrantStore(Protocol):
@@ -92,7 +95,7 @@ def invoke_muse(
         or not grant.billing_hard_limit_verified
         or not grant.project_id
         or grant.provider != "meta"
-        or grant.model != MODEL
+        or (grant.model != MODEL and grant.model not in SUPPORTED_MODELS)
         or grant.max_cost_usd <= 0
         or grant.max_prompt_chars < len(prompt)
         or requested_output_tokens > grant.max_output_tokens
@@ -101,11 +104,18 @@ def invoke_muse(
     ):
         raise MuseDispatchError("grant_policy_denied")
 
+    if grant.prompt_sha256:
+        import hashlib
+        prompt_sha = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+        if prompt_sha != grant.prompt_sha256:
+            raise MuseDispatchError("prompt_hash_mismatch")
+
     key = resolve_api_key()
     if not isinstance(key, str) or not key.strip():
         raise MuseDispatchError("meta_credential_unavailable")
+    target_model = grant.model or MODEL
     payload = {
-        "model": MODEL,
+        "model": target_model,
         "input": prompt,
         "max_output_tokens": requested_output_tokens,
     }
@@ -136,7 +146,7 @@ def invoke_muse(
     return {
         "status": result.get("status", "unknown"),
         "response_id": result.get("id"),
-        "model": result.get("model", MODEL),
+        "model": result.get("model", target_model),
         "output_text": _output_text(result),
         "usage": result.get("usage", {}),
         "grant_id": grant.grant_id,
