@@ -190,3 +190,17 @@ def test_guarded_gitlab_rebase_rejects_gitlab_failure_without_false_success():
             dry_run=False,
         )
     assert result == {"ok": False, "error": "rebase_not_queued", "status": 403}
+
+
+def test_get_merge_request_exposes_rebase_status_for_async_polling():
+    from unittest import mock
+    from inneros_core_runtime import local_gitlab_plane as gl
+    mr = _approved_gitlab_mr(rebase_in_progress=True, merge_error="Rebase failed")
+    with mock.patch.object(gl, "_request", return_value={
+        "ok": True, "data": mr,
+    }) as request:
+        result = gl.get_merge_request("gitlab-org/gitlab", 255760)
+    assert result["ok"] is True
+    assert result["merge_request"]["rebase_in_progress"] is True
+    assert result["merge_request"]["merge_error"] == "Rebase failed"
+    assert request.call_args.kwargs["query"]["include_rebase_in_progress"] == "true"
