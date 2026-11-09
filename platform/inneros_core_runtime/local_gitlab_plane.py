@@ -486,7 +486,7 @@ def get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
     if error:
         return error
     encoded = project_api_path(project_id_or_path)
-    res = _request("GET", f"/projects/{encoded}/merge_requests/{iid}")
+    res = _request("GET", f"/projects/{encoded}/merge_requests/{iid}", query={"include_rebase_in_progress": "true"})
     if not res.get("ok"):
         return {key: value for key, value in res.items() if key != "data"}
     data = res.get("data") if isinstance(res.get("data"), dict) else {}
@@ -499,6 +499,8 @@ def get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
             "merge_status": data.get("merge_status"),
             "detailed_merge_status": data.get("detailed_merge_status"),
             "has_conflicts": data.get("has_conflicts"),
+            "rebase_in_progress": data.get("rebase_in_progress"),
+            "merge_error": _redact(_bounded(str(data.get("merge_error") or ""))) or None,
             "blocking_discussions_resolved": data.get("blocking_discussions_resolved"),
             "assignees": [
                 {"id": item.get("id"), "username": item.get("username"), "name": item.get("name")}
@@ -528,6 +530,92 @@ def get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
                 "web_url": (data.get("head_pipeline") or {}).get("web_url"),
             } if isinstance(data.get("head_pipeline"), dict) else None,
         },
+    }
+
+
+
+def rebase_reviewed_merge_request(
+    project_id_or_path: str,
+    mr_iid: int,
+    expected_source_sha: str,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Ask GitLab to rebase one explicitly approved MR, never locally force-push.
+
+    Server-side GitLab rebase is asynchronous. A 202 only means queued, not
+    successful. The known source head, target branch and owner fork must match
+    before any mutation. Explicitly omit skip_ci to keep CI enabled.
+    """
+    approved = {
+        ("gitlab-org/gitlab", 255760): {
+            "source_project": "gitlab-community/gitlab-org/gitlab",
+            "source_branch": "chatgpt/607885-versioned-method-naming",
+            "target_branch": "master",
+        },
+    }
+    project = (project_id_or_path or "").strip()
+    iid, error = _positive_int(mr_iid, "mr_iid")
+    if error:
+        return error
+    expectation = approved.get((project, iid))
+    if not expectation:
+        return {"ok": False, "error": "rebase_mr_not_allowlisted"}
+
+    expected = (expected_source_sha or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}", expected):
+        return {"ok": False, "error": "expected_source_sha_required"}
+
+    url_path = f"/projects/{project_api_path(project)}/merge_requests/{iid}"
+    inspected = _request(
+        "GET", url_path,
+        query={"include_rebase_in_progress": "true"},
+    )
+    if not inspected.get("ok"):
+        return {"ok": False, "error": "rebase_preflight_unavailable",
+                "status": inspected.get("status")}
+    mr = inspected.get("data")
+    if not isinstance(mr, dict):
+        return {"ok": False, "error": "rebase_preflight_invalid"}
+    if mr.get("state") != "opened":
+        return {"ok": False, "error": "rebase_mr_not_open"}
+    if mr.get("rebase_in_progress"):
+        return {"ok": False, "error": "rebase_already_running"}
+    if (mr.get("source_branch") != expectation["source_branch"]
+            or mr.get("target_branch") != expectation["target_branch"]):
+        return {"ok": False, "error": "rebase_branch_mismatch"}
+    observed_sha = str(mr.get("sha") or "").lower()
+    if observed_sha != expected:
+        return {"ok": False, "error": "rebase_source_sha_changed",
+                "observed_sha": observed_sha}
+
+    source = project_summary(expectation["source_project"])
+    if not source.get("ok"):
+        return {"ok": False, "error": "rebase_source_project_unavailable"}
+    source_id = (source.get("project") or {}).get("id")
+    if (not source_id or str(mr.get("source_project_id") or "") != str(source_id)):
+        return {"ok": False, "error": "rebase_source_fork_mismatch"}
+
+    if dry_run:
+        return {
+            "ok": True, "dry_run": True, "queued": False,
+            "mr_iid": iid, "source_sha": expected,
+            "source_branch": expectation["source_branch"],
+            "target_branch": expectation["target_branch"],
+            "would_request": {"method": "PUT", "path": url_path + "/rebase"},
+            "ci_skipped": False,
+        }
+
+    # GitLab's documented API performs the history rewrite on its server.
+    # Do not retry blindly if this call times out; re-read MR status first.
+    queued = _request("PUT", url_path + "/rebase", timeout=60)
+    if not (queued.get("ok") and queued.get("status") == 202):
+        return {"ok": False, "error": "rebase_not_queued",
+                "status": queued.get("status")}
+    return {
+        "ok": True, "dry_run": False, "queued": True,
+        "mr_iid": iid, "previous_sha": expected,
+        "rebase_in_progress": True, "ci_skipped": False,
+        "status": "queued_unverified",
     }
 
 
