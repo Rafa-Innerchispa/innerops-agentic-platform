@@ -496,6 +496,23 @@ def register_local_execution_capabilities() -> int:
         ),
         (
             _gitlab_manifest(
+                "local_gitlab.get_reviewed_merge_request_conflicts.v1",
+                title="Read GitLab MR source/target conflict files",
+                description="Inspect bounded raw conflict markers for the exact authorized merge request; no source edits, no merge or rebase.",
+                keywords=["conflict files", "conflicts", "reviewed merge request", "255760"],
+                mode="read_only",
+                risk_class="low",
+                properties={
+                    "project_id_or_path": {"type": "string"},
+                    "mr_iid": {"type": "integer"},
+                    "expected_source_sha": {"type": "string"},
+                },
+                required=["project_id_or_path", "mr_iid", "expected_source_sha"],
+            ),
+            _handler(gl.get_reviewed_merge_request_conflicts),
+        ),
+        (
+            _gitlab_manifest(
                 "local_gitlab.rebase_reviewed_merge_request.v1",
                 title="Guarded rebase of approved GitLab merge request",
                 description="Request asynchronous GitLab API rebase of the exact approved MR after source SHA/fork/branch verification; dry-run by default, CI never skipped.",
