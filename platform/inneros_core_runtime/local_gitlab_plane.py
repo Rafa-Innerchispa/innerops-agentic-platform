@@ -486,7 +486,7 @@ def get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
     if error:
         return error
     encoded = project_api_path(project_id_or_path)
-    res = _request("GET", f"/projects/{encoded}/merge_requests/{iid}")
+    res = _request("GET", f"/projects/{encoded}/merge_requests/{iid}", query={"include_rebase_in_progress": "true"})
     if not res.get("ok"):
         return {key: value for key, value in res.items() if key != "data"}
     data = res.get("data") if isinstance(res.get("data"), dict) else {}
@@ -499,6 +499,8 @@ def get_merge_request(project_id_or_path: str, mr_iid: int) -> dict[str, Any]:
             "merge_status": data.get("merge_status"),
             "detailed_merge_status": data.get("detailed_merge_status"),
             "has_conflicts": data.get("has_conflicts"),
+            "rebase_in_progress": data.get("rebase_in_progress"),
+            "merge_error": _redact(_bounded(str(data.get("merge_error") or ""))) or None,
             "blocking_discussions_resolved": data.get("blocking_discussions_resolved"),
             "assignees": [
                 {"id": item.get("id"), "username": item.get("username"), "name": item.get("name")}
