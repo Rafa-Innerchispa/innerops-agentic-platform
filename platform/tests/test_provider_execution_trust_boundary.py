@@ -34,6 +34,7 @@ def test_trusted_token_allows_canary():
 def test_codex_real_path_blocked_without_grant_and_env():
     task = {
         "task_id": "ops_real",
+        "status": "claimed",
         "claim_token": "tok",
         "worktree": "/tmp/nope",
         "assignee": "codex",

@@ -361,7 +361,8 @@ class MetaProviderTest(unittest.TestCase):
         }
         mock_grants.find_one.return_value = valid_doc
 
-        with patch.dict("sys.modules", {"raphiia_openai.mongo_store": mock_store}):
+        import raphiia_openai
+        with patch.dict("sys.modules", {"raphiia_openai.mongo_store": mock_store}), patch.object(raphiia_openai, "mongo_store", mock_store, create=True):
             scope = {
                 "approval_ref": ref,
                 "project_id": self.project,

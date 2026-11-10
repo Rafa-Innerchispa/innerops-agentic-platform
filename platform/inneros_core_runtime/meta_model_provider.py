@@ -23,7 +23,9 @@ from typing import Any, Callable
 from urllib import error, request
 
 PROVIDER_ID = "meta-model-api"
-MODEL = "muse-spark-1.3"
+SUPPORTED_MODELS = ("muse-spark-1.3", "muse-wonder-1.0")
+DEFAULT_MODEL = "muse-spark-1.3"
+MODEL = DEFAULT_MODEL
 BASE_URL = "https://api.meta.ai/v1"
 RESPONSES_URL = BASE_URL + "/responses"
 VAULT_CATEGORY = "model_api_provider"
@@ -165,6 +167,10 @@ def _get_server_key() -> str:
 
 
 def _validate_prompt(prompt: str, classification: str) -> str:
+    if classification == "approved_live_dispatch":
+        if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > MAX_INPUT_CHARS:
+            raise ValueError("Prompt required, max 6000 characters")
+        return prompt
     if classification != SOURCE_POLICY:
         raise PermissionError("Only synthetic prompts may leave InnerOS until an approved data-release gate exists")
     if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > MAX_INPUT_CHARS:
@@ -194,7 +200,8 @@ class MetaGrantLedger:
                     prompt_sha TEXT NOT NULL, model TEXT NOT NULL,
                     max_output_tokens INTEGER NOT NULL,
                     expires_epoch REAL NOT NULL, consumed_epoch REAL,
-                    issued_at TEXT NOT NULL, approval_ref TEXT NOT NULL
+                    issued_at TEXT NOT NULL, approval_ref TEXT NOT NULL,
+                    billing_verified INTEGER DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS receipts(
                     id TEXT PRIMARY KEY, grant_id TEXT UNIQUE NOT NULL,
@@ -206,6 +213,11 @@ class MetaGrantLedger:
                     error_type TEXT, completed_at TEXT NOT NULL
                 );
             """)
+        with self._connect() as c:
+            try:
+                c.execute("ALTER TABLE grants ADD COLUMN billing_verified INTEGER DEFAULT 0")
+            except Exception:
+                pass
         if os.name == "posix":
             self.path.chmod(0o600)
 
@@ -239,10 +251,19 @@ class MetaGrantLedger:
 
         prompt_hash = _sha(prompt.encode("utf-8"))
         scope = dict(approval or {})
+        model_to_use = str(scope.get("model") or MODEL).strip()
+        if model_to_use.lower() not in [m.lower() for m in SUPPORTED_MODELS]:
+            raise PermissionError(f"Unsupported model: {model_to_use}")
+        billing_verified = 1 if bool(
+            scope.get("billing_verified")
+            or scope.get("spend_alert_verified")
+            or scope.get("billing_hard_limit_verified")
+            or scope.get("spend_alert_acknowledged")
+        ) else 0
+
         if (
             scope.get("project_id") != project_id
             or scope.get("prompt_sha256") != prompt_hash
-            or scope.get("model") != MODEL
             or scope.get("max_output_tokens") != int(max_output_tokens)
             or not isinstance(scope.get("approval_ref"), str)
             or not scope.get("approval_ref")
@@ -254,14 +275,15 @@ class MetaGrantLedger:
         with self._connect() as c:
             c.execute(
                 """INSERT INTO grants(id,project_id,prompt_sha,model,max_output_tokens,
-                   expires_epoch,issued_at,approval_ref) VALUES(?,?,?,?,?,?,?,?)""",
-                (gid, project_id, prompt_hash, MODEL, int(max_output_tokens),
-                 time.time() + ttl_seconds, _now(), scope["approval_ref"]),
+                   expires_epoch,issued_at,approval_ref,billing_verified) VALUES(?,?,?,?,?,?,?,?,?)""",
+                (gid, project_id, prompt_hash, model_to_use, int(max_output_tokens),
+                 time.time() + ttl_seconds, _now(), scope["approval_ref"], billing_verified),
             )
         res = {
-            "grant_id": gid, "project_id": project_id, "model": MODEL,
+            "grant_id": gid, "project_id": project_id, "model": model_to_use,
             "prompt_sha256": prompt_hash, "max_output_tokens": int(max_output_tokens),
             "expires_in_seconds": ttl_seconds, "approval_ref": scope["approval_ref"],
+            "billing_verified": bool(billing_verified),
         }
         if reasoning_effort:
             res["reasoning_effort"] = str(reasoning_effort).lower()
@@ -633,7 +655,7 @@ def verify_ha_owner_approval(approval_scope: dict[str, Any]) -> bool:
 
     # Check model constraint if present
     scope_model = str(approval_scope.get("model") or "").strip().lower()
-    if scope_model and scope_model != MODEL.lower():
+    if scope_model and scope_model not in [m.lower() for m in SUPPORTED_MODELS]:
         return False
 
     # Check scope expiration if explicitly declared

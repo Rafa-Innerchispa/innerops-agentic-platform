@@ -79,7 +79,8 @@ class LocalModelRouterFallbackTests(unittest.TestCase):
             }
             result = lmr.run_local_model(task_type="coding", prompt="test")
         self.assertFalse(result["ok"])
-        self.assertEqual(result["error"], "intel_ollama_no_models")
+        self.assertEqual(result["error"], "all_local_model_routes_unavailable")
+        self.assertIn("intel_ollama_no_models", result.get("failures", []))
         self.assertFalse(result["external_needed"])
         mock_fallback.assert_called_once()
 
