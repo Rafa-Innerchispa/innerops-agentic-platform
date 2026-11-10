@@ -10,6 +10,7 @@ from raphiia_openai import mongo_store
 LOCKS_COL = "ralfia_coordination_locks"
 CONFLICTS_COL = "ralfia_coordination_conflicts"
 LOCK_ACTIONS = frozenset({"acquire", "renew", "release", "inspect", "list"})
+LOCK_HISTORY_CAP = 50
 
 
 def _now() -> datetime:
@@ -125,6 +126,24 @@ def evaluate_lock_action(
     return {"ok": False, "error": "unsupported_action"}
 
 
+def history_push_update(*, action: str, agent: str, task_id: str | None, revision: int) -> dict[str, Any]:
+    """Cláusula $push del historial: acotada a las últimas LOCK_HISTORY_CAP entradas."""
+    return {
+        "history": {
+            "$each": [
+                {
+                    "action": action,
+                    "agent": (agent or "").strip().lower(),
+                    "task_id": task_id,
+                    "at": _iso(_now()),
+                    "revision": revision,
+                }
+            ],
+            "$slice": -LOCK_HISTORY_CAP,
+        }
+    }
+
+
 def manage_coordination_lock(
     action: str,
     resource_id: str = "",
@@ -176,15 +195,12 @@ def manage_coordination_lock(
         query["revision"] = revision
     update = {
         "$set": decision["patch"],
-        "$push": {
-            "history": {
-                "action": decision["action"],
-                "agent": (agent or "").strip().lower(),
-                "task_id": task_id,
-                "at": _iso(_now()),
-                "revision": decision["patch"]["revision"],
-            }
-        },
+        "$push": history_push_update(
+            action=decision["action"],
+            agent=agent or "",
+            task_id=task_id,
+            revision=decision["patch"]["revision"],
+        ),
     }
     result = db[LOCKS_COL].update_one(query, update, upsert=not bool(current))
     if result.modified_count != 1 and result.upserted_id is None:
