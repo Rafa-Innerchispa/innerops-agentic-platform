@@ -329,6 +329,34 @@ CANONICAL_REPO_HINTS = {
 
 WRITE_TASK_CLASSES = {"coding", "code_review", "refactor", "tests", "build", "deployment"}
 LOCAL_DEV_SWARM_LANE = "local_dev_swarm"
+# Productores legacy: normalizar etiquetas viejas al contrato dev_swarm.
+# No muta Mongo; solo la copia en memoria evaluada por _eligible_reason.
+LEGACY_PRODUCER_STATUS_MAP = {"queued": "proposed"}
+LEGACY_PRODUCER_ASSIGNEE_MAP = {"qwen-coding": "dev_swarm", "qwen_coding": "dev_swarm"}
+LEGACY_PRODUCER_LANE_MAP = {"internal": LOCAL_DEV_SWARM_LANE}
+
+
+def normalize_producer_task(task: dict[str, Any]) -> dict[str, Any]:
+    """Mapea etiquetas legacy (queued/qwen-coding/internal) al contrato dev_swarm."""
+    normalized = dict(task or {})
+    status = str(normalized.get("status") or "").strip().lower()
+    if status in LEGACY_PRODUCER_STATUS_MAP:
+        normalized["status"] = LEGACY_PRODUCER_STATUS_MAP[status]
+    for key in ("assignee", "owner"):
+        value = str(normalized.get(key) or "").strip().lower()
+        if value in LEGACY_PRODUCER_ASSIGNEE_MAP:
+            normalized[key] = LEGACY_PRODUCER_ASSIGNEE_MAP[value]
+    lane = str(normalized.get("execution_lane") or "").strip().lower()
+    if lane in LEGACY_PRODUCER_LANE_MAP:
+        normalized["execution_lane"] = LEGACY_PRODUCER_LANE_MAP[lane]
+    payload = normalized.get("payload")
+    if isinstance(payload, dict):
+        payload_lane = str(payload.get("execution_lane") or "").strip().lower()
+        if payload_lane in LEGACY_PRODUCER_LANE_MAP:
+            payload = dict(payload)
+            payload["execution_lane"] = LEGACY_PRODUCER_LANE_MAP[payload_lane]
+            normalized["payload"] = payload
+    return normalized
 
 
 def _registry_resolve_repo(project_id: str = "", repo: str = "") -> str | None:
@@ -1336,6 +1364,7 @@ def _contributor_repo_gate(task: dict[str, Any]) -> tuple[bool, str | None, str 
 
 
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
+    task = normalize_producer_task(task)
     gate_ok, gate_reason, gate_repo = _contributor_repo_gate(task)
     if not gate_ok:
         return False, str(gate_reason), gate_repo

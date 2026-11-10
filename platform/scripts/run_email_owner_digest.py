@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -29,6 +30,17 @@ def main() -> int:
             hours=args.hours, limit=args.limit, whatsapp=False
         )
     print(result.get("report_text", "")[:8000])
+    fanout = result.get("fanout") or {}
+    channels = fanout.get("channels") or {}
+    summary = {
+        "delivered": bool(result.get("delivered")),
+        "fanout_ok": bool(fanout.get("ok")),
+        "channels": {
+            name: bool((data or {}).get("ok")) if isinstance(data, dict) else False
+            for name, data in channels.items()
+        },
+    }
+    print("DELIVERY " + json.dumps(summary, ensure_ascii=False))
     return 0 if result.get("ok") else 1
 
 

@@ -69,7 +69,16 @@ def process_recent_gitlab_emails(
     if not bridge_enabled():
         return {"ok": True, "skipped": True, "reason": "contributorops_email_bridge_disabled"}
 
-    email_ingress = _agent_imports()
+    try:
+        email_ingress = _agent_imports()
+    except ImportError as exc:
+        # El agente GitLab no expone email_ingress: paso externo roto, no ciclo.
+        return {
+            "ok": False,
+            "external": True,
+            "reason": "contributorops_email_ingress_missing",
+            "error": str(exc)[:200],
+        }
     db = mongo_store.get_db()
     rows = list(
         db.email_messages.find(_gitlab_email_query(_cutoff(hours)), {"_id": 0})

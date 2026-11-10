@@ -27,8 +27,13 @@ def notify_owner(
     email_always: bool = True,
     ha: bool = True,
     telegram: bool = True,
+    severity: str = "info",
 ) -> dict[str, Any]:
-    """Deliver the same summary across configured channels (best-effort)."""
+    """Deliver the same summary across configured channels (best-effort).
+
+    Telegram primario. HA solo para severidad critica (compuerta contra el
+    rate limit de la app Companion): el resto de severidades lo salta.
+    """
     out: dict[str, Any] = {"ok": False, "channels": {}, "kind": kind}
     title = (title or "InnerOS").strip()[:120]
     body = (body or "").strip()
@@ -51,7 +56,10 @@ def notify_owner(
         except Exception as exc:
             out["channels"]["telegram"] = {"ok": False, "error": str(exc)[:200]}
 
-    if ha and os.getenv("NOTIFY_OPS_AUTH_HA", "0").strip().lower() in {"1", "true", "yes", "on"}:
+    ha_critical = ha and str(severity or "info").strip().lower() == "critical"
+    if not ha_critical:
+        out["channels"]["ha"] = {"ok": False, "skipped": "non_critical_severity"}
+    if ha_critical and os.getenv("NOTIFY_OPS_AUTH_HA", "0").strip().lower() in {"1", "true", "yes", "on"}:
         try:
             from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
 
@@ -140,8 +148,8 @@ def notify_owner_photo(
     return out
 
 
-def mirror_ops_alert(text: str, *, title: str = "RalfIA") -> dict[str, Any]:
-    """Alertas operativas (ex-WhatsApp): HA + Telegram, sin duplicar email."""
+def mirror_ops_alert(text: str, *, title: str = "RalfIA", severity: str = "info") -> dict[str, Any]:
+    """Alertas operativas (ex-WhatsApp): Telegram siempre, HA solo si critical."""
     return notify_owner(
         title=title[:120],
         body=text,
@@ -149,4 +157,5 @@ def mirror_ops_alert(text: str, *, title: str = "RalfIA") -> dict[str, Any]:
         email_always=False,
         ha=True,
         telegram=True,
+        severity=severity,
     )

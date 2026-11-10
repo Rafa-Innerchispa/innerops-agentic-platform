@@ -1,0 +1,11 @@
+[Unit]
+Description=InnerOS email owner digest every 6 hours
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+Persistent=true
+Unit=inneros-email-owner-digest.service
+
+[Install]
+WantedBy=timers.target
