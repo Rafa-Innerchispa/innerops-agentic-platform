@@ -1680,6 +1680,7 @@ def executor_tick(limit: int = 2, dry_run: bool = False, run_tests: bool = True)
                 "$or": [
                     {"executor.status": {"$exists": False}},
                     {"executor.status": {"$in": ["pending", "failed_retryable"]}},
+                    {"executor.status": "running", "executor.phase": "queued"},
                 ],
             },
             {"_id": 0},
