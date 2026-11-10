@@ -85,6 +85,22 @@ def _scope_for_user(user: dict[str, Any], requested_scope: str) -> str:
     return " ".join(granted)
 
 
+@app.get("/", response_class=HTMLResponse)
+async def landing(request: Request) -> HTMLResponse:
+    """Landing informativa: evita 404 al abrir el issuer en el navegador."""
+    issuer, _resource = resolve_oauth_urls(request.headers.get("host"))
+    body = (
+        "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">"
+        "<title>InnerOS Unified SSO &amp; OAuth Gateway</title></head><body>"
+        "<h1>InnerOS Unified SSO &amp; OAuth Gateway</h1>"
+        "<p><strong>AUTH OPERATIONAL</strong></p>"
+        f"<p>Issuer: {html.escape(str(issuer))}</p>"
+        "<p>OAuth 2.0 + PKCE S256. Usa un cliente MCP registrado para autorizar.</p>"
+        "</body></html>"
+    )
+    return HTMLResponse(content=body)
+
+
 @app.get("/health")
 async def health(request: Request) -> dict[str, Any]:
     oauth_store.ensure_indexes()
