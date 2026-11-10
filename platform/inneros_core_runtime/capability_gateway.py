@@ -589,3 +589,7 @@ register_network_action_capabilities()
 from inneros_core_runtime.capability_gateway_model import register_model_frontier_capabilities
 
 register_model_frontier_capabilities()
+
+from inneros_core_runtime.capability_gateway_cloud import register_cloud_capabilities
+
+register_cloud_capabilities(register_capability)
