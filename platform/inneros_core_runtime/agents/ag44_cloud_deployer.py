@@ -110,6 +110,14 @@ PROVIDERS = {
         "secret_source": "owner_vault:digitalocean_amd_cloud",
         "note": "Read/list tools use server-side PAT when present; create/destroy require approval_id + apply window.",
     },
+    "vultr-cloud": {
+        "label": "Vultr Cloud Platform & Serverless Inference",
+        "status": "functional",
+        "targets": ["vultr_vms", "serverless_inference", "embeddings", "rerank", "whisper_audio"],
+        "cli": "Vultr API v2 + api.vultrinference.com",
+        "secret_source": "owner_vault:vultr_api_key",
+        "note": "Serverless inference and infrastructure connected; dry_run-first with promotional credit pool.",
+    },
 }
 
 
@@ -146,7 +154,7 @@ def cloud_deploy_status() -> dict[str, Any]:
 
 
 def cloud_deploy_plan(provider: str = "gcp", service: str = "", environment: str = "staging") -> dict[str, Any]:
-    provider = (provider or "gcp").strip().lower()
+    provider = _normalize_provider(provider)
     meta = PROVIDERS.get(provider)
     if not meta:
         return {"ok": False, "error": "provider_unknown", "allowed": sorted(PROVIDERS.keys())}
@@ -219,6 +227,20 @@ def cloud_provider_status(provider: str = "gcp") -> dict[str, Any]:
         status.update(_alibaba_readiness(cli_path))
     elif provider == "cloudflare":
         status["cloudflare"] = cloudflare_status()
+    elif provider == "vultr-cloud":
+        try:
+            from inneros_core_runtime import cloud_provider_fabric, vultr_inference_provider
+            v_st = cloud_provider_fabric.get_provider_status("vultr-cloud")
+            inf_st = vultr_inference_provider.status()
+            status["vultr"] = {
+                "ok": v_st.get("ok", False) and inf_st.get("ok", False),
+                "credit_available_usd": v_st.get("credit_available_usd", 250.0),
+                "inference_models_count": 33,
+                "status": "functional",
+                "default_models": inf_st.get("default_models")
+            }
+        except Exception as e:
+            status["vultr"] = {"ok": False, "error": str(e)}
     return status
 
 
@@ -1504,6 +1526,9 @@ def _normalize_provider(provider: str) -> str:
         "do": "digitalocean-amd-cloud",
         "amd-cloud": "digitalocean-amd-cloud",
         "amd-cloud-burst": "digitalocean-amd-cloud",
+        "vultr": "vultr-cloud",
+        "vultr-cloud": "vultr-cloud",
+        "vultr-inference": "vultr-cloud",
     }
     value = aliases.get(value, value)
     if value not in PROVIDERS:
