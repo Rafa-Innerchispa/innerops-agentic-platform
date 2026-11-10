@@ -8547,6 +8547,64 @@ def vultr_list_instances(region: str = "", label: str = "") -> dict[str, Any]:
 
 
 @mcp.tool
+def vultr_inference_chat(
+    prompt: str,
+    model: str = "deepseek-v4.1-flash-1017",
+    system_prompt: str = "You are InnerOS Cloud Worker.",
+    max_tokens: int = 512,
+    temperature: float = 0.2,
+) -> dict[str, Any]:
+    """Vultr Serverless Inference: Chat and reasoning completion (DeepSeek v4.1, Qwen 3.8, GLM, MiniMax)."""
+    from inneros_core_runtime import vultr_inference_provider
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+    return vultr_inference_provider.chat_completion(
+        messages=messages,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+
+
+@mcp.tool
+def vultr_inference_embeddings(
+    texts: list[str],
+    model: str = "qwen3-embedding-4b",
+) -> dict[str, Any]:
+    """Vultr Serverless Inference: Generate dense embeddings for RAG and semantic search."""
+    from inneros_core_runtime import vultr_inference_provider
+    return vultr_inference_provider.embeddings(texts=texts, model=model)
+
+
+@mcp.tool
+def vultr_inference_rerank(
+    query: str,
+    documents: list[str],
+    top_n: int = 5,
+    model: str = "bge-reranker-v2-m3",
+) -> dict[str, Any]:
+    """Vultr Serverless Inference: Cross-encoder reranking (BGE Reranker v2)."""
+    from inneros_core_runtime import vultr_inference_provider
+    return vultr_inference_provider.rerank(query=query, documents=documents, top_n=top_n, model=model)
+
+
+@mcp.tool
+def vultr_inference_models() -> dict[str, Any]:
+    """Vultr Serverless Inference: Lists all 33+ available serverless models."""
+    from inneros_core_runtime import vultr_inference_provider
+    return vultr_inference_provider.list_models()
+
+
+@mcp.tool
+def vultr_inference_status() -> dict[str, Any]:
+    """Vultr Serverless Inference: Check status, budget cap, and promotional credit pool."""
+    from inneros_core_runtime import vultr_inference_provider
+    return vultr_inference_provider.status()
+
+
+@mcp.tool
 def switch_rooms_command(
     command_text: str,
     sender: str = "mcp_operator",

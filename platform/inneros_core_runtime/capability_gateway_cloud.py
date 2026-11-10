@@ -119,3 +119,89 @@ def register_cloud_capabilities(register_capability=None) -> None:
         },
         handler=lambda params, context: cloud_provider_fabric.compare_pricing(specs=params.get("specs", {}))
     )
+
+    # 8. Vultr Serverless Inference Chat
+    register_capability(
+        manifest={
+            "capability_id": "cloud.vultr.inference.chat.v1",
+            "version": "1.0.0",
+            "title": "Vultr Serverless Inference Chat Completion",
+            "description": "Serverless chat completions with DeepSeek, Qwen 3.8, GLM, MiniMax via Vultr promotional credits.",
+            "domain": "cloud_infrastructure",
+            "risk_class": "low",
+            "mode": "read_only",
+            "keywords": ["vultr", "inference", "chat", "deepseek", "qwen", "llm", "cloud_burst"],
+        },
+        handler=lambda params, context: __import__("inneros_core_runtime.vultr_inference_provider", fromlist=["vultr_inference_provider"]).chat_completion(
+            messages=params.get("messages", []),
+            model=params.get("model", "deepseek-v4.1-flash-1017"),
+            max_tokens=params.get("max_tokens", 512),
+        )
+    )
+
+    # 9. Vultr Serverless Inference Embeddings
+    register_capability(
+        manifest={
+            "capability_id": "cloud.vultr.inference.embeddings.v1",
+            "version": "1.0.0",
+            "title": "Vultr Serverless Dense Embeddings",
+            "description": "Generate dense text embeddings using Qwen3-Embedding-4B on Vultr.",
+            "domain": "cloud_infrastructure",
+            "risk_class": "low",
+            "mode": "read_only",
+            "keywords": ["vultr", "inference", "embeddings", "rag", "qwen", "vector"],
+        },
+        handler=lambda params, context: __import__("inneros_core_runtime.vultr_inference_provider", fromlist=["vultr_inference_provider"]).embeddings(
+            texts=params.get("texts", []),
+            model=params.get("model", "qwen3-embedding-4b"),
+        )
+    )
+
+    # 10. Vultr Serverless Inference Rerank
+    register_capability(
+        manifest={
+            "capability_id": "cloud.vultr.inference.rerank.v1",
+            "version": "1.0.0",
+            "title": "Vultr Serverless Cross-Encoder Reranking",
+            "description": "Rerank candidate documents using BGE Reranker v2 M3 on Vultr.",
+            "domain": "cloud_infrastructure",
+            "risk_class": "low",
+            "mode": "read_only",
+            "keywords": ["vultr", "inference", "rerank", "bge", "rag", "search"],
+        },
+        handler=lambda params, context: __import__("inneros_core_runtime.vultr_inference_provider", fromlist=["vultr_inference_provider"]).rerank(
+            query=params.get("query", ""),
+            documents=params.get("documents", []),
+            top_n=params.get("top_n", 5),
+        )
+    )
+
+    # 11. Vultr Serverless Models Catalog
+    register_capability(
+        manifest={
+            "capability_id": "cloud.vultr.inference.models.v1",
+            "version": "1.0.0",
+            "title": "Vultr Serverless Models Catalog",
+            "description": "List all 33+ available serverless models on Vultr Serverless Inference.",
+            "domain": "cloud_infrastructure",
+            "risk_class": "low",
+            "mode": "read_only",
+            "keywords": ["vultr", "inference", "models", "catalog"],
+        },
+        handler=lambda params, context: __import__("inneros_core_runtime.vultr_inference_provider", fromlist=["vultr_inference_provider"]).list_models()
+    )
+
+    # 12. Vultr Serverless Inference Status
+    register_capability(
+        manifest={
+            "capability_id": "cloud.vultr.inference.status.v1",
+            "version": "1.0.0",
+            "title": "Vultr Serverless Inference Status & Credits",
+            "description": "Check connection, models, budget cap and promotional credits for Vultr inference.",
+            "domain": "cloud_infrastructure",
+            "risk_class": "low",
+            "mode": "read_only",
+            "keywords": ["vultr", "inference", "status", "credits", "budget"],
+        },
+        handler=lambda params, context: __import__("inneros_core_runtime.vultr_inference_provider", fromlist=["vultr_inference_provider"]).status()
+    )
