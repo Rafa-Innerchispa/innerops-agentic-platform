@@ -281,6 +281,15 @@ def ensure_dev_tasks_from_recent_mail(*, hours: int = 72, limit: int = 30, dry_r
     return {"ok": True, "dry_run": dry_run, "scanned": len(rows), "created": created[:20]}
 
 
+def cycle_ok(steps: dict[str, Any]) -> bool:
+    """Ok del ciclo: los pasos externos rotos no tumban el ciclo ni el exit."""
+    return all(
+        (step.get("ok", True) if isinstance(step, dict) else True)
+        for step in steps.values()
+        if not (isinstance(step, dict) and step.get("external"))
+    )
+
+
 def run_gmail_ag25_tick(*, cycle: int = 0, force_poll: bool = False) -> dict[str, Any]:
     """Un tick: poll IMAP (opcional), higiene ligera, puente dev."""
     enabled = os.environ.get("INNEROS_GMAIL_INTEGRATION", "1").strip().lower() not in {"0", "false", "no"}
@@ -341,6 +350,9 @@ def run_gmail_ag25_tick(*, cycle: int = 0, force_poll: bool = False) -> dict[str
     except Exception:
         pass
 
+    # El ok del ciclo lo deciden los pasos propios; un paso externo roto
+    # (external=True) queda registrado pero no tumba el ciclo ni el exit.
+    out["ok"] = cycle_ok(out["steps"])
     _save_state({"last_tick": out, "last_cycle": cycle, "account_count": accounts.get("count")})
     try:
         mongo_store.log_coordination(

@@ -310,6 +310,35 @@ CANONICAL_REPO_HINTS = {
 
 WRITE_TASK_CLASSES = {"coding", "code_review", "refactor", "tests", "build", "deployment"}
 LOCAL_DEV_SWARM_LANE = "local_dev_swarm"
+# Espejo del canonico: contrato de productores legacy (ver inneros_core_runtime).
+LEGACY_PRODUCER_STATUS_MAP = {"queued": "proposed"}
+LEGACY_PRODUCER_ASSIGNEE_MAP = {"qwen-coding": "dev_swarm", "qwen_coding": "dev_swarm"}
+LEGACY_PRODUCER_LANE_MAP = {"internal": LOCAL_DEV_SWARM_LANE}
+
+
+def normalize_producer_task(task: dict[str, Any]) -> dict[str, Any]:
+    """Mapea etiquetas legacy (queued/qwen-coding/internal) al contrato dev_swarm."""
+    normalized = dict(task or {})
+    status = str(normalized.get("status") or "").strip().lower()
+    if status in LEGACY_PRODUCER_STATUS_MAP:
+        normalized["status"] = LEGACY_PRODUCER_STATUS_MAP[status]
+    for key in ("assignee", "owner"):
+        value = str(normalized.get(key) or "").strip().lower()
+        if value in LEGACY_PRODUCER_ASSIGNEE_MAP:
+            normalized[key] = LEGACY_PRODUCER_ASSIGNEE_MAP[value]
+    lane = str(normalized.get("execution_lane") or "").strip().lower()
+    if lane in LEGACY_PRODUCER_LANE_MAP:
+        normalized["execution_lane"] = LEGACY_PRODUCER_LANE_MAP[lane]
+    payload = normalized.get("payload")
+    if isinstance(payload, dict):
+        payload_lane = str(payload.get("execution_lane") or "").strip().lower()
+        if payload_lane in LEGACY_PRODUCER_LANE_MAP:
+            payload = dict(payload)
+            payload["execution_lane"] = LEGACY_PRODUCER_LANE_MAP[payload_lane]
+            normalized["payload"] = payload
+    return normalized
+
+
 
 
 def _registry_resolve_repo(project_id: str = "", repo: str = "") -> str | None:
@@ -1114,6 +1143,7 @@ def _ops_auto_retry_allowed(task: dict[str, Any]) -> bool:
 
 
 def _eligible_reason(task: dict[str, Any]) -> tuple[bool, str, str | None]:
+    task = normalize_producer_task(task)
     status = str(task.get("status") or "").lower()
     cooldown = _parse_dt(task.get("cooldown_until"))
     if cooldown and cooldown > datetime.now(timezone.utc):

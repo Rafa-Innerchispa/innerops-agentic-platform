@@ -145,6 +145,7 @@ def deliver_email_owner_digest(*, hours: int = 24, limit: int = 40, whatsapp: bo
         body=text,
         kind="email_digest",
         email_always=True,
+        ha=False,
     )
     digest["fanout"] = fanout
     digest["delivered"] = bool(fanout.get("ok"))

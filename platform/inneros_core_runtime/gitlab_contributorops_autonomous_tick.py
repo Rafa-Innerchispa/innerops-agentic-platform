@@ -92,7 +92,8 @@ def run_autonomous_tick(*, poll_email: bool = True, watch_gitlab: bool = True) -
     out["ok"] = all(
         (step.get("ok", True) if isinstance(step, dict) else True)
         for key, step in out["steps"].items()
-        if key != "watch_once" or isinstance(step, dict)
+        if (key != "watch_once" or isinstance(step, dict))
+        and not (isinstance(step, dict) and step.get("external"))
     )
     return out
 
