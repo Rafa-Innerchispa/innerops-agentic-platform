@@ -38,6 +38,10 @@ _LEGACY_CAPABILITY_ALIASES: Dict[str, str] = {
     "network_device_reboot": "network.device.reboot.v1",
     "network_device_poe_cycle": "network.device.poe_cycle.v1",
     "network_device_verify_recovery": "network.device.verify_recovery.v1",
+    "vultr_inference_embeddings": "cloud.vultr.inference.embeddings.v1",
+    "vultr_inference_chat": "cloud.vultr.inference.chat.v1",
+    "vultr_inference_rerank": "cloud.vultr.inference.rerank.v1",
+    "vultr_status": "cloud.provider.status.v1",
 }
 
 
@@ -51,6 +55,9 @@ def resolve_capability_id(capability_id: str) -> str:
     aliased = _LEGACY_CAPABILITY_ALIASES.get(raw)
     if aliased and aliased in _CAPABILITY_REGISTRY:
         return aliased
+    for candidate in (raw + ".v1", raw.replace("_", "."), raw.replace("_", ".") + ".v1"):
+        if candidate in _CAPABILITY_REGISTRY:
+            return candidate
     return raw
 
 
@@ -141,7 +148,9 @@ def capability_describe(
             "error": "CAPABILITY_NOT_FOUND",
             "capability_id": capability_id
         }
-        
+
+    manifest = dict(manifest)
+    manifest.setdefault("parameters_schema", {"type": "object", "properties": {}})
     return {
         "ok": True,
         "capability": manifest

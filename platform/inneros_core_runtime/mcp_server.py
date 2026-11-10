@@ -96,6 +96,8 @@ def _router_mcp_public_url() -> str:
     base = MCP_PUBLIC_URL.rstrip("/")
     if base.endswith("/router/mcp"):
         return base
+    if base.endswith("/router"):
+        return f"{base}/mcp"
     return f"{base}/router/mcp"
 
 
