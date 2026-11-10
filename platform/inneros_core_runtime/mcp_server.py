@@ -8437,3 +8437,128 @@ if __name__ == "__main__":
         path="/mcp",
         middleware=[StarletteMiddleware(McpSmallOAuthDiscoveryMiddleware)],
     )
+
+
+# ==============================================================================
+# CLOUD PROVIDER FABRIC & VULTR INTEGRATION (Issue #263)
+# ==============================================================================
+
+@mcp.tool
+def cloud_providers_list() -> dict[str, Any]:
+    """Cloud Provider Fabric: lista todos los proveedores cloud y compute configurados."""
+    from inneros_core_runtime import cloud_provider_fabric
+    return cloud_provider_fabric.list_providers()
+
+
+@mcp.tool
+def cloud_provider_status(provider_id: str) -> dict[str, Any]:
+    """Cloud Provider Fabric: consulta estado y conectividad detallada de un proveedor."""
+    from inneros_core_runtime import cloud_provider_fabric
+    return cloud_provider_fabric.get_provider_status(provider_id=provider_id)
+
+
+@mcp.tool
+def cloud_instances_list(provider_id: str = "") -> dict[str, Any]:
+    """Cloud Provider Fabric: lista instancias activas en uno o todos los proveedores."""
+    from inneros_core_runtime import cloud_provider_fabric
+    return cloud_provider_fabric.list_instances(provider_id=provider_id or None)
+
+
+@mcp.tool
+def cloud_instance_plan(
+    provider_id: str = "vultr-cloud",
+    region: str = "mia",
+    plan: str = "vc2-1c-1gb",
+    label: str = "inneros-planned-instance",
+) -> dict[str, Any]:
+    """Cloud Provider Fabric: genera plan de aprovisionamiento dry-run y estimación de costos."""
+    from inneros_core_runtime import cloud_provider_fabric
+    return cloud_provider_fabric.plan_instance(provider_id=provider_id, region=region, plan=plan, label=label)
+
+
+@mcp.tool
+def cloud_instance_create(
+    provider_id: str,
+    region: str,
+    plan: str,
+    label: str,
+    dry_run: bool = True,
+    owner_approved: bool = False,
+    task_id: str = "",
+) -> dict[str, Any]:
+    """Cloud Provider Fabric: crea una instancia cloud. Estrictamente dry_run=True por defecto."""
+    from inneros_core_runtime import cloud_provider_fabric
+    return cloud_provider_fabric.create_instance(
+        provider_id=provider_id,
+        region=region,
+        plan=plan,
+        label=label,
+        dry_run=dry_run,
+        owner_approved=owner_approved,
+        task_id=task_id,
+    )
+
+
+@mcp.tool
+def cloud_instance_destroy(
+    provider_id: str,
+    instance_id: str,
+    dry_run: bool = True,
+    owner_approved: bool = False,
+    task_id: str = "",
+) -> dict[str, Any]:
+    """Cloud Provider Fabric: destruye una instancia cloud. Estrictamente dry_run=True por defecto."""
+    from inneros_core_runtime import cloud_provider_fabric
+    return cloud_provider_fabric.destroy_instance(
+        provider_id=provider_id,
+        instance_id=instance_id,
+        dry_run=dry_run,
+        owner_approved=owner_approved,
+        task_id=task_id,
+    )
+
+
+@mcp.tool
+def cloud_credits_status() -> dict[str, Any]:
+    """Cloud Provider Fabric: consulta saldo y créditos verificables en Vultr, DO, Nebius y AMD."""
+    from inneros_core_runtime import cloud_provider_fabric
+    return cloud_provider_fabric.get_credits_status()
+
+
+@mcp.tool
+def cloud_pricing_compare(vcpu: int = 1, ram_gb: int = 1) -> dict[str, Any]:
+    """Cloud Provider Fabric: compara precios entre proveedores para una especificación dada."""
+    from inneros_core_runtime import cloud_provider_fabric
+    return cloud_provider_fabric.compare_pricing(specs={"vcpu": vcpu, "ram_gb": ram_gb})
+
+
+@mcp.tool
+def vultr_status() -> dict[str, Any]:
+    """Vultr Cloud: consulta conectividad, créditos y estado de cuenta."""
+    from inneros_core_runtime import vultr_cloud_provider
+    return vultr_cloud_provider.status()
+
+
+@mcp.tool
+def vultr_list_instances(region: str = "", label: str = "") -> dict[str, Any]:
+    """Vultr Cloud: lista instancias reales activas en Vultr."""
+    from inneros_core_runtime import vultr_cloud_provider
+    return vultr_cloud_provider.list_instances(region=region, label=label)
+
+
+@mcp.tool
+def switch_rooms_command(
+    command_text: str,
+    sender: str = "mcp_operator",
+    correlation_id: str = "",
+    message_id: str = "",
+) -> dict[str, Any]:
+    """Switch Rooms: ejecuta comando de colaboración (!ping, !status, !incident) con trazabilidad CID."""
+    from inneros_core_runtime.switch_rooms_adapter import SwitchRoomsAdapter
+    adapter = SwitchRoomsAdapter()
+    return adapter.handle_command(
+        command_text=command_text,
+        sender=sender,
+        correlation_id=correlation_id or None,
+        message_id=message_id or None,
+    )
