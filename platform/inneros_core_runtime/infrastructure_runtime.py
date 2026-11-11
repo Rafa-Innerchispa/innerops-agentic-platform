@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-LOCAL = Path('/home/rlopez/data/ai_coordination/infrastructure/ralphi-ia-ver-10.latest.json')
-COLLECTOR = '/home/rlopez/projects/ralphiia-quoteops/work_infrastructure_snapshot.py'
+DEFAULT_LOCAL = Path.home() / 'data' / 'ai_coordination' / 'infrastructure' / 'ralphi-ia-ver-10.latest.json'
+DEFAULT_COLLECTOR = '/home/rlopez/projects/ralphiia-quoteops/work_infrastructure_snapshot.py'
+LOCAL = Path(os.getenv('INNEROS_INFRA_SNAPSHOT_JSON', str(DEFAULT_LOCAL)))
+COLLECTOR = os.getenv('INNEROS_INFRA_COLLECTOR', DEFAULT_COLLECTOR)
+REMOTE_USER = os.getenv('INNEROS_INFRA_REMOTE_USER', 'rlopez')
+REMOTE_HOST = os.getenv('INNEROS_INFRA_REMOTE_HOST', '192.168.1.5')
 
 
 def _read(path: Path) -> dict:
@@ -19,7 +24,7 @@ def _read(path: Path) -> dict:
 def _refresh_remote() -> dict:
     try:
         proc = subprocess.run(
-            ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', 'rlopez@192.168.1.5',
+            ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', f'{REMOTE_USER}@{REMOTE_HOST}',
              f'python3 {COLLECTOR}'],
             capture_output=True, text=True, timeout=12, check=False,
         )

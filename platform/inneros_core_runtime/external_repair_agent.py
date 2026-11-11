@@ -25,7 +25,7 @@ from raphiia_openai.settings import COL_AGENT_MESSAGES
 
 RUNS_COL = "ralfia_external_repair_runs"
 CREDIT_STATE_KEY = "external_repair_credit_governor"
-PROVIDERS = ("codex", "cursor", "antigravity", "digitalocean-amd-cloud")
+PROVIDERS = ("codex", "cursor", "antigravity", "meta", "digitalocean-amd-cloud")
 LOCAL_CLI_PROVIDERS = {"codex", "cursor", "antigravity"}
 CLOUD_BURST_PROVIDERS = {"digitalocean-amd-cloud"}
 PRIORITY_ORDER = {"urgent": 0, "critical": 1, "p0": 2, "high": 3, "p1": 4, "normal": 5, "p2": 6, "low": 7}
@@ -35,8 +35,8 @@ ACTIVE_STATUSES = {"accepted", "in_progress", "verification", "awaiting_approval
 SUCCESS_RESULTS = {"PASS", "OK", "COMPLETED"}
 COMMIT_SHA_RE = re.compile(r"\b[0-9a-f]{40}\b", re.IGNORECASE)
 COMPLETION_MARKERS = ("ya integr", "ya fue cerrado", "closed by", "completed", "integrated", "reconcílialo", "ciérralo")
-DEFAULT_DAILY_HARD_LIMIT = {"codex": 3, "cursor": 5, "antigravity": 50, "digitalocean-amd-cloud": 1}
-DEFAULT_MONTHLY_HARD_LIMIT = {"codex": 30, "cursor": 50, "antigravity": 500, "digitalocean-amd-cloud": 6}
+DEFAULT_DAILY_HARD_LIMIT = {"codex": 3, "cursor": 5, "antigravity": 50, "meta": 2, "digitalocean-amd-cloud": 1}
+DEFAULT_MONTHLY_HARD_LIMIT = {"codex": 30, "cursor": 50, "antigravity": 500, "meta": 20, "digitalocean-amd-cloud": 6}
 RUN_ACTIVE_STATUSES = {"queued", "running", "checkpointed"}
 RUN_TERMINAL_STATUSES = {"completed", "failed", "blocked", "cancelled"}
 AUTO_CLAIM_ENV = "EXTERNAL_REPAIR_AUTO_CLAIM"
@@ -102,6 +102,20 @@ def _auth_probe(provider: str) -> dict[str, Any]:
                 "gemini_api_key_present": bool(os.getenv("GEMINI_API_KEY")),
             },
             "secret_policy": "presence only; secret values are never read or returned",
+        }
+    if provider == "meta":
+        # Meta has no local CLI binary. Auth is a per-task owner grant held in
+        # the server-side owner vault and consumed one-shot via MetaGrantLedger
+        # (see meta_model_provider). This probe never reports ready: every Meta
+        # call needs an explicit grant, so silent credit burn is impossible.
+        return {
+            "auth_ready": False,
+            "auth_markers": {
+                "meta_cli_present": False,
+                "meta_auth_mode": "owner_vault_per_task_grant",
+                "meta_grant_ledger": "MetaGrantLedger_one_use_sqlite",
+            },
+            "secret_policy": "presence only; Meta auth is a per-task owner grant in the vault, never a local key",
         }
     if provider == "cursor":
         cursor_home = Path.home() / ".cursor"

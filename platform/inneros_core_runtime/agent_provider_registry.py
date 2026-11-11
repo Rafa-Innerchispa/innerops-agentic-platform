@@ -8,7 +8,7 @@ from typing import Any
 
 from inneros_core_runtime import agent_identity
 
-_DEFAULT_IDE = frozenset({"cursor", "codex", "antigravity", "gemini", "chatgpt"})
+_DEFAULT_IDE = frozenset({"cursor", "codex", "antigravity", "gemini", "chatgpt", "meta"})
 _DEFAULT_INTERNAL = frozenset({
     "local", "dev_swarm", "dev-swarm", "temporal",
     # Actor mailboxes use underscores, while execution providers use hyphens.
@@ -113,5 +113,6 @@ register_interactive_provider(
     pinned_model_env="ANTIGRAVITY_OPS_PINNED_MODEL",
 )
 register_interactive_provider("gemini", default_lane="gemini_interactive", pinned_model_env="GEMINI_OPS_PINNED_MODEL")
+register_interactive_provider("meta", default_lane="meta_interactive", pinned_model_env="META_OPS_PINNED_MODEL")
 register_interactive_provider("chatgpt", default_lane="chatgpt_interactive", pinned_model_env="CHATGPT_OPS_PINNED_MODEL")
 _load_env_extra()
