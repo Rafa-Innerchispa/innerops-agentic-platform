@@ -69,11 +69,42 @@ jobs:
           PYTHONPATH: .
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
-          python -m pytest tests/test_p0_lane_a_scope_contract.py tests/test_coordination_recovery_p0.py tests/test_coordination_ingest.py tests/test_temporal_bounded_executor.py tests/test_infralens_runtime_recovery.py -v --tb=short
+          set -e
+          # Same trap as the main gate: tests/__init__.py makes pytest import
+          # by package path (platform.tests.*), colliding with the stdlib
+          # `platform` module. Run from a layout mirror (real test files,
+          # symlinked siblings) like inneros-runtime-gates.
+          STAGE="$RUNNER_TEMP/lane-a-gates"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/platform/tests"
+          cp "$GITHUB_WORKSPACE"/platform/tests/test_*.py "$GITHUB_WORKSPACE"/platform/tests/conftest.py "$STAGE/platform/tests/"
+          for entry in "$GITHUB_WORKSPACE"/platform/*; do
+            base=$(basename "$entry")
+            [ "$base" = "tests" ] || ln -s "$entry" "$STAGE/platform/$base"
+          done
+          for entry in scripts docs .github var; do
+            [ -e "$GITHUB_WORKSPACE/$entry" ] && ln -s "$GITHUB_WORKSPACE/$entry" "$STAGE/$entry" || true
+          done
+          cd "$STAGE/platform/tests"
+          PYTHONPATH="$GITHUB_WORKSPACE/platform" python -m pytest test_p0_lane_a_scope_contract.py test_coordination_recovery_p0.py test_coordination_ingest.py test_temporal_bounded_executor.py test_infralens_runtime_recovery.py -v --tb=short
       - name: Canary 2 — MCP short profile + diagnostics contract
         env:
           PYTHONPATH: .
-        run: python -m pytest tests/test_mcp_diagnostics_small_profile.py tests/test_oauth_alexa_mcp.py::test_small_router_resource_is_canonical_and_exact tests/test_oauth_alexa_mcp.py::test_router_protected_resource_metadata_is_exact_and_fail_closed tests/test_oauth_alexa_mcp.py::test_router_protected_resource_metadata_route_is_declared -v --tb=short
+        run: |
+          set -e
+          STAGE="$RUNNER_TEMP/lane-a-gates"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/platform/tests"
+          cp "$GITHUB_WORKSPACE"/platform/tests/test_*.py "$GITHUB_WORKSPACE"/platform/tests/conftest.py "$STAGE/platform/tests/"
+          for entry in "$GITHUB_WORKSPACE"/platform/*; do
+            base=$(basename "$entry")
+            [ "$base" = "tests" ] || ln -s "$entry" "$STAGE/platform/$base"
+          done
+          for entry in scripts docs .github var; do
+            [ -e "$GITHUB_WORKSPACE/$entry" ] && ln -s "$GITHUB_WORKSPACE/$entry" "$STAGE/$entry" || true
+          done
+          cd "$STAGE/platform/tests"
+          PYTHONPATH="$GITHUB_WORKSPACE/platform" python -m pytest test_mcp_diagnostics_small_profile.py test_oauth_alexa_mcp.py::test_small_router_resource_is_canonical_and_exact test_oauth_alexa_mcp.py::test_router_protected_resource_metadata_is_exact_and_fail_closed test_oauth_alexa_mcp.py::test_router_protected_resource_metadata_route_is_declared -v --tb=short
       - name: Whitespace / conflict markers
         working-directory: ${{ github.workspace }}
         run: |
