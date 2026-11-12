@@ -3,6 +3,15 @@
 
 Fase por defecto (--mode orchestrate): crea tareas, autoriza, claim+complete sin LLM (evidencia = hash real del repo).
 Fase --mode create-only: solo admite y reporta binding / list_claimable (0 ejecución).
+
+v4 (post canary v3): authorize+claim de TODOS los lanes interactivos primero
+(ningún lane muere de inanición tras un wait ajeno); waits incluyen los
+gates verification/pending_human_review (sin waits fútiles de 300s); la
+extracción de evidencia recorre formas anidadas (agent_result, gate); el
+match de SHAs exige evidencia en los 4 lanes (el match vicioso 1/4 = False).
+Lane ok = completed con evidencia, o verification con evidencia que coincide
+con el SHA compartido (flow probado; terminal `completed` requiere approve
+humano por diseño fail-closed).
 """
 
 from __future__ import annotations
@@ -137,12 +146,57 @@ def _git_head(path: str) -> str:
     return proc.stdout.strip()
 
 
-def _interactive_finish(provider: str, task_id: str, *, fallback_sha: str, repo_path: str) -> dict[str, Any]:
+def extract_evidence_sha(final: dict[str, Any]) -> str | None:
+    """Best-effort commit_sha across evidence shapes (flat + nested).
+
+    Interactive completions store candidate_evidence.commit_sha; autonomous
+    (dev_swarm) completions nest it under evidence.agent_result(.evidence)
+    or evidence.gate_verification. First non-empty hit wins.
+    """
+    final = final or {}
+    cands: list[Any] = [
+        (final.get("candidate_evidence") or {}).get("commit_sha"),
+        (final.get("evidence") or {}).get("commit_sha"),
+    ]
+    agent = (final.get("evidence") or {}).get("agent_result") or {}
+    cands.append(agent.get("commit_sha"))
+    cands.append((agent.get("evidence") or {}).get("commit_sha"))
+    cands.append(((final.get("evidence") or {}).get("gate_verification") or {}).get("commit_sha"))
+    for cand in cands:
+        if cand:
+            return str(cand)
+    return None
+
+
+def evidence_shas_match(lanes: list[dict[str, Any]]) -> tuple[bool, Any]:
+    """Strict cross-lane SHA agreement: every lane must evidence, all equal.
+
+    A single evidencing lane out of four is NOT a match (canary v3 flaw).
+    Returns (match, shared_sha_or_sorted_list).
+    """
+    shas = [r.get("evidence_commit") for r in (lanes or [])]
+    present = [s for s in shas if s]
+    if not lanes or len(present) != len(shas):
+        return False, sorted(set(present))
+    uniq = set(present)
+    if len(uniq) == 1:
+        return True, present[0]
+    return False, sorted(uniq)
+
+
+def _interactive_claim(provider: str, task_id: str) -> dict[str, Any]:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     ior.authorize_ops_task(provider, task_id, owner_actor="RAFAEL", channel="quad_canary")
-    claim = ior.claim_ops_task(provider, task_id=task_id, owner_approved=True)
-    if not claim.get("ok"):
+    return ior.claim_ops_task(provider, task_id=task_id, owner_approved=True)
+
+
+def _interactive_finish(
+    provider: str, task_id: str, claim: dict[str, Any], *, fallback_sha: str, repo_path: str
+) -> dict[str, Any]:
+    from inneros_core_runtime import interactive_ops_runner as ior
+
+    if not (claim or {}).get("ok"):
         return {"ok": False, "stage": "claim", "claim": claim}
     wt = str(claim.get("worktree") or repo_path)
     commit_sha = _git_head(wt)
@@ -197,15 +251,37 @@ def main() -> int:
         print(json.dumps(report, indent=2, default=str))
         return 0
 
+    def _created_task_id(create: dict[str, Any]) -> str:
+        return str(create.get("task_id") or (create.get("task") or {}).get("task_id") or "")
+
+    # Phase A: authorize+claim EVERY interactive lane up front. A lane must
+    # never starve behind another lane's completion wait (canary v3: codex
+    # and antigravity were circuit-broken before their sequential turn).
+    early_claims: dict[str, dict[str, Any]] = {}
+    for entry in created_lanes:
+        lane = entry["lane"]
+        if lane == "dev_swarm":
+            continue
+        create = entry.get("create") or {}
+        task_id = _created_task_id(create) if create.get("ok") else ""
+        if not task_id:
+            continue
+        try:
+            early_claims[lane] = _interactive_claim(lane, task_id)
+        except Exception as exc:  # canary always emits a JSON verdict
+            early_claims[lane] = {"ok": False, "error": "claim_exception", "detail": str(exc)[:200]}
+
     for entry in created_lanes:
         lane = entry["lane"]
         create = entry.get("create") or {}
         if not create.get("ok"):
-            report["lanes"].append({"lane": lane, "ok": False, "error": "create_failed", "create": create})
+            report["lanes"].append({"lane": lane, "ok": False, "terminal": False,
+                                     "error": "create_failed", "create": create})
             continue
-        task_id = str(create.get("task_id") or (create.get("task") or {}).get("task_id") or "")
+        task_id = _created_task_id(create)
         if not task_id:
-            report["lanes"].append({"lane": lane, "ok": False, "error": "task_id_missing", "create": create})
+            report["lanes"].append({"lane": lane, "ok": False, "terminal": False,
+                                     "error": "task_id_missing", "create": create})
             continue
 
         lane_result: dict[str, Any] = {"lane": lane, "task_id": task_id}
@@ -213,25 +289,44 @@ def main() -> int:
         if lane == "dev_swarm":
             final = _wait_status(task_id, want={"completed", "failed", "blocked", "cancelled"}, timeout_s=300)
             lane_result["final_status"] = final.get("status")
-            ev = final.get("candidate_evidence") or final.get("evidence") or {}
-            lane_result["evidence_commit"] = ev.get("commit_sha")
-            lane_result["ok"] = final.get("status") == "completed"
+            lane_result["evidence_commit"] = extract_evidence_sha(final)
         else:
             lane_result["claimable_before"] = _report_claimable(correlation_id).get(lane)
-            fin = _interactive_finish(lane, task_id, fallback_sha=head_sha, repo_path=repo_path)
+            claim = early_claims.get(lane) or {"ok": False, "error": "claim_skipped"}
+            try:
+                fin = _interactive_finish(lane, task_id, claim, fallback_sha=head_sha, repo_path=repo_path)
+            except Exception as exc:  # canary always emits a JSON verdict
+                fin = {"ok": False, "stage": "exception", "error": str(exc)[:200], "claim": claim}
             lane_result["interactive"] = fin
-            final = _wait_status(task_id, want={"completed", "failed"}, timeout_s=300)
+            final = _wait_status(task_id, want={"completed", "failed", "verification",
+                                                "pending_human_review"}, timeout_s=300)
             lane_result["final_status"] = final.get("status")
-            ev = final.get("candidate_evidence") or {}
-            lane_result["evidence_commit"] = ev.get("commit_sha")
-            lane_result["ok"] = final.get("status") == "completed"
+            lane_result["evidence_commit"] = extract_evidence_sha(final)
 
         report["lanes"].append(lane_result)
 
-    shas = {r.get("evidence_commit") for r in report["lanes"] if r.get("evidence_commit")}
-    report["all_evidence_shas_match"] = len(shas) == 1 and len(report["lanes"]) == 4
-    report["shared_commit_sha"] = next(iter(shas)) if len(shas) == 1 else sorted(shas)
+    # Pass 2: strict SHA agreement first, then per-lane verdicts. Interactive
+    # verification with matching evidence = flow proven (terminal `completed`
+    # needs a human approve by fail-closed design); anything else must be
+    # completed with evidence. pending_human_review is never ok (breaker).
+    match, shared = evidence_shas_match(report["lanes"])
+    for lane_result in report["lanes"]:
+        if lane_result.get("error"):
+            continue
+        status = lane_result.get("final_status")
+        ev = lane_result.get("evidence_commit")
+        lane_result["terminal"] = status == "completed"
+        if lane_result["lane"] == "dev_swarm":
+            lane_result["ok"] = (status == "completed") and bool(ev)
+        else:
+            lane_result["ok"] = bool(ev) and (
+                status == "completed" or (status == "verification" and match and ev == shared)
+            )
+
+    report["all_evidence_shas_match"] = match
+    report["shared_commit_sha"] = shared
     report["all_lanes_ok"] = all(r.get("ok") for r in report["lanes"])
+    report["all_terminal"] = all(r.get("terminal") for r in report["lanes"])
     report["ok"] = report["all_lanes_ok"]
     report["finished_at"] = _utc()
     print(json.dumps(report, indent=2, default=str))

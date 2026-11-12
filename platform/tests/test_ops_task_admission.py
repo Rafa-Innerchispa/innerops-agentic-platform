@@ -123,3 +123,55 @@ def test_repair_still_fixes_unbound_coding_without_repo():
     patch = ota.repair_misclassified_task(task)
     assert patch is not None
     assert patch["execution_lane"] == "device_fabric"
+
+
+def test_explicit_interactive_lanes_keep_lane_despite_readonly_markers():
+    # Canary v3: cursor/codex/antigravity tasks with "Solo lectura" objectives
+    # were hijacked to device_fabric at create time, which broke binding and
+    # tripped the workflow circuit breaker. Explicit agentic lanes win.
+    for lane in (
+        "cursor_interactive",
+        "codex_interactive",
+        "antigravity_interactive",
+        "gemini_interactive",
+        "chatgpt_interactive",
+        "manual_interactive",
+    ):
+        provider = lane.split("_")[0]
+        task = {
+            "task_id": f"ops_canary_{provider}",
+            "title": f"[quad-canary] {provider} SHA256 AGENTS.md",
+            "objective": "Solo lectura: en el worktree ejecuta git rev-parse HEAD y entrega commit_sha en evidencia.",
+            "task_class": "verification",
+            "assignee": provider,
+            "preferred_provider": provider,
+            "execution_lane": lane,
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
+            "do_not_auto_dispatch": True,
+        }
+        out = ota.normalize_ops_admission(task)
+        assert out["execution_lane"] == lane, lane
+        assert out["task_class"] == "verification", lane
+        assert out["assignee"] == provider, lane
+        assert out["preferred_provider"] == provider, lane
+        assert out["do_not_auto_dispatch"] is True, lane
+        assert "admission_normalized" not in out, lane
+
+
+def test_repair_skips_all_protected_lanes():
+    for lane in (
+        "local_dev_swarm",
+        "cursor_interactive",
+        "codex_interactive",
+        "antigravity_interactive",
+        "gemini_interactive",
+        "chatgpt_interactive",
+        "manual_interactive",
+    ):
+        task = {
+            "task_id": f"ops_repair_{lane}",
+            "title": "preflight solo lectura Bellini",
+            "task_class": "coding",
+            "execution_lane": lane,
+        }
+        assert ota.repair_misclassified_task(task) is None, lane
