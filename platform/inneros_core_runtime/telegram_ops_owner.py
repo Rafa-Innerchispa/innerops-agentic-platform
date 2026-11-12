@@ -83,7 +83,7 @@ def _handle_callback(cb: dict[str, Any]) -> dict[str, Any]:
         tg.answer_callback(cq_id, "No autorizado")
         return {"ok": False, "error": "telegram_chat_not_owner"}
     tg.persist_owner_chat_id(chat_id)
-    out = wa_owner.handle_owner_reply(data, owner_actor="RAFAEL", phone=_owner_phone())
+    out = wa_owner.handle_owner_reply(data, owner_actor="RAFAEL", phone=_owner_phone(), channel="telegram")
     if cq_id:
         tg.answer_callback(cq_id, (out or {}).get("text", "")[:200] if out else "OK")
     if out and out.get("text"):
@@ -216,7 +216,7 @@ def _handle_message(msg: dict[str, Any]) -> dict[str, Any]:
         tg.send_message(HELP_TEXT[:4000], chat_id=chat_id, parse_mode="")
         return {"ok": True, "action": "help"}
     if _OPS_AUTH_RE.match(text):
-        out = wa_owner.handle_owner_reply(text, owner_actor="RAFAEL", phone=_owner_phone())
+        out = wa_owner.handle_owner_reply(text, owner_actor="RAFAEL", phone=_owner_phone(), channel="telegram")
         if out and out.get("text"):
             _reply(chat_id, str(out["text"]), voice=False)
             return {"ok": True, "action": "owner_reply", "result": out}

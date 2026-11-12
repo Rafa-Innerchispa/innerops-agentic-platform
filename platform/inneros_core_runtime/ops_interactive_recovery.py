@@ -23,6 +23,10 @@ MANUAL_INTERACTIVE_LANES = frozenset(
 
 ORPHAN_STATUSES = ("accepted", "in_progress", "running", "claimed")
 
+# Recovery grace is deliberately larger than the claim-validity grace: a lease
+# must be plainly dead (no renewal racing us) before the task is reclaimable.
+EXPIRED_LEASE_RECOVERY_GRACE_SECONDS = 300
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -130,5 +134,78 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
                 "$inc": {"revision": 1},
             },
         )
+        recovered.append({"task_id": tid, "status": target})
+    return {"ok": True, "recovered": recovered, "scanned": len(rows)}
+
+
+def recover_expired_lease_interactive_ops_tasks(
+    *,
+    limit: int = 20,
+    grace_seconds: int = EXPIRED_LEASE_RECOVERY_GRACE_SECONDS,
+) -> dict[str, Any]:
+    """Release interactive tasks whose lease expired without execution.
+
+    Complements :func:`recover_orphan_interactive_ops_tasks`, which only sees
+    tasks *without* a claim token. These tasks hold a token whose lease is
+    long dead: no live owner can still be working under it, so the task is
+    returned to its awaiting-claim status instead of rotting in ``claimed``.
+    The compare-and-swap pins the exact observed ``lease_until`` so a
+    concurrent renewal always wins the race.
+    """
+    db = mongo_store.get_db()
+    filt = {
+        "status": {"$in": list(ORPHAN_STATUSES)},
+        "claim_token": {"$nin": [None, ""]},
+        "lease_until": {"$nin": [None, ""]},
+    }
+    rows = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(5, min(limit * 4, 80))))
+    now = datetime.now(timezone.utc)
+    recovered: list[dict[str, Any]] = []
+    for task in rows:
+        if len(recovered) >= limit:
+            break
+        if not requires_manual_interactive_lane(task):
+            continue
+        if task.get("execution_stop"):
+            continue
+        lease = _parse_ts(str(task.get("lease_until") or ""))
+        if lease is None:
+            continue
+        if lease.tzinfo is None:
+            lease = lease.replace(tzinfo=timezone.utc)
+        if (now - lease).total_seconds() <= max(0, grace_seconds):
+            continue
+        tid = str(task.get("task_id") or "")
+        token = str(task.get("claim_token") or "")
+        lease_raw = str(task.get("lease_until") or "")
+        if not tid or not token:
+            continue
+        target = awaiting_claim_status_for_task(task)
+        stamp = _now()
+        res = db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": token, "lease_until": lease_raw},
+            {
+                "$set": {
+                    "status": target,
+                    "updated_at": stamp,
+                    "claim_error": "expired_lease_recovered",
+                    "lease_recovery_at": stamp,
+                    "recovered_from_status": str(task.get("status") or ""),
+                },
+                "$unset": {
+                    "claimed_at": "",
+                    "lease_until": "",
+                    "claimed_by": "",
+                    "claim_host": "",
+                    "claim_token": "",
+                    "headless_execution_started_at": "",
+                    "headless_execution_pid": "",
+                    "headless_execution_host": "",
+                },
+                "$inc": {"revision": 1},
+            },
+        )
+        if getattr(res, "matched_count", 1) == 0:
+            continue
         recovered.append({"task_id": tid, "status": target})
     return {"ok": True, "recovered": recovered, "scanned": len(rows)}

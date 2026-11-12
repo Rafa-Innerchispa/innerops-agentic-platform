@@ -45,6 +45,7 @@ def test_cancel_signal_does_not_claim_terminal_cancel_before_projection_confirms
         ),
         patch("inneros_core_runtime.whatsapp_ops_auth_pending.mark_cancel_requested") as mark,
         patch("inneros_core_runtime.whatsapp_ops_auth_pending.clear_pending") as clear,
+        patch("inneros_core_runtime.cursor_ops_runner._publish_task_event"),
     ):
         out = owner.handle_owner_reply("CANCELAR abcdef123456")
 
@@ -79,6 +80,7 @@ def test_terminal_cancel_clears_pending_and_reports_cancelled():
         ),
         patch("inneros_core_runtime.whatsapp_ops_auth_pending.mark_cancel_requested"),
         patch("inneros_core_runtime.whatsapp_ops_auth_pending.clear_pending") as clear,
+        patch("inneros_core_runtime.cursor_ops_runner._publish_task_event"),
     ):
         out = owner.handle_owner_reply("CANCELAR abcdef123456")
 

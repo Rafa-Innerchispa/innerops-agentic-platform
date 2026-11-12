@@ -116,9 +116,18 @@ def _mark_owner_auth_sent_mongo(task_id: str) -> None:
 
 
 def owner_auth_notified(task_id: str) -> bool:
-    tid = str(task_id or "")
+    tid = str(task_id or "").strip()
+    if not tid:
+        return False
     if tid in set(_STATE.get("sent", [])):
         return True
+    try:
+        from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
+        row = ops_pending.get_by_task_id(tid)
+        if row and str(row.get("status") or "").lower() in {"pending", "cancel_requested"}:
+            return True
+    except Exception:
+        pass
     return _owner_auth_sent_mongo(tid)
 
 
@@ -216,10 +225,17 @@ def notify_ops_owner_authorization_request(
     except Exception:
         whatsapp_up = False
     ha_primary = ops_ha.ha_auth_enabled()
-    if not ha_primary and not _whatsapp_enabled():
+    tg_ready = False
+    try:
+        from inneros_core_runtime.notifications import telegram_client as _tgc
+
+        tg_ready = bool(_tgc.telegram_enabled() and _tgc.configured())
+    except Exception:
+        tg_ready = False
+    if not ha_primary and not tg_ready and not _whatsapp_enabled():
         return {
             "ok": False,
-            "skipped": "ha_disabled_and_whatsapp_off",
+            "skipped": "no_owner_channel_available",
             "task_id": str(task.get("task_id") or ""),
         }
 
@@ -755,3 +771,20 @@ def notify_dev_swarm_outcome(
         "outcome": outcome_u,
         "delivery_mode": "+".join(modes) if modes else "unreachable",
     }
+
+
+def resend_ops_owner_authorization(task_id: str) -> dict[str, Any]:
+    """Force-resend exactly one existing ops authorization card by task_id."""
+    tid = str(task_id or "").strip()
+    if not tid:
+        return {"ok": False, "error": "task_id_required"}
+    from raphiia_openai import mongo_store
+    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+
+    task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+    if not task:
+        return {"ok": False, "error": "task_not_found", "task_id": tid}
+    status = str(task.get("status") or "").lower()
+    if status in TERMINAL_OPS:
+        return {"ok": False, "error": "task_terminal", "task_id": tid, "status": status}
+    return notify_ops_owner_authorization_request(task, force=True)

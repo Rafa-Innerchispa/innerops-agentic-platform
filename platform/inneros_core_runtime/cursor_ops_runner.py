@@ -165,6 +165,89 @@ def _release_claim(db, tid: str, *, reason: str, details: dict[str, Any] | None 
     )
 
 
+CANCEL_TERMINAL_STATUSES = frozenset(
+    {"completed", "done", "failed", "blocked", "partial", "cancelled", "canceled", "superseded", "archived"}
+)
+_ACTIVE_CLAIM_STATUSES = frozenset({"claimed", "in_progress", "running"})
+
+
+def cancel_ops_task(
+    task_id: str,
+    *,
+    owner_actor: str = "RAFAEL",
+    reason: str = "owner_cancel",
+    channel: str | None = None,
+    known_task: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Owner-ordered cancel with active-claim eviction (provider-agnostic).
+
+    Moves any non-terminal task to ``cancelled``, invalidates a live
+    lease/claim token, and sets ``execution_stop`` so schedulers, autopilots
+    and dispatchers never respawn it. The caller is responsible for the
+    Temporal ``cancel`` signal; this function owns the Mongo projection.
+    Safe to call on terminal tasks (idempotent no-op report).
+    """
+    tid = (task_id or "").strip()
+    if not tid:
+        return {"ok": False, "error": "task_id_required"}
+    prev = dict(known_task or {})
+    prev_status = str(prev.get("status") or "").lower()
+    if prev and prev_status in CANCEL_TERMINAL_STATUSES:
+        return {"ok": True, "task_id": tid, "status": prev_status, "evicted": False, "already_terminal": True}
+    db = mongo_store.get_db()
+    now = _now()
+    set_doc: dict[str, Any] = {
+        "status": "cancelled",
+        "cancelled_at": now,
+        "cancelled_by": owner_actor,
+        "cancel_reason": str(reason or "owner_cancel")[:500],
+        "cancellation_requested_at": now,
+        "cancellation_requested_by": owner_actor,
+        "execution_stop": True,
+        "updated_at": now,
+    }
+    if channel:
+        set_doc["cancellation_channel"] = str(channel)[:64]
+    res = db[OPS_TASKS_COL].update_one(
+        {"task_id": tid, "status": {"$nin": sorted(CANCEL_TERMINAL_STATUSES)}},
+        {
+            "$set": set_doc,
+            "$unset": {
+                "claim_token": "",
+                "claimed_by": "",
+                "claimed_at": "",
+                "lease_until": "",
+                "claim_host": "",
+                "headless_execution_started_at": "",
+                "headless_execution_pid": "",
+                "headless_execution_host": "",
+            },
+            "$inc": {"revision": 1},
+        },
+    )
+    matched = getattr(res, "matched_count", 1)
+    if matched == 0:
+        cur = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "status": 1, "claim_token": 1}) or {}
+        if not cur:
+            return {"ok": False, "error": "task_not_found", "task_id": tid}
+        cur_status = str(cur.get("status") or "").lower()
+        if cur_status in CANCEL_TERMINAL_STATUSES:
+            return {"ok": True, "task_id": tid, "status": cur_status, "evicted": False, "already_terminal": True}
+        return {"ok": False, "error": "cancel_conflict", "task_id": tid, "status": cur_status}
+    evicted = bool(str(prev.get("claim_token") or "").strip()) or prev_status in _ACTIVE_CLAIM_STATUSES
+    try:
+        _publish_task_event(
+            "task.cancelled",
+            {**prev, "task_id": tid, "status": "cancelled"},
+            actor=str(owner_actor or "RAFAEL"),
+            status="cancelled",
+            payload={"previous_status": prev_status, "evicted": evicted, "reason": reason, "channel": channel},
+        )
+    except Exception:
+        pass
+    return {"ok": True, "task_id": tid, "status": "cancelled", "evicted": evicted, "previous_status": prev_status}
+
+
 def renew_ops_lease(task_id: str, claim_token: str, *, lease_seconds: int | None = None) -> dict[str, Any]:
     tid = (task_id or "").strip()
     tok = (claim_token or "").strip()
@@ -481,6 +564,12 @@ def claim_ops_task(
     requirements_checkpoint = otr.process_checkpoint_amendments(tid, actor="cursor")
 
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True, "assignee": "cursor", "status": "in_progress"})
+    try:
+        from inneros_core_runtime.memory import agent_messages as _am
+
+        dispatch_ack = _am.ack_dispatch_messages_for_task(tid, "cursor")
+    except Exception:
+        dispatch_ack = {"ok": False, "error": "ack_helper_failed", "acked": []}
     result: dict[str, Any] = {
         "ok": True,
         "task_id": tid,
@@ -499,6 +588,7 @@ def claim_ops_task(
         "temporal_handoff": temporal_handoff,
         "session": classified.get("interactive_session"),
         "requirements_checkpoint": requirements_checkpoint,
+        "dispatch_ack": dispatch_ack,
     }
     if os.getenv("INNEROS_CURSOR_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes"}:
         from inneros_core_runtime.cursor_headless_dispatch import spawn_headless_execute

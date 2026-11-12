@@ -72,51 +72,79 @@ jobs:
             platform/tests/test_peer_ops_runner_contract.py
       - name: Peer Ops and Temporal evidence regression suite
         env:
-          PYTHONPATH: platform
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
-          python -m pytest -q \
-            platform/tests/test_execution_resource_guard.py \
-            platform/tests/test_execution_resource_audit.py \
-            platform/tests/test_global_coordination_guards.py \
-            platform/tests/test_execution_binding.py \
-            platform/tests/test_local_model_router_fallback.py \
-            platform/tests/test_inneros_branch_ledger.py \
-            platform/tests/test_execution_receipts.py \
-            platform/tests/test_reconcile_ops_mongo_temporal.py \
-            platform/tests/test_governed_model_writes.py \
-            platform/tests/test_capability_gateway.py \
-            platform/tests/test_capability_gateway_regressions_p0.py \
-            platform/tests/test_peer_ops_runner_contract.py \
-            platform/tests/test_peer_observability_security_p0.py \
-            platform/tests/test_local_release_executor_contract.py \
-            platform/tests/test_inneros_release_gate.py \
-            platform/tests/test_gitlab_runner_policy_precedence.py \
-            platform/tests/test_local_github_plane.py \
-            platform/tests/test_repo_delivery_guardian.py \
-            platform/tests/test_runtime_routing_and_a2a_lease_regressions.py \
-            platform/tests/test_a2a_bridge.py \
-            platform/tests/test_temporal_bounded_executor.py \
-            platform/tests/test_coordination_liveness.py \
-            platform/tests/test_anti_freeze_scheduler.py \
-            platform/tests/test_dev_swarm_silent_stall_regression.py \
-            platform/tests/test_integration_guardian_sha.py \
-            platform/tests/test_ops_auto_claim_admission.py \
-            platform/tests/test_ops_antigravity_false_completion_regression.py \
-            platform/tests/test_completion_gate_evidence_keys.py \
-            platform/tests/test_cursor_headless_retry_policy.py \
-            platform/tests/test_cursor_ops_runner.py \
-            platform/tests/test_cursor_execution_plane.py \
-            platform/tests/test_owner_authorization_pipeline.py \
-            platform/tests/test_main_ci_gate_trigger.py \
-            platform/tests/test_ops_task_requirements.py \
-            platform/tests/test_ops_task_requirements_e2e.py \
-            platform/tests/test_ops_owner_approval_ha.py \
-            platform/tests/test_provider_execution_trust_boundary.py \
-            platform/tests/test_ops_fmea_invariants.py \
-            platform/tests/test_dev_swarm_retry_budget_regression.py \
-            platform/tests/test_ops_global_completion_gate.py \
+          set -e
+          # The top-level `platform/` package shadows the stdlib `platform`
+          # module whenever pytest imports tests by package path, which broke
+          # collection of this whole suite. Run the gate from a layout mirror
+          # (real test files, symlinked siblings) so test modules import
+          # top-level while __file__-relative reads keep resolving.
+          # (Structural fix would be renaming `platform/`; owner decision.)
+          GATE_LIST="
+            platform/tests/test_execution_resource_guard.py
+            platform/tests/test_execution_resource_audit.py
+            platform/tests/test_global_coordination_guards.py
+            platform/tests/test_execution_binding.py
+            platform/tests/test_local_model_router_fallback.py
+            platform/tests/test_inneros_branch_ledger.py
+            platform/tests/test_execution_receipts.py
+            platform/tests/test_reconcile_ops_mongo_temporal.py
+            platform/tests/test_governed_model_writes.py
+            platform/tests/test_capability_gateway.py
+            platform/tests/test_capability_gateway_regressions_p0.py
+            platform/tests/test_peer_ops_runner_contract.py
+            platform/tests/test_peer_observability_security_p0.py
+            platform/tests/test_local_release_executor_contract.py
+            platform/tests/test_inneros_release_gate.py
+            platform/tests/test_gitlab_runner_policy_precedence.py
+            platform/tests/test_local_github_plane.py
+            platform/tests/test_repo_delivery_guardian.py
+            platform/tests/test_runtime_routing_and_a2a_lease_regressions.py
+            platform/tests/test_a2a_bridge.py
+            platform/tests/test_temporal_bounded_executor.py
+            platform/tests/test_coordination_liveness.py
+            platform/tests/test_anti_freeze_scheduler.py
+            platform/tests/test_dev_swarm_silent_stall_regression.py
+            platform/tests/test_integration_guardian_sha.py
+            platform/tests/test_ops_auto_claim_admission.py
+            platform/tests/test_ops_antigravity_false_completion_regression.py
+            platform/tests/test_completion_gate_evidence_keys.py
+            platform/tests/test_cursor_headless_retry_policy.py
+            platform/tests/test_cursor_ops_runner.py
+            platform/tests/test_cursor_execution_plane.py
+            platform/tests/test_owner_authorization_pipeline.py
+            platform/tests/test_main_ci_gate_trigger.py
+            platform/tests/test_ops_task_requirements.py
+            platform/tests/test_ops_task_requirements_e2e.py
+            platform/tests/test_ops_owner_approval_ha.py
+            platform/tests/test_provider_execution_trust_boundary.py
+            platform/tests/test_ops_fmea_invariants.py
+            platform/tests/test_dev_swarm_retry_budget_regression.py
+            platform/tests/test_ops_global_completion_gate.py
             platform/tests/test_ops_deploy_scheduler_loop_regression.py
+            platform/tests/test_ops_cancel_eviction.py
+            platform/tests/test_ops_expired_lease_recovery.py
+            platform/tests/test_ops_claim_spawn_ack.py
+            platform/tests/test_ops_whatsapp_authorization_flow.py
+            platform/tests/test_ops_interactive_claim_release.py
+            platform/tests/test_ops_antigravity_claim_node_recovery.py
+            platform/tests/test_ops_owner_authorization_notify.py
+            platform/tests/test_ops_whatsapp_internal_fix.py
+          "
+          GATE_ROOT="$RUNNER_TEMP/inneros-gates/root"
+          rm -rf "$RUNNER_TEMP/inneros-gates"
+          mkdir -p "$GATE_ROOT/platform/tests"
+          cp platform/tests/test_*.py platform/tests/conftest.py "$GATE_ROOT/platform/tests/"
+          for entry in "$GITHUB_WORKSPACE"/platform/*; do
+            base=$(basename "$entry")
+            [ "$base" = "tests" ] || ln -s "$entry" "$GATE_ROOT/platform/$base"
+          done
+          for entry in scripts docs .github var; do
+            [ -e "$GITHUB_WORKSPACE/$entry" ] && ln -s "$GITHUB_WORKSPACE/$entry" "$GATE_ROOT/$entry" || true
+          done
+          cd "$GATE_ROOT/platform/tests"
+          PYTHONPATH="$GITHUB_WORKSPACE/platform" python -m pytest -q $(printf '%s\n' $GATE_LIST | xargs -n1 basename)
       - name: Produce CI-only provenance manifest
         env:
           INNEROS_COMMIT: ${{ github.sha }}
