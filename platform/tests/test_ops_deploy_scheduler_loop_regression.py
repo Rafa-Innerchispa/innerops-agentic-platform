@@ -57,12 +57,13 @@ def test_blocked_complete_does_not_advance_to_verification():
                     ):
                         with patch.object(cor, "heartbeat_ops_task"):
                             with patch.object(cor, "_publish_task_event"):
-                                out = cor.complete_ops_task(
-                                    "ops_pause",
-                                    claim_token="tok",
-                                    status="blocked",
-                                    evidence={"notes": HOST_GATE},
-                                )
+                                with patch("inneros_core_runtime.productivity_metrics.record_task_completion"):
+                                    out = cor.complete_ops_task(
+                                        "ops_pause",
+                                        claim_token="tok",
+                                        status="blocked",
+                                        evidence={"notes": HOST_GATE},
+                                    )
     assert out["ok"] is True
     assert out["status"] == odep.STATUS_AWAITING_DEPLOY
     assert out.get("paused") is True
@@ -168,7 +169,8 @@ def test_coding_deploy_completed_without_host_receipt_is_paused_before_temporal(
          patch("inneros_core_runtime.durable_coordination_spine.signal_task_workflow",
                return_value={"ok": True}) as temporal, \
          patch.object(cor, "heartbeat_ops_task"), \
-         patch.object(cor, "_publish_task_event"):
+         patch.object(cor, "_publish_task_event"), \
+         patch("inneros_core_runtime.productivity_metrics.record_task_completion"):
         result = cor.complete_ops_task("ops_code_deploy", claim_token="abc",
                                        status="completed", evidence=ev)
     assert result["status"] == odep.STATUS_AWAITING_DEPLOY
@@ -191,7 +193,8 @@ def test_transient_provider_failure_keeps_failure_not_deploy_pause():
          patch("inneros_core_runtime.durable_coordination_spine.signal_task_workflow",
                return_value={"ok": True}), \
          patch.object(cor, "heartbeat_ops_task"), \
-         patch.object(cor, "_publish_task_event"):
+         patch.object(cor, "_publish_task_event"), \
+         patch("inneros_core_runtime.productivity_metrics.record_task_completion"):
         result = cor.complete_ops_task("ops_transient", claim_token="abc",
                                        status="failed", evidence={"notes": "429 retry later"})
     assert result["status"] == "failed"

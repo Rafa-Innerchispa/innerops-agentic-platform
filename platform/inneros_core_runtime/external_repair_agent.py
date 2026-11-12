@@ -1034,8 +1034,17 @@ def external_repair_agent_reconcile(provider: str = "codex", auto_claim: bool = 
         from inneros_core_runtime.ops_interactive_recovery import recover_orphan_interactive_ops_tasks
 
         orphan = recover_orphan_interactive_ops_tasks(limit=10)
+        if dry_run:
+            expired = {"ok": True, "recovered": [], "scanned": 0, "dry_run": True}
+        else:
+            from inneros_core_runtime.ops_interactive_recovery import (
+                recover_expired_lease_interactive_ops_tasks,
+            )
+
+            expired = recover_expired_lease_interactive_ops_tasks(limit=10)
         lifecycle = reconcile_ops_lifecycle(limit=15)
         lifecycle["orphan_interactive"] = orphan
+        lifecycle["expired_lease_interactive"] = expired
     except Exception as exc:
         lifecycle = {"ok": False, "error": str(exc)[:200]}
     return {

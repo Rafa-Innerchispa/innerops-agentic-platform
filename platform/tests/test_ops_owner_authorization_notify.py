@@ -32,15 +32,33 @@ def test_notify_ops_owner_authorization_request_cursor():
     binding = eb.resolve_execution_binding(task)
     alerts._STATE["cooldowns"] = {}
     alerts._STATE["sent"] = []
-    with mock.patch("raphiia_openai.notifications.evolution_client.any_whatsapp_connected", return_value=True):
-        with mock.patch(
-            "raphiia_openai.notifications.evolution_client.send_whatsapp_interactive",
+    with (
+        mock.patch(
+            "inneros_core_runtime.notifications.ops_ha_owner_auth.ha_auth_enabled",
+            return_value=False,
+        ),
+        mock.patch(
+            "inneros_core_runtime.notifications.telegram_client.telegram_enabled",
+            return_value=True,
+        ),
+        mock.patch(
+            "inneros_core_runtime.notifications.telegram_client.configured",
+            return_value=True,
+        ),
+        mock.patch(
+            "inneros_core_runtime.notifications.telegram_client.send_message",
             return_value={"ok": True},
-        ) as send:
-            out = alerts.notify_ops_owner_authorization_request(task, binding=binding, source_agent="notion")
+        ) as send,
+        mock.patch.object(alerts, "_mark_owner_auth_sent_mongo"),
+    ):
+        out = alerts.notify_ops_owner_authorization_request(task, binding=binding, source_agent="notion")
     assert out["ok"] is True
+    assert out["delivery_mode"] == "telegram"
     body = send.call_args[0][0]
-    assert body.splitlines()[0].startswith("[")
-    assert "OPS actual: ops_new1" in body
-    assert "procede cursor" in body
-    assert alerts.owner_auth_notified("ops_new1")
+    assert "*Agente:* CURSOR" in body
+    assert "gasta créditos" in body.lower()
+    assert "CONFIRMAR" in body
+    assert "ops_new1" in body
+    keyboard = send.call_args[1].get("reply_markup") or {}
+    assert "inline_keyboard" in keyboard
+    assert len(alerts._STATE["sent"]) == 1

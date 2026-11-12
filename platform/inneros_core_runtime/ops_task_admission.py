@@ -50,9 +50,17 @@ def looks_like_device_fabric_read(task: dict[str, Any]) -> bool:
     return not any(marker in text for marker in IMPLEMENTATION_MARKERS)
 
 
+_AGENTIC_PROTECTED_LANES = frozenset({"local_dev_swarm"})
+"""Lanes that always mean explicit agentic execution: keyword reclassification
+must never override them (a Dev Swarm probe mentioning read-only work is not
+a physical-device read)."""
+
+
 def normalize_ops_admission(task: dict[str, Any]) -> dict[str, Any]:
     """Apply admission defaults before Temporal/Mongo persist."""
     doc = dict(task)
+    if str(doc.get("execution_lane") or "").strip().lower() in _AGENTIC_PROTECTED_LANES:
+        return doc
     if looks_like_device_fabric_read(doc):
         doc["task_class"] = "operational"
         doc["execution_lane"] = "device_fabric"
@@ -71,6 +79,8 @@ def normalize_ops_admission(task: dict[str, Any]) -> dict[str, Any]:
 
 def repair_misclassified_task(task: dict[str, Any]) -> dict[str, Any] | None:
     """Return Mongo $set patch when an existing task should be reclassified."""
+    if str(task.get("execution_lane") or "").strip().lower() in _AGENTIC_PROTECTED_LANES:
+        return None
     if not looks_like_device_fabric_read(task):
         return None
     lane = str(task.get("execution_lane") or "").lower()

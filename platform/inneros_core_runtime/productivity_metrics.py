@@ -22,6 +22,66 @@ def _float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _parse_ts(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _minutes_between(start: Any, end: Any) -> float:
+    begin, finish = _parse_ts(start), _parse_ts(end)
+    if begin is None or finish is None:
+        return 0.0
+    return round(max(0.0, (finish - begin).total_seconds() / 60.0), 3)
+
+
+def record_task_completion(
+    task: dict[str, Any] | None,
+    *,
+    outcome: str,
+    requested: str | None = None,
+    now_iso: str | None = None,
+    source: str = "ops_complete",
+) -> dict[str, Any]:
+    """MEASURED lifecycle event built from real task timestamps.
+
+    Never fabricates savings: the human baseline is unknown at completion
+    time, so it stays 0 and saved/HTR stay 0. What IS measured: wall-clock
+    durations, throughput counts, lanes, providers, outcomes.
+    """
+    data = dict(task or {})
+    tid = str(data.get("task_id") or "").strip()
+    if not tid:
+        return {"ok": False, "error": "task_key_required"}
+    lane = str(data.get("execution_lane") or "").strip()
+    provider = str(data.get("preferred_provider") or data.get("assignee") or "").strip()
+    outcome_n = (outcome or "").strip().lower() or "unknown"
+    requested_n = (requested or outcome_n).strip().lower()
+    end = now_iso or _now()
+    start = data.get("claimed_at") or data.get("created_at")
+    return save_productivity_event(
+        {
+            "task_key": tid,
+            "started_at": start,
+            "completed_at": end,
+            "human_baseline_minutes": 0.0,
+            "assisted_minutes": _minutes_between(start, end),
+            "measurement_class": "measured",
+            "verified": True,
+            "confidence": "high",
+            "evidence_refs": [tid],
+            "notes": f"lane={lane or '?'} provider={provider or '?'} outcome={outcome_n} requested={requested_n}",
+            "source": source,
+        }
+    )
+
+
 def calculate_event(payload: dict[str, Any]) -> dict[str, Any]:
     human = max(0.0, _float(payload.get("human_baseline_minutes")))
     assisted = max(0.0, _float(payload.get("assisted_minutes")))

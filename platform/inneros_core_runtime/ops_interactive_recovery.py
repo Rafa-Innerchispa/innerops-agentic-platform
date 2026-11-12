@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,10 @@ MANUAL_INTERACTIVE_LANES = frozenset(
 )
 
 ORPHAN_STATUSES = ("accepted", "in_progress", "running", "claimed")
+
+# Recovery grace is deliberately larger than the claim-validity grace: a lease
+# must be plainly dead (no renewal racing us) before the task is reclaimable.
+EXPIRED_LEASE_RECOVERY_GRACE_SECONDS = 300
 
 
 def _now() -> str:
@@ -131,4 +136,100 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
             },
         )
         recovered.append({"task_id": tid, "status": target})
+    return {"ok": True, "recovered": recovered, "scanned": len(rows)}
+
+
+def recover_expired_lease_interactive_ops_tasks(
+    *,
+    limit: int = 20,
+    grace_seconds: int = EXPIRED_LEASE_RECOVERY_GRACE_SECONDS,
+) -> dict[str, Any]:
+    """Release interactive tasks whose lease expired without execution.
+
+    Complements :func:`recover_orphan_interactive_ops_tasks`, which only sees
+    tasks *without* a claim token. These tasks hold a token whose lease is
+    long dead: no live owner can still be working under it, so the task is
+    returned to its awaiting-claim status instead of rotting in ``claimed``.
+    The compare-and-swap pins the exact observed ``lease_until`` so a
+    concurrent renewal always wins the race.
+    """
+    db = mongo_store.get_db()
+    started = datetime.now(timezone.utc)
+    filt = {
+        "status": {"$in": list(ORPHAN_STATUSES)},
+        "claim_token": {"$nin": [None, ""]},
+        "lease_until": {"$nin": [None, ""]},
+    }
+    rows = list(db[OPS_TASKS_COL].find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(5, min(limit * 4, 80))))
+    now = datetime.now(timezone.utc)
+    recovered: list[dict[str, Any]] = []
+    for task in rows:
+        if len(recovered) >= limit:
+            break
+        if not requires_manual_interactive_lane(task):
+            continue
+        if task.get("execution_stop"):
+            continue
+        lease = _parse_ts(str(task.get("lease_until") or ""))
+        if lease is None:
+            continue
+        if lease.tzinfo is None:
+            lease = lease.replace(tzinfo=timezone.utc)
+        if (now - lease).total_seconds() <= max(0, grace_seconds):
+            continue
+        tid = str(task.get("task_id") or "")
+        token = str(task.get("claim_token") or "")
+        lease_raw = str(task.get("lease_until") or "")
+        if not tid or not token:
+            continue
+        target = awaiting_claim_status_for_task(task)
+        stamp = _now()
+        res = db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": token, "lease_until": lease_raw},
+            {
+                "$set": {
+                    "status": target,
+                    "updated_at": stamp,
+                    "claim_error": "expired_lease_recovered",
+                    "lease_recovery_at": stamp,
+                    "recovered_from_status": str(task.get("status") or ""),
+                },
+                "$unset": {
+                    "claimed_at": "",
+                    "lease_until": "",
+                    "claimed_by": "",
+                    "claim_host": "",
+                    "claim_token": "",
+                    "headless_execution_started_at": "",
+                    "headless_execution_pid": "",
+                    "headless_execution_host": "",
+                },
+                "$inc": {"revision": 1},
+            },
+        )
+        if getattr(res, "matched_count", 1) == 0:
+            continue
+        recovered.append({"task_id": tid, "status": target})
+    if recovered:
+        try:
+            from inneros_core_runtime import self_heal_metrics as _shm
+
+            _shm.record_self_heal_incident(
+                {
+                    "service_id": "ops-coordination-leases",
+                    "repair_action": "recover_expired_lease_interactive_ops_tasks",
+                    "repair_action_ok": True,
+                    "verified_recovered": True,
+                    "verification_method": "cas_matched_count",
+                    "repair_duration_seconds": round(
+                        (datetime.now(timezone.utc) - started).total_seconds(), 3
+                    ),
+                    "automatic": True,
+                    "node": socket.gethostname(),
+                    "evidence_refs": [entry["task_id"] for entry in recovered],
+                    "details": {"recovered": recovered, "scanned": len(rows)},
+                }
+            )
+        except Exception:
+            pass
     return {"ok": True, "recovered": recovered, "scanned": len(rows)}

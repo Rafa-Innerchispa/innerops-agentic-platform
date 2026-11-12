@@ -156,7 +156,10 @@ def reserve(task_id: str, provider: str) -> dict[str, Any]:
         return denied("resource_global_circuit_open")
     task = db[TASKS].find_one({"task_id": task_id}) or {}
     payload = task.get("payload") or {}
-    if task.get("status") not in {"claimed", "in_progress", "running", "proposed"}:
+    # dispatched/worker_starting are system-produced pre-execution states on the
+    # Temporal-worker path (temporal_workflows sets them before the executor
+    # evaluates); denying them blocks every worker-driven task (canary proof).
+    if task.get("status") not in {"claimed", "in_progress", "running", "proposed", "dispatched", "worker_starting"}:
         return denied("resource_task_not_executable")
     if task.get("superseded_by") or task.get("execution_stop"):
         return denied("resource_task_stopped_or_superseded")

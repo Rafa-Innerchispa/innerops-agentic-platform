@@ -70,3 +70,56 @@ def test_backlog_bucket_device_fabric():
         "execution_lane": "internal",
     }
     assert dss.classify_coordination_backlog_task(task) == "needs_device_fabric_lane"
+
+
+def test_local_swarm_probe_keeps_lane_despite_readonly_markers():
+    task = {
+        "task_id": "ops_probe1",
+        "title": "CANARY sonda de verificacion local (solo lectura, sin cambios)",
+        "objective": "Solo lectura, NO modifiques archivos. Reporta python3 --version.",
+        "task_class": "verification",
+        "assignee": "dev_swarm",
+        "preferred_provider": "dev_swarm",
+        "execution_lane": "local_dev_swarm",
+        "do_not_auto_dispatch": False,
+    }
+    out = ota.normalize_ops_admission(task)
+    assert out["execution_lane"] == "local_dev_swarm"
+    assert out["task_class"] == "verification"
+    assert out["do_not_auto_dispatch"] is False
+    assert "admission_normalized" not in out
+
+
+def test_device_read_without_agentic_lane_still_reclassified():
+    task = {
+        "task_id": "ops_dev1",
+        "title": "Leer estado EntraPass Kantech",
+        "task_class": "operational",
+        "assignee": "ralfia",
+        "execution_lane": "internal",
+    }
+    out = ota.normalize_ops_admission(task)
+    assert out["execution_lane"] == "device_fabric"
+    assert out["do_not_auto_dispatch"] is True
+
+
+def test_repair_skips_protected_lane():
+    task = {
+        "task_id": "ops_probe2",
+        "title": "preflight solo lectura Bellini",
+        "task_class": "coding",
+        "execution_lane": "local_dev_swarm",
+    }
+    assert ota.repair_misclassified_task(task) is None
+
+
+def test_repair_still_fixes_unbound_coding_without_repo():
+    task = {
+        "task_id": "ops_dev2",
+        "title": "preflight solo lectura Bellini",
+        "task_class": "coding",
+        "execution_lane": "internal",
+    }
+    patch = ota.repair_misclassified_task(task)
+    assert patch is not None
+    assert patch["execution_lane"] == "device_fabric"

@@ -666,6 +666,55 @@ class ExternalRepairAgentTests(unittest.TestCase):
         self.assertEqual(args[1], "blocked")
         self.assertNotEqual(completed.get("task_result", {}).get("status"), "completed")
 
+    def test_reconcile_runs_expired_lease_recovery(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_done",
+            "assignee": "codex",
+            "status": "completed",
+            "owner": "system",
+            "priority": "p0",
+            "revision": 1,
+            "correlation_id": "corr-done",
+            "created_at": "2026-08-26T00:00:00+00:00",
+            "updated_at": "2026-08-26T00:10:00+00:00",
+        })
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "_auto_claim_enabled", return_value=False), \
+            patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "codex", "status": "ready", "auth_ready": True}), \
+            patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}), \
+            patch.object(ext, "external_credit_status", return_value={"ok": True, "providers": []}), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db), \
+            patch("inneros_core_runtime.ops_interactive_recovery.recover_expired_lease_interactive_ops_tasks",
+                  return_value={"ok": True, "recovered": [], "scanned": 0}) as rec:
+            result = ext.external_repair_agent_reconcile(provider="codex", auto_claim=False, dry_run=False)
+        rec.assert_called_once_with(limit=10)
+        self.assertIn("expired_lease_interactive", result["ops_lifecycle_reconcile"])
+
+    def test_reconcile_skips_expired_recovery_on_dry_run(self):
+        db = FakeDb()
+        db[coordination_live.OPS_TASKS_COL].docs.append({
+            "task_id": "ops_done",
+            "assignee": "codex",
+            "status": "completed",
+            "owner": "system",
+            "priority": "p0",
+            "revision": 1,
+            "correlation_id": "corr-done",
+            "created_at": "2026-08-26T00:00:00+00:00",
+            "updated_at": "2026-08-26T00:10:00+00:00",
+        })
+        with patch.object(ext, "_db", return_value=db), \
+            patch.object(ext, "_auto_claim_enabled", return_value=False), \
+            patch.object(ext, "detect_provider", return_value={"ok": True, "provider": "codex", "status": "ready", "auth_ready": True}), \
+            patch.object(ext, "_budget_allows", return_value={"ok": True, "credit": {}}), \
+            patch.object(ext, "external_credit_status", return_value={"ok": True, "providers": []}), \
+            patch.object(coordination_live.mongo_store, "get_db", return_value=db), \
+            patch("inneros_core_runtime.ops_interactive_recovery.recover_expired_lease_interactive_ops_tasks") as rec:
+            result = ext.external_repair_agent_reconcile(provider="codex", auto_claim=False, dry_run=True)
+        rec.assert_not_called()
+        self.assertTrue(result["ops_lifecycle_reconcile"]["expired_lease_interactive"]["dry_run"])
+
 
 if __name__ == "__main__":
     unittest.main()

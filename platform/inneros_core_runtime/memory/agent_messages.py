@@ -267,6 +267,48 @@ def ack_agent_message(message_id: str, agent: str) -> dict[str, Any]:
     return {"ok": True, "idempotent": False, "message_id": message_id, "status": "acknowledged", "acknowledged_at": now}
 
 
+def ack_dispatch_messages_for_task(task_id: str, agent: str, *, limit: int = 10) -> dict[str, Any]:
+    """ACK the open dispatch messages that reference a task (claim-time pickup).
+
+    A successful claim proves the provider picked the task up, so its
+    delivery messages stop counting as fresh inbox items. Never raises:
+    per-message failures are collected for the caller to record.
+    """
+    tid = (task_id or "").strip()
+    agent_n = _normalize_agent(agent)
+    if not tid or not agent_n:
+        return {"ok": False, "error": "task_id_and_agent_required", "acked": []}
+    filt: dict[str, Any] = {
+        "status": "open",
+        "target_agent": agent_n,
+        "$or": [
+            {"payload.task_id": tid},
+            {"tags": tid},
+            {"body": {"$regex": re.escape(tid)}},
+        ],
+    }
+    try:
+        rows = list(mongo_store.get_db()[COL_AGENT_MESSAGES].find(filt, {"message_id": 1}).limit(max(1, limit)))
+    except Exception as exc:
+        return {"ok": False, "error": f"inbox_lookup_failed: {exc}"[:200], "acked": []}
+    acked: list[str] = []
+    errors: list[dict[str, Any]] = []
+    for row in rows:
+        mid = str((row or {}).get("message_id") or "")
+        if not mid:
+            continue
+        try:
+            res = ack_agent_message(mid, agent_n)
+        except Exception as exc:
+            errors.append({"message_id": mid, "error": str(exc)[:200]})
+            continue
+        if res.get("ok"):
+            acked.append(mid)
+        else:
+            errors.append({"message_id": mid, "error": str(res.get("error") or "ack_failed")[:200]})
+    return {"ok": True, "acked": acked, "errors": errors}
+
+
 def write_agent_message(
     target_agent: str,
     title: str,

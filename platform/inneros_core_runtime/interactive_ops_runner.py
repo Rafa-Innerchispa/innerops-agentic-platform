@@ -365,6 +365,7 @@ def claim_ops_task(
     requirements_checkpoint = otr.process_checkpoint_amendments(tid, actor=prov)
     binding = eb.resolve_execution_binding({**claimed, "owner_approved": True})
     headless_spawn: dict[str, Any] | None = None
+    provider_spawn_attempted = False
     try:
         from inneros_core_runtime import competition_lane_dispatch as cld
 
@@ -377,6 +378,7 @@ def claim_ops_task(
         and not headless_spawn
         and os.getenv("INNEROS_CODEX_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes", "on"}
     ):
+        provider_spawn_attempted = True
         try:
             from inneros_core_runtime import codex_headless_dispatch as cdx
 
@@ -388,12 +390,42 @@ def claim_ops_task(
         and not headless_spawn
         and os.getenv("INNEROS_ANTIGRAVITY_SPAWN_ON_CLAIM", "1").strip().lower() in {"1", "true", "yes", "on"}
     ):
+        provider_spawn_attempted = True
         try:
             from inneros_core_runtime import antigravity_headless_dispatch as agd
 
             headless_spawn = agd.spawn_headless_execute(tid)
         except Exception as exc:
             headless_spawn = {"ok": False, "error": "antigravity_headless_spawn_failed", "detail": str(exc)[:200]}
+    if provider_spawn_attempted:
+        # Persist the spawn outcome: a swallowed failure used to leave
+        # `claimed` tasks with no executor and no diagnosis. The dispatch
+        # budget itself (max 3) is enforced inside the dispatch core.
+        spawn_summary = {
+            "ok": bool((headless_spawn or {}).get("ok")),
+            "error": str((headless_spawn or {}).get("error") or "")[:200] or None,
+            "detail": str((headless_spawn or {}).get("detail") or "")[:200] or None,
+            "at": _now(),
+        }
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": token},
+            {"$set": {"headless_spawn_last": spawn_summary, "updated_at": _now()}},
+        )
+        if spawn_summary["ok"]:
+            # A successfully spawned executor means execution started.
+            db[OPS_TASKS_COL].update_one(
+                {"task_id": tid, "claim_token": token, "status": "claimed"},
+                {
+                    "$set": {"status": "in_progress", "execution_started_at": _now(), "updated_at": _now()},
+                    "$inc": {"revision": 1},
+                },
+            )
+    try:
+        from inneros_core_runtime.memory import agent_messages as _am
+
+        dispatch_ack = _am.ack_dispatch_messages_for_task(tid, prov)
+    except Exception:
+        dispatch_ack = {"ok": False, "error": "ack_helper_failed", "acked": []}
     return {
         "ok": True,
         "provider": prov,
@@ -406,6 +438,7 @@ def claim_ops_task(
         "claim_host": _host(),
         "headless_spawn": headless_spawn,
         "requirements_checkpoint": requirements_checkpoint,
+        "dispatch_ack": dispatch_ack,
     }
 
 
@@ -506,6 +539,12 @@ def complete_ops_task(
             event=f"{prov}_execution_complete",
             actor=prov,
         )
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime import productivity_metrics as _pm
+
+        _pm.record_task_completion(task, outcome="verification", requested=status)
     except Exception:
         pass
     return {

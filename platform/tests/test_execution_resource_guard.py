@@ -175,3 +175,18 @@ def test_global_circuit_blocks_external_and_local_work(db):
     def model():
         pytest.fail("must not invoke inference")
     assert model()["error"] == "resource_global_circuit_open"
+
+
+@pytest.mark.parametrize("status", ["dispatched", "worker_starting"])
+def test_worker_path_pre_execution_statuses_can_reserve(db, status):
+    db[guard.TASKS].update_one({"task_id": "ops_test"}, {"$set": {"status": status}})
+    assert guard.reserve("ops_test", "dev_swarm")["ok"]
+
+
+@pytest.mark.parametrize("status", ["queued", "completed", "failed", "cancelled", "expired"])
+def test_non_executable_statuses_stay_denied(db, status):
+    db[guard.TASKS].update_one({"task_id": "ops_test"}, {"$set": {"status": status}})
+    out = guard.reserve("ops_test", "dev_swarm")
+    assert not out["ok"]
+    assert out["error"] == "resource_task_not_executable"
+    assert not task(db).get("resource_guard", {}).get("attempts")
