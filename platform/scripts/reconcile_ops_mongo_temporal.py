@@ -119,6 +119,52 @@ def _proposed_action(task: dict[str, Any], temporal: dict[str, Any]) -> dict[str
     }
 
 
+def _siblings_by_supersedes(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    index: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        target = str(row.get("supersedes_task_id") or "").strip()
+        if target:
+            index.setdefault(target, []).append(row)
+    return index
+
+
+def _proposed_superseded(task: dict[str, Any], siblings: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Close a lease-expired claim that a newer linked task replaced.
+
+    Never force-closes a lone claim: without a live (non-terminal) sibling
+    carrying supersedes_task_id -> this task, returns None and leaves the row
+    for liveness/human review. Mirrors the dev_swarm_watchdog superseded
+    shape (status + superseded_by/at/by_actor), preserving history.
+    """
+    tid = str(task.get("task_id") or "").strip()
+    if not tid or str(task.get("status") or "") != "claimed":
+        return None
+    if not _lease_expired(task):
+        return None
+    live = [
+        s for s in (siblings or [])
+        if s is not task
+        and str(s.get("supersedes_task_id") or "").strip() == tid
+        and str(s.get("status") or "") not in TERMINAL_MONGO
+    ]
+    if not live:
+        return None
+    newer = sorted(live, key=lambda s: str(s.get("created_at") or s.get("updated_at") or ""))[-1]
+    nid = str(newer.get("task_id") or "").strip()
+    if not nid:
+        return None
+    now = _utc()
+    return {
+        "task_id": tid,
+        "action": "set_status",
+        "new_status": "superseded",
+        "reason": f"lease_expired_superseded_by_{nid}",
+        "superseded_by": nid,
+        "superseded_at": now,
+        "superseded_by_actor": "reconcile_ops_mongo_temporal",
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
@@ -137,11 +183,14 @@ def main() -> int:
 
     rows = list(col.find(filt, {"_id": 0}).sort("updated_at", 1).limit(max(1, min(args.limit, 200))))
     actions: list[dict[str, Any]] = []
+    supersede_index = _siblings_by_supersedes(rows)
     for doc in rows:
         tid = str(doc.get("task_id") or "")
         wf = str(doc.get("workflow_id") or f"ops_task:{tid}")
         temporal = asyncio.run(_temporal_describe(wf))
         prop = _proposed_action(doc, temporal)
+        if prop is None and str(doc.get("status") or "") == "claimed":
+            prop = _proposed_superseded(doc, supersede_index.get(tid, []))
         if prop:
             actions.append({**prop, "mongo_status": doc.get("status"), "correlation_id": doc.get("correlation_id")})
 
@@ -166,6 +215,7 @@ def main() -> int:
                         "reconcile_note": act["reason"],
                         "reconcile_at": now,
                         "reconcile_evidence": {"temporal": act.get("temporal"), "by": "reconcile_ops_mongo_temporal.py"},
+                        **{k: act[k] for k in ("superseded_by", "superseded_at", "superseded_by_actor") if k in act},
                     },
                     "$inc": {"revision": 1},
                 },
@@ -185,7 +235,10 @@ def main() -> int:
         "dry_run": not args.apply,
         "actions": actions,
     }
-    out_path = "/home/rlopez/inneros/inneros_core/var/evidence/ops_mongo_temporal_reconcile.json"
+    out_path = os.path.join(
+        os.getenv("INNEROS_RECONCILE_EVIDENCE_DIR", "/home/rlopez/inneros/inneros_core/var/evidence"),
+        "ops_mongo_temporal_reconcile.json",
+    )
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2, default=str)

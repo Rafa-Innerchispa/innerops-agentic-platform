@@ -313,7 +313,7 @@ def claim_ops_task(
         return {"ok": False, "error": "claim_conflict", "task_id": tid}
     model_err = _validate_pinned_model(provider=prov, task=claimed)
     if model_err:
-        _release_claim(db, tid, reason=str(model_err.get("error")))
+        _release_claim(db, tid, reason=str(model_err.get("error")), details=model_err)
         return {**model_err, "task_id": tid}
     worktree_path = ""
     repo = str(claimed.get("repo") or "").strip()
@@ -330,12 +330,12 @@ def claim_ops_task(
         if wt.get("ok"):
             worktree_path = str(wt.get("worktree") or "")
         if not worktree_path:
-            _release_claim(db, tid, reason="worktree_create_failed")
+            _release_claim(db, tid, reason="worktree_create_failed", details=wt)
             return {"ok": False, "error": "worktree_required", "task_id": tid, "details": wt}
         baseline_sha = receipts.git_head(Path(worktree_path))
         db[OPS_TASKS_COL].update_one(
             {"task_id": tid, "claim_token": token},
-            {"$set": {"worktree": worktree_path, "git_baseline_sha": baseline_sha}, "$unset": {"claim_error": ""}},
+            {"$set": {"worktree": worktree_path, "git_baseline_sha": baseline_sha}, "$unset": {"claim_error": "", "claim_error_detail": ""}},
         )
     from inneros_core_runtime import durable_coordination_spine
 

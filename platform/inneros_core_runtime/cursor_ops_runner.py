@@ -92,7 +92,49 @@ def _evidence_to_agent_result(evidence: dict[str, Any], *, status: str) -> dict[
     return out
 
 
-def _release_claim(db, tid: str, *, reason: str) -> None:
+CLAIM_ERROR_DETAIL_MAX_CHARS = 2000
+
+
+def _compact_claim_details(details: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Bounded, JSON-safe diagnostic payload for failed claims.
+
+    Keeps the decisive fields (error, paths, branches) verbatim and folds the
+    rest into a truncated blob, so list_ops_tasks readers can diagnose a
+    worktree/model failure without server access.
+    """
+    if not isinstance(details, dict) or not details:
+        return None
+    import json as _json
+
+    out: dict[str, Any] = {}
+    for key in ("error", "source_path", "source_repo", "repo", "worktree",
+                "work_branch", "base_branch"):
+        val = details.get(key)
+        if val is not None and str(val).strip():
+            out[key] = str(val)[:500]
+    try:
+        rest = {k: v for k, v in details.items() if k not in out}
+        extra = _json.dumps(rest, default=str)
+        if extra and extra != "{}":
+            out["extra"] = extra[:1000]
+    except Exception:
+        pass
+    if not out:
+        return None
+    try:
+        while len(_json.dumps(out, default=str)) > CLAIM_ERROR_DETAIL_MAX_CHARS:
+            if "extra" in out:
+                out.pop("extra")
+            elif len(out) > 1:
+                out.popitem()
+            else:
+                return {"error": str(out.get("error") or "claim_failed")[:200]}
+    except Exception:
+        return {"error": str(details.get("error") or "claim_failed")[:200]}
+    return out
+
+
+def _release_claim(db, tid: str, *, reason: str, details: dict[str, Any] | None = None) -> None:
     from inneros_core_runtime.ops_awaiting_claim import awaiting_claim_status_for_task
 
     now = _now()
@@ -100,23 +142,26 @@ def _release_claim(db, tid: str, *, reason: str) -> None:
         {"task_id": tid},
         {"assignee": 1, "assigned_to": 1, "preferred_provider": 1, "owner": 1},
     ) or {}
+    detail = _compact_claim_details(details)
+    unset_doc: dict[str, Any] = {
+        "claim_token": "",
+        "claimed_at": "",
+        "lease_until": "",
+        "claimed_by": "",
+        "claim_host": "",
+    }
+    set_doc: dict[str, Any] = {
+        "status": awaiting_claim_status_for_task(task),
+        "updated_at": now,
+        "claim_error": reason[:500],
+    }
+    if detail is None:
+        unset_doc["claim_error_detail"] = ""
+    else:
+        set_doc["claim_error_detail"] = detail
     db[OPS_TASKS_COL].update_one(
         {"task_id": tid},
-        {
-            "$set": {
-                "status": awaiting_claim_status_for_task(task),
-                "updated_at": now,
-                "claim_error": reason[:500],
-            },
-            "$unset": {
-                "claim_token": "",
-                "claimed_at": "",
-                "lease_until": "",
-                "claimed_by": "",
-                "claim_host": "",
-            },
-            "$inc": {"revision": 1},
-        },
+        {"$set": set_doc, "$unset": unset_doc, "$inc": {"revision": 1}},
     )
 
 
@@ -350,7 +395,7 @@ def claim_ops_task(
 
     model_err = _validate_pinned_model(task=claimed)
     if model_err:
-        _release_claim(db, tid, reason=str(model_err.get("error")))
+        _release_claim(db, tid, reason=str(model_err.get("error")), details=model_err)
         return {**model_err, "task_id": tid}
 
     worktree_path = ""
@@ -376,7 +421,7 @@ def claim_ops_task(
         else:
             worktree_error = wt
         if not worktree_path:
-            _release_claim(db, tid, reason="worktree_create_failed")
+            _release_claim(db, tid, reason="worktree_create_failed", details=worktree_error)
             return {
                 "ok": False,
                 "error": "worktree_required",

@@ -74,5 +74,49 @@ class ReconcileSafetyTests(unittest.TestCase):
                     "result_status": outcome}))
 
 
+class ReconcileSupersededTests(unittest.TestCase):
+    """Lease-expired claimed task replaced by a newer linked task (Kiro case)."""
+
+    def old_claim(self):
+        return {"task_id": "ops_8ce2", "status": "claimed",
+                "lease_until": "2020-01-01T00:00:00+00:00",
+                "correlation_id": "GB-KIRO-CREW-VERIFY-BOTH-20261111"}
+
+    def new_claim(self, status="claimed"):
+        return {"task_id": "ops_345e", "status": status,
+                "lease_until": "2099-01-01T00:00:00+00:00",
+                "correlation_id": "GB-KIRO-CREW-VERIFY-REISSUE-20261111-02",
+                "supersedes_task_id": "ops_8ce2"}
+
+    def test_expired_claim_with_live_superseder_proposes_superseded(self):
+        old, new = self.old_claim(), self.new_claim()
+        prop = reconcile._proposed_superseded(old, [old, new])
+        self.assertIsNotNone(prop)
+        self.assertEqual(prop["new_status"], "superseded")
+        self.assertIn("ops_345e", prop["reason"])
+        self.assertEqual(prop["superseded_by"], "ops_345e")
+
+    def test_no_superseder_link_proposes_nothing(self):
+        old = self.old_claim()
+        other = {"task_id": "ops_9999", "status": "claimed",
+                 "lease_until": "2099-01-01T00:00:00+00:00"}
+        self.assertIsNone(reconcile._proposed_superseded(old, [old, other]))
+
+    def test_valid_lease_never_superseded(self):
+        old = self.old_claim()
+        old["lease_until"] = "2099-01-01T00:00:00+00:00"
+        self.assertIsNone(reconcile._proposed_superseded(old, [old, self.new_claim()]))
+
+    def test_terminal_sibling_does_not_supersede(self):
+        old = self.old_claim()
+        done = self.new_claim(status="completed")
+        self.assertIsNone(reconcile._proposed_superseded(old, [old, done]))
+
+    def test_non_claimed_task_never_superseded(self):
+        old = self.old_claim()
+        old["status"] = "awaiting_antigravity_claim"
+        self.assertIsNone(reconcile._proposed_superseded(old, [old, self.new_claim()]))
+
+
 if __name__ == "__main__":
     unittest.main()
