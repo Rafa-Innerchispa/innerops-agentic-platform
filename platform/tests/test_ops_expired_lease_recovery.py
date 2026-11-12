@@ -109,3 +109,42 @@ def test_execution_stop_is_respected() -> None:
 
     assert out["recovered"] == []
     col.update_one.assert_not_called()
+
+
+def test_racing_recovery_two_processes_only_one_gets_claim():
+    """Dos procesos intentando recuperar -> solo uno declara recovered (modified_count)."""
+    from datetime import datetime, timezone, timedelta
+    from unittest.mock import MagicMock, patch as _patch
+    from inneros_core_runtime import ops_interactive_recovery as oir
+
+    past_lease = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    task = {
+        "task_id": "ops_racing_target",
+        "status": "claimed",
+        "assignee": "inneros_orchestrator",
+        "preferred_provider": "antigravity",
+        "execution_lane": "antigravity_interactive",
+        "claim_token": "token_race",
+        "lease_until": past_lease,
+        "claimed_by": "antigravity",
+        "revision": 2,
+    }
+
+    mock_db = MagicMock()
+    mock_col = MagicMock()
+    mock_db.__getitem__.return_value = mock_col
+    mock_col.find.return_value.sort.return_value.limit.return_value = [task]
+
+    # Process 1 succeeds
+    p1_res = MagicMock(modified_count=1)
+    mock_col.update_one.return_value = p1_res
+    with _patch.object(oir.mongo_store, "get_db", return_value=mock_db):
+        res1 = oir.recover_orphan_interactive_ops_tasks(limit=10)
+    assert len(res1["recovered"]) == 1
+
+    # Process 2 arrives with stale snapshot -> CAS modified_count == 0
+    p2_res = MagicMock(modified_count=0)
+    mock_col.update_one.return_value = p2_res
+    with _patch.object(oir.mongo_store, "get_db", return_value=mock_db):
+        res2 = oir.recover_orphan_interactive_ops_tasks(limit=10)
+    assert len(res2["recovered"]) == 0

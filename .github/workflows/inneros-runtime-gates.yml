@@ -133,6 +133,7 @@ jobs:
             platform/tests/test_ops_whatsapp_internal_fix.py
             platform/tests/test_ops_lifecycle_metrics.py
             platform/tests/test_mongo_scoped_sync.py
+            platform/tests/test_ops_awaiting_claim.py
           "
           GATE_ROOT="$RUNNER_TEMP/inneros-gates/root"
           rm -rf "$RUNNER_TEMP/inneros-gates"

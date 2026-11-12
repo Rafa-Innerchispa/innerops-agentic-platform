@@ -34,6 +34,7 @@ def test_trusted_token_allows_canary():
 def test_codex_real_path_blocked_without_grant_and_env():
     task = {
         "task_id": "ops_real",
+        "status": "claimed",
         "claim_token": "tok",
         "worktree": "/tmp/nope",
         "assignee": "codex",
@@ -43,6 +44,7 @@ def test_codex_real_path_blocked_without_grant_and_env():
     col = MagicMock()
     db.__getitem__.return_value = col
     col.find_one.return_value = task
+    col.find_one_and_update.return_value = task
     wt = MagicMock()
     wt.is_dir.return_value = True
     wt.__truediv__ = lambda self, other: MagicMock(exists=lambda: True)

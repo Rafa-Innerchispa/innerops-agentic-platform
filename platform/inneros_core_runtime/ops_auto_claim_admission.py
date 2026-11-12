@@ -51,6 +51,8 @@ def claim_admission(
         return denied("terminal_task")
     if status in PAUSED:
         return denied("execution_paused_awaiting_owner")
+    if bool(task.get("do_not_auto_dispatch")) or bool(payload.get("do_not_auto_dispatch")):
+        return denied("manual_dispatch_only")
 
     from inneros_core_runtime import ops_deploy_execution_pause as odep
     from inneros_core_runtime.ops_headless_execution_policy import PAID_HEADLESS_PROVIDERS, headless_denial
@@ -69,8 +71,6 @@ def claim_admission(
             return denied(paid_block)
     if status in ACTIVE:
         return denied("already_claimed" if task.get("claim_token") else "active_without_claim")
-    if bool(task.get("do_not_auto_dispatch")) or bool(payload.get("do_not_auto_dispatch")):
-        return denied("manual_dispatch_only")
     if target in INTERNAL_ALIASES:
         if status != "proposed":
             return denied("internal_task_not_proposed")

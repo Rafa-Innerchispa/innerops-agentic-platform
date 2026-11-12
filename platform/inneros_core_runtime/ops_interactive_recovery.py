@@ -49,7 +49,13 @@ def requires_manual_interactive_lane(task: dict[str, Any]) -> bool:
     if lane in MANUAL_INTERACTIVE_LANES or lane.endswith("_interactive"):
         return True
     binding = ((task.get("evidence") or {}).get("execution_binding") or {})
-    if binding.get("interactive_execution") is True:
+    if isinstance(binding, dict) and binding.get("interactive_execution") is True:
+        return True
+    top_binding = task.get("execution_binding") or {}
+    if isinstance(top_binding, dict) and top_binding.get("interactive_execution") is True:
+        return True
+    state_binding = (task.get("current_execution_state") or {}).get("execution_binding") or {}
+    if isinstance(state_binding, dict) and state_binding.get("interactive_execution") is True:
         return True
     return False
 
@@ -114,7 +120,7 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
             continue
         target = awaiting_claim_status_for_task(task)
         now = _now()
-        db[OPS_TASKS_COL].update_one(
+        up_res = db[OPS_TASKS_COL].update_one(
             {"task_id": tid, "claim_token": {"$in": [None, ""]}},
             {
                 "$set": {
@@ -135,6 +141,10 @@ def recover_orphan_interactive_ops_tasks(*, limit: int = 20) -> dict[str, Any]:
                 "$inc": {"revision": 1},
             },
         )
+        modified = getattr(up_res, "modified_count", None)
+        if isinstance(modified, int) and modified < 1:
+            # Concurrent renewal or racing recovery occurred; do not declare recovered
+            continue
         recovered.append({"task_id": tid, "status": target})
     return {"ok": True, "recovered": recovered, "scanned": len(rows)}
 

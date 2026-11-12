@@ -50,7 +50,7 @@ class MetaProviderTest(unittest.TestCase):
             "model": meta.MODEL,
             "max_output_tokens": cap or self.out_cap,
             "owner_actor": "RAFAEL",
-            "approval_ref": "ha_owner_approval_test_only",
+            "approval_ref": "ha_owner_approval_test_only_" + (project or self.project),
         }
 
     def _issue(self, project=None, prompt=PROMPT, cap=None, effort=None):
@@ -58,7 +58,7 @@ class MetaProviderTest(unittest.TestCase):
             project_id=project or self.project,
             prompt=prompt,
             approval=self._approval(project, prompt, cap),
-            verifier=lambda approved: approved["approval_ref"] == "ha_owner_approval_test_only",
+            verifier=lambda approved: approved["approval_ref"].startswith("ha_owner_approval_test_only_"),
             max_output_tokens=cap or self.out_cap,
             reasoning_effort=effort,
         )
@@ -172,6 +172,30 @@ class MetaProviderTest(unittest.TestCase):
                 transport=call,
             )
         self.assertEqual(1, len(calls))
+
+    def test_signed_owner_approval_cannot_mint_two_paid_grants(self):
+        self._issue()
+        with self.assertRaisesRegex(PermissionError, "already exchanged"):
+            self._issue()
+
+    def test_same_approval_cannot_be_reused_for_another_project(self):
+        self._issue()
+        # Approval reference must be globally unique within the ledger.
+        with self.assertRaisesRegex(PermissionError, "already exchanged"):
+            self.ledger.issue(
+                project_id="other-project",
+                prompt=PROMPT,
+                approval={
+                    "project_id": "other-project",
+                    "prompt_sha256": meta._sha(PROMPT.encode()),
+                    "model": meta.MODEL,
+                    "max_output_tokens": self.out_cap,
+                    "owner_actor": "RAFAEL",
+                    "approval_ref": "ha_owner_approval_test_only_" + self.project,
+                },
+                verifier=lambda _: True,
+                max_output_tokens=self.out_cap,
+            )
 
     def test_wrong_project_does_not_consume_correct_grant(self):
         grant = self._issue()
@@ -361,7 +385,9 @@ class MetaProviderTest(unittest.TestCase):
         }
         mock_grants.find_one.return_value = valid_doc
 
-        with patch.dict("sys.modules", {"raphiia_openai.mongo_store": mock_store}):
+        mock_pkg = MagicMock()
+        mock_pkg.mongo_store = mock_store
+        with patch.dict("sys.modules", {"raphiia_openai": mock_pkg, "raphiia_openai.mongo_store": mock_store}):
             scope = {
                 "approval_ref": ref,
                 "project_id": self.project,
@@ -509,6 +535,21 @@ class MetaProviderTest(unittest.TestCase):
         self.assertEqual("amd_local_primary", summary["default_routing"])
         self.assertEqual(150.0, summary["providers"]["meta_model_api"]["promotional_balance_usd"])
 
+    def test_public_meta_gateway_rejects_untrusted_receipt_import(self):
+        from inneros_core_runtime import capability_gateway_model as cgm
+        # Receipt provenance must not be a caller-controlled JSON field.
+        with patch.object(meta, "MetaGrantLedger", side_effect=AssertionError("no ledger needed")):
+            result = cgm._frontier_reason_handler({
+                "action": "reconcile_receipt",
+                "receipt_data": {"result": "REAL_SUCCESS", "provider_response_id": "forged"},
+            }, {})
+        self.assertFalse(result["ok"])
+        self.assertEqual("trusted_receipt_reconciliation_only", result["error"])
+
+        specs = cgm.get_model_capabilities_specs()
+        public_manifest = next(m for m, _ in specs if m["capability_id"] == "model.frontier.reason.v1")
+        self.assertNotIn("reconcile_receipt", public_manifest["parameters_schema"]["properties"]["action"]["enum"])
+
     def test_capability_gateway_meta_discovery_and_invocation(self):
         from inneros_core_runtime import capability_gateway_model as cgm
 
@@ -531,6 +572,165 @@ class MetaProviderTest(unittest.TestCase):
         cap_ids = [s[0]["capability_id"] for s in specs]
         self.assertIn("model.provider.query.v1", cap_ids)
         self.assertIn("model.frontier.reason.v1", cap_ids)
+
+    def test_wonder_one_shot_grant_is_model_bound_and_cannot_replay(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda scope: scope["model"] == "muse-wonder-1.0",
+            max_output_tokens=self.out_cap, model="muse-wonder-1.0",
+        )
+        self.assertEqual("muse-wonder-1.0", grant["model"])
+        model = self.ledger._consume(grant["grant_id"], self.project, PROMPT)
+        self.assertEqual("muse-wonder-1.0", model["model"])
+        with self.assertRaises(PermissionError):
+            self.ledger._consume(grant["grant_id"], self.project, PROMPT)
+        with self.assertRaises(PermissionError):
+            self.ledger.issue(
+                project_id=self.project, prompt=PROMPT,
+                approval=approved, verifier=lambda _: True,
+                max_output_tokens=self.out_cap, model="muse-wonder-1.0",
+            )
+
+    def test_wonder_provider_response_enforces_approved_model_without_live_network(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        response = self._response()
+        response["model"] = "muse-wonder-1.0"
+        captured = []
+        def fake_transport(req, timeout):
+            captured.append(json.loads(req.data.decode("utf-8")))
+            return Response(response)
+        receipt = meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant["grant_id"],
+            project_id=self.project, prompt=PROMPT,
+            credential_loader=lambda: "unit-test-placeholder-not-real-key",
+            transport=fake_transport,
+        )
+        self.assertEqual("REAL_SUCCESS", receipt["status"])
+        self.assertEqual("muse-wonder-1.0", receipt["model"])
+        self.assertEqual("muse-wonder-1.0", captured[0]["model"])
+        self.assertEqual(1, len(captured))
+        self.assertEqual(0, receipt["automatic_retries"])
+
+    def test_wonder_model_mismatch_is_not_real_success(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        # A transport returning Spark for a Wonder grant is NOT Wonder proof.
+        receipt = meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant["grant_id"],
+            project_id=self.project, prompt=PROMPT,
+            credential_loader=lambda: "unit-test-placeholder-not-real-key",
+            transport=lambda req, timeout: Response(self._response()),
+        )
+        self.assertNotEqual("REAL_SUCCESS", receipt["status"])
+        self.assertEqual("MODEL_MISMATCH", receipt["error_type"])
+
+    def test_mcp_wonder_selection_is_explicit_and_rejects_unknown(self):
+        from inneros_core_runtime import capability_gateway_model as cgm
+        ledger = MagicMock()
+        ledger.issue.return_value = {
+            "grant_id": "grant-test-mock", "model": "muse-wonder-1.0",
+        }
+        with patch.object(meta, "MetaGrantLedger", return_value=ledger):
+            result = cgm._frontier_reason_handler({
+                "action": "issue_grant", "model": "muse-wonder-1.0",
+                "project_id": self.project, "prompt": PROMPT,
+                "approval": self._approval(),
+                "max_output_tokens": self.out_cap,
+            }, {})
+            self.assertTrue(result["ok"])
+            self.assertEqual("muse-wonder-1.0", ledger.issue.call_args.kwargs["model"])
+            ledger.issue.reset_mock()
+            result = cgm._frontier_reason_handler({
+                "action": "issue_grant", "model": "unregistered-expensive-model",
+                "project_id": self.project, "prompt": PROMPT,
+            }, {})
+            self.assertFalse(result["ok"])
+            self.assertEqual("meta_model_not_allowlisted", result["error"])
+            ledger.issue.assert_not_called()
+        specs = cgm.get_model_capabilities_specs()
+        manifest = next(m for m, _ in specs if m["capability_id"] == "model.frontier.reason.v1")
+        self.assertEqual(
+            ["muse-spark-1.3", "muse-wonder-1.0"],
+            manifest["parameters_schema"]["properties"]["model"]["enum"],
+        )
+        status = meta.provider_status()
+        self.assertIn("muse-wonder-1.0", status["supported_models"])
+        self.assertFalse(status["muse_wonder_eligible"])
+
+    def test_wonder_receipt_persists_actual_model_and_supports_allowlisted_tool_calls(self):
+        approved = self._approval()
+        approved["model"] = "muse-wonder-1.0"
+        grant = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        tool_resp = {
+            "id": "resp_wonder_tool_call_01",
+            "model": "muse-wonder-1.0",
+            "status": "completed",
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_ncp_01",
+                    "name": "get_ncp_state",
+                    "arguments": "{\"include_workers\": true}",
+                }
+            ],
+            "usage": {"input_tokens": 120, "output_tokens": 45, "total_tokens": 165},
+        }
+        captured = []
+        def fake_transport(req, timeout):
+            captured.append(json.loads(req.data.decode("utf-8")))
+            return Response(tool_resp)
+
+        receipt = meta.invoke_with_grant(
+            ledger=self.ledger, grant_id=grant["grant_id"],
+            project_id=self.project, prompt=PROMPT,
+            tools=[{"name": "get_ncp_state", "description": "Inspect NCP state", "parameters": {"type": "object", "properties": {}}}],
+            credential_loader=lambda: "unit-test-placeholder-not-real-key",
+            transport=fake_transport,
+        )
+        self.assertEqual("TOOL_CALL_REQUESTED", receipt["status"])
+        self.assertEqual("muse-wonder-1.0", receipt["model"])
+        self.assertEqual(1, len(receipt["tool_calls"]))
+        self.assertEqual("get_ncp_state", receipt["tool_calls"][0]["name"])
+        self.assertEqual({"include_workers": True}, receipt["tool_calls"][0]["arguments"])
+        self.assertEqual("get_ncp_state", captured[0]["tools"][0]["name"])
+
+        saved = self.ledger.last_receipt(grant["grant_id"])
+        self.assertEqual("muse-wonder-1.0", saved["model"])
+
+        # Unallowlisted tools must fail-closed before consuming or dispatching
+        approved2 = self._approval()
+        approved2["approval_ref"] = "approved-unit-test-2"
+        approved2["model"] = "muse-wonder-1.0"
+        grant2 = self.ledger.issue(
+            project_id=self.project, prompt=PROMPT, approval=approved2,
+            verifier=lambda _: True, max_output_tokens=self.out_cap,
+            model="muse-wonder-1.0",
+        )
+        with self.assertRaises(PermissionError):
+            meta.invoke_with_grant(
+                ledger=self.ledger, grant_id=grant2["grant_id"],
+                project_id=self.project, prompt=PROMPT,
+                tools=[{"name": "arbitrary_shell_exec", "description": "Forbidden"}],
+                credential_loader=lambda: "unit-test-placeholder-not-real-key",
+                transport=fake_transport,
+            )
 
 
 if __name__ == "__main__":
