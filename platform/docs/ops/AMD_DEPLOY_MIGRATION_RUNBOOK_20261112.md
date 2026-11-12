@@ -4,6 +4,11 @@ Target: `main@92913951` (NO incluye rama C1–C5: viaja en el deploy siguiente
 al merge). Método: árbol paralelo + flip por renombrado. Cero borrados:
 el árbol actual queda intacto como rollback.
 
+NOTA post-deploy-2: el método real probado es OVERLAY (rsync sin
+--delete sobre serving), no `mv` limpio de worktree — serving no es un
+worktree (plano = `platform/` promovido + estado + leftovers). Ver §7,
+que supersede §2/§4 para futuros deploys.
+
 ## 0. Estado probado (forense read-only, no asumir)
 
 - Repo serving: `/home/rlopez/inneros/inneros_core/` @ `f3a4ecdd` (27-oct),
@@ -98,3 +103,56 @@ comm -13 /tmp/m.txt /tmp/u.txt | grep '\.py$'  # huérfanos importables: re-veri
 
 Merge rama C1–C5 (owner), deploy Intel (sin shell desde AMD: replicar este
 runbook allá), timers AMD (cero hoy), sync Mongo, failover-kill (trigger owner).
+
+## 7. Deploy-2 — main@132db597 (merge #273) + receta overlay real
+
+### 7.1 Receta corregida (supersede §2/§4 para futuros deploys)
+
+- Serving `/home/rlopez/inneros/inneros_core/platform` = contenido de
+  `origin/main:platform/` + estado (`.env*`, `var/`, `venv`→symlink
+  relativo) + ~650 leftovers planos (era f3a4ecdd) + marker. NO es un
+  worktree (no tiene `.git`); `git -C serving rev-parse` hereda el repo
+  padre y MIENTE. Probar contenido (list-diff + byte-diff), no HEAD.
+- `git worktree add --detach $W origin/main` (temp `$R/.deploy-wt-<SHA>`,
+  remover después con `git worktree remove`).
+- Stop 4 units → `cp -a platform platform-prev-<SHA-anterior>`
+  (verificar: conteo entries + md5 `var/project_runtime_registry/
+  registry.json` + symlink venv intacto) →
+  `rsync -a --exclude='/var/' --exclude='/venv'
+  --exclude='/.runtime_git_sha' $W/platform/ platform/` (SIN --delete:
+  leftovers/estado/huérfanos se preservan; `.env*`/huérfanos no existen
+  en git ⇒ intactos) → escribir marker con SHA completo (jamás a mano
+  fuera del deploy) → limpiar `__pycache__`/`.pytest_cache` (rutinario)
+  → verificar convergencia (`diff -rq` filtrado vacío) → start → salud.
+- Rollback: stop → `mv platform platform-bad-<SHA>; mv platform-prev-<old>
+  platform` → start → salud. No borrar `platform-prev-*` (7 días de
+  verde + OK explícito por ruta).
+- Gates: convergencia byte-identical; smoke = units + puertos + journal;
+  compileall whole-dir puede marcar leftovers muertos (verificar tracked
+  con `git ls-tree origin/main`; untracked = pre-existente, no bloquea);
+  focal tests vía mirror CI (copiar `test_*.py`+conftest SIN `__init__.py`,
+  symlinks al resto, `GITHUB_ACTIONS=true` hermético, venv python,
+  cwd=`tests/`, `PYTHONPATH`=serving) — igual que el workflow.
+
+### 7.2 Ejecución deploy-2 (2026-11-12)
+
+- Preflight: origin/main=`132db597` ✓; marker decía `132db597` pero el
+  contenido era `92913951` (reescrito a mano 13:40:13Z sin deploy).
+- Hallazgo: runtime serving YA traía código rama (pre-convergido, 0
+  differs runtime vs target); deltas = 21 (7 adds: 2 docs + 5 tests
+  nuevos; 14 refresh tests: 6 rama + 8 foreign-heal solo-tests, riesgo
+  runtime cero). Cero bytes runtime cambiaron en el overlay.
+- Backup `platform-prev-92913951` verificado (2567 entries, md5 registry
+  idéntico, symlink venv preservado). Overlay + marker veraz.
+- Salud: 4/4 units, MCP 8102 HTTP 404-baseline, Temporal 7233 OPEN,
+  vLLM 8000 intacto, journal 0 errores. Focal: 21 passed. CI main
+  post-merge: 413 passed + mismos 4 pre-existentes.
+
+### 7.3 Lecciones duras
+
+- Marker: verificar bytes siempre, nunca fiarse (mintió 2 veces).
+- `git fetch origin <rama>` no actualiza el tracker (solo FETCH_HEAD);
+  para verdad remota: `git fetch origin`, `ls-remote` o API `gh`.
+- `requirements.txt` sin drift 92913951→132db597 ⇒ venv reutilizado.
+- Servidor MCP responde 404 en `/` y `/healthz` por diseño; baseline
+  de salud = puerto OPEN + HTTP responde (no connection refused).
