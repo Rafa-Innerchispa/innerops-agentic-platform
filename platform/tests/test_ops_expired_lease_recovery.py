@@ -33,7 +33,10 @@ def _claimed_task(**over):
 
 def test_expired_lease_with_token_is_recovered() -> None:
     db, col = _mock_db([_claimed_task()])
-    with patch("raphiia_openai.mongo_store.get_db", return_value=db):
+    with (
+        patch("raphiia_openai.mongo_store.get_db", return_value=db),
+        patch("inneros_core_runtime.self_heal_metrics.record_self_heal_incident"),
+    ):
         out = recover_expired_lease_interactive_ops_tasks()
 
     assert out["ok"] is True

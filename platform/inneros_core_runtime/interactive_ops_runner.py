@@ -541,6 +541,12 @@ def complete_ops_task(
         )
     except Exception:
         pass
+    try:
+        from inneros_core_runtime import productivity_metrics as _pm
+
+        _pm.record_task_completion(task, outcome="verification", requested=status)
+    except Exception:
+        pass
     return {
         "ok": True,
         "task_id": tid,

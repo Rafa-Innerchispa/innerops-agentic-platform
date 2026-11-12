@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -153,6 +154,7 @@ def recover_expired_lease_interactive_ops_tasks(
     concurrent renewal always wins the race.
     """
     db = mongo_store.get_db()
+    started = datetime.now(timezone.utc)
     filt = {
         "status": {"$in": list(ORPHAN_STATUSES)},
         "claim_token": {"$nin": [None, ""]},
@@ -208,4 +210,26 @@ def recover_expired_lease_interactive_ops_tasks(
         if getattr(res, "matched_count", 1) == 0:
             continue
         recovered.append({"task_id": tid, "status": target})
+    if recovered:
+        try:
+            from inneros_core_runtime import self_heal_metrics as _shm
+
+            _shm.record_self_heal_incident(
+                {
+                    "service_id": "ops-coordination-leases",
+                    "repair_action": "recover_expired_lease_interactive_ops_tasks",
+                    "repair_action_ok": True,
+                    "verified_recovered": True,
+                    "verification_method": "cas_matched_count",
+                    "repair_duration_seconds": round(
+                        (datetime.now(timezone.utc) - started).total_seconds(), 3
+                    ),
+                    "automatic": True,
+                    "node": socket.gethostname(),
+                    "evidence_refs": [entry["task_id"] for entry in recovered],
+                    "details": {"recovered": recovered, "scanned": len(rows)},
+                }
+            )
+        except Exception:
+            pass
     return {"ok": True, "recovered": recovered, "scanned": len(rows)}

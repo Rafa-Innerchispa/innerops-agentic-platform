@@ -722,6 +722,12 @@ def complete_ops_task(
         )
         _publish_task_event("task.execution_failed", task, actor="cursor",
                             status=normalized, payload={"evidence": ev, "temporal": temporal})
+        try:
+            from inneros_core_runtime import productivity_metrics as _pm
+
+            _pm.record_task_completion(task, outcome=normalized, requested=status)
+        except Exception:
+            pass
         return {"ok": True, "task_id": tid, "status": normalized,
                 "evidence": ev, "temporal": temporal}
 
@@ -757,6 +763,12 @@ def complete_ops_task(
             status=final_status,
             payload={"evidence": ev, "temporal": temporal, "gate_message": gate_hint},
         )
+        try:
+            from inneros_core_runtime import productivity_metrics as _pm
+
+            _pm.record_task_completion(task, outcome=final_status, requested=status)
+        except Exception:
+            pass
         return {
             "ok": True,
             "task_id": tid,
@@ -796,6 +808,12 @@ def complete_ops_task(
         status="verification",
         payload={"evidence": ev, "temporal": temporal},
     )
+    try:
+        from inneros_core_runtime import productivity_metrics as _pm
+
+        _pm.record_task_completion(task, outcome="verification", requested=status)
+    except Exception:
+        pass
     return {
         "ok": True,
         "task_id": tid,
