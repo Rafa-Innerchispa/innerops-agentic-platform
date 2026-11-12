@@ -1,6 +1,10 @@
 # Sync acotado Mongo AMD↔Intel — diseño para revisión (2026-11-12)
 
-Estado: PROPUESTA. Sin implementar. Requiere OK owner (escribe en ambas BDs).
+Estado: DISEÑO + CÓDIGO LISTOS, SIN EJECUTAR. `platform/scripts/sync_mongo_scoped.py`
+implementa dry-run (defecto) y apply (`--apply --yes`, kill-switch, presupuestos,
+divergencias bloquean). Requiere OK owner explícito para la primera ejecución
+con `--apply` (escribe en ambas BDs). Veredicto dry-run vivo 2026-11-12T09:56Z:
+push 427 / pull 55 / 0 conflictos / 0 terminal-mismatch.
 
 ## 0. Problema probado (no teoría)
 
@@ -20,9 +24,9 @@ Estado: PROPUESTA. Sin implementar. Requiere OK owner (escribe en ambas BDs).
 
 ## 2. Alcance (colecciones y campos)
 
-- `ralfia_ops_tasks`: solo docs con `updated_at` dentro de la ventana
-  (recomendado: 6h) O estado no-terminal. Campos: todo el doc menos
-  `_id`. Excluye adjuntos binarios si aparecieran (límite 1MB/doc).
+- `ralfia_ops_tasks`: no-terminales + contrapartes terminales del otro
+  lado (para que vivo-vs-terminal se marque, jamás se resucite por
+  overwrite). Campos: todo el doc menos `_id`. Límite 1MB/doc.
 - `ralfia_agent_messages`: solo `open`/`sending` (INBOX vivo).
 - `ralfia_task_heartbeats`: solo últimos 30 min por task (liveness).
 - Fuera: métricas (`productivity_*`, `self_heal_*`), auditoría ancha,
