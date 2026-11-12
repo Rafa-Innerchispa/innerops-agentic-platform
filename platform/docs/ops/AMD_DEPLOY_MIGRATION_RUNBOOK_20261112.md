@@ -47,9 +47,16 @@ git -C $R worktree add --detach $N origin/main
 # Estado + huérfanos con carga (lista reproducible, §4):
 cp $R/platform/.env $R/platform/.env.bak_20261106 $R/platform/.env.ops-notify $R/platform/.env.telegram-load $N/ 2>/dev/null || true
 cp $R/platform/inneros_core_runtime/ops_post_owner_autopilot.py $N/inneros_core_runtime/
+# Módulos ausentes-en-main (muertos según imports estáticos; se portan por si
+# hay imports dinámicos — peso muerto si no se usan, salvavidas si sí):
+for f in capability_gateway_hosting contifico_read_query cpanel_client hosting_authorization hosting_control_plane; do
+  cp $R/platform/inneros_core_runtime/$f.py $N/inneros_core_runtime/ 2>/dev/null || true
+done
 cp $R/platform/var/project_runtime_registry/registry.json $N/var/project_runtime_registry/ 2>/dev/null || true
-ln -s $R/platform/venv $N/venv
 echo -n 92913951b521ec49bf4ed6773be39611dcc8c60c > $N/.runtime_git_sha
+# OJO: el venv NO se linkea aquí (la ruta absoluta se rompería en el flip).
+# Se crea el symlink relativo DESPUÉS del flip (§4) y los gates usan el
+# binario venv actual por ruta absoluta + sys.path apuntando a $N.
 ```
 
 ## 3. Gates (todo debe pasar; si uno falla: parar, reportar, rollback N/A)
@@ -67,11 +74,15 @@ echo -n 92913951b521ec49bf4ed6773be39611dcc8c60c > $N/.runtime_git_sha
 ```bash
 systemctl --user stop inneros-temporal-worker.service ralfia-mcp.service ralfia-external-repair-agent.service ralfia-mcp-profile@chatgpt_compact.service
 mv $R/platform $R/platform-prev-f3a4ecdd && mv $N $R/platform
+# venv: symlink relativo al árbol preservado (el venv servido no se toca):
+ln -s ../platform-prev-f3a4ecdd/venv $R/platform/venv
+test -x $R/platform/venv/bin/python3 && $R/platform/venv/bin/python3 --version
 systemctl --user start inneros-temporal-worker.service ralfia-mcp.service ralfia-external-repair-agent.service ralfia-mcp-profile@chatgpt_compact.service
 # Salud: MCP 8102, Temporal 7233, worker logs (journalctl --user -u ... --since -5m), vLLM 8000 intacto (no se toca).
 ```
 
-Rollback: stop → `mv platform platform-bad; mv platform-prev-f3a4ecdd platform` → start → salud.
+Rollback: stop → `rm $R/platform/venv` (solo el symlink creado aquí) →
+`mv platform platform-bad; mv platform-prev-f3a4ecdd platform` → start → salud.
 `platform-prev-*` NO se borra hasta 7 días de verde (regla: borrados solo con OK por ruta).
 
 ## 5. Regenerar listas (triage reproducible, si main avanzó)
