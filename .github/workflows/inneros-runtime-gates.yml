@@ -134,6 +134,8 @@ jobs:
             platform/tests/test_ops_lifecycle_metrics.py
             platform/tests/test_mongo_scoped_sync.py
             platform/tests/test_ops_awaiting_claim.py
+            platform/tests/test_ops_task_admission.py
+            platform/tests/test_quad_canary_helpers.py
           "
           GATE_ROOT="$RUNNER_TEMP/inneros-gates/root"
           rm -rf "$RUNNER_TEMP/inneros-gates"

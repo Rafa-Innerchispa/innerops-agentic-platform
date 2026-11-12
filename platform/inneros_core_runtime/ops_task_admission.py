@@ -50,10 +50,20 @@ def looks_like_device_fabric_read(task: dict[str, Any]) -> bool:
     return not any(marker in text for marker in IMPLEMENTATION_MARKERS)
 
 
-_AGENTIC_PROTECTED_LANES = frozenset({"local_dev_swarm"})
-"""Lanes that always mean explicit agentic execution: keyword reclassification
-must never override them (a Dev Swarm probe mentioning read-only work is not
-a physical-device read)."""
+_AGENTIC_PROTECTED_LANES = frozenset({
+    "local_dev_swarm",
+    "cursor_interactive",
+    "codex_interactive",
+    "antigravity_interactive",
+    "gemini_interactive",
+    "chatgpt_interactive",
+    "manual_interactive",
+})
+"""Lanes that always mean explicit agentic/human execution: keyword
+reclassification must never override them (a Dev Swarm probe mentioning
+read-only work is not a physical-device read; canary v3 proved the same for
+every provider interactive lane). Unprotected lanes (e.g. "internal") keep
+the legacy normalize/repair behavior, covered by existing tests."""
 
 
 def normalize_ops_admission(task: dict[str, Any]) -> dict[str, Any]:

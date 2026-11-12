@@ -226,3 +226,63 @@ def test_cursor_failed_completion_records_failed_outcome() -> None:
     assert out["status"] == "failed"
     rec.assert_called_once()
     assert rec.call_args.kwargs["outcome"] == "failed"
+
+
+def test_workflow_mirror_completed_records_completion() -> None:
+    import asyncio
+
+    from inneros_core_runtime import temporal_activities as ta
+
+    envelope = {
+        "task_id": "ops_w1",
+        "execution_lane": "local_dev_swarm",
+        "preferred_provider": "dev_swarm",
+        "assignee": "dev_swarm",
+        "created_at": "2026-11-12T05:00:00+00:00",
+    }
+    evidence = {"completed_at": "2026-11-12T06:00:00+00:00", "agent_result": {"ok": True}}
+    client = MagicMock()
+    db = MagicMock()
+    col = MagicMock()
+    client.__getitem__.return_value = db
+    db.__getitem__.return_value = col
+    col.find_one.return_value = {"status": "running", "revision": 1}
+    with (
+        patch.object(ta, "_mongo_projection_client", return_value=(client, "testdb")),
+        patch.object(ta, "_safe_heartbeat"),
+        patch("inneros_core_runtime.ops_lifecycle.emit_owner_terminal_whatsapp"),
+        patch("inneros_core_runtime.productivity_metrics.record_task_completion",
+              return_value={"ok": True}) as rec,
+    ):
+        out = asyncio.run(ta.activity_sync_mongo_mirror(envelope, "completed", evidence))
+
+    assert out["ok"] is True
+    rec.assert_called_once()
+    assert rec.call_args.args[0]["task_id"] == "ops_w1"
+    assert rec.call_args.kwargs["outcome"] == "completed"
+    assert rec.call_args.kwargs["source"] == "workflow_complete"
+
+
+def test_workflow_mirror_failed_does_not_record() -> None:
+    import asyncio
+
+    from inneros_core_runtime import temporal_activities as ta
+
+    envelope = {"task_id": "ops_w2", "execution_lane": "local_dev_swarm"}
+    client = MagicMock()
+    db = MagicMock()
+    col = MagicMock()
+    client.__getitem__.return_value = db
+    db.__getitem__.return_value = col
+    col.find_one.return_value = {"status": "running", "revision": 1}
+    with (
+        patch.object(ta, "_mongo_projection_client", return_value=(client, "testdb")),
+        patch.object(ta, "_safe_heartbeat"),
+        patch("inneros_core_runtime.ops_lifecycle.emit_owner_terminal_whatsapp"),
+        patch("inneros_core_runtime.productivity_metrics.record_task_completion",
+              return_value={"ok": True}) as rec,
+    ):
+        out = asyncio.run(ta.activity_sync_mongo_mirror(envelope, "failed", {}))
+
+    assert out["ok"] is True
+    rec.assert_not_called()

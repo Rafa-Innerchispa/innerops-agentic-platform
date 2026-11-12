@@ -920,6 +920,24 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
                 )
             except Exception:
                 logger.debug("cursor awaiting claim notify skipped", exc_info=True)
+        if effective_status == "completed":
+            # Autonomous completions (dev_swarm et al.) finalize only through
+            # this mirror: record the KPI here or they stay invisible
+            # (canary v3: dev_swarm completed with no productivity event).
+            # Same-key upsert keeps this idempotent with interactive
+            # completions that record through interactive_ops_runner.
+            try:
+                from inneros_core_runtime import productivity_metrics as _pm
+
+                _pm.record_task_completion(
+                    {**envelope_dict, "task_id": task_id},
+                    outcome="completed",
+                    requested="completed",
+                    now_iso=str(evidence.get("completed_at") or now),
+                    source="workflow_complete",
+                )
+            except Exception:
+                logger.debug("workflow completion KPI skipped", exc_info=True)
         return {"ok": True, "mirrored": True}
     except Exception as e:
         logger.exception("Mongo projection update failed")
