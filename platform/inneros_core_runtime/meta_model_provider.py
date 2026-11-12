@@ -24,6 +24,7 @@ from urllib import error, request
 
 PROVIDER_ID = "meta-model-api"
 MODEL = "muse-spark-1.3"
+SUPPORTED_MODELS = ("muse-spark-1.3", "muse-wonder-1.0")
 BASE_URL = "https://api.meta.ai/v1"
 RESPONSES_URL = BASE_URL + "/responses"
 VAULT_CATEGORY = "model_api_provider"
@@ -130,6 +131,8 @@ def provider_status() -> dict[str, Any]:
         "credential_ref": CREDENTIAL_REF,
         "secret_returned": False,
         "model": MODEL,
+        "supported_models": list(SUPPORTED_MODELS),
+        "muse_wonder_eligible": False,  # a supported model is not an approved execution
         "live_model_inference_verified": False,  # status is updated only via verified receipts
         "credit_balance_usd": None,  # never infer balance from a promotional award screenshot
         "default_execution": "blocked_until_owner_grant",
@@ -226,6 +229,7 @@ class MetaGrantLedger:
         classification: str = SOURCE_POLICY,
         max_output_tokens: int = 192, ttl_seconds: int = 180,
         reasoning_effort: str | None = None,
+        model: str = MODEL,
     ) -> dict[str, Any]:
         prompt = _validate_prompt(prompt, classification)
         if not project_id or len(project_id) > 96:
@@ -236,13 +240,15 @@ class MetaGrantLedger:
             raise ValueError("Grant TTL must be within 1–300 seconds")
         if reasoning_effort is not None and str(reasoning_effort).lower() not in ("low", "medium", "high"):
             raise ValueError("reasoning_effort must be 'low', 'medium', or 'high'")
+        if model not in SUPPORTED_MODELS:
+            raise ValueError(f"model must be one of {SUPPORTED_MODELS}")
 
         prompt_hash = _sha(prompt.encode("utf-8"))
         scope = dict(approval or {})
         if (
             scope.get("project_id") != project_id
             or scope.get("prompt_sha256") != prompt_hash
-            or scope.get("model") != MODEL
+            or scope.get("model") != model
             or scope.get("max_output_tokens") != int(max_output_tokens)
             or not isinstance(scope.get("approval_ref"), str)
             or not scope.get("approval_ref")
@@ -252,14 +258,25 @@ class MetaGrantLedger:
             raise PermissionError("A verified owner approval bound to project, prompt and token budget is required")
         gid = "meta_grant_" + secrets.token_hex(16)
         with self._connect() as c:
+            # Single-use *approval*, not just a single-use grant. Otherwise
+            # the same signed approval could mint unlimited grants in a loop.
+            c.execute("BEGIN IMMEDIATE")
+            existing = c.execute(
+                "SELECT id FROM grants WHERE approval_ref=? LIMIT 1",
+                (scope["approval_ref"],),
+            ).fetchone()
+            if existing is not None:
+                c.execute("ROLLBACK")
+                raise PermissionError("Owner approval already exchanged for a grant")
             c.execute(
                 """INSERT INTO grants(id,project_id,prompt_sha,model,max_output_tokens,
                    expires_epoch,issued_at,approval_ref) VALUES(?,?,?,?,?,?,?,?)""",
-                (gid, project_id, prompt_hash, MODEL, int(max_output_tokens),
+                (gid, project_id, prompt_hash, model, int(max_output_tokens),
                  time.time() + ttl_seconds, _now(), scope["approval_ref"]),
             )
+            c.execute("COMMIT")
         res = {
-            "grant_id": gid, "project_id": project_id, "model": MODEL,
+            "grant_id": gid, "project_id": project_id, "model": model,
             "prompt_sha256": prompt_hash, "max_output_tokens": int(max_output_tokens),
             "expires_in_seconds": ttl_seconds, "approval_ref": scope["approval_ref"],
         }
@@ -422,7 +439,7 @@ class MetaGrantLedger:
                    provider_response_id,request_sha,response_sha,latency_ms,tokens_json,error_type,
                    completed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 ("meta_receipt_" + secrets.token_hex(12), grant_id, project_id,
-                 PROVIDER_ID, MODEL, receipt["status"], receipt["http_status"],
+                 PROVIDER_ID, receipt.get("model") or MODEL, receipt["status"], receipt["http_status"],
                  receipt.get("provider_response_id"), receipt["request_sha256"],
                  receipt.get("response_sha256"), receipt["latency_ms"],
                  json.dumps(receipt.get("usage") or {}, sort_keys=True),
@@ -487,10 +504,51 @@ def _extract_output(response: dict[str, Any]) -> str:
     return "\n".join(chunks).strip()
 
 
+ALLOWLISTED_DIAGNOSTIC_TOOLS = frozenset({
+    "get_ncp_state",
+    "get_pending_tasks",
+    "get_worker_health",
+    "get_agent_task_history",
+    "get_mcp_gateway_health",
+    "get_recent_errors",
+    "get_repo_status",
+    "read_source_file",
+    "read_log_excerpt",
+})
+
+
+def _extract_tool_calls(response: dict[str, Any]) -> list[dict[str, Any]]:
+    calls: list[dict[str, Any]] = []
+    for item in response.get("output", []) or []:
+        if not isinstance(item, dict) or item.get("type") != "function_call":
+            continue
+        name = str(item.get("name") or "").strip()
+        call_id = str(item.get("call_id") or item.get("id") or "").strip()
+        raw_args = item.get("arguments")
+        parsed_args: dict[str, Any] = {}
+        if isinstance(raw_args, dict):
+            parsed_args = raw_args
+        elif isinstance(raw_args, str) and raw_args.strip():
+            try:
+                loaded = json.loads(raw_args)
+                if isinstance(loaded, dict):
+                    parsed_args = loaded
+            except (ValueError, TypeError):
+                parsed_args = {}
+        if name:
+            calls.append({
+                "call_id": call_id or f"call_{secrets.token_hex(6)}",
+                "name": name,
+                "arguments": parsed_args,
+            })
+    return calls
+
+
 def invoke_with_grant(
     *, ledger: MetaGrantLedger, grant_id: str, project_id: str,
     prompt: str, classification: str = SOURCE_POLICY,
     reasoning_effort: str | None = None,
+    tools: list[dict[str, Any]] | None = None,
     transport: Callable[..., Any] | None = None,
     credential_loader: Callable[[], str] | None = None,
     timeout_seconds: int = 12,
@@ -511,6 +569,19 @@ def invoke_with_grant(
     }
     if reasoning_effort and str(reasoning_effort).lower() in ("low", "medium", "high"):
         body["reasoning"] = {"effort": str(reasoning_effort).lower()}
+    if tools is not None:
+        validated_tools: list[dict[str, Any]] = []
+        for t in tools:
+            if not isinstance(t, dict) or str(t.get("name") or "") not in ALLOWLISTED_DIAGNOSTIC_TOOLS:
+                raise PermissionError(f"Tool not allowlisted for governed Meta investigation: {t}")
+            validated_tools.append({
+                "type": "function",
+                "name": str(t["name"]),
+                "description": str(t.get("description") or ""),
+                "parameters": dict(t.get("parameters") or {"type": "object", "properties": {}}),
+            })
+        if validated_tools:
+            body["tools"] = validated_tools
 
     raw = _serial(body)
     receipt: dict[str, Any] = {
@@ -561,14 +632,23 @@ def invoke_with_grant(
                 receipt["error_type"] = "INVALID_JSON"
             else:
                 rid, output = response.get("id"), _extract_output(response)
+                tool_calls = _extract_tool_calls(response)
+                if tool_calls:
+                    receipt["tool_calls"] = tool_calls
                 usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
                 receipt["usage"] = usage
                 resp_status = str(response.get("status") or "").lower()
                 if isinstance(rid, str) and rid:
                     receipt["provider_response_id"] = rid
-                    if resp_status == "completed" and output:
+                    if response.get("model") and response.get("model") != info["model"]:
+                        receipt["status"] = "UNVERIFIED_PROVIDER_RESPONSE"
+                        receipt["error_type"] = "MODEL_MISMATCH"
+                    elif resp_status == "completed" and output:
                         receipt["status"] = "REAL_SUCCESS"
                         receipt["output_text"] = output
+                    elif resp_status == "completed" and tool_calls:
+                        receipt["status"] = "TOOL_CALL_REQUESTED"
+                        receipt["output_text"] = ""
                     elif resp_status == "incomplete":
                         receipt["status"] = "INCOMPLETE_MODEL_RESPONSE"
                         inc_details = response.get("incomplete_details") if isinstance(response.get("incomplete_details"), dict) else {}
