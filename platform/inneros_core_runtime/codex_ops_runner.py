@@ -19,6 +19,7 @@ from inneros_core_runtime.cursor_ops_runner import (
     _lease_valid,
     _release_claim,
     _validate_completion_evidence,
+    claim_backoff_blocked,
 )
 
 CODEX_PINNED_MODEL = os.getenv("CODEX_OPS_PINNED_MODEL", os.getenv("CODEX_WHATSAPP_MODEL", "gpt-5.6-sol")).strip()
@@ -148,6 +149,9 @@ def claim_ops_task(
     tid = str(task.get("task_id") or "")
     if not (bool(task.get("owner_authorized_at")) or owner_approved):
         return {"ok": False, "error": "owner_approval_required", "task_id": tid}
+    backoff = claim_backoff_blocked(task)
+    if backoff is not None:
+        return {"ok": False, "error": "claim_backoff_active", "task_id": tid, **backoff}
     token = secrets.token_hex(8)
     now = _now()
     claimed = db[OPS_TASKS_COL].find_one_and_update(
@@ -167,6 +171,7 @@ def claim_ops_task(
                 "runner": "codex_interactive",
                 "updated_at": now,
             },
+            "$unset": {"consecutive_claim_failures": "", "claim_backoff_until": ""},
             "$inc": {"revision": 1},
         },
         return_document=True,
