@@ -20,6 +20,7 @@ from inneros_core_runtime.cursor_ops_runner import (
     _lease_valid,
     _release_claim,
     _validate_completion_evidence,
+    claim_backoff_blocked,
 )
 from inneros_core_runtime import execution_receipts as receipts
 from inneros_core_runtime import ops_completion_policy as ocp
@@ -262,6 +263,9 @@ def claim_ops_task(
     tid = str(task.get("task_id") or "")
     if not (bool(task.get("owner_authorized_at")) or owner_approved):
         return {"ok": False, "error": "owner_approval_required", "task_id": tid}
+    backoff = claim_backoff_blocked(task)
+    if backoff is not None:
+        return {"ok": False, "error": "claim_backoff_active", "task_id": tid, **backoff}
     from inneros_core_runtime import cursor_headless_lanes as _lanes
 
     allowed_host, route_reason = _lanes.should_this_node_run_task(task)
@@ -305,6 +309,7 @@ def claim_ops_task(
                 "runner": f"{prov}_interactive",
                 "updated_at": now,
             },
+            "$unset": {"consecutive_claim_failures": "", "claim_backoff_until": ""},
             "$inc": {"revision": 1},
         },
         return_document=True,

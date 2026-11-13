@@ -134,14 +134,59 @@ def _compact_claim_details(details: dict[str, Any] | None) -> dict[str, Any] | N
     return out
 
 
+CLAIM_FAILURE_TRIP_COUNT = 5
+CLAIM_BACKOFF_BASE_SECONDS = 60
+CLAIM_BACKOFF_MAX_SECONDS = 1800
+
+
+def _parse_backoff_ts(value: Any) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def claim_backoff_seconds(failures: int) -> int:
+    n = max(1, int(failures or 1))
+    return min(CLAIM_BACKOFF_BASE_SECONDS * (2 ** (n - 1)), CLAIM_BACKOFF_MAX_SECONDS)
+
+
+def claim_backoff_blocked(task: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Retry-after details when a task sits inside claim-failure backoff, else None.
+
+    Unparseable timestamps fail OPEN (never wedge a task forever on corrupt
+    data); the trip counter in _release_claim bounds total failures anyway.
+    """
+    if not isinstance(task, dict):
+        return None
+    until = _parse_backoff_ts(task.get("claim_backoff_until"))
+    if until is None:
+        return None
+    remaining = (until - datetime.now(timezone.utc)).total_seconds()
+    if remaining <= 0:
+        return None
+    try:
+        failures = int(task.get("consecutive_claim_failures") or 0)
+    except (TypeError, ValueError):
+        failures = 0
+    return {"retry_after_seconds": int(remaining) + 1, "consecutive_claim_failures": failures}
+
+
 def _release_claim(db, tid: str, *, reason: str, details: dict[str, Any] | None = None) -> None:
     from inneros_core_runtime.ops_awaiting_claim import awaiting_claim_status_for_task
 
     now = _now()
     task = db[OPS_TASKS_COL].find_one(
         {"task_id": tid},
-        {"assignee": 1, "assigned_to": 1, "preferred_provider": 1, "owner": 1},
+        {"assignee": 1, "assigned_to": 1, "preferred_provider": 1, "owner": 1,
+         "consecutive_claim_failures": 1},
     ) or {}
+    try:
+        failures = max(0, int(task.get("consecutive_claim_failures") or 0)) + 1
+    except (TypeError, ValueError):
+        failures = 1
+    tripped = failures >= CLAIM_FAILURE_TRIP_COUNT
     detail = _compact_claim_details(details)
     unset_doc: dict[str, Any] = {
         "claim_token": "",
@@ -150,19 +195,44 @@ def _release_claim(db, tid: str, *, reason: str, details: dict[str, Any] | None 
         "claimed_by": "",
         "claim_host": "",
     }
+    if tripped:
+        status = "pending_human_review"
+        claim_error = f"{reason[:200]}|claim_failures_exhausted:{failures}"
+    else:
+        status = awaiting_claim_status_for_task(task)
+        claim_error = reason[:500]
     set_doc: dict[str, Any] = {
-        "status": awaiting_claim_status_for_task(task),
+        "status": status,
         "updated_at": now,
-        "claim_error": reason[:500],
+        "claim_error": claim_error,
     }
+    if not tripped:
+        backoff_until = (
+            datetime.now(timezone.utc) + timedelta(seconds=claim_backoff_seconds(failures))
+        ).isoformat()
+        set_doc["claim_backoff_until"] = backoff_until
     if detail is None:
         unset_doc["claim_error_detail"] = ""
     else:
         set_doc["claim_error_detail"] = detail
     db[OPS_TASKS_COL].update_one(
         {"task_id": tid},
-        {"$set": set_doc, "$unset": unset_doc, "$inc": {"revision": 1}},
+        {"$set": set_doc, "$unset": unset_doc,
+         "$inc": {"revision": 1, "consecutive_claim_failures": 1}},
     )
+    if tripped and failures == CLAIM_FAILURE_TRIP_COUNT:
+        try:
+            from inneros_core_runtime.notifications.ops_task_alerts import (
+                notify_claim_failures_exhausted,
+            )
+
+            notify_claim_failures_exhausted(
+                {"task_id": tid, "status": status, "claim_error": claim_error},
+                failures=failures,
+                reason=reason,
+            )
+        except Exception:
+            pass
 
 
 CANCEL_TERMINAL_STATUSES = frozenset(
@@ -440,6 +510,9 @@ def claim_ops_task(
                 "(WhatsApp/voz cuando aplique)."
             ),
         }
+    backoff = claim_backoff_blocked(task)
+    if backoff is not None:
+        return {"ok": False, "error": "claim_backoff_active", "task_id": tid, **backoff}
 
     token = secrets.token_hex(8)
     now = _now()
@@ -469,6 +542,7 @@ def claim_ops_task(
                 "owner_authorized_at": task.get("owner_authorized_at") or now,
                 "owner_authorized_by": task.get("owner_authorized_by") or owner_actor,
             },
+            "$unset": {"consecutive_claim_failures": "", "claim_backoff_until": ""},
             "$inc": {"revision": 1},
         },
         return_document=True,

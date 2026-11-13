@@ -788,3 +788,27 @@ def resend_ops_owner_authorization(task_id: str) -> dict[str, Any]:
     if status in TERMINAL_OPS:
         return {"ok": False, "error": "task_terminal", "task_id": tid, "status": status}
     return notify_ops_owner_authorization_request(task, force=True)
+
+
+def notify_claim_failures_exhausted(
+    task: dict[str, Any] | None, *, failures: int = 0, reason: str = ""
+) -> dict[str, Any]:
+    """Best-effort owner alert: task tripped to human review after N claim failures.
+
+    Never raises; plain text (no Markdown) so failure reasons cannot break
+    formatting. Called once per trip (tripped tasks are unclaimable, so no
+    repeat releases can re-fire it).
+    """
+    try:
+        from inneros_core_runtime.notifications import telegram_client as tg
+
+        if not (tg.telegram_enabled() and tg.configured()):
+            return {"ok": False, "skipped": "telegram_unavailable"}
+        tid = str((task or {}).get("task_id") or "?")
+        text = (
+            f"Claim guard: {tid} claim fallo {failures}x seguidos ({reason}). "
+            "Paso a pending_human_review. Revisa worktree/lane antes de reintentar."
+        )
+        return tg.send_message(text, parse_mode="")
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
