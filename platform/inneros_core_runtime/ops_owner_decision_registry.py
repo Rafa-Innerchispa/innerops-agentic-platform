@@ -42,17 +42,17 @@ def _is_future_epoch(value: Any) -> bool:
 
 
 def _scope_hash(task: dict[str, Any]) -> str:
-    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
-    blob = "|".join(
-        [
-            str(task.get("task_id") or ""),
-            str(task.get("assignee") or task.get("preferred_provider") or ""),
-            str(task.get("objective") or task.get("title") or ""),
-            str(payload.get("preferred_provider") or ""),
-            str(task.get("correlation_id") or ""),
-        ]
+    """Mismo algoritmo que el broker de Atlas para que los hashes coincidan."""
+    import json
+
+    fields = (
+        "task_id", "assignee", "preferred_provider", "preferred_model",
+        "objective", "title", "repo", "base_ref", "work_branch",
+        "task_class", "execution_lane", "execution_policy", "payload",
     )
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
+    return hashlib.sha256(
+        json.dumps({k: task.get(k) for k in fields}, sort_keys=True, default=str).encode()
+    ).hexdigest()
 
 
 def _collection():
