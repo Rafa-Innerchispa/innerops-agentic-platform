@@ -112,7 +112,7 @@ def publish_decision_request(
             "nonce": str(existing["nonce"]),
             "duplicate": True,
         }
-    nonce = secrets.token_urlsafe(32)
+    nonce = secrets.token_hex(8)
     now = _now()
     row = _atlas_doc(task, scope=scope, nonce=nonce, now=now, expires=_expires_at(ttl_sec))
     row_set = {k: v for k, v in row.items() if k not in {"_id", "created_at"}}
