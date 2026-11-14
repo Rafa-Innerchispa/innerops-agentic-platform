@@ -115,8 +115,8 @@ def publish_decision_request(
     nonce = secrets.token_urlsafe(32)
     now = _now()
     row = _atlas_doc(task, scope=scope, nonce=nonce, now=now, expires=_expires_at(ttl_sec))
-    row_set = {k: v for k, v in row.items() if k != "_id"}
-    col.update_one({"_id": tid}, {"$set": row_set, "$setOnInsert": {"created_at": now}}, upsert=True)
+    row_set = {k: v for k, v in row.items() if k not in {"_id", "created_at"}}
+    col.update_one({"_id": tid}, {"$set": row_set, "$setOnInsert": {"_id": tid, "created_at": now}}, upsert=True)
     return {"ok": True, "task_id": tid, "nonce": nonce}
 
 
