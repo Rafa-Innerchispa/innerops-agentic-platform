@@ -215,6 +215,18 @@ def format_list_line(task: dict[str, Any]) -> str:
     return f"{alias} | {status} | {assignee} | {tid} | {title}"
 
 
+def _escape_telegram_markdown(text: str) -> str:
+    """Escapa asteriscos/guiones sueltos que romperían el parseo Markdown de Telegram."""
+    out = []
+    for line in str(text or "").split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("*") and stripped.endswith("*") and stripped.count("*") == 2:
+            out.append(line)
+        else:
+            out.append(line.replace("*", "·"))
+    return "\n".join(out)
+
+
 def format_telegram_owner_body(
     *,
     task: dict[str, Any],
@@ -240,9 +252,9 @@ def format_telegram_owner_body(
         f"*Qué:* {objective[:200]}",
     ]
     if spends.strip():
-        lines.append(spends.strip())
+        lines.append(_escape_telegram_markdown(spends.strip()))
     if detail.strip():
-        lines.append(detail.strip()[:400])
+        lines.append(_escape_telegram_markdown(detail.strip()[:400]))
     if alert_kind == "external_spend":
         lines.append("")
         lines.append("Usa *Confirmar* o *Cancelar* abajo.")
