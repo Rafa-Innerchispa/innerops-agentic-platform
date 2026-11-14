@@ -25,18 +25,18 @@ DEFAULT_TTL_SEC = 900
 TERMINAL_DECISIONS = frozenset({"approved", "cancelled", "expired"})
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _now_epoch() -> float:
+    return datetime.now(timezone.utc).timestamp()
 
 
-def _expires_at(ttl_sec: int | None = None) -> str:
+def _expires_at_epoch(ttl_sec: int | None = None) -> float:
     sec = max(60, int(ttl_sec if ttl_sec is not None else DEFAULT_TTL_SEC))
-    return (datetime.now(timezone.utc) + timedelta(seconds=sec)).isoformat()
+    return _now_epoch() + sec
 
 
-def _is_future(iso: str) -> bool:
+def _is_future_epoch(value: Any) -> bool:
     try:
-        return datetime.fromisoformat(iso) > datetime.now(timezone.utc)
+        return float(value) > _now_epoch()
     except (ValueError, TypeError):
         return False
 
@@ -63,8 +63,8 @@ def _collection():
     return col
 
 
-def _atlas_doc(task: dict[str, Any], *, scope: str, nonce: str, now: str, expires: str) -> dict[str, Any]:
-    """Formato compatible con el broker de Atlas: _id = task_id, status pending."""
+def _atlas_doc(task: dict[str, Any], *, scope: str, nonce: str, now: float, expires: float) -> dict[str, Any]:
+    """Formato compatible con el broker de Atlas: _id = task_id, status pending, tiempos epoch."""
     tid = str(task.get("task_id") or "").strip()
     return {
         "_id": tid,
@@ -103,7 +103,7 @@ def publish_decision_request(
         and str(existing.get("status") or "") in {"awaiting_owner_decision", "pending"}
         and str(existing.get("scope_hash") or "") == scope
         and int(existing.get("revision") or 0) == revision
-        and _is_future(str(existing.get("expires_at") or ""))
+        and _is_future_epoch(existing.get("expires_at"))
         and str(existing.get("nonce") or "")
     ):
         return {
@@ -113,8 +113,8 @@ def publish_decision_request(
             "duplicate": True,
         }
     nonce = secrets.token_hex(8)
-    now = _now()
-    row = _atlas_doc(task, scope=scope, nonce=nonce, now=now, expires=_expires_at(ttl_sec))
+    now = _now_epoch()
+    row = _atlas_doc(task, scope=scope, nonce=nonce, now=now, expires=_expires_at_epoch(ttl_sec))
     row_set = {k: v for k, v in row.items() if k not in {"_id", "created_at"}}
     col.update_one({"_id": tid}, {"$set": row_set, "$setOnInsert": {"_id": tid, "created_at": now}}, upsert=True)
     return {"ok": True, "task_id": tid, "nonce": nonce}
@@ -136,20 +136,21 @@ def consume_decision(
     row = col.find_one({"_id": tid, "status": "pending"})
     if not row:
         row = col.find_one({"task_id": tid, "status": "awaiting_owner_decision"})
-    if not row or not _is_future(str(row.get("expires_at") or "")):
+    if not row or not _is_future_epoch(row.get("expires_at")):
         return {"ok": False, "error": "decision_not_found_or_expired"}
     if not secrets.compare_digest(str(row.get("nonce") or ""), str(nonce or "")):
         return {"ok": False, "error": "nonce_mismatch"}
     new_status = "approved" if decision == "approve" else "cancelled"
+    now = _now_epoch()
     updated = col.find_one_and_update(
         {"_id": row["_id"], "status": row["status"], "nonce": row["nonce"]},
         {
             "$set": {
                 "status": new_status,
                 "decided_by": channel,
-                "decided_at": _now(),
+                "decided_at": now,
                 "owner_actor": owner_actor,
-                "updated_at": _now(),
+                "updated_at": now,
             }
         },
         return_document=True,

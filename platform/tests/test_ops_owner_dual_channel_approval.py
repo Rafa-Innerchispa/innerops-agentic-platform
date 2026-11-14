@@ -50,7 +50,7 @@ def test_publish_reuses_same_nonce_before_expiry():
         "scope_hash": decisions._scope_hash(_task()),
         "revision": 3,
         "nonce": "n1",
-        "expires_at": "2999-01-01T00:00:00+00:00",
+        "expires_at": 4102444800.0,
     }
     col.find_one.return_value = row
     with patch.object(decisions, "_collection", return_value=col):
@@ -67,7 +67,7 @@ def test_first_decision_wins_second_rejected():
         "task_id": "ops_abcdef123456",
         "status": "pending",
         "nonce": "n1",
-        "expires_at": "2999-01-01T00:00:00+00:00",
+        "expires_at": 4102444800.0,
     }
     col.find_one.side_effect = [
         row,
@@ -95,7 +95,7 @@ def test_expired_decision_rejected():
         "task_id": "ops_abcdef123456",
         "status": "pending",
         "nonce": "n1",
-        "expires_at": "2000-01-01T00:00:00+00:00",
+        "expires_at": 946684800.0,
     }
     with patch.object(decisions, "_collection", return_value=col):
         out = decisions.consume_decision(
@@ -120,7 +120,7 @@ def test_alexa_approve_uses_shared_executor():
         "task_id": "ops_abcdef123456",
         "status": "pending",
         "nonce": "n1",
-        "expires_at": "2999-01-01T00:00:00+00:00",
+        "expires_at": 4102444800.0,
     }
     col.find_one.return_value = row
     col.find_one_and_update.return_value = {**row, "status": "approved"}
