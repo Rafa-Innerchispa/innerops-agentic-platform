@@ -39,7 +39,6 @@ def build_task(server: str, provider: str, internal: bool) -> dict:
             ),
             "task_class": "business_ops",
             "execution_lane": "local_dev_swarm",
-            "tags": ["voice-rollcall", f"server-{server}"],
             "correlation_id": CORRELATION,
             "idempotency_key": f"voice-rollcall-{server}-{provider}",
         }
@@ -53,7 +52,6 @@ def build_task(server: str, provider: str, internal: bool) -> dict:
         ),
         "task_class": "business_ops",
         "preferred_model": "",
-        "tags": ["voice-rollcall", f"server-{server}"],
         "correlation_id": CORRELATION,
         "idempotency_key": f"voice-rollcall-{server}-{provider}",
         "payload": {"preferred_host": server},
