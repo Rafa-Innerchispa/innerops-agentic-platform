@@ -156,3 +156,34 @@ runbook allá), timers AMD (cero hoy), sync Mongo, failover-kill (trigger owner)
 - `requirements.txt` sin drift 92913951→132db597 ⇒ venv reutilizado.
 - Servidor MCP responde 404 en `/` y `/healthz` por diseño; baseline
   de salud = puerto OPEN + HTTP responde (no connection refused).
+
+## 8. Deploy-4 — main@5803c002 (#277 guardrails) + incidente overlay parcial
+
+Deploy-4 (2026-11-13) convergió runtime pero dejó 15 archivos tests/
+obsoletos (era Oct/Nov-1): el rsync transfirió archivos nuevos pero no
+todos los modificados (causa mecánica exacta no determinada; el árbol
+fuente estaba completo: 1244/1244). Se detectó porque un gate vs
+serving falló (F4 con fixture viejo) y se reparó copiando los 15 bytes
+verificados por md5 contra origin/main. Runtime nunca afectado
+(prueba conductual: canarios v4/v5 + gates).
+
+Reglas nuevas (obligatorias todo deploy futuro):
+
+1. Verificar $W completo ANTES del overlay: `find $W/platform -type f |
+   wc -l` debe igualar `git ls-tree -r --name-only origin/main platform
+   | wc -l`, más grep de 1-2 archivos clave del cambio.
+2. Convergencia SIN FILTRO que oculte ausencias: contar por separado
+   `differ` (= 0 exigido) y `Only in $W` (= 0 exigido); solo `Only in
+   serving` (leftovers) es aceptable. El filtro viejo (`grep -v`)
+   escondía source-missing (falso "converged").
+3. Comillas simples en greps con `$` (`grep ' differ$'`): en sh/dash,
+   `"...$|..."` entre comillas dobles se come el `$` y da conteo 0
+   falso. Toda verificación `grep -c` que dé 0 debe venir con prueba de
+   que el input no estaba vacío.
+4. Spot-check md5 post-overlay de los archivos del cambio
+   (`git show origin/main:<path> | md5sum` vs serving).
+5. Nunca editar `.runtime_git_sha` a mano (ni owner ni agentes): miente
+   al audit readonly (lee markers, no bytes). Solo el deploy la escribe.
+6. Veredicto deploy-4: overlay + reparación 15/15 md5-ok, marker veraz,
+   salud 4/4 + journal limpio, gate serving FULL 456/0, canario v5
+   verde (4/4, SHAs estrictos). Backup `platform-prev-f140b44b`.
