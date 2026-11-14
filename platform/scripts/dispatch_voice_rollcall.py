@@ -37,8 +37,9 @@ def build_task(server: str, provider: str, internal: bool) -> dict:
                 f"{greeting} Di este saludo por Alexa y registra evidencia. "
                 f"Servidor: {server}. Sin gate externo: carril interno."
             ),
-            "task_class": "business_ops",
+            "task_class": "coding",
             "execution_lane": "local_dev_swarm",
+            "repo": "Rafa-Innerchispa/innerops-agentic-platform",
             "correlation_id": CORRELATION,
             "idempotency_key": f"voice-rollcall-{server}-{provider}",
         }
