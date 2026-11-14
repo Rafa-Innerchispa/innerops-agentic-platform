@@ -216,15 +216,8 @@ def format_list_line(task: dict[str, Any]) -> str:
 
 
 def _escape_telegram_markdown(text: str) -> str:
-    """Escapa asteriscos/guiones sueltos que romperían el parseo Markdown de Telegram."""
-    out = []
-    for line in str(text or "").split("\n"):
-        stripped = line.strip()
-        if stripped.startswith("*") and stripped.endswith("*") and stripped.count("*") == 2:
-            out.append(line)
-        else:
-            out.append(line.replace("*", "·"))
-    return "\n".join(out)
+    """Texto plano seguro para Telegram: sin formato Markdown que pueda romperse."""
+    return str(text or "").replace("*", "").replace("_", "").replace("`", "'")
 
 
 def format_telegram_owner_body(
