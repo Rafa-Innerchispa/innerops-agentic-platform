@@ -363,32 +363,22 @@ def notify_ops_owner_authorization_request(
         decision_out = decisions.publish_decision_request(task)
     except Exception as exc:
         decision_out = {"ok": False, "error": str(exc)[:200]}
-    try:
-        from inneros_core_runtime.notifications import telegram_client as tg
-
-        if tg.telegram_enabled() and tg.configured():
-            tg_out = tg.send_message(
-                tg_body,
-                reply_markup=tg.ops_auth_inline_keyboard(tid),
-                parse_mode="Markdown",
-            )
-    except Exception as exc:
-        tg_out = {"ok": False, "error": str(exc)[:200]}
-    if tg_out.get("ok"):
+    # Telegram lo envía SOLO el observador Atlas (botones atlas.yes/atlas.no
+    # con nonce). Este módulo solo publica el registro compartido para Alexa
+    # y evita duplicar mensajes al propietario.
+    tg_out = {"ok": False, "skipped": "telegram_via_atlas_observer"}
+    if decision_out.get("ok"):
         _mark_sent("owner_auth", alias)
         _mark_owner_auth_sent_mongo(tid)
-        modes = ["telegram"]
-        if decision_out.get("ok"):
-            modes.append("alexa_shared_registry")
         return {
             "ok": True,
-            "result": tg_out,
+            "result": decision_out,
             "ha_companion": ha_out,
             "telegram": tg_out,
             "decision_registry": decision_out,
             "task_id": tid,
             "summary": summary,
-            "delivery_mode": "+".join(modes) or "unreachable",
+            "delivery_mode": "alexa_shared_registry+atlas_telegram",
             "poll_message_id": "",
             "email_fallback": None,
         }
