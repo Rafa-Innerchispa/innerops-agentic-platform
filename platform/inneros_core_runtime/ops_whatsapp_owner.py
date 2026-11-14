@@ -229,6 +229,7 @@ def handle_owner_reply(
     from inneros_core_runtime.coordination_live import OPS_TASKS_COL
     from inneros_core_runtime import execution_binding as eb
     from inneros_core_runtime import interactive_ops_runner as ior
+    from inneros_core_runtime import ops_owner_decision_registry as decisions
     from inneros_core_runtime.interactive_ops_orchestrator import owner_order_execute
 
     task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
@@ -253,6 +254,27 @@ def handle_owner_reply(
             ),
             "task_id": tid,
             "action": "auth_closed",
+        }
+
+    decision_row = decisions.publish_decision_request(task)
+    nonce = str(decision_row.get("nonce") or "")
+    if not decision_row.get("ok") or not nonce:
+        return {
+            "ok": False,
+            "text": f"⚠️ `{tid}` ya fue resuelta por otro canal.",
+            "task_id": tid,
+            "action": "auth_late_duplicate",
+        }
+    consumed = decisions.consume_decision(
+        task_id=tid, nonce=nonce, decision="approve", channel="telegram", owner_actor=owner_actor,
+    )
+    if not consumed.get("ok"):
+        decided_by = str(consumed.get("decided_by") or "otro canal")
+        return {
+            "ok": False,
+            "text": f"⚠️ `{tid}` ya fue *Autorizada por {decided_by}*. Esta respuesta queda rechazada.",
+            "task_id": tid,
+            "action": "auth_late_duplicate",
         }
 
     provider = eb.normalize_provider(task.get("preferred_provider") or task.get("assignee"))
@@ -298,7 +320,7 @@ def handle_owner_reply(
         provider,
         task_id=tid,
         owner_actor=owner_actor,
-        channel="whatsapp",
+        channel="telegram",
         owner_approved=True,
     )
     claim = out.get("claim") or {}
@@ -307,7 +329,7 @@ def handle_owner_reply(
         attempts += 1
         import time
         time.sleep(min(2 ** attempts, 8))
-        out = owner_order_execute(provider, task_id=tid, owner_actor=owner_actor, channel="whatsapp", owner_approved=True)
+        out = owner_order_execute(provider, task_id=tid, owner_actor=owner_actor, channel="telegram", owner_approved=True)
     claim = out.get("claim") or {}
     if not out.get("ok"):
         return {

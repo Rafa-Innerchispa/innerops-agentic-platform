@@ -78,6 +78,7 @@ def _handle_callback(cb: dict[str, Any]) -> dict[str, Any]:
     from_user = cb.get("from") or {}
     chat = (cb.get("message") or {}).get("chat") or {}
     chat_id = str(chat.get("id") or from_user.get("id") or "")
+    message_id = (cb.get("message") or {}).get("message_id")
     allowed = (tg.owner_chat_id() or "").strip()
     if allowed and chat_id and chat_id != allowed:
         tg.answer_callback(cq_id, "No autorizado")
@@ -88,6 +89,15 @@ def _handle_callback(cb: dict[str, Any]) -> dict[str, Any]:
         tg.answer_callback(cq_id, (out or {}).get("text", "")[:200] if out else "OK")
     if out and out.get("text"):
         _reply(chat_id, str(out["text"]), voice=False)
+    if out and out.get("action") == "auth_late_duplicate" and message_id:
+        try:
+            tg.edit_auth_message(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=str(out.get("text") or "Ya resuelta por otro canal."),
+            )
+        except Exception:
+            pass
     return {"ok": True, "action": "callback", "result": out}
 
 

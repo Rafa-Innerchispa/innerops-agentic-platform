@@ -120,6 +120,23 @@ def answer_callback(callback_query_id: str, text: str = "") -> dict[str, Any]:
     )
 
 
+def edit_auth_message(
+    *,
+    chat_id: str,
+    message_id: int | str,
+    text: str,
+) -> dict[str, Any]:
+    """Retira los botones de autorización tras una decisión (p. ej. ganada por Alexa)."""
+    return _post(
+        "editMessageText",
+        {
+            "chat_id": str(chat_id or "").strip(),
+            "message_id": int(message_id),
+            "text": (text or "")[:4000],
+        },
+    )
+
+
 def get_me() -> dict[str, Any]:
     return _post("getMe", {})
 

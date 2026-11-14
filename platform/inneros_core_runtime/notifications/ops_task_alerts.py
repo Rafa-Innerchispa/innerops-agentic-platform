@@ -211,31 +211,24 @@ def notify_ops_owner_authorization_request(
     source_agent: str = "",
     force: bool = False,
 ) -> dict[str, Any]:
-    """WhatsApp al crear ops task: motivo externo vs interno y cómo autorizar."""
+    """Telegram + Alexa al crear ops task: mismo registro, primera decisión gana."""
     if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
         return {"ok": False, "skipped": "notifications_disabled"}
 
     from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
 
-    whatsapp_up = False
-    try:
-        from raphiia_openai.notifications.evolution_client import any_whatsapp_connected
-
-        whatsapp_up = bool(any_whatsapp_connected())
-    except Exception:
-        whatsapp_up = False
     ha_primary = ops_ha.ha_auth_enabled()
-    tg_ready = False
+    telegram_ok = False
     try:
-        from inneros_core_runtime.notifications import telegram_client as _tgc
+        from inneros_core_runtime.notifications import telegram_client as _tg
 
-        tg_ready = bool(_tgc.telegram_enabled() and _tgc.configured())
+        telegram_ok = bool(_tg.telegram_enabled() and _tg.configured())
     except Exception:
-        tg_ready = False
-    if not ha_primary and not tg_ready and not _whatsapp_enabled():
+        telegram_ok = False
+    if not telegram_ok and not ha_primary:
         return {
             "ok": False,
-            "skipped": "no_owner_channel_available",
+            "skipped": "telegram_and_ha_off",
             "task_id": str(task.get("task_id") or ""),
         }
 
@@ -363,13 +356,13 @@ def notify_ops_owner_authorization_request(
 
     ha_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
     tg_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
-    if ha_primary:
-        ha_out = ops_ha.notify_ops_owner_ha_authorization(
-            task,
-            summary=summary,
-            headline=f"{icon} {headline}",
-            body=body,
-        )
+    decision_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    try:
+        from inneros_core_runtime import ops_owner_decision_registry as decisions
+
+        decision_out = decisions.publish_decision_request(task)
+    except Exception as exc:
+        decision_out = {"ok": False, "error": str(exc)[:200]}
     try:
         from inneros_core_runtime.notifications import telegram_client as tg
 
@@ -381,19 +374,43 @@ def notify_ops_owner_authorization_request(
             )
     except Exception as exc:
         tg_out = {"ok": False, "error": str(exc)[:200]}
-    if ha_out.get("ok") or tg_out.get("ok"):
+    if tg_out.get("ok"):
         _mark_sent("owner_auth", alias)
         _mark_owner_auth_sent_mongo(tid)
-        modes = []
-        if ha_out.get("ok"):
-            modes.append("ha_companion_ops")
-        if tg_out.get("ok"):
-            modes.append("telegram")
+        modes = ["telegram"]
+        if decision_out.get("ok"):
+            modes.append("alexa_shared_registry")
         return {
             "ok": True,
-            "result": ha_out if ha_out.get("ok") else tg_out,
+            "result": tg_out,
             "ha_companion": ha_out,
             "telegram": tg_out,
+            "decision_registry": decision_out,
+            "task_id": tid,
+            "summary": summary,
+            "delivery_mode": "+".join(modes) or "unreachable",
+            "poll_message_id": "",
+            "email_fallback": None,
+        }
+    if ha_primary:
+        ha_out = ops_ha.notify_ops_owner_ha_authorization(
+            task,
+            summary=summary,
+            headline=f"{icon} {headline}",
+            body=body,
+        )
+    if ha_out.get("ok"):
+        _mark_sent("owner_auth", alias)
+        _mark_owner_auth_sent_mongo(tid)
+        modes = ["ha_companion_ops"]
+        if decision_out.get("ok"):
+            modes.append("alexa_shared_registry")
+        return {
+            "ok": True,
+            "result": ha_out,
+            "ha_companion": ha_out,
+            "telegram": tg_out,
+            "decision_registry": decision_out,
             "task_id": tid,
             "summary": summary,
             "delivery_mode": "+".join(modes) or "unreachable",
@@ -410,107 +427,24 @@ def notify_ops_owner_authorization_request(
             "delivery_mode": "none",
         }
 
-    if not _whatsapp_enabled():
-        delivered = _ha_then_email(
-            task,
-            body=body,
-            provider=provider,
-            email_subject=f"[RalfIA OPS] Autorización {provider.upper()} · {short}",
-        )
-        ok = bool(delivered.get("ok"))
-        if ok:
-            _mark_sent("owner_auth", alias)
-            _mark_owner_auth_sent_mongo(tid)
-        return {
-            "ok": ok,
-            "result": delivered,
-            "task_id": tid,
-            "summary": summary,
-            "delivery_mode": delivered.get("delivery_mode") or "unreachable",
-            "poll_message_id": "",
-            "email_fallback": delivered if delivered.get("channel") == "email" else None,
-        }
-
-    from inneros_core_runtime import whatsapp_ops_auth_pending as ops_pending
-
-    owner_phone = (
-        os.getenv("RALFIA_ALERTS_TO") or os.getenv("NOTIFY_WHATSAPP_TO") or ""
-    ).strip()
-    auth_ui = (os.getenv("NOTIFY_OPS_AUTH_UI") or "buttons").strip().lower()
-    poll_message_id = ""
-    buttons = [
-        {"id": f"ops.auth.yes.{tid}", "label": "Confirmar"},
-        {"id": f"ops.auth.no.{tid}", "label": "Cancelar"},
-    ]
-    if auth_ui == "poll":
-        from raphiia_openai.notifications.evolution_client import (
-            OPS_AUTH_POLL_NO,
-            OPS_AUTH_POLL_YES,
-            send_alert_whatsapp_poll,
-        )
-
-        result = send_alert_whatsapp_poll(
-            body,
-            [OPS_AUTH_POLL_YES, OPS_AUTH_POLL_NO],
-            number=owner_phone or None,
-            selectable_count=1,
-        )
-        poll_message_id = str(result.get("poll_message_id") or "").strip()
-        delivery_mode = "poll"
-    else:
-        result = send_whatsapp_interactive(
-            body,
-            buttons,
-            number=owner_phone or None,
-            footer="RalfIA · operaciones",
-            fallback_text=None,
-        )
-        delivery_mode = "buttons_plus_text"
-    if result.get("ok") and owner_phone:
-        ops_pending.register_pending(
-            phone=owner_phone,
-            task_id=tid,
-            provider=provider,
-            poll_message_id=poll_message_id or None,
-        )
-    if not result.get("ok") and whatsapp_up:
-        result = send_alert_whatsapp(body, prefix_node=True)
-        delivery_mode = "text"
-    email_fallback = None
-    ha_retry: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
-    if not result.get("ok") and ha_primary:
-        ha_retry = ops_ha.notify_ops_owner_ha_authorization(
-            task,
-            summary=summary,
-            headline=f"{icon} {headline}",
-            body=body,
-        )
-        if ha_retry.get("ok"):
-            result = {"ok": True, "status": "sent", "channel": "ha_companion_ops", "ha": ha_retry}
-            delivery_mode = "ha_companion_ops"
-    if not result.get("ok") and not ha_primary:
-        email_fallback = _notify_ops_auth_email_fallback(
-            task, body=body, provider=provider, tid=tid
-        )
-        if email_fallback.get("ok"):
-            result = {"ok": True, "status": "sent", "channel": "email_fallback", "email": email_fallback}
-    elif not result.get("ok") and ha_primary and not ha_retry.get("ok"):
-        email_fallback = _notify_ops_auth_email_fallback(
-            task, body=body, provider=provider, tid=tid
-        )
-        if email_fallback.get("ok"):
-            result = {"ok": True, "status": "sent", "channel": "email_fallback", "email": email_fallback}
-    if result.get("ok"):
-        _mark_sent("owner_auth", tid)
+    delivered = _ha_then_email(
+        task,
+        body=body,
+        provider=provider,
+        email_subject=f"[RalfIA OPS] Autorización {provider.upper()} · {short}",
+    )
+    ok = bool(delivered.get("ok"))
+    if ok:
+        _mark_sent("owner_auth", alias)
         _mark_owner_auth_sent_mongo(tid)
     return {
-        "ok": bool(result.get("ok")),
-        "result": result,
+        "ok": ok,
+        "result": delivered,
         "task_id": tid,
         "summary": summary,
-        "delivery_mode": delivery_mode,
-        "poll_message_id": poll_message_id,
-        "email_fallback": email_fallback,
+        "delivery_mode": delivered.get("delivery_mode") or "unreachable",
+        "poll_message_id": "",
+        "email_fallback": delivered if delivered.get("channel") == "email" else None,
     }
 
 
@@ -557,15 +491,15 @@ def notify_cursor_awaiting_claim(task: dict[str, Any], *, previous_status: str |
     if provider == "codex" or status == "awaiting_codex_claim":
         hint = f"MCP codex_owner_order correlación {corr}" if corr else "codex_owner_order"
         title = "Codex OPS en espera"
-        extra = "Owner: autoriza vía MCP/WhatsApp (gasta créditos Codex al ejecutar)."
+        extra = "Owner: autoriza vía Telegram o Alexa (gasta créditos Codex al ejecutar)."
     elif provider == "antigravity" or status == "awaiting_antigravity_claim":
         hint = f"MCP antigravity_owner_order correlación {corr}" if corr else "antigravity_owner_order"
         title = "Antigravity OPS en espera"
-        extra = "Owner: autoriza vía MCP (gasta créditos Antigravity/Gemini al ejecutar)."
+        extra = "Owner: autoriza vía Telegram o Alexa (gasta créditos Antigravity/Gemini al ejecutar)."
     elif provider == "gemini" or status == "awaiting_gemini_claim":
         hint = f"MCP gemini_owner_order correlación {corr}" if corr else "gemini_owner_order"
         title = "Gemini OPS en espera"
-        extra = "Owner: autoriza vía MCP (gasta créditos Gemini al ejecutar)."
+        extra = "Owner: autoriza vía Telegram o Alexa (gasta créditos Gemini al ejecutar)."
     else:
         hint = f"procede cursor {corr}" if corr else "procede cursor"
         title = "Cursor OPS en espera"
