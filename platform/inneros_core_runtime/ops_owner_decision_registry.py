@@ -63,6 +63,25 @@ def _collection():
     return col
 
 
+def _atlas_doc(task: dict[str, Any], *, scope: str, nonce: str, now: str, expires: str) -> dict[str, Any]:
+    """Formato compatible con el broker de Atlas: _id = task_id, status pending."""
+    tid = str(task.get("task_id") or "").strip()
+    return {
+        "_id": tid,
+        "task_id": tid,
+        "human_task_id": str(task.get("human_task_id") or task.get("task_alias") or tid),
+        "provider": str(task.get("assignee") or task.get("preferred_provider") or "?"),
+        "revision": int(task.get("revision") or 0),
+        "correlation_id": str(task.get("correlation_id") or ""),
+        "scope_hash": scope,
+        "nonce": nonce,
+        "status": "pending",
+        "created_at": now,
+        "expires_at": expires,
+        "updated_at": now,
+    }
+
+
 def publish_decision_request(
     task: dict[str, Any],
     *,
@@ -76,12 +95,12 @@ def publish_decision_request(
     revision = int(task.get("revision") or 0)
     scope = _scope_hash(task)
     col = _collection()
-    existing = col.find_one({"task_id": tid})
+    existing = col.find_one({"_id": tid}) or col.find_one({"task_id": tid})
     if existing and str(existing.get("status") or "") in TERMINAL_DECISIONS:
         return {"ok": False, "error": "decision_already_closed", "task_id": tid}
     if (
         existing
-        and str(existing.get("status") or "") == "awaiting_owner_decision"
+        and str(existing.get("status") or "") in {"awaiting_owner_decision", "pending"}
         and str(existing.get("scope_hash") or "") == scope
         and int(existing.get("revision") or 0) == revision
         and _is_future(str(existing.get("expires_at") or ""))
@@ -93,22 +112,11 @@ def publish_decision_request(
             "nonce": str(existing["nonce"]),
             "duplicate": True,
         }
-    row = {
-        "task_id": tid,
-        "human_task_id": str(task.get("human_task_id") or task.get("task_alias") or tid),
-        "provider": provider,
-        "revision": revision,
-        "correlation_id": str(task.get("correlation_id") or ""),
-        "scope_hash": scope,
-        "nonce": secrets.token_urlsafe(32),
-        "status": "awaiting_owner_decision",
-        "decided_by": "",
-        "decided_at": "",
-        "expires_at": _expires_at(ttl_sec),
-        "updated_at": _now(),
-    }
-    col.update_one({"task_id": tid}, {"$set": row, "$setOnInsert": {"created_at": _now()}}, upsert=True)
-    return {"ok": True, "task_id": tid, "nonce": row["nonce"]}
+    nonce = secrets.token_urlsafe(32)
+    now = _now()
+    row = _atlas_doc(task, scope=scope, nonce=nonce, now=now, expires=_expires_at(ttl_sec))
+    col.update_one({"_id": tid}, {"$set": row, "$setOnInsert": {"created_at": now}}, upsert=True)
+    return {"ok": True, "task_id": tid, "nonce": nonce}
 
 
 def consume_decision(
@@ -124,14 +132,16 @@ def consume_decision(
     if decision not in {"approve", "cancel"}:
         return {"ok": False, "error": "invalid_decision"}
     col = _collection()
-    row = col.find_one({"task_id": tid, "status": "awaiting_owner_decision"})
+    row = col.find_one({"_id": tid, "status": "pending"})
+    if not row:
+        row = col.find_one({"task_id": tid, "status": "awaiting_owner_decision"})
     if not row or not _is_future(str(row.get("expires_at") or "")):
         return {"ok": False, "error": "decision_not_found_or_expired"}
     if not secrets.compare_digest(str(row.get("nonce") or ""), str(nonce or "")):
         return {"ok": False, "error": "nonce_mismatch"}
     new_status = "approved" if decision == "approve" else "cancelled"
     updated = col.find_one_and_update(
-        {"task_id": tid, "status": "awaiting_owner_decision", "nonce": row["nonce"]},
+        {"_id": row["_id"], "status": row["status"], "nonce": row["nonce"]},
         {
             "$set": {
                 "status": new_status,

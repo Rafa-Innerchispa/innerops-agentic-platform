@@ -63,8 +63,9 @@ def test_publish_reuses_same_nonce_before_expiry():
 def test_first_decision_wins_second_rejected():
     col = MagicMock()
     row = {
+        "_id": "ops_abcdef123456",
         "task_id": "ops_abcdef123456",
-        "status": "awaiting_owner_decision",
+        "status": "pending",
         "nonce": "n1",
         "expires_at": "2999-01-01T00:00:00+00:00",
     }
@@ -90,8 +91,9 @@ def test_first_decision_wins_second_rejected():
 def test_expired_decision_rejected():
     col = MagicMock()
     col.find_one.return_value = {
+        "_id": "ops_abcdef123456",
         "task_id": "ops_abcdef123456",
-        "status": "awaiting_owner_decision",
+        "status": "pending",
         "nonce": "n1",
         "expires_at": "2000-01-01T00:00:00+00:00",
     }
@@ -114,8 +116,9 @@ def test_alexa_approve_uses_shared_executor():
 
     col = MagicMock()
     row = {
+        "_id": "ops_abcdef123456",
         "task_id": "ops_abcdef123456",
-        "status": "awaiting_owner_decision",
+        "status": "pending",
         "nonce": "n1",
         "expires_at": "2999-01-01T00:00:00+00:00",
     }
