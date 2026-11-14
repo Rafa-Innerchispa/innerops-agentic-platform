@@ -50,7 +50,8 @@ def build_task(server: str, provider: str, internal: bool) -> dict:
             f"{greeting} Preséntate por Alexa tras la aprobación del propietario. "
             f"Servidor: {server}. Requiere grant de presupuesto vigente."
         ),
-        "task_class": "business_ops",
+        "task_class": "coding",
+        "execution_lane": f"{provider}_interactive",
         "preferred_model": "",
         "correlation_id": CORRELATION,
         "idempotency_key": f"voice-rollcall-{server}-{provider}",
