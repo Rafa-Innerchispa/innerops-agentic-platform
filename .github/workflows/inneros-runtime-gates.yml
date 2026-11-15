@@ -92,6 +92,7 @@ jobs:
             platform/tests/test_reconcile_ops_mongo_temporal.py
             platform/tests/test_governed_model_writes.py
             platform/tests/test_capability_gateway.py
+            platform/tests/test_home_dmx_capability.py
             platform/tests/test_capability_gateway_regressions_p0.py
             platform/tests/test_peer_ops_runner_contract.py
             platform/tests/test_peer_observability_security_p0.py
