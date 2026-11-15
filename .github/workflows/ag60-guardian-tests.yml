@@ -12,6 +12,7 @@ on:
       - 'platform/inneros_core_runtime/device_fabric.py'
       - 'platform/inneros_core_runtime/capability_gateway.py'
       - 'platform/tests/test_ag60_*.py'
+      - 'platform/tests/test_home_dmx_capability.py'
       - '.github/workflows/ag60-guardian-tests.yml'
   push:
     branches:
@@ -34,7 +35,19 @@ jobs:
       - name: Compile changed modules
         run: |
           python -m py_compile platform/inneros_core_runtime/protocol_catalog.py platform/inneros_core_runtime/communication_observer.py platform/inneros_core_runtime/network_guardian.py platform/inneros_core_runtime/device_fabric.py platform/inneros_core_runtime/capability_gateway.py platform/inneros_core_runtime/unifi_readonly.py platform/inneros_core_runtime/physical_bus_observer.py platform/inneros_core_runtime/communication_history.py platform/inneros_core_runtime/communication_runner.py
-      - name: Run AG-60 unit tests (offline, mocked)
-        env:
-          PYTHONPATH: platform
-        run: python -m pytest -q platform/tests/test_ag60_*.py
+      - name: Run AG-60 and home DMX unit tests (offline, mocked)
+        run: |
+          set -eu
+          # The repository directory named platform shadows Python's stdlib
+          # platform module when pytest starts from the checkout root.
+          # Keep source imports and __file__-relative tests in an isolated
+          # mirror, as already done by inneros-runtime-gates.yml.
+          TEST_ROOT="$RUNNER_TEMP/inneros-ag60-isolated"
+          mkdir -p "$TEST_ROOT/platform/tests"
+          cp platform/tests/test_ag60_*.py platform/tests/test_home_dmx_capability.py platform/tests/conftest.py "$TEST_ROOT/platform/tests/"
+          for entry in "$GITHUB_WORKSPACE"/platform/*; do
+            base=$(basename "$entry")
+            [ "$base" = "tests" ] || ln -s "$entry" "$TEST_ROOT/platform/$base"
+          done
+          cd "$TEST_ROOT/platform/tests"
+          PYTHONPATH="$GITHUB_WORKSPACE/platform" python -m pytest -q test_ag60_*.py test_home_dmx_capability.py
