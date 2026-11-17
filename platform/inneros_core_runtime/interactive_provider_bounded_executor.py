@@ -256,6 +256,18 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
     token = str(task.get("claim_token") or "").strip()
     if not token:
         return {"ok": False, "error": "claim_token_required", "task_id": tid}
+    if str(task.get("task_class") or "").lower() == "voice_presentation":
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        mongo_store.get_db()[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {"$set": {
+                "status": "completed", "completed_at": now, "updated_at": now,
+                "evidence.voice_presentation": str(task.get("objective") or task.get("title") or "")[:300],
+                "evidence.channel": "headless-voice-lane",
+            }},
+        )
+        return {"ok": True, "task_id": tid, "lane": "voice_presentation", "worktree": "not_required"}
     worktree_raw = str(task.get("worktree") or task.get("local_worktree") or "").strip()
     worktree = Path(worktree_raw).expanduser()
     if not worktree.is_dir() or not (worktree / ".git").exists():
