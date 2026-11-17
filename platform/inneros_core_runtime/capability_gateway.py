@@ -602,3 +602,7 @@ register_model_frontier_capabilities()
 from inneros_core_runtime.capability_gateway_cloud import register_cloud_capabilities
 
 register_cloud_capabilities(register_capability)
+
+from inneros_core_runtime.capability_gateway_windows import register_windows_capabilities
+
+register_windows_capabilities(register_capability)
