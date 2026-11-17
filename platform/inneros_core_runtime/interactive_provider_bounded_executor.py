@@ -198,6 +198,7 @@ def _run_codex_cli(task: dict[str, Any], worktree: Path, *, pinned_model: str) -
         _codex_bin(),
         "exec",
         "--ignore-user-config",
+        "--skip-git-repo-check",
         "-m",
         pinned_model,
         "-c",
