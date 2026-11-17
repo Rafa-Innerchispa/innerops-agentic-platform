@@ -569,6 +569,75 @@ def communication_coverage_handler(parameters: Dict[str, Any],
 
 register_capability(COMMUNICATION_COVERAGE_MANIFEST, communication_coverage_handler)
 
+# DMX is an existing local AG-59 service. Reuse this governed gateway rather
+# than exposing another tool in the bounded ChatGPT MCP projection.
+HOME_DMX_STATUS_MANIFEST: Dict[str, Any] = {
+    "capability_id": "home.dmx.status.v1",
+    "version": "1.0.0",
+    "title": "Read local AG-59 DMX status",
+    "domain": "home",
+    "risk_class": "low",
+    "mode": "read_only",
+    "description": "Read DMX scene, fixture groups and backend availability without changing lights.",
+    "keywords": ["dmx", "artnet", "home", "lighting", "pulpos", "tachos"],
+    "parameters_schema": {"type": "object", "properties": {}},
+    "required_scopes": ["ralfia:read"],
+}
+
+HOME_DMX_SET_SCENE_MANIFEST: Dict[str, Any] = {
+    "capability_id": "home.dmx.set_scene.v1",
+    "version": "1.0.0",
+    "title": "Apply bounded AG-59 DMX lighting color",
+    "domain": "home",
+    "risk_class": "medium",
+    "mode": "mutation",
+    "description": "Apply an allowlisted DMX color to a specified fixture group, never raw channels.",
+    "keywords": ["dmx", "artnet", "scene", "pulpos", "tachos", "lights"],
+    "parameters_schema": {
+        "type": "object",
+        "properties": {
+            "color": {"type": "string"},
+            "target": {"type": "string", "enum": ["pulpos", "tachos", "beams", "bola_disco", "tacho_plantas", "tacho_escalera", "tacho_peces", "tacho_central"]},
+            "brightness": {"type": "integer", "minimum": 1, "maximum": 255},
+        },
+        "required": ["target", "color"],
+        "additionalProperties": False,
+    },
+    "required_scopes": ["ralfia:write"],
+}
+
+
+def home_dmx_status_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.agents.ag59_dmx_artnet_orchestrator import dmx_status
+    return dmx_status()
+
+
+def home_dmx_set_scene_handler(parameters: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    from inneros_core_runtime.agents.ag59_dmx_artnet_orchestrator import dmx_set_scene, SAFE_TARGETS
+
+    if context.get("enforce_read_only"):
+        return {"ok": False, "error": "read_only_session"}
+    target = str(parameters.get("target") or "").strip().lower()
+    if target not in SAFE_TARGETS or target in {"all", "todas"}:
+        return {"ok": False, "error": "target_not_allowlisted"}
+    color = str(parameters.get("color") or "").strip().lower()
+    if not color:
+        return {"ok": False, "error": "color_required"}
+    try:
+        brightness = int(parameters.get("brightness", 220))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "invalid_brightness"}
+    if not 1 <= brightness <= 255:
+        return {"ok": False, "error": "brightness_out_of_bounds"}
+    # AG-59 dynamic scene API is global even when target is supplied. Only
+    # targeted color control is permitted until backend segmentation is added.
+    return dmx_set_scene(color=color, target=target, brightness=brightness)
+
+
+register_capability(HOME_DMX_STATUS_MANIFEST, home_dmx_status_handler)
+register_capability(HOME_DMX_SET_SCENE_MANIFEST, home_dmx_set_scene_handler)
+
+
 register_capability(NETWORK_DEVICE_QUERY_MANIFEST, network_device_query_handler)
 register_capability(COORDINATION_MESSAGING_LIST_MANIFEST, coordination_messaging_list_handler)
 register_capability(EMAIL_SEND_MANIFEST, email_send_handler)
