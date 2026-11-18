@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "inneros-vantage-qlink",
+  "version": "0.1.0",
+  "description": "Local, read-only Vantage QLink field MCP adapter for the InnerOS canonical repository.",
+  "author": {
+    "name": "InnerChispa / PC Doctor"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "InnerOS Vantage QLink",
+        "shortDescription": "Diagnóstico QLink local",
+        "longDescription": "Read-only USB/RS-232 diagnostics and QLink backup inventory on an onsite technician laptop. Does not control relays, modify configuration, or expose Home Assistant entities.",
+        "developerName": "InnerChispa / PC Doctor",
+        "category": "Productivity",
+        "capabilities": [],
+        "defaultPrompt": "Revisa los puertos RS-232 del Vantage QLink local y captura una sesión de diagnóstico sin modificar el controlador."
+      }
+    }
+  }
+}
