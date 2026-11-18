@@ -33,7 +33,7 @@ CREDENTIAL_REF = f"owner_vault:{VAULT_CATEGORY}/{VAULT_KEY}"
 SOURCE_POLICY = "SYNTHETIC"
 
 DEFAULT_MAX_OUTPUT_TOKENS = 256
-MAX_ALLOWED_OUTPUT_TOKENS = 1024
+MAX_ALLOWED_OUTPUT_TOKENS = 4096
 MAX_OUTPUT_TOKENS = MAX_ALLOWED_OUTPUT_TOKENS
 MAX_INPUT_CHARS = 6000
 DEFAULT_DB = "~/.local/state/inneros/model-provider-meta.sqlite3"
@@ -670,139 +670,96 @@ def invoke_with_grant(
 
 
 def verify_ha_owner_approval(approval_scope: dict[str, Any]) -> bool:
-    """Verify that an owner approval scope was truly granted by RAFAEL via Home Assistant.
+    """Fail-closed verification of a narrowly scoped, short-lived Meta grant.
 
-    Validates:
-    - 3.1 Strict Owner Actor Validation: Never assume missing user is RAFAEL (strictly requires owner_actor == 'RAFAEL').
-    - Valid approval_ref, project_id, and prompt_sha256 (64 hex characters).
-    - Token ceiling within bounds (16 <= max_output_tokens <= MAX_ALLOWED_OUTPUT_TOKENS).
-    - Provider matches meta/meta-model-api (if specified).
-    - Model matches muse-spark-1.3 (if specified).
-    - Checks Home Assistant grant in MongoDB (ops_owner_approval_grants with $or logic).
-    - Or verifies cryptographic HMAC companion receipt signature with expiry binding.
-    - Fail-closed: returns False if unverified, tampered, or expired.
+    Task-level Companion receipts are *not* sufficient to authorize paid model
+    inference: they do not sign the project, model, prompt and token ceiling.
+    The accepted HMAC binds all of those plus expiry. A durable grant must carry
+    the same explicit fields; old unscoped signatures/grants are not accepted.
     """
     if not isinstance(approval_scope, dict):
         return False
-
-    # 3.1 Strict Owner Actor Validation: Never assume missing user is RAFAEL
-    raw_actor = approval_scope.get("owner_actor")
-    if not raw_actor or str(raw_actor).strip().upper() != "RAFAEL":
+    if str(approval_scope.get("owner_actor") or "").strip().upper() != "RAFAEL":
         return False
-
     ref = str(approval_scope.get("approval_ref") or "").strip()
-    if not ref:
-        return False
-
     project_id = str(approval_scope.get("project_id") or "").strip()
-    if not project_id:
-        return False
-
     prompt_sha = str(approval_scope.get("prompt_sha256") or "").strip()
-    if len(prompt_sha) != 64 or not all(c in "0123456789abcdefABCDEF" for c in prompt_sha):
-        return False
-
     max_tokens = approval_scope.get("max_output_tokens")
-    if not isinstance(max_tokens, int) or max_tokens < 16 or max_tokens > MAX_ALLOWED_OUTPUT_TOKENS:
-        return False
-
-    # Check provider constraint if present
-    scope_prov = str(approval_scope.get("provider") or "").strip().lower()
-    if scope_prov and scope_prov not in ("meta", "meta-model-api", "meta_model_api"):
-        return False
-
-    # Check model constraint if present
     scope_model = str(approval_scope.get("model") or "").strip().lower()
-    if scope_model and scope_model != MODEL.lower():
+    scope_provider = str(approval_scope.get("provider") or "").strip().lower()
+    if not ref or not project_id:
+        return False
+    if len(prompt_sha) != 64 or any(c not in "0123456789abcdefABCDEF" for c in prompt_sha):
+        return False
+    if type(max_tokens) is not int or not 16 <= max_tokens <= MAX_ALLOWED_OUTPUT_TOKENS:
+        return False
+    if scope_model not in [m.lower() for m in SUPPORTED_MODELS]:
+        return False
+    if scope_provider and scope_provider not in ("meta", "meta-model-api", "meta_model_api"):
         return False
 
-    # Check scope expiration if explicitly declared
-    exp_scope = approval_scope.get("expires_at") or approval_scope.get("expires_epoch")
-    if exp_scope is not None:
+    exp_scope = approval_scope.get("expires_at")
+    if exp_scope is None:
+        exp_scope = approval_scope.get("expires_epoch")
+    if exp_scope is None or isinstance(exp_scope, bool):
+        return False
+    try:
         if isinstance(exp_scope, (int, float)):
-            if float(exp_scope) <= time.time():
-                return False
+            expiry = float(exp_scope)
         else:
-            exp_dt = _parse_utc_instant(exp_scope)
-            if exp_dt and exp_dt.timestamp() <= time.time():
+            parsed_exp = _parse_utc_instant(exp_scope)
+            if parsed_exp is None:
                 return False
+            expiry = parsed_exp.timestamp()
+    except (TypeError, ValueError, OverflowError):
+        return False
+    now = time.time()
+    if not now < expiry <= now + 300:
+        return False
 
-    # 1. HMAC Companion Signature Check (direct HA Companion signed receipt or token)
-    comp_receipt = approval_scope.get("companion_receipt")
-    if isinstance(comp_receipt, dict):
-        try:
-            from inneros_core_runtime import ops_owner_approval_ha
-            verified = ops_owner_approval_ha.verify_companion_receipt(comp_receipt, expected_task_id=ref)
-            if verified.get("ok") and verified.get("verified"):
-                return True
-        except Exception:
-            pass
-
-    # 2. Cryptographic/HMAC self-contained signature check on approval_scope
+    # Signed approval scope version 2: NO legacy four-field candidate.
     sig = str(approval_scope.get("signature") or "").strip()
     if sig:
         secret = os.getenv("INNEROS_HA_COMPANION_RECEIPT_SECRET", "").strip()
         if secret:
-            exp_key = str(approval_scope.get("expires_at") or approval_scope.get("expires_epoch") or "").strip()
-            candidates = [
-                f"{ref}|{project_id}|{MODEL}|{prompt_sha}|{max_tokens}|{exp_key}",
-                f"{ref}|{project_id}|{prompt_sha}|{max_tokens}",
-            ]
-            for cand in candidates:
-                expected = hmac.new(secret.encode(), cand.encode(), hashlib.sha256).hexdigest()
-                if hmac.compare_digest(sig, expected):
-                    if cand == candidates[1] and exp_scope is not None:
-                        return True
-                    elif cand == candidates[0]:
-                        return True
-                    elif cand == candidates[1] and exp_scope is None:
-                        return True
+            signed = f"{ref}|{project_id}|{scope_model}|{prompt_sha}|{max_tokens}|{str(exp_scope).strip()}"
+            expected = hmac.new(secret.encode(), signed.encode(), hashlib.sha256).hexdigest()
+            if hmac.compare_digest(sig, expected):
+                return True
 
-    # 3. Durable MongoDB Grant Check
+    # A task-only Companion receipt does not bind a paid model request.
+    # Durable Mongo authorization is accepted only with an exact scoped match.
     try:
         from raphiia_openai import mongo_store
         db = mongo_store.get_db()
-        # 3.2 Fixed Mongo Query: use $or instead of invalid empty string key ""
         grant = db["ops_owner_approval_grants"].find_one(
-            {"$or": [{"grant_id": ref}, {"task_id": ref}], "status": {"$in": ["active", "authorized"]}},
-            {"_id": 0}
+            {"$or": [{"grant_id": ref}, {"task_id": ref}],
+             "status": {"$in": ["active", "authorized"]}},
+            {"_id": 0},
         )
-        if grant:
-            # Verify owner actor strictly matches RAFAEL
-            if str(grant.get("owner_actor") or "").upper() != "RAFAEL":
-                return False
-            # Verify unexpired
-            exp = grant.get("expires_at")
-            if exp:
-                exp_dt = _parse_utc_instant(exp)
-                if exp_dt and exp_dt.timestamp() <= time.time():
-                    return False
-            # Verify token limit
-            t_limit = grant.get("token_limit")
-            if t_limit is not None and max_tokens > t_limit:
-                return False
-            # Verify provider
-            prov = str(grant.get("provider") or "").lower()
-            if prov and prov not in ("meta", "meta-model-api", "meta_model_api"):
-                return False
-            # Verify model
-            m = str(grant.get("model") or "").lower()
-            if m and m != MODEL.lower():
-                return False
-            # Verify prompt_sha if specified in scope_note or grant doc
-            grant_prompt_sha = grant.get("prompt_sha256") or grant.get("prompt_sha")
-            if grant_prompt_sha and grant_prompt_sha != prompt_sha:
-                return False
-            scope_note = str(grant.get("scope_note") or "")
-            if "prompt_sha:" in scope_note:
-                for part in scope_note.split():
-                    if part.startswith("prompt_sha:") and part.split(":", 1)[1] != prompt_sha:
-                        return False
-            return True
+        if not grant:
+            return False
+        if str(grant.get("owner_actor") or "").strip().upper() != "RAFAEL":
+            return False
+        if str(grant.get("project_id") or "").strip() != project_id:
+            return False
+        if str(grant.get("model") or "").strip().lower() != scope_model:
+            return False
+        if str(grant.get("provider") or "").strip().lower() not in (
+            "meta", "meta-model-api", "meta_model_api"
+        ):
+            return False
+        if str(grant.get("prompt_sha256") or "").strip().lower() != prompt_sha.lower():
+            return False
+        limit = grant.get("token_limit")
+        if type(limit) is not int or limit < max_tokens:
+            return False
+        grant_exp = _parse_utc_instant(grant.get("expires_at"))
+        if grant_exp is None or not now < grant_exp.timestamp() <= now + 300:
+            return False
+        return True
     except Exception:
-        pass
-
-    return False
+        return False
 
 
 def get_provider_comparison_summary() -> dict[str, Any]:

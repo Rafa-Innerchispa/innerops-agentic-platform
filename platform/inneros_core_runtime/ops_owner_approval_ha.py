@@ -453,9 +453,14 @@ def verify_companion_receipt(receipt: dict[str, Any], *, expected_task_id: str) 
         return {"ok": False, "error": "receipt_task_mismatch"}
     secret = os.getenv("INNEROS_HA_COMPANION_RECEIPT_SECRET", "").strip()
     sig = str(receipt.get("signature") or "").strip()
-    if secret:
-        payload = f"{tid}|{receipt.get('grant_id')}|{receipt.get('at')}"
-        expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig, expected):
-            return {"ok": False, "error": "receipt_signature_invalid"}
+    # Never treat a receipt as verified when the verifier has no configured key.
+    # Otherwise an unsigned task_id-only receipt can authorize paid actions.
+    if not secret:
+        return {"ok": False, "error": "receipt_verification_secret_missing"}
+    if not sig or not receipt.get("grant_id") or not receipt.get("at"):
+        return {"ok": False, "error": "receipt_signature_or_fields_missing"}
+    payload = f"{tid}|{receipt.get('grant_id')}|{receipt.get('at')}"
+    expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        return {"ok": False, "error": "receipt_signature_invalid"}
     return {"ok": True, "verified": True, "task_id": tid}
