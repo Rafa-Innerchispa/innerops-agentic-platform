@@ -1,0 +1,35 @@
+name: SMTP2GO Managed Mail
+on:
+  pull_request:
+    paths:
+      - 'platform/inneros_core_runtime/smtp2go_service.py'
+      - 'platform/scripts/smtp2go_managed_mail.py'
+      - 'platform/config/services/smtp2go-managed-mail.json'
+      - 'platform/docs/SMTP2GO_MANAGED_MAIL.md'
+      - 'tests/test_smtp2go_managed_mail.py'
+      - '.github/workflows/smtp2go-managed-mail.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'platform/inneros_core_runtime/smtp2go_service.py'
+      - 'platform/scripts/smtp2go_managed_mail.py'
+      - 'tests/test_smtp2go_managed_mail.py'
+      - '.github/workflows/smtp2go-managed-mail.yml'
+permissions:
+  contents: read
+jobs:
+  managed-mail-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'pytest>=8,<9' 'pymongo>=4,<5'
+      - name: Offline unit tests, no provider credentials
+        working-directory: /tmp
+        env:
+          PYTHONPATH: ${{ github.workspace }}/platform
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: python -m pytest "$GITHUB_WORKSPACE/tests/test_smtp2go_managed_mail.py" --import-mode=importlib -q

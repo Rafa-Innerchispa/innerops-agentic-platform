@@ -1,0 +1,17 @@
+{
+  "service_id": "smtp2go-managed-mail",
+  "name": "InnerOS Managed Mail",
+  "provider": "SMTP2GO",
+  "module": "inneros_core_runtime.smtp2go_service",
+  "class": "ManagedMail",
+  "entrypoint": "scripts/smtp2go_managed_mail.py",
+  "access": "trusted-owner-operations",
+  "public_listener": false,
+  "credential_ref": {"category": "smtp2go", "key": "admin_api_key"},
+  "capabilities": ["list_clients", "register_existing_client", "create_client", "update_client", "status", "ensure_domain", "ensure_smtp_user", "auth_check", "activity"],
+  "disabled_capabilities": ["close_account", "delete_account", "delete_smtp_user", "delete_domain", "manage_api_keys", "buy_dedicated_ip", "enable_sms"],
+  "mutation_default": "preview",
+  "requires_canonical_owner_authorization": true,
+  "account_plan_changes": false,
+  "automatic_mutation_retries": false
+}
