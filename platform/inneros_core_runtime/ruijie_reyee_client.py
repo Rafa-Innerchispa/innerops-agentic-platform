@@ -10,9 +10,12 @@ Optional site network group (buildingId):
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import time
 import urllib.error
 import urllib.parse
@@ -29,6 +32,9 @@ load_dotenv(_PLATFORM_ROOT / ".env", override=False)
 DEFAULT_BASE_URL = "https://cloud.ruijienetworks.com"
 
 _SESSION: dict[str, Any] = {}
+# Per-process pepper: changing an API secret or account password invalidates
+# cached sessions. The cache key never contains plaintext credentials.
+_SESSION_PEPPER = secrets.token_bytes(32)
 
 SITE_GROUP_ENV: dict[str, str] = {
     "bellini": "RUIJIE_CLOUD_GROUP_ID_BELLINI",
@@ -82,16 +88,63 @@ def _vault(key: str) -> str:
     return ""
 
 
+_RUIJIE_ENV_FIELDS: dict[str, tuple[str, ...]] = {
+    "app_id": ("RUIJIE_CLOUD_APP_ID",),
+    "secret_key": ("RUIJIE_CLOUD_SECRET", "RUIJIE_CLOUD_SECRET_KEY"),
+    "account": ("RUIJIE_CLOUD_ACCOUNT",),
+    "password": ("RUIJIE_CLOUD_PASSWORD",),
+}
+
+
+def credential_source_status() -> dict[str, Any]:
+    """Metadata-only check: stored credentials vs environment, never values."""
+    fields: dict[str, dict[str, Any]] = {}
+    for name, env_names in _RUIJIE_ENV_FIELDS.items():
+        vault_value = _vault(name)
+        env_values = [os.getenv(key, "").strip() for key in env_names
+                      if os.getenv(key, "").strip()]
+        fields[name] = {
+            "vault_recoverable": bool(vault_value),
+            "env_present": bool(env_values),
+            "env_vault_conflict": bool(
+                vault_value and any(
+                    not hmac.compare_digest(value, vault_value) for value in env_values
+                )
+            ),
+            "env_alias_conflict": bool(
+                len(env_values) > 1 and any(
+                    not hmac.compare_digest(env_values[0], value)
+                    for value in env_values[1:]
+                )
+            ),
+        }
+    return {"ok": True, "category": "ruijie_reyee", "fields": fields,
+            "secret_returned": False}
+
+
 def load_ruijie_credentials() -> tuple[RuijieCredentials | None, str | None]:
-    app_id = (os.getenv("RUIJIE_CLOUD_APP_ID") or _vault("app_id")).strip()
-    secret = (os.getenv("RUIJIE_CLOUD_SECRET") or os.getenv("RUIJIE_CLOUD_SECRET_KEY") or _vault("secret_key")).strip()
-    account = (os.getenv("RUIJIE_CLOUD_ACCOUNT") or _vault("account")).strip()
-    password = (os.getenv("RUIJIE_CLOUD_PASSWORD") or _vault("password")).strip()
+    # A persisted and recoverable owner vault is canonical. Old environment
+    # variables are only an explicit backwards-compatible *fallback*, not a
+    # silent override of newer credentials entered by the owner.
+    vault_values = {name: _vault(name) for name in _RUIJIE_ENV_FIELDS}
+    if all(vault_values.values()):
+        vals = vault_values
+        src = "owner_vault:ruijie_reyee"
+    else:
+        vals = {
+            name: vault_values[name] or next((
+                os.getenv(k, "").strip() for k in env_keys if os.getenv(k, "").strip()
+            ), "")
+            for name, env_keys in _RUIJIE_ENV_FIELDS.items()
+        }
+        src = "owner_vault+legacy_env" if any(vault_values.values()) else "legacy_env"
     base = (os.getenv("RUIJIE_CLOUD_BASE_URL") or DEFAULT_BASE_URL).strip().rstrip("/")
-    if not all([app_id, secret, account, password]):
+    if not all(vals.values()):
         return None, "ruijie_cloud_credentials_missing"
-    src = "env" if os.getenv("RUIJIE_CLOUD_APP_ID") else "owner_vault:ruijie_reyee"
-    return RuijieCredentials(base, app_id, secret, account, password, src), None
+    return RuijieCredentials(
+        base, vals["app_id"], vals["secret_key"], vals["account"],
+        vals["password"], src,
+    ), None
 
 
 def resolve_group_id(*, client_id: str = "", site_id: str = "", group_id: int | None = None) -> int | None:
@@ -120,7 +173,12 @@ def _http(method: str, url: str, *, body: bytes | None = None, headers: dict[str
 
 
 def login(creds: RuijieCredentials, *, force: bool = False) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-    cache_key = f"{creds.base_url}|{creds.app_id}|{creds.account}"
+    cache_key = hmac.new(
+        _SESSION_PEPPER,
+        "\\0".join((creds.base_url, creds.app_id, creds.secret, creds.account,
+                      creds.password)).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
     cached = _SESSION.get(cache_key)
     if not force and cached and float(cached.get("expires_at") or 0) > time.time() + 20:
         return cached, {"ok": True, "cached": True}
@@ -139,8 +197,20 @@ def login(creds: RuijieCredentials, *, force: bool = False) -> tuple[dict[str, A
         payload = json.loads(text)
     except json.JSONDecodeError:
         return None, {"ok": False, "error": "ruijie_login_invalid_json", "http_status": status}
-    if status >= 400 or int(payload.get("code", -1)) != 0:
-        return None, {"ok": False, "error": "ruijie_login_failed", "http_status": status, "detail": _redact(payload)}
+    if not isinstance(payload, dict):
+        return None, {"ok": False, "error": "ruijie_login_invalid_response", "http_status": status}
+    try:
+        vendor_code = int(payload.get("code", -1))
+    except (TypeError, ValueError):
+        vendor_code = -1
+    if status >= 400 or vendor_code != 0:
+        return None, {
+            "ok": False,
+            "error": "ruijie_appid_invalid" if vendor_code == 1 else "ruijie_login_failed",
+            "http_status": status,
+            "provider_code": vendor_code,
+            # Never relay arbitrary provider text: may echo secret-bearing query data.
+        }
     session = {
         "access_token": payload.get("access_token"),
         "group_id": payload.get("groupId"),

@@ -26,18 +26,40 @@ def _now() -> str:
 
 
 def _fernet() -> Fernet:
-    KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    """Fail closed if a vault key is missing while encrypted records exist.
+
+    Never generate a replacement key that would make saved credentials unreadable.
+    Only an empty, reachable Mongo vault may be initialized with a new key.
+    """
     raw = os.getenv("OWNER_VAULT_KEY", "").strip()
     if not raw and KEY_FILE.is_file():
         raw = KEY_FILE.read_text(encoding="utf-8").strip()
     if not raw:
-        raw = Fernet.generate_key().decode("ascii")
-        KEY_FILE.write_text(raw, encoding="utf-8")
-        KEY_FILE.chmod(0o600)
+        # A database outage is NOT proof of an empty vault. Let it raise.
+        existing = mongo_store.get_db()[COL].find_one({"owner_id": OWNER}, {"_id": 1})
+        if existing:
+            raise RuntimeError("owner_vault_key_missing_existing_credentials")
+        KEY_FILE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        generated = Fernet.generate_key().decode("ascii")
+        try:
+            fd = os.open(str(KEY_FILE), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            # Concurrent initializer won; do not overwrite its encryption key.
+            raw = KEY_FILE.read_text(encoding="utf-8").strip()
+        else:
+            try:
+                with os.fdopen(fd, "w", encoding="ascii") as fh:
+                    fh.write(generated + "\n")
+                raw = generated
+            except Exception:
+                KEY_FILE.unlink(missing_ok=True)
+                raise
     if len(raw) != 44:
+        # Preserve historic user-supplied passphrase format for backward
+        # compatibility; never silently rotate or change an existing key.
         digest = hashlib.sha256(raw.encode("utf-8")).digest()
         raw = base64.urlsafe_b64encode(digest).decode("ascii")
-    return Fernet(raw.encode("ascii") if isinstance(raw, str) else raw)
+    return Fernet(raw.encode("ascii"))
 
 
 def _cred_id(category: str, key: str) -> str:
@@ -60,8 +82,22 @@ def save_owner_credential(
     if actor.upper() != OWNER:
         return {"ok": False, "error": "owner_only"}
 
-    f = _fernet()
+    try:
+        f = _fernet()
+    except RuntimeError as exc:
+        return {"ok": False, "error": str(exc), "secret_returned": False}
     vault_id = _cred_id(category, key)
+    db = mongo_store.get_db()
+    # On a wrong/missing key, refuse to replace an encrypted entry: otherwise
+    # the owner loses the previous (possibly still recoverable) credential.
+    existing = db[COL].find_one({"vault_id": vault_id}, {"encrypted_secret": 1})
+    old_blob = str((existing or {}).get("encrypted_secret") or "")
+    if existing and old_blob:
+        try:
+            f.decrypt(old_blob.encode("ascii"))
+        except (InvalidToken, UnicodeDecodeError, ValueError):
+            return {"ok": False, "error": "existing_secret_key_mismatch",
+                    "vault_id": vault_id, "secret_returned": False}
     doc = {
         "vault_id": vault_id,
         "owner_id": OWNER,
@@ -74,7 +110,6 @@ def save_owner_credential(
         "updated_at": _now(),
         "updated_by": actor.upper(),
     }
-    db = mongo_store.get_db()
     db[COL].update_one({"vault_id": vault_id}, {"$set": doc, "$setOnInsert": {"created_at": _now()}}, upsert=True)
 
     # Never report success until the value can be read back and decrypted with
@@ -139,7 +174,17 @@ def get_owner_credential(
         "updated_at": doc.get("updated_at"),
     }
     if reveal:
-        out["secret"] = _decrypt(str(doc.get("encrypted_secret") or ""))
+        try:
+            recovered = _decrypt(str(doc.get("encrypted_secret") or ""))
+        except RuntimeError:
+            recovered = ""
+        if not recovered:
+            return {
+                **out, "ok": False,
+                "error": "vault_decryption_failed",
+                "secret_returned": False,
+            }
+        out["secret"] = recovered
     return out
 
 
