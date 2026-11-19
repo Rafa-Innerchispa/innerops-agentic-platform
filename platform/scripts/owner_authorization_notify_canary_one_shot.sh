@@ -35,6 +35,7 @@ done
 
 OUT_JSON="${REPO}/var/owner_notify_canary_latest.json"
 mkdir -p "${REPO}/var"
+export INNEROS_REPO="$REPO"
 
 python3 <<'PY'
 from __future__ import annotations
@@ -43,15 +44,16 @@ import json
 import os
 import socket
 import sys
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path.cwd() / "platform"
-if not (ROOT / "inneros_core_runtime").exists():
-    ROOT = Path.cwd()
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+# Repo root shadows stdlib `platform` on sys.path[0] when cwd is the clone.
+_repo = Path(os.environ["INNEROS_REPO"]).resolve()
+_plat = _repo / "platform"
+sys.path = [p for p in sys.path if p and Path(p).resolve() != _repo]
+sys.path.insert(0, str(_plat))
+
+import uuid
 
 from inneros_core_runtime import coordination_live as cl
 from inneros_core_runtime import execution_binding as eb
