@@ -363,25 +363,7 @@ def notify_ops_owner_authorization_request(
         decision_out = decisions.publish_decision_request(task)
     except Exception as exc:
         decision_out = {"ok": False, "error": str(exc)[:200]}
-    # Telegram lo envía SOLO el observador Atlas (botones atlas.yes/atlas.no
-    # con nonce). Este módulo solo publica el registro compartido para Alexa
-    # y evita duplicar mensajes al propietario.
-    tg_out = {"ok": False, "skipped": "telegram_via_atlas_observer"}
-    if decision_out.get("ok"):
-        _mark_sent("owner_auth", alias)
-        _mark_owner_auth_sent_mongo(tid)
-        return {
-            "ok": True,
-            "result": decision_out,
-            "ha_companion": ha_out,
-            "telegram": tg_out,
-            "decision_registry": decision_out,
-            "task_id": tid,
-            "summary": summary,
-            "delivery_mode": "alexa_shared_registry+atlas_telegram",
-            "poll_message_id": "",
-            "email_fallback": None,
-        }
+
     if ha_primary:
         ha_out = ops_ha.notify_ops_owner_ha_authorization(
             task,
@@ -389,15 +371,35 @@ def notify_ops_owner_authorization_request(
             headline=f"{icon} {headline}",
             body=body,
         )
-    if ha_out.get("ok"):
+
+    if telegram_ok:
+        try:
+            from inneros_core_runtime.notifications import telegram_client as tg
+
+            tg_out = tg.send_message(
+                tg_body,
+                reply_markup=tg.ops_auth_inline_keyboard(tid),
+                parse_mode="Markdown",
+            )
+        except Exception as exc:
+            tg_out = {"ok": False, "error": str(exc)[:200]}
+    else:
+        tg_out = {"ok": False, "skipped": "telegram_off"}
+
+    if decision_out.get("ok") or ha_out.get("ok") or tg_out.get("ok"):
         _mark_sent("owner_auth", alias)
         _mark_owner_auth_sent_mongo(tid)
-        modes = ["ha_companion_ops"]
+        modes: list[str] = []
         if decision_out.get("ok"):
             modes.append("alexa_shared_registry")
+        if ha_out.get("ok"):
+            modes.append("ha_companion_ops")
+        if tg_out.get("ok"):
+            modes.append("telegram")
+        primary = ha_out if ha_out.get("ok") else (tg_out if tg_out.get("ok") else decision_out)
         return {
             "ok": True,
-            "result": ha_out,
+            "result": primary,
             "ha_companion": ha_out,
             "telegram": tg_out,
             "decision_registry": decision_out,

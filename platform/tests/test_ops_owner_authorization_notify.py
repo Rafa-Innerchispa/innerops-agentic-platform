@@ -38,6 +38,10 @@ def test_notify_ops_owner_authorization_request_cursor():
             return_value=False,
         ),
         mock.patch(
+            "inneros_core_runtime.ops_owner_decision_registry.publish_decision_request",
+            return_value={"ok": True, "task_id": "ops_new1", "nonce": "n1"},
+        ),
+        mock.patch(
             "inneros_core_runtime.notifications.telegram_client.telegram_enabled",
             return_value=True,
         ),
@@ -53,7 +57,8 @@ def test_notify_ops_owner_authorization_request_cursor():
     ):
         out = alerts.notify_ops_owner_authorization_request(task, binding=binding, source_agent="notion")
     assert out["ok"] is True
-    assert out["delivery_mode"] == "telegram"
+    assert "telegram" in str(out["delivery_mode"])
+    assert out["telegram"].get("ok") is True
     body = send.call_args[0][0]
     assert "*Agente:* CURSOR" in body
     assert "gasta créditos" in body.lower()
