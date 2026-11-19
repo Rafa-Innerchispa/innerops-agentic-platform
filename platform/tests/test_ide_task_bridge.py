@@ -105,6 +105,9 @@ class IdeTaskBridgeTests(unittest.TestCase):
         create_task.side_effect = self.fake_create
         out = bridge.dispatch_task(ide="codex", title="Repair", body="Review", store=self.store)
         self.assertEqual(out["transport"], "external_repair")
+        self.assertEqual(self.created[0].get("provider_transport"), "external_repair")
+        payload = self.created[0].get("payload") or {}
+        self.assertTrue(payload.get("headless_auto"))
 
     @patch("raphiia_openai.coordination_live.create_ops_task")
     @patch("inneros_core_runtime.ide_task_bridge._provider_status")

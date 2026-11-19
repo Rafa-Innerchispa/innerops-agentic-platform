@@ -140,22 +140,27 @@ def dispatch_task(
     if existing:
         return {"ok": True, "created": False, "idempotent": True, **existing}
 
+    provider = _provider_status(target)
+    transport = (
+        "external_repair"
+        if provider.get("installed") and provider.get("headless_supported") and provider.get("auth_ready")
+        else "ide_inbox"
+    )
     from raphiia_openai import coordination_live
     created = coordination_live.create_ops_task(
         assignee=target, title=clean_title,
         checklist=[clean_body, f"IDE target={target}", "Claim task before editing", "Use isolated worktree/RACB when repo writes are required"],
         evidence_required=["status OK/PARTIAL/FAIL", "commit/tests/evidence refs"] if require_evidence else ["status OK/PARTIAL/FAIL"],
         priority=priority, from_agent=sender_identity["actor_id"], correlation_id=cid, related_project=repo or None,
-        repo=repo or None, base_ref=branch or None, task_class="coding",
-        execution_lane="ide_inbox", provider_transport=transport if "transport" in locals() else None,
+        repo=repo or None, base_ref=branch or None, work_branch=branch or None, task_class="coding",
+        execution_lane="ide_inbox", provider_transport=transport,
+        payload={"headless_auto": transport == "external_repair", "ide_bridge_transport": transport},
     )
     if not created.get("ok"):
         return {"ok": False, "error": "ops_task_create_failed", "details": created}
     task_id = str(created.get("task_id") or (created.get("task") or {}).get("task_id") or "")
-    provider = _provider_status(target)
     dispatch_id = f"ide_{secrets.token_hex(8)}"
     trace_id = _trace_id(cid, target, clean_title)
-    transport = "external_repair" if provider.get("installed") and provider.get("headless_supported") and provider.get("auth_ready") else "ide_inbox"
     record = {
         "dispatch_id": dispatch_id, "idempotency_key": idem, "ide": target,
         "from_identity": sender_identity, "target_identity": target_identity,
