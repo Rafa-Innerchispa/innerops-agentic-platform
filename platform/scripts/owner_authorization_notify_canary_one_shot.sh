@@ -12,8 +12,14 @@ REPO="${INNEROS_REPO:-$HOME/innerops-agentic-platform}"
 cd "$REPO"
 
 git fetch -q origin main
-git checkout -q main 2>/dev/null || true
-git pull -q --ff-only origin main
+git checkout -q main 2>/dev/null || git checkout -q -B main origin/main
+if ! git merge -q --no-edit origin/main 2>/dev/null; then
+  if ! git pull -q --no-rebase --no-edit origin main 2>/dev/null; then
+    echo '{"ok":false,"error":"git_merge_failed","hint":"resolver conflictos en main o: git stash -u && git checkout main && git reset --hard origin/main (solo si aceptas descartar commits locales en main)","paths":"git status"}'
+    git status -sb 2>/dev/null || true
+    exit 3
+  fi
+fi
 
 if ! grep -q '_owner_auth_telegram_direct_enabled' \
   platform/inneros_core_runtime/notifications/ops_task_alerts.py 2>/dev/null; then
