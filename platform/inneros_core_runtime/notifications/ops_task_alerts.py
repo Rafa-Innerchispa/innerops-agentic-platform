@@ -176,7 +176,17 @@ def _notify_ops_auth_email_fallback(
 
 def _internal_brief_enabled() -> bool:
     import os
-    return os.getenv("NOTIFY_OPS_INTERNAL_CREATE", "0").strip().lower() in {"1", "true", "yes", "on"}
+    return os.getenv("NOTIFY_OPS_INTERNAL_CREATE", "0").strip().lower() in {"1", "true", "yes", "on"
+
+
+def _owner_auth_telegram_direct_enabled() -> bool:
+    """When true (default), send Telegram buttons on ops create without Atlas observer."""
+    return os.getenv("NOTIFY_OPS_TELEGRAM_DIRECT_ON_CREATE", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def _synthetic_ops_task_skip(task: dict[str, Any]) -> str | None:
@@ -350,10 +360,6 @@ def notify_ops_owner_authorization_request(
     if not _can_send("owner_auth", alias, force=force):
         return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid, "human_task_id": alias}
 
-    import os
-
-    from raphiia_openai.notifications.evolution_client import send_alert_whatsapp, send_whatsapp_interactive
-
     ha_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
     tg_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
     decision_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
@@ -363,25 +369,24 @@ def notify_ops_owner_authorization_request(
         decision_out = decisions.publish_decision_request(task)
     except Exception as exc:
         decision_out = {"ok": False, "error": str(exc)[:200]}
-    # Telegram lo envía SOLO el observador Atlas (botones atlas.yes/atlas.no
-    # con nonce). Este módulo solo publica el registro compartido para Alexa
-    # y evita duplicar mensajes al propietario.
-    tg_out = {"ok": False, "skipped": "telegram_via_atlas_observer"}
-    if decision_out.get("ok"):
-        _mark_sent("owner_auth", alias)
-        _mark_owner_auth_sent_mongo(tid)
-        return {
-            "ok": True,
-            "result": decision_out,
-            "ha_companion": ha_out,
-            "telegram": tg_out,
-            "decision_registry": decision_out,
-            "task_id": tid,
-            "summary": summary,
-            "delivery_mode": "alexa_shared_registry+atlas_telegram",
-            "poll_message_id": "",
-            "email_fallback": None,
-        }
+
+    direct_tg = _owner_auth_telegram_direct_enabled()
+    if telegram_ok and direct_tg:
+        try:
+            from inneros_core_runtime.notifications import telegram_client as tg
+
+            tg_out = tg.send_message(
+                tg_body,
+                reply_markup=tg.ops_auth_inline_keyboard(tid),
+                parse_mode="Markdown",
+            )
+        except Exception as exc:
+            tg_out = {"ok": False, "error": str(exc)[:200]}
+    elif telegram_ok:
+        tg_out = {"ok": False, "skipped": "telegram_deferred_to_atlas_observer"}
+    else:
+        tg_out = {"ok": False, "skipped": "telegram_unconfigured"}
+
     if ha_primary:
         ha_out = ops_ha.notify_ops_owner_ha_authorization(
             task,
@@ -389,21 +394,32 @@ def notify_ops_owner_authorization_request(
             headline=f"{icon} {headline}",
             body=body,
         )
+
+    modes: list[str] = []
+    if decision_out.get("ok"):
+        modes.append("alexa_shared_registry")
     if ha_out.get("ok"):
+        modes.append("ha_companion_ops")
+    if tg_out.get("ok"):
+        modes.append("telegram")
+
+    owner_reached = bool(ha_out.get("ok") or tg_out.get("ok"))
+    # Atlas-only sites may rely on registry + external observer (no duplicate Telegram).
+    registry_only_ok = bool(decision_out.get("ok") and not direct_tg)
+    if owner_reached or registry_only_ok:
         _mark_sent("owner_auth", alias)
         _mark_owner_auth_sent_mongo(tid)
-        modes = ["ha_companion_ops"]
-        if decision_out.get("ok"):
-            modes.append("alexa_shared_registry")
+        delivery = "+".join(modes) if modes else ("alexa_shared_registry" if registry_only_ok else "unreachable")
+        primary = tg_out if tg_out.get("ok") else (ha_out if ha_out.get("ok") else decision_out)
         return {
             "ok": True,
-            "result": ha_out,
+            "result": primary,
             "ha_companion": ha_out,
             "telegram": tg_out,
             "decision_registry": decision_out,
             "task_id": tid,
             "summary": summary,
-            "delivery_mode": "+".join(modes) or "unreachable",
+            "delivery_mode": delivery,
             "poll_message_id": "",
             "email_fallback": None,
         }
