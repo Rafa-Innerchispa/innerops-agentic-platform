@@ -176,7 +176,8 @@ def _notify_ops_auth_email_fallback(
 
 def _internal_brief_enabled() -> bool:
     import os
-    return os.getenv("NOTIFY_OPS_INTERNAL_CREATE", "0").strip().lower() in {"1", "true", "yes", "on"
+
+    return os.getenv("NOTIFY_OPS_INTERNAL_CREATE", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _owner_auth_telegram_direct_enabled() -> bool:
