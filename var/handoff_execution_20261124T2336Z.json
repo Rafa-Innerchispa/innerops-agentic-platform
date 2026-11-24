@@ -1,0 +1,51 @@
+{
+  "phase": "A-D_local_handoff",
+  "generated_at": "2026-11-24T23:36:00+00:00",
+  "host": "ralphi-ia-ver-10",
+  "github_main_sha": "91181a45387afbd2d221bd0656a23d349324d64d",
+  "runtime_deployed_sha": "91181a45387afbd2d221bd0656a23d349324d64d",
+  "runtime_path": "/home/rlopez/inneros/inneros_core/platform",
+  "github_clone": "/home/rlopez/innerops-agentic-platform",
+  "phase_a": {
+    "runtime_has_direct_telegram_flag": true,
+    "runtime_env_direct_telegram": "1",
+    "runtime_env_notify_ops_auth_ha": "1",
+    "telegram_poll_active": true,
+    "coordination_owner_summary_timer": "stopped_for_spam_mitigation"
+  },
+  "phase_b": {
+    "sync_script": "platform/scripts/sync_platform_runtime_from_git.sh --apply",
+    "backup": "/home/rlopez/inneros/inneros_core/var/runtime_sync_backups/runtime-before-20261124T233258Z-91181a45387afbd2d221bd0656a23d349324d64d.tar.gz",
+    "services_restarted": [
+      "inneros-telegram-ops-poll.service",
+      "inneros-temporal-worker.service",
+      "inneros-coordination-cycle.service"
+    ]
+  },
+  "phase_c": {
+    "task_id": "ops_4e1ad7427846",
+    "correlation_id": "ag-notify-canary-7d1755ab",
+    "human_task_id": "AG-NOTIFY-CANARY-7D1755AB-CANARIO",
+    "ha_companion_ok": true,
+    "telegram_direct_attempted": true,
+    "telegram_ok": false,
+    "telegram_error": "HTTP 429 Too Many Requests (retry_after ~12816s) — probable rate-limit tras spam previo",
+    "delivery_mode": "alexa_shared_registry+ha_companion_ops",
+    "decision_registry_nonce": "36c46c2998bf9d58",
+    "evidence_file": "var/ag_notify_canary_latest.json",
+    "owner_action": "Rafael confirma en HA Companion o Telegram cuando rate-limit expire; NO ejecutar claim"
+  },
+  "phase_d": {
+    "hygiene_apply": true,
+    "archived_count": 6,
+    "fenced_count": 3,
+    "remaining_paid_ide_non_terminal_before_after": "26 -> 21",
+    "evidence_file": "var/ops_queue_hygiene_zero_pending.json"
+  },
+  "not_certified": [
+    "Telegram entrega en vivo en create_ops_task hasta que Telegram API deje de responder 429",
+    "E2E Antigravity claim+worktree tras autorización Rafael",
+    "Paridad AMD fleet (no ejecutado en esta pasada)",
+    "ops_f31d48cab238 canario 20-nov puede seguir en Mongo hasta próximo ciclo con título [CANARIO]"
+  ]
+}

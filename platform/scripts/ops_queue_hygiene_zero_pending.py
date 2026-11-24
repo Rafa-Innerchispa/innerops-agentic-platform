@@ -18,6 +18,7 @@ PAID_IDE = frozenset({"cursor", "codex", "antigravity", "gemini"})
 TERMINAL = frozenset({"completed", "done", "cancelled", "canceled", "superseded", "archived"})
 STALE_TITLE = re.compile(
     r"cross-smoke|quad-canary|rev-parse|competencia/externo|cursor-ha-e2e|"
+    r"owner-notify-canary|ag-notify-canary|notify-canary|\[CANARIO\]|"
     r"integrator|CIERRE TOTAL|re-certific|P0 CURSOR CIERRE|autonomous repair|"
     r"GitLab \d+ review",
     re.I,
