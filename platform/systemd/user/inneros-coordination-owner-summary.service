@@ -10,6 +10,7 @@ Environment=INNEROS_CORE_ROOT=/home/rlopez/inneros/inneros_core
 Environment=INNEROS_WHATSAPP_NOTIFICATIONS=0
 Environment=NOTIFY_OPS_AUTH_HA=1
 Environment=NOTIFY_OPS_TELEGRAM=1
+Environment=NOTIFY_OPS_TELEGRAM_DIRECT_ON_CREATE=1
 Environment=RALFIA_OPS_AUTH_EMAIL_TO=rafagye@gmail.com
 EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
 EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env.ops-notify
