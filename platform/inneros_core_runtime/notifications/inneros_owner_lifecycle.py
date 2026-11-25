@@ -19,6 +19,7 @@ LIFECYCLE_ON = lambda: os.getenv("NOTIFY_OPS_INNEROS_LIFECYCLE", "1").strip().lo
 EVENT_LABELS = {
     "authorized": ("Autorizada", "high", ["white_check_mark"]),
     "authorized_pending_claim": ("Autorizada — esperando IDE", "default", ["hourglass"]),
+    "authorized_pending_peer": ("Autorizada — otro servidor", "default", ["hourglass"]),
     "claimed": ("Tarea en curso", "default", ["arrow_forward"]),
     "in_progress": ("Ejecutando", "default", ["hourglass_flowing_sand"]),
     "completed": ("Terminada", "default", ["white_check_mark"]),

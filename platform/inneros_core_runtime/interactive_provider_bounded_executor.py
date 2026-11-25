@@ -90,6 +90,18 @@ def is_innocuous_canary_task(task: dict[str, Any], provider: str) -> bool:
     return False
 
 
+def antigravity_subscription_exec_enabled() -> bool:
+    """Suscripción Antigravity: exec local con modelo fijado (no modelos caros por defecto)."""
+    if _model_exec_allowed("antigravity"):
+        return True
+    return os.getenv("INNEROS_ANTIGRAVITY_SUBSCRIPTION_MODE", "1").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _model_exec_allowed(provider: str) -> bool:
     if provider == "codex":
         return os.getenv("INNEROS_CODEX_OPS_ALLOW_MODEL_EXEC", "").strip().lower() in {
@@ -340,6 +352,52 @@ def execute_claimed_task(task_id: str, provider: str) -> dict[str, Any]:
         if runner_result.get("ok"):
             commit = _git_commit_worktree(worktree, f"ops {tid} codex")
             runner_result["commit"] = commit
+    elif prov == "antigravity" and antigravity_subscription_exec_enabled():
+        payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+        envelope = {
+            **task,
+            "assignee": prov,
+            "preferred_provider": prov,
+            "sync_bridge_artifacts": False,
+            "repo": "",
+        }
+        if payload.get("verify_command"):
+            envelope["verify_command"] = payload["verify_command"]
+        if payload.get("verify_tests"):
+            envelope["verify_tests"] = payload["verify_tests"]
+        if not payload.get("verify_command") and not payload.get("verify_tests"):
+            blob = _task_blob(task)
+            if "canary" in blob or PROVIDER_CANARY_MARKERS["antigravity"].lower() in blob:
+                envelope["required_objective_paths"] = [PROVIDER_CANARY_MARKERS["antigravity"]]
+                envelope["verify_command"] = [
+                    "python3",
+                    "-m",
+                    "unittest",
+                    "tests.test_provider_ops_canary_receipt",
+                ]
+            else:
+                envelope["verify_command"] = ["python3", "-m", "pytest", "-q", "tests/test_msp.py"]
+        bounded = tbe.run_bounded_executor(
+            envelope,
+            str(worktree),
+            candidate={"ok": True, "response": "", "resolved_model": pinned},
+        )
+        runner_result = {
+            **bounded,
+            "primary": "antigravity_subscription_bounded",
+            "resolved_model": pinned,
+        }
+        omj.record_model_execution(
+            tid,
+            provider=prov,
+            configured_model=pinned,
+            resolved_model=pinned,
+            model_source="antigravity_subscription_pinned",
+            transport="temporal_bounded_executor",
+            extra={**journal_extra, "execution_verification_class": EXECUTION_PROVIDER_REAL},
+        )
+        if runner_result.get("ok"):
+            runner_result["commit"] = _git_commit_worktree(worktree, f"ops {tid} antigravity")
     else:
         blocked = {
             "ok": False,

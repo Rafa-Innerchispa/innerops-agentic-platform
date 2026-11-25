@@ -207,6 +207,12 @@ def authorize_ops_task(
     except Exception as exc:
         out["dispatch_unlock"] = {"ok": False, "error": str(exc)[:200]}
     try:
+        from inneros_core_runtime import ops_execution_node_routing as oenr
+
+        out["routing"] = oenr.stamp_routing_on_task(tid, provider=owner)
+    except Exception:
+        pass
+    try:
         oes.refresh_current_execution_state(doc, event="owner_authorized", actor=owner_actor)
     except Exception:
         pass
@@ -443,6 +449,18 @@ def claim_ops_task(
     ):
         provider_spawn_attempted = True
         try:
+            from inneros_core_runtime import ops_execution_node_routing as oenr
+
+            task_for_route = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or claimed
+            oenr.stamp_routing_on_task(tid, provider=prov)
+            allowed, route_reason, _target = oenr.should_claim_on_this_node(task_for_route, prov)
+            if not allowed:
+                headless_spawn = {"ok": False, "error": "deferred_to_peer", "detail": route_reason}
+            else:
+                from inneros_core_runtime import antigravity_headless_dispatch as agd
+
+                headless_spawn = agd.spawn_headless_execute(tid, force_retry=True)
+        except Exception:
             from inneros_core_runtime import antigravity_headless_dispatch as agd
 
             headless_spawn = agd.spawn_headless_execute(tid, force_retry=True)
