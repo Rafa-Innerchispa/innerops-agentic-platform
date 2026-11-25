@@ -26,6 +26,12 @@ def _token() -> str:
     return (os.getenv("INNEROS_NTFY_TOKEN") or "").strip()
 
 
+def _http_header_value(text: str, *, limit: int = 250) -> str:
+    """Headers HTTP (latin-1): quitar emojis para evitar UnicodeEncodeError."""
+    clean = (text or "").strip()[:limit]
+    return clean.encode("ascii", "ignore").decode("ascii") or "InnerOS"
+
+
 def publish(
     message: str,
     *,
@@ -39,7 +45,11 @@ def publish(
     if not configured():
         return {"ok": False, "skipped": "ntfy_not_configured"}
     url = f"{_base_url()}/{quote(_topic(), safe='')}"
-    headers: dict[str, str] = {"Title": title[:250], "Priority": priority, "Tags": ",".join(tags or ["inneros"])}
+    headers: dict[str, str] = {
+        "Title": _http_header_value(title),
+        "Priority": priority,
+        "Tags": ",".join(tags or ["inneros"]),
+    }
     if click:
         headers["Click"] = click[:2048]
     if actions:
