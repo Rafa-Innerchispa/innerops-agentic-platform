@@ -309,9 +309,16 @@ def claim_ops_task(
     backoff = claim_backoff_blocked(task)
     if backoff is not None:
         return {"ok": False, "error": "claim_backoff_active", "task_id": tid, **backoff}
-    from inneros_core_runtime import cursor_headless_lanes as _lanes
+    try:
+        from inneros_core_runtime import ops_execution_node_routing as oenr
 
-    allowed_host, route_reason = _lanes.should_this_node_run_task(task)
+        oenr.stamp_routing_on_task(tid, provider=prov)
+        task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
+        allowed_host, route_reason, _target = oenr.should_claim_on_this_node(task, prov)
+    except Exception:
+        from inneros_core_runtime import cursor_headless_lanes as _lanes
+
+        allowed_host, route_reason = _lanes.should_this_node_run_task(task)
     if not allowed_host:
         return {
             "ok": False,
