@@ -474,6 +474,7 @@ def create_ops_task(
     human_task_id: str | None = None,
     parent_task_id: str | None = None,
     supersedes_task_id: str | None = None,
+    execution_node: str | None = None,
 ) -> dict[str, Any]:
     """Admit a task through Temporal, the only lifecycle authority."""
     title_s = (title or "").strip()
@@ -588,6 +589,10 @@ def create_ops_task(
 
     hti.attach_human_task_id(doc)
 
+    from inneros_core_runtime import ops_execution_node_routing as oenr
+
+    doc = oenr.apply_execution_node_at_create(doc, execution_node)
+
     from inneros_core_runtime import ops_task_admission as ota
 
     doc = ota.normalize_ops_admission(doc)
@@ -667,6 +672,8 @@ def create_ops_task(
         "authority": "temporal",
         "execution_binding_preview": binding_preview,
         "owner_execution_summary": owner_summary,
+        "execution_node": doc.get("target_execution_node"),
+        "execution_node_reason": doc.get("execution_node_resolved_reason"),
         "task": doc,
     }
 

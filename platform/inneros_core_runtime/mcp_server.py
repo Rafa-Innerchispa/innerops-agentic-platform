@@ -5639,11 +5639,17 @@ def create_ops_task(
     source_message_id: str | None = None,
     conversation_ref: str | None = None,
     related_project: str | None = None,
+    execution_node: str | None = None,
+    objective: str | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> OpsTaskToolResult:
-    """Admite una orden formal mediante el workflow canónico de Temporal."""
-    from raphiia_openai import coordination_live
+    """Admite una orden formal mediante el workflow canónico de Temporal.
 
-    return coordination_live.create_ops_task(
+    execution_node: intel | amd | auto. Omitido → intel (default Antigravity/Codex).
+    """
+    from inneros_core_runtime import coordination_live as icl
+
+    return icl.create_ops_task(
         assignee=assignee,
         title=title,
         checklist=checklist,
@@ -5666,6 +5672,9 @@ def create_ops_task(
         source_message_id=source_message_id,
         conversation_ref=conversation_ref,
         related_project=related_project,
+        execution_node=execution_node,
+        objective=objective,
+        payload=payload,
     )
 
 

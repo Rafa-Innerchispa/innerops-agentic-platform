@@ -3340,11 +3340,19 @@ def create_ops_task(
     priority: str = "normal",
     from_agent: str = "RAFAEL",
     correlation_id: str | None = None,
+    execution_node: str | None = None,
+    objective: str | None = None,
+    payload: dict[str, Any] | None = None,
+    repo: str | None = None,
+    preferred_provider: str | None = None,
 ) -> OpsTaskToolResult:
-    """Orden formal con checklist + evidencia → Mongo ops_tasks + INBOX assignee."""
-    from raphiia_openai import coordination_live
+    """Orden formal con checklist + evidencia → Mongo ops_tasks + INBOX assignee.
 
-    return coordination_live.create_ops_task(
+    execution_node: intel | amd | auto (default intel para Antigravity/Codex si omites).
+    """
+    from inneros_core_runtime import coordination_live as icl
+
+    return icl.create_ops_task(
         assignee=assignee,
         title=title,
         checklist=checklist,
@@ -3352,6 +3360,11 @@ def create_ops_task(
         priority=priority,
         from_agent=from_agent,
         correlation_id=correlation_id,
+        execution_node=execution_node,
+        objective=objective,
+        payload=payload,
+        repo=repo,
+        preferred_provider=preferred_provider,
     )
 
 
