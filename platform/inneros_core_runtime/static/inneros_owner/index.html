@@ -4,36 +4,80 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0284c7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="InnerOS" />
   <link rel="manifest" href="/owner-ops/static/manifest.webmanifest" />
   <title>InnerOS Owner</title>
   <style>
-    :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --accent:#38bdf8; --ok:#4ade80; --bad:#f87171; }
+    :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --accent:#38bdf8; --ok:#4ade80; --bad:#f87171; --muted:#94a3b8; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; }
-    header { padding:1rem 1.25rem; background:#020617; border-bottom:1px solid #334155; position:sticky; top:0; }
-    h1 { margin:0; font-size:1.15rem; font-weight:600; }
-    .sub { font-size:0.8rem; opacity:0.75; margin-top:0.25rem; }
-  main { padding:1rem; max-width:32rem; margin:0 auto; }
-    .card { background:var(--card); border-radius:12px; padding:1rem; margin-bottom:0.75rem; border:1px solid #334155; }
-    .provider { font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent); }
-    .tid { font-weight:600; margin:0.35rem 0; }
+    body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
+    header { padding:1rem 1.25rem .75rem; background:#020617; border-bottom:1px solid #334155; position:sticky; top:0; z-index:2; }
+    h1 { margin:0; font-size:1.2rem; font-weight:700; }
+    .sub { font-size:0.78rem; color:var(--muted); margin-top:0.35rem; line-height:1.35; }
+    main { padding:0.75rem 1rem 1rem; max-width:28rem; margin:0 auto; }
+    .card { background:var(--card); border-radius:12px; padding:0.9rem 1rem; margin-bottom:0.65rem; border:1px solid #334155; }
+    .provider { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent); }
+    .tid { font-weight:600; margin:0.3rem 0; font-size:1rem; }
+    .msg { font-size:0.88rem; color:#cbd5e1; line-height:1.4; white-space:pre-wrap; }
+    .when { font-size:0.72rem; color:var(--muted); margin-top:0.5rem; }
+    .badge { display:inline-block; font-size:0.65rem; padding:0.15rem 0.45rem; border-radius:6px; background:#334155; margin-left:0.35rem; text-transform:uppercase; }
+    .badge.ok { background:#14532d; color:#86efac; }
+    .badge.bad { background:#450a0a; color:#fca5a5; }
+    .badge.pend { background:#422006; color:#fcd34d; }
     .row { display:flex; gap:0.5rem; margin-top:0.75rem; }
-    button, a.btn { flex:1; text-align:center; padding:0.65rem; border-radius:8px; border:none; font-weight:600; text-decoration:none; font-size:0.95rem; }
+    a.btn { flex:1; text-align:center; padding:0.65rem; border-radius:8px; font-weight:600; text-decoration:none; font-size:0.92rem; }
     .approve { background:var(--ok); color:#052e16; }
     .cancel { background:var(--bad); color:#450a0a; }
-    #empty { text-align:center; opacity:0.7; padding:2rem 1rem; }
-    #status { font-size:0.8rem; opacity:0.65; margin-top:1rem; text-align:center; }
+    .empty { text-align:center; color:var(--muted); padding:2.5rem 0.5rem; font-size:0.9rem; }
+    #status { font-size:0.75rem; color:var(--muted); text-align:center; margin-top:0.5rem; }
+    nav.tabs { display:flex; gap:0.35rem; margin-top:0.75rem; }
+    nav.tabs button { flex:1; border:1px solid #334155; background:#0f172a; color:var(--text); padding:0.5rem; border-radius:8px; font-size:0.82rem; font-weight:600; }
+    nav.tabs button.on { background:#0369a1; border-color:#0284c7; }
+    .panel { display:none; }
+    .panel.on { display:block; }
+    .install { font-size:0.88rem; line-height:1.5; color:#cbd5e1; }
+    .install ol { padding-left:1.1rem; }
+    .install code { background:#0f172a; padding:0.1rem 0.35rem; border-radius:4px; font-size:0.8rem; word-break:break-all; }
+    .install h2 { font-size:1rem; margin:1rem 0 0.5rem; }
   </style>
 </head>
 <body>
   <header>
     <h1>InnerOS Owner</h1>
-    <p class="sub">Push propio en Intel — estilo notificación del sistema</p>
-    <p class="sub">Añade a pantalla de inicio (PWA). Instala la app <strong>ntfy</strong> y suscríbete al topic del servidor.</p>
+    <p class="sub">Tu app de autorizaciones: notificaciones + historial (sin Home Assistant).</p>
+    <nav class="tabs" role="tablist">
+      <button type="button" class="on" data-tab="pending">Pendientes</button>
+      <button type="button" data-tab="history">Historial</button>
+      <button type="button" data-tab="install">Instalar</button>
+    </nav>
   </header>
   <main>
-    <div id="list"></div>
-    <p id="empty">Sin autorizaciones pendientes.</p>
+    <section id="panel-pending" class="panel on">
+      <div id="list-pending"></div>
+      <p id="empty-pending" class="empty">No hay autorizaciones pendientes.</p>
+    </section>
+    <section id="panel-history" class="panel">
+      <div id="list-history"></div>
+      <p id="empty-history" class="empty" style="display:none">Aún no hay historial. Llegará aquí cada push OPS.</p>
+    </section>
+    <section id="panel-install" class="panel">
+      <div class="card install">
+        <h2>1) Notificaciones al instante — app ntfy</h2>
+        <ol>
+          <li>Instala <strong>ntfy</strong> (Play Store).</li>
+          <li>Tailscale <strong>encendido</strong> en el celular.</li>
+          <li>Suscripción: servidor <code>http://100.94.99.12:2586</code> · tópico <code>ralfia-owner-ops</code> (sin “/InnerOS”).</li>
+        </ol>
+        <h2>2) Historial y bandeja — esta “app”</h2>
+        <ol>
+          <li>En Chrome: menú ⋮ → <strong>Añadir a pantalla de inicio</strong>.</li>
+          <li>Se abrirá como icono <strong>InnerOS</strong> con pestañas Pendientes e Historial.</li>
+          <li>URL: <code id="pwa-url">…</code></li>
+        </ol>
+        <p><strong>Resumen:</strong> ntfy = timbre en el móvil; InnerOS = archivo y botones cuando no viste la push.</p>
+      </div>
+    </section>
     <p id="status"></p>
   </main>
   <script src="/owner-ops/static/app.js"></script>

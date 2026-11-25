@@ -22,6 +22,8 @@ def apply_owner_push_decision(
         return {"ok": False, "error": "invalid_token"}
     from inneros_core_runtime import ops_owner_decision_registry as decisions
 
+    from inneros_core_runtime import owner_push_history as inbox
+
     if decision == "approve":
         consumed = decisions.consume_decision(
             task_id=task_id, nonce=nonce, decision="approve", channel=channel, owner_actor=owner_actor,
@@ -41,10 +43,19 @@ def apply_owner_push_decision(
         from inneros_core_runtime import durable_coordination_spine
 
         durable_coordination_spine.signal_task_workflow(task_id, "cancel", "owner_rejected_push")
+        try:
+            inbox.record_decision(task_id=task_id, decision=decision, channel=channel, ok=True)
+        except Exception:
+            pass
         return {"ok": True, "task_id": task_id, "decision": "cancel", "channel": channel}
 
     from inneros_core_runtime import ops_whatsapp_owner as shared_executor
 
     short = task_id.replace("ops_", "")[:6]
     out = shared_executor.handle_owner_reply(f"SI {short}", owner_actor=owner_actor, phone=None)
-    return {"ok": bool(out and out.get("ok")), "task_id": task_id, "decision": "approve", "channel": channel, "authorize": out}
+    ok = bool(out and out.get("ok"))
+    try:
+        inbox.record_decision(task_id=task_id, decision=decision, channel=channel, ok=ok)
+    except Exception:
+        pass
+    return {"ok": ok, "task_id": task_id, "decision": "approve", "channel": channel, "authorize": out}

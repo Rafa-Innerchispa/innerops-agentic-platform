@@ -47,6 +47,8 @@ def notify_ops_owner_authorization(
     approve_url = f"{base}/owner-ops/decide?task_id={tid}&nonce={nonce}&decision=approve&token={approve_t}"
     cancel_url = f"{base}/owner-ops/decide?task_id={tid}&nonce={nonce}&decision=cancel&token={cancel_t}"
     detail_url = f"{base}/owner-ops/?task_id={tid}"
+    from inneros_core_runtime import owner_push_history as inbox
+
     ntfy_out = ntfy.publish(
         message[:3800],
         title=title,
@@ -59,6 +61,19 @@ def notify_ops_owner_authorization(
         ],
         extras={"task_id": tid, "nonce": nonce, "channel": "inneros_push"},
     )
+    if ntfy_out.get("ok"):
+        try:
+            inbox.record_auth_push(
+                task_id=tid,
+                human_task_id=alias,
+                provider=provider,
+                title=title,
+                message=message,
+                nonce=nonce,
+                ntfy_id=str(ntfy_out.get("id") or ""),
+            )
+        except Exception:
+            pass
     ha_out: dict[str, Any] = {"ok": False, "skipped": "inneros_push_primary"}
     if ha_fallback_enabled():
         ha_out = ops_ha.notify_ops_owner_ha_authorization(task, summary=summary, headline=headline, body=body)

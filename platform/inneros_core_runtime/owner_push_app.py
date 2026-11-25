@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from inneros_core_runtime import ops_owner_decision_registry as decisions
+from inneros_core_runtime import owner_push_history as inbox
 from inneros_core_runtime.owner_push_decide import apply_owner_push_decision
 from inneros_core_runtime.owner_push_tokens import public_base_url, sign_decision
 
@@ -33,6 +34,17 @@ def owner_home():
 @app.get("/api/owner-ops/pending")
 def api_pending(limit: int = 20):
     return {"ok": True, "pending": decisions.list_pending_authorizations(limit=limit), "public_url": public_base_url()}
+
+
+@app.get("/api/owner-ops/history")
+def api_history(limit: int = 40, include_ntfy: bool = True):
+    mongo_items = inbox.list_inbox(limit=limit)
+    return {
+        "ok": True,
+        "items": mongo_items,
+        "public_url": public_base_url(),
+        "ntfy_cache": inbox.fetch_ntfy_topic_cache(limit=min(limit, 30)) if include_ntfy else [],
+    }
 
 
 @app.get("/owner-ops/decide")
