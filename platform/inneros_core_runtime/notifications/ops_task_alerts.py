@@ -181,13 +181,22 @@ def _internal_brief_enabled() -> bool:
 
 
 def _owner_auth_telegram_direct_enabled() -> bool:
-    """When true (default), send Telegram buttons on ops create without Atlas observer."""
-    return os.getenv("NOTIFY_OPS_TELEGRAM_DIRECT_ON_CREATE", "1").strip().lower() in {
+    """Telegram on create only when enabled and not suppressed by ha_companion primary."""
+    if not os.getenv("NOTIFY_OPS_TELEGRAM_DIRECT_ON_CREATE", "1").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
-    }
+    }:
+        return False
+    try:
+        from inneros_core_runtime.notifications import ops_ha_push_budget as budget
+
+        if budget.ops_primary_channel() == "ha_companion" and not budget.telegram_secondary_enabled():
+            return False
+    except Exception:
+        pass
+    return True
 
 
 def _synthetic_ops_task_skip(task: dict[str, Any]) -> str | None:
@@ -405,8 +414,8 @@ def notify_ops_owner_authorization_request(
         modes.append("telegram")
 
     owner_reached = bool(ha_out.get("ok") or tg_out.get("ok"))
-    # Atlas-only sites may rely on registry + external observer (no duplicate Telegram).
-    registry_only_ok = bool(decision_out.get("ok") and not direct_tg)
+    # Registry Alexa is additive; it does not replace Companion push for paid IDE auth.
+    registry_only_ok = False
     if owner_reached or registry_only_ok:
         _mark_sent("owner_auth", alias)
         _mark_owner_auth_sent_mongo(tid)
