@@ -112,15 +112,30 @@ def stamp_routing_on_task(task_id: str, *, provider: str | None = None) -> dict[
     return {"ok": True, "task_id": task_id, "target_node": target, "reason": reason}
 
 
+def _fail_closed_node(task: dict[str, Any]) -> bool:
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    flag = payload.get("fail_closed_on_node_mismatch")
+    if flag is True or str(flag or "").strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    req = normalize_node(
+        payload.get("required_claim_execution_role")
+        or payload.get("required_execution_node")
+        or ""
+    )
+    return req in {"intel", "amd"}
+
+
 def should_claim_on_this_node(task: dict[str, Any], provider: str) -> tuple[bool, str, str]:
     """(allowed, reason, target_node) — si no, el peer debe reclamar."""
     target, _ = resolve_target_node(task, provider)
     prov = (provider or "").strip().lower()
     here = chl.node_role()
+    if target != here:
+        return False, f"target_node:{target}≠{here}", target
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     owner_pick = normalize_node(payload.get("owner_execution_node") or "")
-    if owner_pick and owner_pick != "auto" and target != here:
-        return False, f"explicit_owner_node:{target}", target
+    if owner_pick and owner_pick != "auto" and owner_pick != here:
+        return False, f"explicit_owner_node:{owner_pick}", owner_pick
     if prov in {"codex", "antigravity"}:
         allowed, reason = ipl.should_this_node_run_task(prov, task)
         return allowed, reason, target

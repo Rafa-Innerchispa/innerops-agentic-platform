@@ -117,6 +117,22 @@ def task_prefers_other_node(task: dict[str, Any]) -> str | None:
     return None
 
 
+def _fail_closed_node(task: dict[str, Any]) -> bool:
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    flag = payload.get("fail_closed_on_node_mismatch")
+    if flag is True or str(flag or "").strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    from inneros_core_runtime.ops_execution_node_routing import normalize_node
+
+    req = normalize_node(
+        payload.get("required_claim_execution_role")
+        or payload.get("required_execution_node")
+        or payload.get("target_node")
+        or ""
+    )
+    return req in {"intel", "amd"}
+
+
 def should_this_node_run_task(task: dict[str, Any]) -> tuple[bool, str]:
     """Return (allowed, reason) for claiming/executing on this node."""
     if not is_ha_execution_node():
@@ -124,6 +140,8 @@ def should_this_node_run_task(task: dict[str, Any]) -> tuple[bool, str]:
     pref = task_prefers_other_node(task)
     here = node_role()
     if pref and pref != here:
+        if _fail_closed_node(task):
+            return False, f"fail_closed_required_node:{pref}"
         if peer_is_alive():
             return False, f"preferred_peer_alive:{pref}"
         return True, f"peer_offline_steering_from_{pref}"
