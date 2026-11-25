@@ -9,9 +9,11 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import os
+
 from competition.announce_lib import announce_phrase
 
-PHRASE = "Hola, soy Antigravity."
+PHRASE = (os.getenv("COMPETITION_ANNOUNCE_PHRASE") or "Hola, soy Antigravity.").strip() or "Hola, soy Antigravity."
 
 
 def run() -> dict:

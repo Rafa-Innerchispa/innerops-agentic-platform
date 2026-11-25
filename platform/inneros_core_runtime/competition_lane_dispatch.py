@@ -41,8 +41,16 @@ def is_competition_task(task: dict[str, Any]) -> bool:
     return competition_entry_for_task(task) is not None
 
 
-def _run_entry(entry: Path) -> dict[str, Any]:
+def _run_entry(entry: Path, task: dict[str, Any] | None = None) -> dict[str, Any]:
     env = {**os.environ, "PYTHONPATH": str(ROOT)}
+    payload = (task or {}).get("payload") if isinstance((task or {}).get("payload"), dict) else {}
+    phrase = str(
+        payload.get("competition_announce_phrase")
+        or payload.get("alexa_announce_phrase")
+        or ""
+    ).strip()
+    if phrase:
+        env["COMPETITION_ANNOUNCE_PHRASE"] = phrase[:900]
     proc = subprocess.run(
         [sys.executable, str(entry)],
         cwd=str(ROOT),
@@ -77,7 +85,7 @@ def execute_competition_task(task_id: str) -> dict[str, Any]:
     if not entry or not entry.is_file():
         return {"ok": False, "error": "not_competition_task", "task_id": tid}
 
-    run = _run_entry(entry)
+    run = _run_entry(entry, task)
     stdout_json = run.get("stdout_json") if isinstance(run.get("stdout_json"), dict) else {}
     ha = stdout_json.get("ha")
     proc_rc = run.get("returncode")
