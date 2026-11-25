@@ -235,9 +235,12 @@ def notify_ops_owner_authorization_request(
     if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
         return {"ok": False, "skipped": "notifications_disabled"}
 
+    from inneros_core_runtime.notifications import inneros_ntfy_client as _ntfy
+    from inneros_core_runtime.notifications import inneros_owner_push as _iop
     from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
 
-    ha_primary = ops_ha.ha_auth_enabled()
+    ha_primary = ops_ha.ha_auth_enabled() and not _iop.is_primary()
+    inneros_primary = _iop.is_primary() and _ntfy.configured()
     telegram_ok = False
     try:
         from inneros_core_runtime.notifications import telegram_client as _tg
@@ -245,10 +248,10 @@ def notify_ops_owner_authorization_request(
         telegram_ok = bool(_tg.telegram_enabled() and _tg.configured())
     except Exception:
         telegram_ok = False
-    if not telegram_ok and not ha_primary:
+    if not telegram_ok and not ha_primary and not inneros_primary:
         return {
             "ok": False,
-            "skipped": "telegram_and_ha_off",
+            "skipped": "no_owner_push_channel",
             "task_id": str(task.get("task_id") or ""),
         }
 
@@ -369,6 +372,27 @@ def notify_ops_owner_authorization_request(
     key = _dedupe_key("owner_auth", alias)
     if not _can_send("owner_auth", alias, force=force):
         return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid, "human_task_id": alias}
+
+    if inneros_primary:
+        push_out = _iop.notify_ops_owner_authorization(
+            task,
+            summary=summary,
+            headline=f"{icon} {headline}",
+            body=body,
+        )
+        if push_out.get("ok"):
+            _mark_sent("owner_auth", alias)
+            _mark_owner_auth_sent_mongo(tid)
+        return {
+            "ok": bool(push_out.get("ok")),
+            "result": push_out.get("ntfy") or push_out,
+            "inneros_push": push_out,
+            "task_id": tid,
+            "summary": summary,
+            "delivery_mode": push_out.get("delivery_mode") or "inneros_push",
+            "poll_message_id": "",
+            "email_fallback": None,
+        }
 
     ha_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
     tg_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}

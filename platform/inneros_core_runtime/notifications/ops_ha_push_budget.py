@@ -128,11 +128,18 @@ def ha_scout_enabled() -> bool:
 
 
 def ops_primary_channel() -> str:
-    """ha_companion = push directo Intel→HA→móvil; telegram = secundario opcional."""
-    return (os.getenv("NOTIFY_OPS_PRIMARY") or "ha_companion").strip().lower()
+    """inneros_push = ntfy+PWA Intel; ha_companion = legacy HA; telegram = secundario."""
+    return (os.getenv("NOTIFY_OPS_PRIMARY") or "inneros_push").strip().lower()
 
 
 def telegram_secondary_enabled() -> bool:
+    if ops_primary_channel() in {"inneros_push", "inneros", "ntfy"}:
+        return os.getenv("NOTIFY_OPS_TELEGRAM_SECONDARY", "0").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
     if ops_primary_channel() != "ha_companion":
         return True
     return os.getenv("NOTIFY_OPS_TELEGRAM_SECONDARY", "0").strip().lower() in {

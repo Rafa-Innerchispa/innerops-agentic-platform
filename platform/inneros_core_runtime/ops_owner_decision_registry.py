@@ -120,6 +120,24 @@ def publish_decision_request(
     return {"ok": True, "task_id": tid, "nonce": nonce}
 
 
+def list_pending_authorizations(limit: int = 20) -> list[dict[str, Any]]:
+    """Pendientes de autorización owner (PWA InnerOS)."""
+    col = _collection()
+    now = _now_epoch()
+    cursor = (
+        col.find(
+            {
+                "status": {"$in": ["pending", "awaiting_owner_decision"]},
+                "expires_at": {"$gt": now},
+            },
+            {"_id": 0},
+        )
+        .sort("created_at", -1)
+        .limit(max(1, min(int(limit), 50)))
+    )
+    return list(cursor)
+
+
 def consume_decision(
     *,
     task_id: str,

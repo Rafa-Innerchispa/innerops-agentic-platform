@@ -1,0 +1,10 @@
+# ntfy self-hosted (Intel). Sin cloud de terceros para el topic owner.
+base-url: "http://192.168.1.4:2586"
+listen-http: ":2586"
+behind-proxy: false
+attachment-cache-dir: "/home/rlopez/innerops/inneros_core/platform/var/ntfy-attachments"
+cache-file: "/home/rlopez/innerops/inneros_core/platform/var/ntfy/cache.db"
+auth-file: "/home/rlopez/innerops/inneros_core/platform/config/ntfy/user.db"
+auth-default-access: "read-write"
+enable-login: false
+enable-signup: false

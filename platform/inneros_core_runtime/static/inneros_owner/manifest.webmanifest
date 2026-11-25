@@ -1,0 +1,10 @@
+{
+  "name": "InnerOS Owner",
+  "short_name": "InnerOS",
+  "description": "Autorizaciones OPS — push propio, sin Home Assistant",
+  "start_url": "/owner-ops/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "icons": []
+}

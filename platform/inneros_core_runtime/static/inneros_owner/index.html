@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0284c7" />
+  <link rel="manifest" href="/owner-ops/static/manifest.webmanifest" />
+  <title>InnerOS Owner</title>
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --accent:#38bdf8; --ok:#4ade80; --bad:#f87171; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; }
+    header { padding:1rem 1.25rem; background:#020617; border-bottom:1px solid #334155; position:sticky; top:0; }
+    h1 { margin:0; font-size:1.15rem; font-weight:600; }
+    .sub { font-size:0.8rem; opacity:0.75; margin-top:0.25rem; }
+  main { padding:1rem; max-width:32rem; margin:0 auto; }
+    .card { background:var(--card); border-radius:12px; padding:1rem; margin-bottom:0.75rem; border:1px solid #334155; }
+    .provider { font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent); }
+    .tid { font-weight:600; margin:0.35rem 0; }
+    .row { display:flex; gap:0.5rem; margin-top:0.75rem; }
+    button, a.btn { flex:1; text-align:center; padding:0.65rem; border-radius:8px; border:none; font-weight:600; text-decoration:none; font-size:0.95rem; }
+    .approve { background:var(--ok); color:#052e16; }
+    .cancel { background:var(--bad); color:#450a0a; }
+    #empty { text-align:center; opacity:0.7; padding:2rem 1rem; }
+    #status { font-size:0.8rem; opacity:0.65; margin-top:1rem; text-align:center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>InnerOS Owner</h1>
+    <p class="sub">Push propio en Intel — estilo notificación del sistema</p>
+    <p class="sub">Añade a pantalla de inicio (PWA). Instala la app <strong>ntfy</strong> y suscríbete al topic del servidor.</p>
+  </header>
+  <main>
+    <div id="list"></div>
+    <p id="empty">Sin autorizaciones pendientes.</p>
+    <p id="status"></p>
+  </main>
+  <script src="/owner-ops/static/app.js"></script>
+</body>
+</html>
