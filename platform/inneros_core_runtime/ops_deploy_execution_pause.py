@@ -72,8 +72,57 @@ def task_implies_deploy_pause(task: dict[str, Any]) -> bool:
     return ocp.objective_implies_deployment(task)
 
 
+def owner_autonomous_dispatch_unlocked(task: dict[str, Any]) -> bool:
+    """Tras autorización owner, tareas autonomous deben poder ejecutar (no quedar congeladas)."""
+    if not task.get("owner_authorized_at"):
+        return False
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    if str(payload.get("interaction_mode") or "").lower() == "autonomous":
+        return True
+    if isinstance(payload.get("autonomy_policy"), dict) and payload.get("autonomy_policy"):
+        return True
+    return False
+
+
+def unlock_owner_autonomous_dispatch(task_id: str) -> dict[str, Any]:
+    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+    from raphiia_openai import mongo_store
+
+    db = mongo_store.get_db()
+    task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
+    if not owner_autonomous_dispatch_unlocked(task):
+        return {"ok": False, "skipped": "not_owner_autonomous"}
+    now = _utc_now()
+    db[OPS_TASKS_COL].update_one(
+        {"task_id": task_id},
+        {
+            "$set": {
+                "do_not_auto_dispatch": False,
+                "owner_dispatch_unlocked_at": now,
+                "updated_at": now,
+            },
+            "$unset": {"headless_spawn_last": ""},
+        },
+    )
+    payload = dict(task.get("payload") or {})
+    payload["do_not_auto_dispatch"] = False
+    db[OPS_TASKS_COL].update_one({"task_id": task_id}, {"$set": {"payload": payload}})
+    return {"ok": True, "task_id": task_id, "unlocked_at": now}
+
+
 def execution_automation_frozen(task: dict[str, Any]) -> bool:
     """True when autopilot, headless spawn, or temporal reopen must not run."""
+    if owner_autonomous_dispatch_unlocked(task):
+        # Deploy / policy pauses still apply; ignore do_not_auto_dispatch.
+        status = str(task.get("status") or "").lower()
+        if status in _PAUSE_STATUSES:
+            return True
+        if task.get("execution_paused_for_deploy") is True:
+            return True
+        hl = task.get("headless_last_result") if isinstance(task.get("headless_last_result"), dict) else {}
+        if hl.get("completion_policy_blocked") is True and task_implies_deploy_pause(task):
+            return True
+        return False
     if bool(task.get("do_not_auto_dispatch")):
         return True
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}

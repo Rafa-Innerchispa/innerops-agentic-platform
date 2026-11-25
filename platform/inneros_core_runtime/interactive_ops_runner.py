@@ -64,6 +64,17 @@ def _host() -> str:
     return socket.gethostname()
 
 
+def _infer_repo_from_task(task: dict[str, Any]) -> str:
+    import re
+
+    repo = str(task.get("repo") or "").strip()
+    if repo:
+        return repo
+    blob = " ".join(str(task.get(key) or "") for key in ("objective", "title"))
+    m = re.search(r"(?:repo|repository|private repo)\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)", blob, re.I)
+    return m.group(1) if m else ""
+
+
 def normalize_provider(provider: str) -> str:
     from inneros_core_runtime.execution_binding import normalize_provider as np
 
@@ -177,12 +188,24 @@ def authorize_ops_task(
         )
         if isinstance(existing, dict) and existing.get("owner_authorized_at"):
             try:
+                from inneros_core_runtime import ops_deploy_execution_pause as odep
+
+                odep.unlock_owner_autonomous_dispatch(tid)
+            except Exception:
+                pass
+            try:
                 oes.refresh_current_execution_state(existing, event="owner_authorized", actor=owner_actor)
             except Exception:
                 pass
             return {"ok": True, "task_id": tid, "provider": owner, "duplicate": True}
         return {"ok": False, "error": "task_not_found", "task_id": tid}
     out = {"ok": True, "task_id": tid, "provider": normalize_provider(provider)}
+    try:
+        from inneros_core_runtime import ops_deploy_execution_pause as odep
+
+        out["dispatch_unlock"] = odep.unlock_owner_autonomous_dispatch(tid)
+    except Exception as exc:
+        out["dispatch_unlock"] = {"ok": False, "error": str(exc)[:200]}
     try:
         oes.refresh_current_execution_state(doc, event="owner_authorized", actor=owner_actor)
     except Exception:
@@ -289,6 +312,9 @@ def claim_ops_task(
     pin = pinned_model(prov)
     token = secrets.token_hex(8)
     now = _now()
+    from inneros_core_runtime import cursor_headless_lanes as chl
+
+    exec_role = chl.node_role()
     spec = apr.provider_spec(prov) or {}
     lane = str(spec.get("default_lane") or "") or f"{prov}_interactive"
     claimed = db[OPS_TASKS_COL].find_one_and_update(
@@ -300,6 +326,7 @@ def claim_ops_task(
                 "claimed_by": prov,
                 "claim_token": token,
                 "claim_host": _host(),
+                "claim_execution_role": exec_role,
                 "lease_until": _lease_until(),
                 "execution_lane": lane,
                 "preferred_provider": prov,
@@ -321,7 +348,13 @@ def claim_ops_task(
         _release_claim(db, tid, reason=str(model_err.get("error")), details=model_err)
         return {**model_err, "task_id": tid}
     worktree_path = ""
-    repo = str(claimed.get("repo") or "").strip()
+    repo = _infer_repo_from_task(claimed)
+    if repo and not str(claimed.get("repo") or "").strip():
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "claim_token": token},
+            {"$set": {"repo": repo, "updated_at": now}},
+        )
+        claimed["repo"] = repo
     if repo:
         wt = _claim_worktree_with_retry(
             repo=repo,
@@ -369,7 +402,13 @@ def claim_ops_task(
         from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
 
         task_claimed = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or claimed
-        life.notify_lifecycle(task_claimed, event="claimed", detail="El agente tomó la tarea.")
+        from inneros_core_runtime import inneros_execution_node as ien
+
+        life.notify_lifecycle(
+            task_claimed,
+            event="claimed",
+            detail=ien.format_taken_by(task_claimed),
+        )
     except Exception:
         pass
     from inneros_core_runtime import ops_task_requirements as otr
@@ -406,7 +445,7 @@ def claim_ops_task(
         try:
             from inneros_core_runtime import antigravity_headless_dispatch as agd
 
-            headless_spawn = agd.spawn_headless_execute(tid)
+            headless_spawn = agd.spawn_headless_execute(tid, force_retry=True)
         except Exception as exc:
             headless_spawn = {"ok": False, "error": "antigravity_headless_spawn_failed", "detail": str(exc)[:200]}
     if provider_spawn_attempted:

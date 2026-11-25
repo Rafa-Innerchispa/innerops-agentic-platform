@@ -32,6 +32,28 @@ def main() -> int:
         print(json.dumps({"ok": False, "error": "claim_token_required", "task_id": tid}))
         return 2
 
+    from inneros_core_runtime import ops_deploy_execution_pause as odep
+
+    if odep.owner_autonomous_dispatch_unlocked(task) and not ipbe.is_innocuous_canary_task(task, "antigravity"):
+        wt = str(task.get("worktree") or task.get("local_worktree") or "").strip()
+        if wt:
+            result = ipbe.execute_claimed_task(tid, "antigravity")
+            print(json.dumps(result, default=str))
+            return 0 if result.get("ok") else 1
+        stay = {
+            "ok": False,
+            "error": "worktree_required_for_autonomous_antigravity",
+            "task_id": tid,
+            "hint": "Set repo on ops task and reclaim so claim creates worktree before headless spawn.",
+        }
+        db = mongo_store.get_db()
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {"$set": {"headless_spawn_last": {**stay, "at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}}},
+        )
+        print(json.dumps(stay, default=str))
+        return 2
+
     if ipbe.is_innocuous_canary_task(task, "antigravity"):
         from inneros_core_runtime.ops_headless_execution_policy import headless_denial
         denied = headless_denial(task, provider="antigravity", check_budget=False)

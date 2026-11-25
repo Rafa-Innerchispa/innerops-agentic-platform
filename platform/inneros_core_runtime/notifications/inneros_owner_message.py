@@ -53,5 +53,19 @@ def format_owner_push(
         lines.append(f"Detalle: {obj[:400]}")
     if detail and detail not in obj:
         lines.append(str(detail)[:400])
+    if ev_label in {
+        "Tarea iniciada (claim)",
+        "En ejecución",
+        "Ejecutando",
+        "Tarea en curso",
+    } or event in ("claimed", "in_progress", "running"):
+        try:
+            from inneros_core_runtime import inneros_execution_node as ien
+
+            node_line = ien.format_taken_by(task)
+            if node_line not in "\n".join(lines):
+                lines.append(node_line)
+        except Exception:
+            pass
     lines.append(f"Estado: {ev_label}")
     return title[:120], "\n".join(lines)[:3800]
