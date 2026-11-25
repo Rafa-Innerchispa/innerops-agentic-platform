@@ -7,6 +7,7 @@ from typing import Any
 
 from inneros_core_runtime.notifications import inneros_ntfy_client as ntfy
 from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
+from inneros_core_runtime.notifications import inneros_owner_message as msgfmt
 from inneros_core_runtime.owner_push_tokens import public_base_url, sign_decision
 
 
@@ -38,9 +39,13 @@ def notify_ops_owner_authorization(
         return {"ok": False, "error": "missing_decision_nonce", "decision_registry": decision_out}
     pending = ops_ha.persist_pending(task, summary=summary, headline=headline, body=body)
     provider = str(task.get("assignee") or task.get("preferred_provider") or "?").upper()
-    alias = str(task.get("human_task_id") or task.get("task_alias") or tid)
-    title = (headline or f"{provider} · autorizar OPS")[:120]
-    message = f"{alias}\n{provider}: toca para autorizar o usa botones Aprobar/Cancelar."
+    alias = msgfmt.task_code(task)
+    title, message = msgfmt.format_owner_push(
+        task,
+        event="auth_request",
+        headline=headline,
+        detail=body or "Toca para autorizar o usa Aprobar / Cancelar.",
+    )
     base = public_base_url()
     approve_t = sign_decision(task_id=tid, nonce=nonce, decision="approve")
     cancel_t = sign_decision(task_id=tid, nonce=nonce, decision="cancel")
