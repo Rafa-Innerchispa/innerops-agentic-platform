@@ -902,11 +902,19 @@ async def activity_sync_mongo_mirror(envelope_dict: Dict[str, Any], status: str,
             },
             upsert=True,
         )
+        task_row = col.find_one({"task_id": task_id}, {"_id": 0}) or {**mirror_fields, "task_id": task_id}
+        if previous_status != effective_status:
+            try:
+                from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
+
+                if effective_status in {"claimed", "in_progress", "running", "verification", "awaiting_cursor_claim", "awaiting_antigravity_claim"}:
+                    life.notify_lifecycle(task_row, event=effective_status, previous_status=previous_status)
+            except Exception:
+                logger.debug("inneros lifecycle push skipped", exc_info=True)
         if mirror_status in {"blocked", "failed", "completed", "partial", "cancelled"}:
             try:
                 from inneros_core_runtime import ops_lifecycle
 
-                task_row = col.find_one({"task_id": task_id}, {"_id": 0}) or {**mirror_fields, "task_id": task_id}
                 ops_lifecycle.emit_owner_terminal_whatsapp(task_row, previous_status=previous_status)
             except Exception:
                 logger.debug("ops lifecycle notify skipped", exc_info=True)

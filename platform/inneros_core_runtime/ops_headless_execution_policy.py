@@ -39,17 +39,19 @@ def headless_denial(
         return "task_not_executable"
     if task.get("superseded_by"):
         return "task_superseded"
-    if task.get("do_not_auto_dispatch") or payload.get("do_not_auto_dispatch"):
-        return "manual_dispatch_only"
+    if not odep.owner_autonomous_dispatch_unlocked(task):
+        if task.get("do_not_auto_dispatch") or payload.get("do_not_auto_dispatch"):
+            return "manual_dispatch_only"
     if task.get("execution_paused_for_deploy") or payload.get("execution_paused_for_deploy"):
         return "execution_paused_for_deploy"
     if task.get("execution_stop"):
         return "owner_stopped_execution"
-    if any(
-        "interactive" in str(source.get("execution_lane") or "").lower()
-        for source in (task, payload)
-    ):
-        return "interactive_lane"
+    if not odep.owner_autonomous_dispatch_unlocked(task):
+        if any(
+            "interactive" in str(source.get("execution_lane") or "").lower()
+            for source in (task, payload)
+        ):
+            return "interactive_lane"
     if task_provider(task) != expected:
         return "different_assignee"
     if expected in PAID_HEADLESS_PROVIDERS:

@@ -163,12 +163,18 @@ def reserve(task_id: str, provider: str) -> dict[str, Any]:
         return denied("resource_task_not_executable")
     if task.get("superseded_by") or task.get("execution_stop"):
         return denied("resource_task_stopped_or_superseded")
-    if task.get("do_not_auto_dispatch") or payload.get("do_not_auto_dispatch"):
-        return denied("resource_manual_dispatch_only")
-    if task.get("execution_paused_for_deploy") or payload.get("execution_paused_for_deploy"):
+    from inneros_core_runtime import ops_deploy_execution_pause as odep
+
+    owner_auto = odep.owner_autonomous_dispatch_unlocked(task)
+    if not owner_auto:
+        if task.get("do_not_auto_dispatch") or payload.get("do_not_auto_dispatch"):
+            return denied("resource_manual_dispatch_only")
+        if task.get("execution_paused_for_deploy") or payload.get("execution_paused_for_deploy"):
+            return denied("resource_execution_paused")
+        if any("interactive" in str(s.get("execution_lane") or "") for s in (task, payload)):
+            return denied("resource_interactive_lane")
+    elif task.get("execution_paused_for_deploy") or payload.get("execution_paused_for_deploy"):
         return denied("resource_execution_paused")
-    if any("interactive" in str(s.get("execution_lane") or "") for s in (task, payload)):
-        return denied("resource_interactive_lane")
     if (task.get("headless_last_result") or {}).get("completion_submitted"):
         return denied("resource_success_already_submitted")
     if provider in {"cursor", "codex", "antigravity", "gemini"}:

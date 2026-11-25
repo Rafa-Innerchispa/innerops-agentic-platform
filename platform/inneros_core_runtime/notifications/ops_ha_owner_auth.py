@@ -116,7 +116,16 @@ def persist_pending(
 
 def send_companion_push(row: dict[str, Any]) -> dict[str, Any]:
     from inneros_core_runtime import homeassistant_client as ha
+    from inneros_core_runtime.notifications import ops_ha_push_budget as budget
 
+    gate = budget.should_send(budget.CLASS_OWNER_AUTH)
+    if not gate.get("allowed"):
+        return {
+            "ok": False,
+            "skipped": "ha_push_daily_cap",
+            "budget": gate,
+            "task_id": str(row.get("task_id") or ""),
+        }
     if not ha.configured():
         return {"ok": False, "skipped": "ha_not_configured"}
     service = _notify_service()
@@ -140,6 +149,7 @@ def send_companion_push(row: dict[str, Any]) -> dict[str, Any]:
     }
     result = ha.call_service("notify", service, data=payload)
     if result.get("ok"):
+        budget.record_sent(budget.CLASS_OWNER_AUTH, meta={"task_id": tid, "kind": "owner_auth"})
         _collection().update_one(
             {"task_id": tid},
             {"$set": {"approval_delivered_at": _now(), "updated_at": _now()}},
@@ -262,6 +272,13 @@ def notify_companion_scout_alert(*, title: str, message: str) -> dict[str, Any]:
     """Push Companion para alertas de coordinación / oportunidades (sin ops task)."""
     if not ha_auth_enabled():
         return {"ok": False, "skipped": "notify_ops_auth_ha_disabled"}
+    from inneros_core_runtime.notifications import ops_ha_push_budget as budget
+
+    if not budget.ha_scout_enabled():
+        return {"ok": False, "skipped": "notify_ops_ha_scout_disabled"}
+    gate = budget.should_send(budget.CLASS_SCOUT)
+    if not gate.get("allowed"):
+        return {"ok": False, "skipped": "ha_push_daily_cap", "budget": gate}
     from inneros_core_runtime import homeassistant_client as ha
 
     if not ha.configured():
@@ -278,6 +295,8 @@ def notify_companion_scout_alert(*, title: str, message: str) -> dict[str, Any]:
         },
     }
     result = ha.call_service("notify", service, data=payload)
+    if result.get("ok"):
+        budget.record_sent(budget.CLASS_SCOUT, meta={"title": title[:80]})
     return {"ok": bool(result.get("ok")), "ha": result, "service": service}
 
 
@@ -290,6 +309,13 @@ def notify_companion_ops_outcome(
     """Push Companion when an OPS task finishes (headless Antigravity/Cursor, etc.)."""
     if not ha_auth_enabled():
         return {"ok": False, "skipped": "notify_ops_auth_ha_disabled"}
+    from inneros_core_runtime.notifications import ops_ha_push_budget as budget
+
+    if not budget.ha_outcomes_enabled():
+        return {"ok": False, "skipped": "notify_ops_ha_outcomes_disabled"}
+    gate = budget.should_send(budget.CLASS_OUTCOME)
+    if not gate.get("allowed"):
+        return {"ok": False, "skipped": "ha_push_daily_cap", "budget": gate}
     from inneros_core_runtime import homeassistant_client as ha
 
     if not ha.configured():
@@ -314,6 +340,8 @@ def notify_companion_ops_outcome(
         },
     }
     result = ha.call_service("notify", service, data=payload)
+    if result.get("ok"):
+        budget.record_sent(budget.CLASS_OUTCOME, meta={"task_id": tid, "status": st})
     return {"ok": bool(result.get("ok")), "ha": result, "task_id": tid, "status": st}
 
 

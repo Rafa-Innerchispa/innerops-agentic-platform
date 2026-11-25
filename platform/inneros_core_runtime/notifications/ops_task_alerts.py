@@ -181,13 +181,22 @@ def _internal_brief_enabled() -> bool:
 
 
 def _owner_auth_telegram_direct_enabled() -> bool:
-    """When true (default), send Telegram buttons on ops create without Atlas observer."""
-    return os.getenv("NOTIFY_OPS_TELEGRAM_DIRECT_ON_CREATE", "1").strip().lower() in {
+    """Telegram on create only when enabled and not suppressed by ha_companion primary."""
+    if not os.getenv("NOTIFY_OPS_TELEGRAM_DIRECT_ON_CREATE", "1").strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
-    }
+    }:
+        return False
+    try:
+        from inneros_core_runtime.notifications import ops_ha_push_budget as budget
+
+        if budget.ops_primary_channel() == "ha_companion" and not budget.telegram_secondary_enabled():
+            return False
+    except Exception:
+        pass
+    return True
 
 
 def _synthetic_ops_task_skip(task: dict[str, Any]) -> str | None:
@@ -226,9 +235,12 @@ def notify_ops_owner_authorization_request(
     if not NOTIFY_OPS_TASKS or not NOTIFY_OPS_CREATE_AUTH:
         return {"ok": False, "skipped": "notifications_disabled"}
 
+    from inneros_core_runtime.notifications import inneros_ntfy_client as _ntfy
+    from inneros_core_runtime.notifications import inneros_owner_push as _iop
     from inneros_core_runtime.notifications import ops_ha_owner_auth as ops_ha
 
-    ha_primary = ops_ha.ha_auth_enabled()
+    ha_primary = ops_ha.ha_auth_enabled() and not _iop.is_primary()
+    inneros_primary = _iop.is_primary() and _ntfy.configured()
     telegram_ok = False
     try:
         from inneros_core_runtime.notifications import telegram_client as _tg
@@ -236,10 +248,10 @@ def notify_ops_owner_authorization_request(
         telegram_ok = bool(_tg.telegram_enabled() and _tg.configured())
     except Exception:
         telegram_ok = False
-    if not telegram_ok and not ha_primary:
+    if not telegram_ok and not ha_primary and not inneros_primary:
         return {
             "ok": False,
-            "skipped": "telegram_and_ha_off",
+            "skipped": "no_owner_push_channel",
             "task_id": str(task.get("task_id") or ""),
         }
 
@@ -361,6 +373,27 @@ def notify_ops_owner_authorization_request(
     if not _can_send("owner_auth", alias, force=force):
         return {"ok": False, "skipped": "cooldown_or_dedupe", "task_id": tid, "human_task_id": alias}
 
+    if inneros_primary:
+        push_out = _iop.notify_ops_owner_authorization(
+            task,
+            summary=summary,
+            headline=f"{icon} {headline}",
+            body=body,
+        )
+        if push_out.get("ok"):
+            _mark_sent("owner_auth", alias)
+            _mark_owner_auth_sent_mongo(tid)
+        return {
+            "ok": bool(push_out.get("ok")),
+            "result": push_out.get("ntfy") or push_out,
+            "inneros_push": push_out,
+            "task_id": tid,
+            "summary": summary,
+            "delivery_mode": push_out.get("delivery_mode") or "inneros_push",
+            "poll_message_id": "",
+            "email_fallback": None,
+        }
+
     ha_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
     tg_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
     decision_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
@@ -405,8 +438,8 @@ def notify_ops_owner_authorization_request(
         modes.append("telegram")
 
     owner_reached = bool(ha_out.get("ok") or tg_out.get("ok"))
-    # Atlas-only sites may rely on registry + external observer (no duplicate Telegram).
-    registry_only_ok = bool(decision_out.get("ok") and not direct_tg)
+    # Registry Alexa is additive; it does not replace Companion push for paid IDE auth.
+    registry_only_ok = False
     if owner_reached or registry_only_ok:
         _mark_sent("owner_auth", alias)
         _mark_owner_auth_sent_mongo(tid)
@@ -625,12 +658,28 @@ def notify_ops_transition(
     if tg_out.get("ok"):
         delivery_parts.append("telegram")
         _mark_sent("ops", key)
+    inneros_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    try:
+        from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
+
+        inneros_out = life.notify_lifecycle(
+            task,
+            event=status,
+            detail=blocker_line.strip() or str(ev.get("summary") or "")[:300],
+            previous_status=prev,
+        )
+        if inneros_out.get("ok"):
+            delivery_parts.append("inneros_ntfy")
+    except Exception:
+        pass
+
     delivery = "+".join(delivery_parts) if delivery_parts else "unreachable"
     return {
-        "ok": bool(result.get("ok") or ha_out.get("ok") or tg_out.get("ok")),
+        "ok": bool(result.get("ok") or ha_out.get("ok") or tg_out.get("ok") or inneros_out.get("ok")),
         "result": result,
         "ha_companion": ha_out,
         "telegram": tg_out,
+        "inneros_push": inneros_out,
         "task_id": task.get("task_id"),
         "status": status,
         "delivery_mode": delivery,

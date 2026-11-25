@@ -90,7 +90,21 @@ def main() -> int:
     text = build_summary()
     from inneros_core_runtime.notifications.owner_notify_fanout import notify_owner
 
-    result = notify_owner(title="Resumen operativo", body=text, kind="coordination_summary")
+    tg_summary = os.getenv("NOTIFY_OPS_OWNER_SUMMARY_TELEGRAM", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    result = notify_owner(
+        title="Resumen operativo",
+        body=text,
+        kind="coordination_summary",
+        telegram=tg_summary,
+        ha=False,
+        email_always=True,
+        severity="info",
+    )
     print(text[:6000])
     print(json.dumps({"deliver": result}, indent=2))
     return 0 if result.get("ok") else 1

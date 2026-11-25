@@ -1,0 +1,19 @@
+{
+  "name": "InnerOS Owner",
+  "short_name": "InnerOS",
+  "description": "Autorizaciones OPS: pendientes e historial",
+  "start_url": "/owner-ops/",
+  "scope": "/owner-ops/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/owner-ops/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
