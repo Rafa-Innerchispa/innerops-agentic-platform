@@ -93,12 +93,18 @@ def execute_competition_task(task_id: str) -> dict[str, Any]:
         test_results = {"ok": False, "exit_code": None, "reason": "competition_runner_returncode_missing"}
     else:
         test_results = {"ok": proc_rc == 0 and bool(run.get("ok")), "exit_code": int(proc_rc)}
+    host = __import__("socket").gethostname()
+    phrase = str(stdout_json.get("phrase") or "")
     evidence = {
-        "notes": f"Competition entry {entry.name} ok={run.get('ok')}",
+        "notes": f"Competition Alexa {entry.name} ok={run.get('ok')} host={host}",
+        "summary": phrase or f"Competition {entry.name}",
+        "report": stdout_json,
+        "completion_mode": "competition_ha_announce",
+        "competition_lane": True,
         "ha_response": ha or stdout_json,
         "test_results": test_results,
         "competition_entry": str(entry.relative_to(ROOT)),
-        "execution_host": __import__("socket").gethostname(),
+        "execution_host": host,
     }
 
     assignee = str(task.get("assignee") or task.get("preferred_provider") or "").strip().lower()

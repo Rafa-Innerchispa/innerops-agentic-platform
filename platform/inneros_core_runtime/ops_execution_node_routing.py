@@ -117,6 +117,10 @@ def should_claim_on_this_node(task: dict[str, Any], provider: str) -> tuple[bool
     target, _ = resolve_target_node(task, provider)
     prov = (provider or "").strip().lower()
     here = chl.node_role()
+    payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+    owner_pick = normalize_node(payload.get("owner_execution_node") or "")
+    if owner_pick and owner_pick != "auto" and target != here:
+        return False, f"explicit_owner_node:{target}", target
     if prov in {"codex", "antigravity"}:
         allowed, reason = ipl.should_this_node_run_task(prov, task)
         return allowed, reason, target

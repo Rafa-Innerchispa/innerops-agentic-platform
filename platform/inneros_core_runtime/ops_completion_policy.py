@@ -161,6 +161,13 @@ def requires_git_repository(task: dict[str, Any]) -> bool:
 
 
 def requires_git_commit(task: dict[str, Any]) -> bool:
+    try:
+        from inneros_core_runtime.competition_lane_dispatch import is_competition_task
+
+        if is_competition_task(task):
+            return False
+    except Exception:
+        pass
     tc = str(task.get("task_class") or "").strip().lower()
     if tc in _READ_ONLY_CLASSES:
         return False
