@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/home/rlopez/inneros/inneros_core/platform
-ExecStart=/usr/local/bin/ntfy serve --config /home/rlopez/inneros/inneros_core/platform/config/ntfy/server.yml
+ExecStart=%h/.local/bin/ntfy serve --config /home/rlopez/inneros/inneros_core/platform/config/ntfy/server.yml
 Restart=on-failure
 RestartSec=5
 

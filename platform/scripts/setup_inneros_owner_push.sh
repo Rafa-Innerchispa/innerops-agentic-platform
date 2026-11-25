@@ -3,21 +3,24 @@
 set -euo pipefail
 
 PLATFORM="${INNEROS_PLATFORM_ROOT:-/home/rlopez/inneros/inneros_core/platform}"
-NTFY_BIN="${NTFY_BIN:-/usr/local/bin/ntfy}"
-NTFY_VERSION="${NTFY_VERSION:-v2.11.0}"
+NTFY_BIN="${NTFY_BIN:-${HOME}/.local/bin/ntfy}"
+NTFY_VERSION="${NTFY_VERSION:-v2.38.2}"
 
 if [[ ! -x "$NTFY_BIN" ]]; then
   echo "Descargando ntfy ${NTFY_VERSION}…"
   tmp="$(mktemp -d)"
   arch="$(uname -m)"
+  ver="${NTFY_VERSION#v}"
   case "$arch" in
-    x86_64) asset="ntfy-${NTFY_VERSION#v}-linux-amd64.tar.gz" ;;
-    aarch64) asset="ntfy-${NTFY_VERSION#v}-linux-arm64.tar.gz" ;;
+    x86_64) asset="ntfy_${ver}_linux_amd64.tar.gz" ;;
+    aarch64) asset="ntfy_${ver}_linux_arm64.tar.gz" ;;
     *) echo "Arquitectura no soportada: $arch"; exit 1 ;;
   esac
   curl -fsSL "https://github.com/binwiederhier/ntfy/releases/download/${NTFY_VERSION}/${asset}" -o "${tmp}/ntfy.tgz"
   tar -xzf "${tmp}/ntfy.tgz" -C "${tmp}"
-  sudo install -m 0755 "${tmp}/ntfy" "$NTFY_BIN"
+  bin="$(find "${tmp}" -maxdepth 2 -type f -name ntfy | head -1)"
+  mkdir -p "$(dirname "$NTFY_BIN")"
+  install -m 0755 "${bin}" "$NTFY_BIN"
   rm -rf "$tmp"
 fi
 
