@@ -73,7 +73,12 @@ def apply_owner_push_decision(
         from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
 
         if ok:
-            life.notify_lifecycle(task_after, event="claimed", detail="El agente tomó la tarea.", force=True)
+            from inneros_core_runtime import ops_execution_node_routing as oenr
+
+            stage = str(out.get("stage") or "claimed")
+            ev = "authorized_pending_peer" if stage == "authorized_pending_peer" else "claimed"
+            detail = oenr.describe_routing(task_after, event=ev)
+            life.notify_lifecycle(task_after, event=ev, detail=detail, force=True)
         else:
             err = str(out.get("error") or (out.get("claim") or {}).get("error") or "claim_pendiente")
             life.notify_lifecycle(

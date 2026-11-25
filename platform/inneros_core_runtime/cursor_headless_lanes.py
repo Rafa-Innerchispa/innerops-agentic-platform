@@ -94,7 +94,11 @@ def task_prefers_other_node(task: dict[str, Any]) -> str | None:
     payload = dict(task.get("payload") or {})
     pref = (
         str(
-            payload.get("preferred_execution_host")
+            task.get("target_execution_node")
+            or payload.get("execution_node_resolved")
+            or payload.get("owner_execution_node")
+            or payload.get("execution_node")
+            or payload.get("preferred_execution_host")
             or payload.get("execution_host")
             or payload.get("target_node")
             or task.get("preferred_execution_host")
