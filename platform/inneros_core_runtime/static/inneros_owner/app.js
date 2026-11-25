@@ -21,13 +21,17 @@ async function loadPending() {
   try {
     const r = await fetch("/api/owner-ops/pending");
     const data = await r.json();
-    const items = (data.pending || []).filter((x) =>
+    let items = (data.pending || []).filter((x) =>
       ["pending", "awaiting_owner_decision"].includes(String(x.status || ""))
     );
+    if (!items.length && data.error) {
+      status.textContent = "API pendientes: " + data.error;
+    }
     empty.style.display = items.length ? "none" : "block";
     for (const item of items) {
       const tid = item.task_id || item._id;
       const nonce = item.nonce;
+      if (!nonce) continue;
       const links = await fetch(
         `/api/owner-ops/sign-links?task_id=${encodeURIComponent(tid)}&nonce=${encodeURIComponent(nonce)}`
       ).then((x) => x.json());
@@ -81,7 +85,9 @@ async function loadHistory() {
   try {
     const r = await fetch("/api/owner-ops/history?limit=50");
     const data = await r.json();
-    const mongo = data.items || [];
+    const mongo = (data.items || []).filter(
+      (r) => !(r.kind === "auth_request" && String(r.status || "") === "pending")
+    );
     const ntfy = (data.ntfy_cache || []).map((m) => ({
       kind: "ntfy",
       title: m.title || m.topic,

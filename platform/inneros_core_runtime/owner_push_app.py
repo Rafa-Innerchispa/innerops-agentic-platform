@@ -31,14 +31,88 @@ def owner_home():
     return HTMLResponse("<h1>InnerOS Owner</h1><p>static missing</p>")
 
 
+def _list_pending_merged(limit: int = 20) -> list[dict]:
+    """Decisión Atlas + inbox; evita PWA vacía si falta una rama."""
+    import time
+
+    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+    from raphiia_openai import mongo_store
+
+    lim = max(1, min(int(limit), 50))
+    now = time.time()
+    rows: list[dict] = []
+    seen: set[str] = set()
+
+    try:
+        reg = decisions.list_pending_authorizations(limit=lim)
+    except AttributeError:
+        reg = list(
+            mongo_store.get_db()["atlas_ops_owner_decisions"].find(
+                {
+                    "status": {"$in": ["pending", "awaiting_owner_decision"]},
+                    "expires_at": {"$gt": now},
+                },
+                {"_id": 0},
+            ).sort("created_at", -1).limit(lim)
+        )
+
+    for row in reg:
+        tid = str(row.get("task_id") or row.get("_id") or "")
+        if not tid or tid in seen:
+            continue
+        seen.add(tid)
+        task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "title": 1, "objective": 1}) or {}
+        rows.append(
+            {
+                **row,
+                "task_id": tid,
+                "title": task.get("title") or row.get("title"),
+                "objective": task.get("objective"),
+                "source": "decision_registry",
+            }
+        )
+
+    for row in inbox.list_inbox(limit=lim, kinds=["auth_request"]):
+        if str(row.get("status") or "") != "pending":
+            continue
+        tid = str(row.get("task_id") or "")
+        if not tid or tid in seen:
+            continue
+        nonce = str(row.get("nonce") or "")
+        if not nonce:
+            reg_row = mongo_store.get_db()["atlas_ops_owner_decisions"].find_one({"task_id": tid}, {"nonce": 1})
+            nonce = str((reg_row or {}).get("nonce") or "")
+        seen.add(tid)
+        rows.append(
+            {
+                "task_id": tid,
+                "human_task_id": row.get("human_task_id") or tid,
+                "provider": row.get("provider") or "?",
+                "nonce": nonce,
+                "status": "pending",
+                "created_at": row.get("created_at"),
+                "title": row.get("title"),
+                "objective": row.get("message"),
+                "source": "inbox",
+            }
+        )
+    rows.sort(key=lambda x: float(x.get("created_at") or 0), reverse=True)
+    return rows[:lim]
+
+
 @app.get("/api/owner-ops/pending")
 def api_pending(limit: int = 20):
-    return {"ok": True, "pending": decisions.list_pending_authorizations(limit=limit), "public_url": public_base_url()}
+    pending = _list_pending_merged(limit=limit)
+    return {"ok": True, "pending": pending, "count": len(pending), "public_url": public_base_url()}
 
 
 @app.get("/api/owner-ops/history")
 def api_history(limit: int = 40, include_ntfy: bool = True):
-    mongo_items = inbox.list_inbox(limit=limit)
+    mongo_items = [
+        r
+        for r in inbox.list_inbox(limit=limit)
+        if not (r.get("kind") == "auth_request" and str(r.get("status") or "") == "pending")
+    ]
     return {
         "ok": True,
         "items": mongo_items,
