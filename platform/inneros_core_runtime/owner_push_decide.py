@@ -49,30 +49,41 @@ def apply_owner_push_decision(
             pass
         return {"ok": True, "task_id": task_id, "decision": "cancel", "channel": channel}
 
-    from inneros_core_runtime import ops_whatsapp_owner as shared_executor
+    from inneros_core_runtime import execution_binding as eb
+    from inneros_core_runtime import interactive_ops_orchestrator as ioo
+    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+    from raphiia_openai import mongo_store
 
-    short = task_id.replace("ops_", "")[:6]
-    out = shared_executor.handle_owner_reply(f"SI {short}", owner_actor=owner_actor, phone=None)
-    ok = bool(out and out.get("ok"))
+    task_row = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
+    provider = eb.normalize_provider(task_row.get("assignee") or task_row.get("preferred_provider"))
+    out = ioo.owner_order_execute(
+        provider,
+        task_id=task_id,
+        owner_actor=owner_actor,
+        channel=channel,
+        owner_approved=True,
+    )
+    ok = bool(out.get("ok"))
     try:
         inbox.record_decision(task_id=task_id, decision=decision, channel=channel, ok=ok)
     except Exception:
         pass
+    task_after = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or task_row
     try:
-        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
         from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
-        from raphiia_openai import mongo_store
 
-        task_row = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
-        if task_row:
+        if ok:
+            life.notify_lifecycle(task_after, event="claimed", detail="El agente tomó la tarea.", force=True)
+        else:
+            err = str(out.get("error") or (out.get("claim") or {}).get("error") or "claim_pendiente")
             life.notify_lifecycle(
-                task_row,
-                event="authorized" if ok else "authorized_pending_claim",
-                detail="Autorización registrada." if ok else "Autorizada; falta claim del IDE en Intel.",
+                task_after,
+                event="authorized_pending_claim",
+                detail=f"Autorizada en InnerOS. Claim: {err}",
+                force=True,
             )
     except Exception:
         pass
-    # Decisión owner ya consumida: UI debe mostrar éxito parcial si authorize falla.
     return {
         "ok": True,
         "decision_applied": True,
@@ -81,5 +92,5 @@ def apply_owner_push_decision(
         "decision": "approve",
         "channel": channel,
         "authorize": out,
-        "message": "Autorización guardada." if ok else "Autorización guardada; el runner IDE aún no tomó la tarea.",
+        "message": "Tarea en curso." if ok else "Autorizada; el claim del IDE sigue pendiente en Intel.",
     }
