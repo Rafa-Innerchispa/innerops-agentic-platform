@@ -9,6 +9,8 @@ function fmtTime(ts) {
 function switchTab(name) {
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === `panel-${name}`));
+  scheduleRefresh();
+  refreshAll();
 }
 
 document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
@@ -114,11 +116,6 @@ async function loadHistory() {
   }
 }
 
-async function refreshAll() {
-  await loadPending();
-  await loadHistory();
-}
-
 const pwaUrl = document.getElementById("pwa-url");
 if (pwaUrl) {
   fetch("/health")
@@ -131,8 +128,27 @@ if (pwaUrl) {
     });
 }
 
+let refreshTimer = null;
+
+function scheduleRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  const pendingTab = document.getElementById("panel-pending");
+  const active = pendingTab && pendingTab.classList.contains("on");
+  const ms = document.hidden ? 25000 : active ? 4000 : 12000;
+  refreshTimer = setInterval(refreshAll, ms);
+}
+
+async function refreshAll() {
+  await loadPending();
+  await loadHistory();
+  scheduleRefresh();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshAll();
+});
+
 refreshAll();
-setInterval(refreshAll, 20000);
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/owner-ops/static/sw.js").catch(() => {});

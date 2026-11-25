@@ -46,7 +46,7 @@ CLAIM_STATUSES = frozenset(
 _DEFAULT_PINNED: dict[str, tuple[str, str]] = {
     "cursor": ("CURSOR_OPS_PINNED_MODEL", "composer-2.5-fast"),
     "codex": ("CODEX_OPS_PINNED_MODEL", "gpt-5.6-terra"),
-    "antigravity": ("ANTIGRAVITY_OPS_PINNED_MODEL", "gemini-3.7-flash-medium"),
+    "antigravity": ("ANTIGRAVITY_OPS_PINNED_MODEL", "gemini-3.8-flash-medium"),
     "gemini": ("GEMINI_OPS_PINNED_MODEL", "gemini-3.7-flash-medium"),
     "chatgpt": ("CHATGPT_OPS_PINNED_MODEL", "gpt-5.6-terra"),
 }
@@ -628,6 +628,22 @@ def complete_ops_task(
         from inneros_core_runtime import productivity_metrics as _pm
 
         _pm.record_task_completion(task, outcome="verification", requested=status)
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
+        from inneros_core_runtime import ops_execution_node_routing as oenr
+
+        task_after = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
+        out_status = str(task_after.get("status") or normalized)
+        ev_key = "completed" if out_status in ("completed", "done") else "verification"
+        if out_status in ("completed", "done", "verification"):
+            life.notify_lifecycle(
+                task_after,
+                event=ev_key,
+                detail=oenr.describe_routing(task_after, event=ev_key),
+                force=True,
+            )
     except Exception:
         pass
     return {
