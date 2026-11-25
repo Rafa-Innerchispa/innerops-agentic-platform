@@ -39,7 +39,16 @@ def main() -> int:
     _load_env()
     ap = argparse.ArgumentParser()
     ap.add_argument("--node", default="intel", choices=["intel", "amd", "auto"])
-    ap.add_argument("--approve", action="store_true", help="Autoriza+claim en este servidor (si nodo coincide)")
+    ap.add_argument(
+        "--approve",
+        action="store_true",
+        help="Autoriza+claim en este servidor (NO usar en pruebas owner real; create ya mandó push)",
+    )
+    ap.add_argument(
+        "--extra-auth-push",
+        action="store_true",
+        help="Solo debug: segundo push de autorización (en uso normal create ya notifica una vez)",
+    )
     ap.add_argument("--provider", default="antigravity", choices=["antigravity", "codex", "cursor"])
     args = ap.parse_args()
     corr = f"INTEL-AMD-E2E-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
@@ -82,7 +91,11 @@ def main() -> int:
     os.environ["NOTIFY_OPS_INNEROS_LIFECYCLE"] = "1"
     if prov == "antigravity":
         os.environ["INNEROS_OPS_SYNTHETIC_CANARY_AUTH"] = "1"
-    notify = alerts.notify_ops_owner_authorization_request(task, binding=eb.resolve_execution_binding(task), force=True)
+    notify = {"ok": True, "skipped": "create_ops_task_already_sent_owner_auth"}
+    if args.extra_auth_push:
+        notify = alerts.notify_ops_owner_authorization_request(
+            task, binding=eb.resolve_execution_binding(task), force=True
+        )
     report["task_id"] = tid
     report["routing"] = oenr.stamp_routing_on_task(tid, provider=prov)
     report["notify_auth"] = notify

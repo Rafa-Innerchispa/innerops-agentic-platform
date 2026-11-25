@@ -31,6 +31,19 @@ def notify_ops_owner_authorization(
     from inneros_core_runtime import ops_owner_decision_registry as decisions
 
     decision_out = decisions.publish_decision_request(task)
+    if decision_out.get("duplicate"):
+        from inneros_core_runtime import owner_push_history as _inbox
+
+        tid_pre = str(task.get("task_id") or "")
+        for row in _inbox.list_inbox(limit=5, kinds=["auth_request"]):
+            if str(row.get("task_id") or "") == tid_pre and str(row.get("status") or "") == "pending":
+                return {
+                    "ok": True,
+                    "channel": "inneros_push",
+                    "skipped_duplicate_auth_push": True,
+                    "decision_registry": decision_out,
+                    "task_id": tid_pre,
+                }
     if not decision_out.get("ok") and decision_out.get("error") != "decision_already_closed":
         return {"ok": False, "decision_registry": decision_out, "channel": "inneros_push"}
     tid = str(task.get("task_id") or "")

@@ -194,6 +194,12 @@ def authorize_ops_task(
             except Exception:
                 pass
             try:
+                from inneros_core_runtime import ops_owner_decision_registry as odr
+
+                odr.close_pending_after_owner_grant(tid, channel=channel, owner_actor=owner_actor)
+            except Exception:
+                pass
+            try:
                 oes.refresh_current_execution_state(existing, event="owner_authorized", actor=owner_actor)
             except Exception:
                 pass
@@ -210,6 +216,14 @@ def authorize_ops_task(
         from inneros_core_runtime import ops_execution_node_routing as oenr
 
         out["routing"] = oenr.stamp_routing_on_task(tid, provider=owner)
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime import ops_owner_decision_registry as odr
+
+        out["pending_decision_close"] = odr.close_pending_after_owner_grant(
+            tid, channel=channel, owner_actor=owner_actor
+        )
     except Exception:
         pass
     try:
