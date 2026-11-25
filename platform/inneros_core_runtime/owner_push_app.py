@@ -60,8 +60,15 @@ def _list_pending_merged(limit: int = 20) -> list[dict]:
         tid = str(row.get("task_id") or row.get("_id") or "")
         if not tid or tid in seen:
             continue
+        task = mongo_store.get_db()[OPS_TASKS_COL].find_one(
+            {"task_id": tid},
+            {"_id": 0, "title": 1, "objective": 1, "owner_authorized_at": 1, "status": 1},
+        ) or {}
+        if task.get("owner_authorized_at"):
+            continue
+        if str(task.get("status") or "") in {"completed", "done", "verification", "cancelled", "archived"}:
+            continue
         seen.add(tid)
-        task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "title": 1, "objective": 1}) or {}
         rows.append(
             {
                 **row,

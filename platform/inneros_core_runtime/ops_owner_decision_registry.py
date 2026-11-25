@@ -138,6 +138,44 @@ def list_pending_authorizations(limit: int = 20) -> list[dict[str, Any]]:
     return list(cursor)
 
 
+def close_pending_after_owner_grant(
+    task_id: str,
+    *,
+    channel: str = "explicit",
+    owner_actor: str = "RAFAEL",
+) -> dict[str, Any]:
+    """Cierra Atlas + bandeja inbox cuando authorize_ops_task no pasó por PWA/decide."""
+    tid = (task_id or "").strip()
+    if not tid:
+        return {"ok": False, "error": "task_id_required"}
+    col = _collection()
+    row = col.find_one({"$or": [{"_id": tid}, {"task_id": tid}]})
+    closed_registry = False
+    if row and str(row.get("status") or "") in {"pending", "awaiting_owner_decision"}:
+        now = _now_epoch()
+        col.update_one(
+            {"_id": row["_id"]},
+            {
+                "$set": {
+                    "status": "approved",
+                    "decided_by": channel,
+                    "decided_at": now,
+                    "owner_actor": owner_actor,
+                    "updated_at": now,
+                    "closed_via_owner_grant": True,
+                }
+            },
+        )
+        closed_registry = True
+    try:
+        from inneros_core_runtime import owner_push_history as inbox
+
+        inbox.record_decision(task_id=tid, decision="approve", channel=channel, ok=True)
+    except Exception:
+        pass
+    return {"ok": True, "task_id": tid, "closed_registry": closed_registry}
+
+
 def consume_decision(
     *,
     task_id: str,
