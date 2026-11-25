@@ -76,6 +76,47 @@ def pick_balanced_node(provider: str) -> str:
     return peer if peer else default_node_for_provider(prov)
 
 
+def apply_execution_node_at_create(
+    doc: dict[str, Any],
+    execution_node: str | None = None,
+    *,
+    fail_closed: bool | None = None,
+) -> dict[str, Any]:
+    """Registra nodo objetivo al crear (ChatGPT/MCP): intel, amd, auto, o default Antigravity→Intel."""
+    prov = str(doc.get("assignee") or doc.get("preferred_provider") or "").strip().lower()
+    payload = dict(doc.get("payload") or {})
+    raw = (
+        (execution_node or "").strip()
+        or str(payload.get("owner_execution_node") or payload.get("target_node") or payload.get("execution_node") or "")
+        .strip()
+        or None
+    )
+    node = normalize_node(raw) if raw else None
+    if node == "auto":
+        node = pick_balanced_node(prov)
+        reason = f"create:auto→{node}"
+    elif not node:
+        node = default_node_for_provider(prov)
+        reason = f"create:default→{node}"
+    else:
+        reason = f"create:explicit→{node}"
+    payload["target_node"] = node
+    payload["execution_node"] = node
+    payload["owner_execution_node"] = node
+    payload["preferred_execution_host"] = node
+    payload["execution_node_resolved"] = node
+    payload["execution_node_resolved_reason"] = reason
+    if fail_closed is not False and node in {"intel", "amd"}:
+        payload["fail_closed_on_node_mismatch"] = True
+        payload["required_claim_execution_role"] = node
+    doc["payload"] = payload
+    doc["owner_execution_node"] = node
+    doc["target_execution_node"] = node
+    doc["preferred_execution_host"] = node
+    doc["execution_node_resolved_reason"] = reason
+    return doc
+
+
 def resolve_target_node(task: dict[str, Any], provider: str) -> tuple[str, str]:
     for src, raw in _routing_keys(task):
         node = normalize_node(raw)
