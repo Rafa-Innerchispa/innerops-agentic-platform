@@ -50,6 +50,30 @@ def record_auth_push(
     return {"ok": True, "id": str(doc.get("_id"))}
 
 
+def record_lifecycle(
+    *,
+    task_id: str,
+    human_task_id: str,
+    provider: str,
+    event: str,
+    title: str,
+    message: str,
+) -> None:
+    _col().insert_one(
+        {
+            "kind": "lifecycle",
+            "event": event,
+            "task_id": task_id,
+            "human_task_id": human_task_id,
+            "provider": provider,
+            "title": title[:240],
+            "message": message[:2000],
+            "status": event,
+            "created_at": _now(),
+        }
+    )
+
+
 def record_decision(
     *,
     task_id: str,

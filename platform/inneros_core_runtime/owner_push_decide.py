@@ -58,4 +58,28 @@ def apply_owner_push_decision(
         inbox.record_decision(task_id=task_id, decision=decision, channel=channel, ok=ok)
     except Exception:
         pass
-    return {"ok": ok, "task_id": task_id, "decision": "approve", "channel": channel, "authorize": out}
+    try:
+        from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+        from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
+        from raphiia_openai import mongo_store
+
+        task_row = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
+        if task_row:
+            life.notify_lifecycle(
+                task_row,
+                event="authorized" if ok else "authorized_pending_claim",
+                detail="Autorización registrada." if ok else "Autorizada; falta claim del IDE en Intel.",
+            )
+    except Exception:
+        pass
+    # Decisión owner ya consumida: UI debe mostrar éxito parcial si authorize falla.
+    return {
+        "ok": True,
+        "decision_applied": True,
+        "authorize_ok": ok,
+        "task_id": task_id,
+        "decision": "approve",
+        "channel": channel,
+        "authorize": out,
+        "message": "Autorización guardada." if ok else "Autorización guardada; el runner IDE aún no tomó la tarea.",
+    }

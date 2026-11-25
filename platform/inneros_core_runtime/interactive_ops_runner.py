@@ -365,6 +365,13 @@ def claim_ops_task(
     except Exception:
         pass
     heartbeat_ops_task(tid, actor=prov, phase="claimed", current_step=f"{prov}_interactive", last_progress=f"claim {_host()}")
+    try:
+        from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
+
+        task_claimed = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or claimed
+        life.notify_lifecycle(task_claimed, event="claimed", detail="El agente tomó la tarea.")
+    except Exception:
+        pass
     from inneros_core_runtime import ops_task_requirements as otr
 
     requirements_checkpoint = otr.process_checkpoint_amendments(tid, actor=prov)

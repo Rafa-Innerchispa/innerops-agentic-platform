@@ -121,24 +121,66 @@ def api_history(limit: int = 40, include_ntfy: bool = True):
     }
 
 
+def _decide_result_html(*, title: str, body: str, ok: bool, task_id: str = "") -> str:
+    accent = "#4ade80" if ok else "#f87171"
+    return f"""<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta http-equiv="refresh" content="4;url=/owner-ops/"/>
+<title>InnerOS · {title}</title>
+<style>
+  body {{ margin:0; min-height:100dvh; display:flex; align-items:center; justify-content:center;
+    font-family:system-ui,sans-serif; background:#0f172a; color:#e2e8f0; padding:1.25rem; }}
+  .box {{ max-width:22rem; text-align:center; background:#1e293b; border:1px solid #334155;
+    border-radius:16px; padding:1.5rem 1.25rem; }}
+  h1 {{ margin:0 0 .75rem; font-size:1.35rem; color:{accent}; }}
+  p {{ margin:.5rem 0; line-height:1.45; font-size:.95rem; color:#cbd5e1; }}
+  .tid {{ font-size:.8rem; color:#94a3b8; word-break:break-all; }}
+  a {{ display:inline-block; margin-top:1rem; color:#38bdf8; font-weight:600; text-decoration:none; }}
+</style></head>
+<body><div class="box">
+  <h1>{title}</h1>
+  <p>{body}</p>
+  {"<p class='tid'>" + task_id + "</p>" if task_id else ""}
+  <p style="font-size:.78rem;color:#64748b">Volviendo al panel en 4 s…</p>
+  <a href="/owner-ops/">Ir a InnerOS Owner</a>
+</div></body></html>"""
+
+
 @app.get("/owner-ops/decide")
 def owner_decide(
+    request: Request,
     task_id: str = Query(...),
     nonce: str = Query(...),
     decision: str = Query(...),
     token: str = Query(""),
 ):
     out = apply_owner_push_decision(task_id=task_id, nonce=nonce, decision=decision, token=token)
+    wants_json = "application/json" in (request.headers.get("accept") or "")
     if out.get("ok"):
-        label = "Aprobado" if decision == "approve" else "Cancelado"
-        html = f"""<!DOCTYPE html><html><head><meta charset=utf-8>
-        <meta name=viewport content="width=device-width,initial-scale=1">
-        <title>InnerOS · {label}</title></head>
-        <body style="font-family:system-ui;padding:1.5rem;background:#0f172a;color:#e2e8f0">
-        <h1>{label}</h1><p>{task_id}</p>
-        <p><a href="/owner-ops/" style="color:#38bdf8">Volver al panel owner</a></p></body></html>"""
+        if decision == "approve":
+            if out.get("authorize_ok", True):
+                title, body = "Aprobada", "La autorización quedó registrada. Te avisaremos cuando la tarea avance o termine."
+            else:
+                title, body = "Aprobada (parcial)", str(
+                    out.get("message") or "Autorización guardada; el IDE aún debe tomar la tarea en Intel."
+                )
+        else:
+            title, body = "Cancelada", "La solicitud fue cancelada. No se ejecutará."
+        html = _decide_result_html(title=title, body=body, ok=True, task_id=task_id)
+        if wants_json:
+            return JSONResponse(out)
         return HTMLResponse(html)
-    return JSONResponse(out, status_code=400)
+    err = str(out.get("error") or "No se pudo aplicar la decisión")
+    hint = {
+        "invalid_token": "Enlace caducado. Abre InnerOS → Pendientes y vuelve a intentar.",
+        "decision_already_resolved": "Ya habías decidido esta tarea antes.",
+        "decision_not_found_or_expired": "La solicitud expiró. Pide un nuevo canario o autorización.",
+    }.get(err, err)
+    html = _decide_result_html(title="No se pudo", body=hint, ok=False, task_id=task_id)
+    if wants_json:
+        return JSONResponse(out, status_code=400)
+    return HTMLResponse(html, status_code=200)
 
 
 @app.get("/api/owner-ops/sign-links")

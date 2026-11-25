@@ -658,12 +658,28 @@ def notify_ops_transition(
     if tg_out.get("ok"):
         delivery_parts.append("telegram")
         _mark_sent("ops", key)
+    inneros_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    try:
+        from inneros_core_runtime.notifications import inneros_owner_lifecycle as life
+
+        inneros_out = life.notify_lifecycle(
+            task,
+            event=status,
+            detail=blocker_line.strip() or str(ev.get("summary") or "")[:300],
+            previous_status=prev,
+        )
+        if inneros_out.get("ok"):
+            delivery_parts.append("inneros_ntfy")
+    except Exception:
+        pass
+
     delivery = "+".join(delivery_parts) if delivery_parts else "unreachable"
     return {
-        "ok": bool(result.get("ok") or ha_out.get("ok") or tg_out.get("ok")),
+        "ok": bool(result.get("ok") or ha_out.get("ok") or tg_out.get("ok") or inneros_out.get("ok")),
         "result": result,
         "ha_companion": ha_out,
         "telegram": tg_out,
+        "inneros_push": inneros_out,
         "task_id": task.get("task_id"),
         "status": status,
         "delivery_mode": delivery,

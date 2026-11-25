@@ -66,6 +66,8 @@ function renderHistoryItem(row) {
     badge = `<span class="badge ${st === "pending" ? "pend" : st === "approved" ? "ok" : "bad"}">${st}</span>`;
   } else if (row.kind === "decision") {
     badge = `<span class="badge ${row.ok ? "ok" : "bad"}">${row.decision || "decision"}</span>`;
+  } else if (row.kind === "lifecycle") {
+    badge = `<span class="badge ok">${row.event || "evento"}</span>`;
   }
   const title = row.title || row.human_task_id || row.task_id || row.message || "Notificación";
   const body = row.message || row.title || "";
