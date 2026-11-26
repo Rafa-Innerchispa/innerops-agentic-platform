@@ -69,6 +69,9 @@ def _list_pending_merged(limit: int = 20) -> list[dict]:
         if str(task.get("status") or "") in {"completed", "done", "verification", "cancelled", "archived"}:
             continue
         seen.add(tid)
+        display_status = row.get("display_status")
+        if not display_status and row.get("auth_stale"):
+            display_status = "auth_expired"
         rows.append(
             {
                 **row,
@@ -76,6 +79,7 @@ def _list_pending_merged(limit: int = 20) -> list[dict]:
                 "title": task.get("title") or row.get("title"),
                 "objective": task.get("objective"),
                 "source": "decision_registry",
+                "display_status": display_status or row.get("status") or "pending",
             }
         )
 
