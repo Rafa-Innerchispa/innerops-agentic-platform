@@ -113,6 +113,61 @@ def api_pending(limit: int = 20):
     return {"ok": True, "pending": pending, "count": len(pending), "public_url": public_base_url()}
 
 
+@app.get("/api/owner-ops/active")
+def api_active(limit: int = 20):
+    """Trabajos ya autorizados o en vuelo — misma clave ops_ + nombre humano en pantalla."""
+    from inneros_core_runtime.coordination_live import OPS_TASKS_COL
+    from raphiia_openai import mongo_store
+
+    lim = max(1, min(int(limit), 50))
+    active_status = {
+        "claimed",
+        "in_progress",
+        "running",
+        "verification",
+        "awaiting_antigravity_claim",
+        "awaiting_cursor_claim",
+        "awaiting_codex_claim",
+        "awaiting_gemini_claim",
+    }
+    rows = list(
+        mongo_store.get_db()[OPS_TASKS_COL]
+        .find(
+            {
+                "owner_authorized_at": {"$exists": True, "$ne": None},
+                "status": {"$in": sorted(active_status)},
+            },
+            {
+                "_id": 0,
+                "task_id": 1,
+                "human_task_id": 1,
+                "task_alias": 1,
+                "correlation_id": 1,
+                "title": 1,
+                "status": 1,
+                "assignee": 1,
+                "from_agent": 1,
+                "updated_at": 1,
+                "created_at": 1,
+            },
+        )
+        .sort("updated_at", -1)
+        .limit(lim)
+    )
+    out: list[dict] = []
+    for t in rows:
+        tid = str(t.get("task_id") or "")
+        human = str(t.get("human_task_id") or t.get("task_alias") or t.get("correlation_id") or tid)
+        out.append(
+            {
+                **t,
+                "ops_label": f"{tid} · {human}",
+                "human_task_id": human,
+            }
+        )
+    return {"ok": True, "active": out, "count": len(out), "public_url": public_base_url()}
+
+
 @app.get("/api/owner-ops/history")
 def api_history(limit: int = 40, include_ntfy: bool = True):
     mongo_items = [

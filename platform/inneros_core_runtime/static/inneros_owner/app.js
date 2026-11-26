@@ -40,10 +40,11 @@ async function loadPending() {
       const card = document.createElement("div");
       card.className = "card";
       const provider = item.provider || "?";
-      const alias = item.human_task_id || tid;
+      const alias = item.human_task_id || "";
       card.innerHTML = `
         <div class="provider">${provider}<span class="badge pend">pendiente</span></div>
-        <div class="tid">${alias}</div>
+        <div class="tid">${tid}</div>
+        ${alias ? `<div class="msg" style="margin-top:0.25rem">${alias}</div>` : ""}
         <div class="msg">${(item.title || item.objective || "Autorizar ejecución IDE").toString().slice(0, 280)}</div>
         <div class="when">${fmtTime(item.created_at)}</div>
         <div class="row">
@@ -80,6 +81,36 @@ function renderHistoryItem(row) {
     <div class="when">${fmtTime(row.created_at || row.time)}</div>
   `;
   return card;
+}
+
+async function loadActive() {
+  const list = document.getElementById("list-active");
+  const empty = document.getElementById("empty-active");
+  if (!list) return;
+  list.innerHTML = "";
+  try {
+    const r = await fetch("/api/owner-ops/active");
+    const data = await r.json();
+    const items = data.active || [];
+    empty.style.display = items.length ? "none" : "block";
+    for (const item of items) {
+      const card = document.createElement("div");
+      card.className = "card";
+      const provider = String(item.assignee || "?").toUpperCase();
+      const st = item.status || "?";
+      card.innerHTML = `
+        <div class="provider">${provider}<span class="badge ok">${st}</span></div>
+        <div class="tid">${item.task_id || "?"}</div>
+        <div class="msg">${item.human_task_id || item.correlation_id || ""}</div>
+        <div class="msg" style="margin-top:0.35rem">${(item.title || "").slice(0, 220)}</div>
+        <div class="when">Desde: ${item.from_agent || "?"} · ${fmtTime(item.updated_at || item.created_at)}</div>
+      `;
+      list.appendChild(card);
+    }
+  } catch (e) {
+    empty.style.display = "block";
+    empty.textContent = "No se pudo cargar en curso: " + e.message;
+  }
 }
 
 async function loadHistory() {
@@ -140,6 +171,7 @@ function scheduleRefresh() {
 
 async function refreshAll() {
   await loadPending();
+  await loadActive();
   await loadHistory();
   scheduleRefresh();
 }
