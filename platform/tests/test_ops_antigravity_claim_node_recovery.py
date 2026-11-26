@@ -116,7 +116,14 @@ def test_interactive_claim_skips_wrong_execution_host() -> None:
     }
     with (
         patch("inneros_core_runtime.interactive_ops_runner.mongo_store.get_db", return_value=db),
-        patch("inneros_core_runtime.cursor_headless_lanes.should_this_node_run_task", return_value=(False, "preferred_peer_alive:amd")),
+        patch(
+            "inneros_core_runtime.ops_execution_node_routing.should_claim_on_this_node",
+            return_value=(False, "preferred_peer_alive:amd", "amd"),
+        ),
+        patch(
+            "inneros_core_runtime.ops_execution_node_routing.stamp_routing_on_task",
+            return_value={"ok": True},
+        ),
     ):
         out = ior.claim_ops_task("antigravity", task_id="ops_host001")
     assert out["ok"] is False

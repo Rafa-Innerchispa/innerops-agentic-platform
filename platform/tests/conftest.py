@@ -14,6 +14,11 @@ def _offline_coordination_state_in_ci(monkeypatch: pytest.MonkeyPatch):
         yield
         return
     monkeypatch.setenv("MONGO_URI", "mongodb://127.0.0.1:27017/")
+    # Default ntfy URL + ralfia topic looks configured in CI; owner-auth tests
+    # assert the Telegram copy path unless InnerOS push is explicitly under test.
+    monkeypatch.setenv("INNEROS_NTFY_URL", "")
+    monkeypatch.setenv("NOTIFY_OPS_PRIMARY", "telegram")
+    monkeypatch.setenv("NOTIFY_OPS_INNEROS_PUSH", "0")
     state = {"ok": False, "state": {}}
     mock_db = MagicMock()
     mock_db.find_one.return_value = None

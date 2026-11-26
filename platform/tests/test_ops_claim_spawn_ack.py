@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 from inneros_core_runtime.memory import agent_messages as ams
@@ -7,11 +8,31 @@ from inneros_core_runtime.memory import agent_messages as ams
 PIN = "gemini-3.7-flash-medium"
 
 
+@contextmanager
+def _claim_routing_ok():
+    with (
+        patch(
+            "inneros_core_runtime.ops_execution_node_routing.should_claim_on_this_node",
+            return_value=(True, "test", "intel"),
+        ),
+        patch(
+            "inneros_core_runtime.ops_execution_node_routing.stamp_routing_on_task",
+            return_value={"ok": True},
+        ),
+    ):
+        yield
+
+
 def _mock_db():
     col = MagicMock()
     db = MagicMock()
     db.__getitem__.return_value = col
     return db, col
+
+
+def _mongo_find_claimable(col: MagicMock, task: dict) -> None:
+    """claim_ops_task calls find_one many times; a short side_effect exhausts and breaks spawn."""
+    col.find_one.side_effect = lambda *_a, **_kw: dict(task)
 
 
 def test_ack_dispatch_marks_open_messages_acknowledged() -> None:
@@ -92,7 +113,7 @@ def test_claim_persists_failed_spawn_and_stays_claimed() -> None:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     db, col = _mock_db()
-    col.find_one.side_effect = [_claim_task(), _claim_task()]
+    _mongo_find_claimable(col, _claim_task())
     col.find_one_and_update.return_value = _claimed_task()
     with (
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
@@ -123,6 +144,7 @@ def test_claim_persists_failed_spawn_and_stays_claimed() -> None:
             "inneros_core_runtime.memory.agent_messages.ack_dispatch_messages_for_task",
             return_value={"ok": True, "acked": [], "errors": []},
         ),
+        _claim_routing_ok(),
     ):
         out = ior.claim_ops_task("antigravity", task_id="ops_spawn1")
 
@@ -140,7 +162,7 @@ def test_claim_moves_to_in_progress_on_successful_spawn() -> None:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     db, col = _mock_db()
-    col.find_one.side_effect = [_claim_task(), _claim_task()]
+    _mongo_find_claimable(col, _claim_task())
     col.find_one_and_update.return_value = _claimed_task()
     with (
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
@@ -171,6 +193,7 @@ def test_claim_moves_to_in_progress_on_successful_spawn() -> None:
             "inneros_core_runtime.memory.agent_messages.ack_dispatch_messages_for_task",
             return_value={"ok": True, "acked": [], "errors": []},
         ),
+        _claim_routing_ok(),
     ):
         out = ior.claim_ops_task("antigravity", task_id="ops_spawn1")
 
@@ -190,7 +213,7 @@ def test_claim_records_dispatch_ack() -> None:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     db, col = _mock_db()
-    col.find_one.side_effect = [_claim_task(), _claim_task()]
+    _mongo_find_claimable(col, _claim_task())
     col.find_one_and_update.return_value = _claimed_task()
     with (
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
@@ -221,6 +244,7 @@ def test_claim_records_dispatch_ack() -> None:
             "inneros_core_runtime.memory.agent_messages.ack_dispatch_messages_for_task",
             return_value={"ok": True, "acked": ["m1"], "errors": []},
         ) as ack,
+        _claim_routing_ok(),
     ):
         out = ior.claim_ops_task("antigravity", task_id="ops_spawn1")
 
@@ -232,7 +256,7 @@ def test_claim_persists_spawn_exception_instead_of_swallowing() -> None:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     db, col = _mock_db()
-    col.find_one.side_effect = [_claim_task(), _claim_task()]
+    _mongo_find_claimable(col, _claim_task())
     col.find_one_and_update.return_value = _claimed_task()
     with (
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
@@ -263,6 +287,7 @@ def test_claim_persists_spawn_exception_instead_of_swallowing() -> None:
             "inneros_core_runtime.memory.agent_messages.ack_dispatch_messages_for_task",
             return_value={"ok": True, "acked": [], "errors": []},
         ),
+        _claim_routing_ok(),
     ):
         out = ior.claim_ops_task("antigravity", task_id="ops_spawn1")
 
