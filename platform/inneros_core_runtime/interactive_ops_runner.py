@@ -642,7 +642,10 @@ def complete_ops_task(
         actor=prov,
         signal_name=completion_signal,
     )
-    out_status = str(submitted.get("status") or normalized)
+    out_status = str(
+        submitted.get("status")
+        or ("verification" if normalized == "completed" else normalized)
+    )
     try:
         oes.refresh_current_execution_state(
             {**task, "status": out_status},
