@@ -48,6 +48,7 @@
     <p class="sub">Tu app de autorizaciones: notificaciones + historial (sin Home Assistant).</p>
     <nav class="tabs" role="tablist">
       <button type="button" class="on" data-tab="pending">Pendientes</button>
+      <button type="button" data-tab="active">En curso</button>
       <button type="button" data-tab="history">Historial</button>
       <button type="button" data-tab="install">Instalar</button>
     </nav>
@@ -56,6 +57,11 @@
     <section id="panel-pending" class="panel on">
       <div id="list-pending"></div>
       <p id="empty-pending" class="empty">No hay autorizaciones pendientes.</p>
+    </section>
+    <section id="panel-active" class="panel">
+      <p class="sub" style="margin:0 0 0.75rem">Ya autorizaste; aquí ves el mismo <strong>ops_…</strong> y nombre humano.</p>
+      <div id="list-active"></div>
+      <p id="empty-active" class="empty">Ninguna tarea en curso.</p>
     </section>
     <section id="panel-history" class="panel">
       <div id="list-history"></div>

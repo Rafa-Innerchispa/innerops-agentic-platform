@@ -61,9 +61,9 @@ def format_owner_push(
 
         node_line = ien.format_taken_by(task)
 
-    title = f"{provider} · {ev_label}"
-    if corr and corr != "?":
-        title = f"{corr[:48]} · {title}"[:120]
+    title = f"{tid} · {provider} · {ev_label}"
+    if corr and corr != "?" and corr != tid:
+        title = f"{tid} · {corr[:36]} · {ev_label}"[:120]
 
     lines = [
         f"Línea de seguimiento (igual en todos los avisos): {corr}",
