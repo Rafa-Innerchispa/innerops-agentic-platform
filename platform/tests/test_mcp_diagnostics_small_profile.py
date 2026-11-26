@@ -7,6 +7,7 @@ from inneros_core_runtime import mcp_diagnostics, mcp_profiles
 
 def test_chatgpt_compact_23_of_23_passes_without_global_stale():
     profile = mcp_profiles.get_profile("chatgpt_compact")
+    assert "create_ops_task" in profile["tools"]
     assert profile["ok"] is True
     pin = profile["profile_pin"]
     expected_count = profile["tool_count"]

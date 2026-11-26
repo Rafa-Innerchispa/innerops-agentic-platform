@@ -7,7 +7,7 @@ from typing import Any
 from inneros_core_runtime.capability_registry import catalog_fingerprint, log_routing_trace
 from inneros_core_runtime.mcp_catalog import tool_catalog
 
-PROFILES_VERSION = "1.4.11"
+PROFILES_VERSION = "1.4.12"
 
 # Toolsets pequeños — no reemplazan tools/list global
 PROFILES: dict[str, dict[str, Any]] = {
@@ -29,6 +29,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             "get_coordination_live",
             "poll_agent_inbox",
             "list_ops_tasks",
+            "create_ops_task",
             "create_agent_message",
             "a2a_status",
             "a2a_agent_cards",
@@ -41,7 +42,6 @@ PROFILES: dict[str, dict[str, Any]] = {
             "device_fabric_inventory",
             "device_fabric_discover",
             "device_fabric_providers",
-            "bellini_guardian_status",
         ],
     },
 
