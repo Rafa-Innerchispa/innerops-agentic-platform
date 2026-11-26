@@ -10,6 +10,13 @@ from inneros_core_runtime import temporal_bounded_executor as tbe
 
 
 class TemporalBoundedExecutorTests(unittest.TestCase):
+    def test_repo_platform_dir_standalone_msp_repo(self) -> None:
+        with TemporaryDirectory() as tmp:
+            wt = Path(tmp)
+            (wt / "tests").mkdir()
+            (wt / "tests" / "test_msp.py").write_text("def test_x(): pass\n", encoding="utf-8")
+            self.assertEqual(tbe._repo_platform_dir(wt), wt)
+
     def test_default_work_branch_is_generated(self) -> None:
         branch = tbe.default_work_branch({"task_id": "ops_187da9289132"})
         self.assertTrue(branch.startswith("local-agent/temporal-"))

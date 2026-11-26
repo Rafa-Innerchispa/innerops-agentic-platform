@@ -62,6 +62,10 @@ def _repo_platform_dir(worktree: Path) -> Path:
         return worktree / "platform"
     if (worktree / "inneros_core_runtime").is_dir():
         return worktree
+    if (worktree / "tests").is_dir() and not (worktree / "platform" / "inneros_core_runtime").is_dir():
+        return worktree
+    if worktree.is_dir():
+        return worktree
     return worktree / "platform"
 
 
