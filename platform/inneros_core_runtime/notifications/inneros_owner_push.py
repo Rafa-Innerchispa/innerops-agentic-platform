@@ -95,12 +95,40 @@ def notify_ops_owner_authorization(
     ha_out: dict[str, Any] = {"ok": False, "skipped": "inneros_push_primary"}
     if ha_fallback_enabled():
         ha_out = ops_ha.notify_ops_owner_ha_authorization(task, summary=summary, headline=headline, body=body)
-    ok = bool(ntfy_out.get("ok") or ha_out.get("ok"))
+    tg_out: dict[str, Any] = {"ok": False, "skipped": "not_attempted"}
+    if os.getenv("NOTIFY_OPS_TELEGRAM_MIRROR_ON_PUSH", "1").strip().lower() in {"1", "true", "yes", "on"}:
+        try:
+            from inneros_core_runtime import human_task_id as hti
+            from inneros_core_runtime.notifications import telegram_client as tg
+
+            if tg.telegram_enabled() and tg.configured():
+                alert_kind = str((summary or {}).get("owner_whatsapp_alert_kind") or "external_spend")
+                tg_body = hti.format_telegram_owner_body(
+                    task=task,
+                    headline=headline or f"🛂 {provider} · autorizar OPS",
+                    provider=provider,
+                    objective=str(task.get("objective") or task.get("title") or "")[:400],
+                    spends="Toca Aprobar en Telegram o abre el enlace InnerOS.",
+                    detail=(body or "")[:600],
+                    alert_kind=alert_kind,
+                    short_ops_suffix=tid.replace("ops_", "")[:6],
+                    related=[],
+                )
+                tg_out = tg.send_message(
+                    tg_body,
+                    reply_markup=tg.ops_auth_inline_keyboard(tid),
+                    parse_mode="Markdown",
+                )
+        except Exception as exc:
+            tg_out = {"ok": False, "error": str(exc)[:200]}
+    ok = bool(ntfy_out.get("ok") or ha_out.get("ok") or tg_out.get("ok"))
     modes = []
     if ntfy_out.get("ok"):
         modes.append("inneros_ntfy")
     if ha_out.get("ok"):
         modes.append("ha_companion_ops")
+    if tg_out.get("ok"):
+        modes.append("telegram")
     if decision_out.get("ok"):
         modes.append("alexa_shared_registry")
     return {
@@ -108,6 +136,7 @@ def notify_ops_owner_authorization(
         "channel": "inneros_push",
         "ntfy": ntfy_out,
         "ha_companion": ha_out,
+        "telegram": tg_out,
         "decision_registry": decision_out,
         "task_id": tid,
         "delivery_mode": "+".join(modes) if modes else "unreachable",
