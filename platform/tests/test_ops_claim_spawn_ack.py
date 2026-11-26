@@ -30,6 +30,11 @@ def _mock_db():
     return db, col
 
 
+def _mongo_find_claimable(col: MagicMock, task: dict) -> None:
+    """claim_ops_task calls find_one many times; a short side_effect exhausts and breaks spawn."""
+    col.find_one.side_effect = lambda *_a, **_kw: dict(task)
+
+
 def test_ack_dispatch_marks_open_messages_acknowledged() -> None:
     db, col = _mock_db()
     col.find.return_value.limit.return_value = [{"message_id": "m1"}, {"message_id": "m2"}]
@@ -108,7 +113,7 @@ def test_claim_persists_failed_spawn_and_stays_claimed() -> None:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     db, col = _mock_db()
-    col.find_one.side_effect = [_claim_task(), _claim_task()]
+    _mongo_find_claimable(col, _claim_task())
     col.find_one_and_update.return_value = _claimed_task()
     with (
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
@@ -157,7 +162,7 @@ def test_claim_moves_to_in_progress_on_successful_spawn() -> None:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     db, col = _mock_db()
-    col.find_one.side_effect = [_claim_task(), _claim_task()]
+    _mongo_find_claimable(col, _claim_task())
     col.find_one_and_update.return_value = _claimed_task()
     with (
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
@@ -208,7 +213,7 @@ def test_claim_records_dispatch_ack() -> None:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     db, col = _mock_db()
-    col.find_one.side_effect = [_claim_task(), _claim_task()]
+    _mongo_find_claimable(col, _claim_task())
     col.find_one_and_update.return_value = _claimed_task()
     with (
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
@@ -251,7 +256,7 @@ def test_claim_persists_spawn_exception_instead_of_swallowing() -> None:
     from inneros_core_runtime import interactive_ops_runner as ior
 
     db, col = _mock_db()
-    col.find_one.side_effect = [_claim_task(), _claim_task()]
+    _mongo_find_claimable(col, _claim_task())
     col.find_one_and_update.return_value = _claimed_task()
     with (
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
