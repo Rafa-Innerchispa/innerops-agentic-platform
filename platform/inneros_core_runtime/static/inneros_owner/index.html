@@ -9,14 +9,14 @@
   <link rel="manifest" href="/owner-ops/static/manifest.webmanifest" />
   <title>InnerOS Owner</title>
   <style>
-    :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --accent:#38bdf8; --ok:#4ade80; --bad:#f87171; --muted:#94a3b8; }
+    :root { --bg:#0b1220; --card:#151f32; --text:#f1f5f9; --accent:#38bdf8; --ok:#4ade80; --bad:#f87171; --muted:#94a3b8; --line:#2d3a52; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
-    header { padding:1rem 1.25rem .75rem; background:#020617; border-bottom:1px solid #334155; position:sticky; top:0; z-index:2; }
+    body { margin:0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background:linear-gradient(180deg, #0b1220 0%, #0f172a 40%); color:var(--text); min-height:100dvh; padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
+    header { padding:1rem 1.25rem .75rem; background:rgba(2,6,23,.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:2; }
     h1 { margin:0; font-size:1.2rem; font-weight:700; }
     .sub { font-size:0.78rem; color:var(--muted); margin-top:0.35rem; line-height:1.35; }
     main { padding:0.75rem 1rem 1rem; max-width:28rem; margin:0 auto; }
-    .card { background:var(--card); border-radius:12px; padding:0.9rem 1rem; margin-bottom:0.65rem; border:1px solid #334155; }
+    .card { background:var(--card); border-radius:14px; padding:0.95rem 1.05rem; margin-bottom:0.7rem; border:1px solid var(--line); box-shadow:0 8px 24px rgba(0,0,0,.22); }
     .provider { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent); }
     .tid { font-weight:600; margin:0.3rem 0; font-size:1rem; }
     .msg { font-size:0.88rem; color:#cbd5e1; line-height:1.4; white-space:pre-wrap; }

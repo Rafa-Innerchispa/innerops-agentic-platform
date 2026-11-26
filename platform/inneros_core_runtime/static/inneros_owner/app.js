@@ -72,12 +72,18 @@ function renderHistoryItem(row) {
     badge = `<span class="badge ok">${row.event || "evento"}</span>`;
   }
   const title = row.title || row.human_task_id || row.task_id || row.message || "Notificación";
-  const body = row.message || row.title || "";
+  let body = row.message || row.title || "";
+  let whenExtra = fmtTime(row.created_at || row.time);
+  const detM = body.match(/🕐 Detección · (.+)/);
+  const ntfM = body.match(/📲 Notificación · (.+)/);
+  if (detM && ntfM) {
+    whenExtra = `Detección ${detM[1]} · Push ${ntfM[1]}`;
+  }
   card.innerHTML = `
     <div class="provider">${row.provider || "InnerOS"} ${badge}</div>
     <div class="tid">${title}</div>
     ${body && body !== title ? `<div class="msg">${body.slice(0, 400)}</div>` : ""}
-    <div class="when">${fmtTime(row.created_at || row.time)}</div>
+    <div class="when">${whenExtra}</div>
   `;
   return card;
 }
