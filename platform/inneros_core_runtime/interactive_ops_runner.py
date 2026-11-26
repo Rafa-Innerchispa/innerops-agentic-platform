@@ -203,6 +203,14 @@ def authorize_ops_task(
                 oes.refresh_current_execution_state(existing, event="owner_authorized", actor=owner_actor)
             except Exception:
                 pass
+            try:
+                from inneros_core_runtime import ops_coordination_broadcast as ocb
+
+                full = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or existing
+                if isinstance(full, dict):
+                    ocb.fanout_ops_phase(full, phase="owner_authorized", actor=owner_actor)
+            except Exception:
+                pass
             return {"ok": True, "task_id": tid, "provider": owner, "duplicate": True}
         return {"ok": False, "error": "task_not_found", "task_id": tid}
     out = {"ok": True, "task_id": tid, "provider": normalize_provider(provider)}
@@ -228,6 +236,12 @@ def authorize_ops_task(
         pass
     try:
         oes.refresh_current_execution_state(doc, event="owner_authorized", actor=owner_actor)
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime import ops_coordination_broadcast as ocb
+
+        ocb.fanout_ops_phase(doc, phase="owner_authorized", actor=owner_actor)
     except Exception:
         pass
     return out
@@ -512,6 +526,15 @@ def claim_ops_task(
         dispatch_ack = _am.ack_dispatch_messages_for_task(tid, prov)
     except Exception:
         dispatch_ack = {"ok": False, "error": "ack_helper_failed", "acked": []}
+    try:
+        from inneros_core_runtime import ops_coordination_broadcast as ocb
+
+        task_live = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or claimed
+        ocb.fanout_ops_phase(task_live, phase="claimed", actor=prov)
+        if str(task_live.get("status") or "") == "in_progress":
+            ocb.fanout_ops_phase(task_live, phase="in_progress", actor=prov)
+    except Exception:
+        pass
     return {
         "ok": True,
         "provider": prov,
@@ -647,6 +670,18 @@ def complete_ops_task(
                 detail=oenr.describe_routing(task_after, event=ev_key),
                 force=True,
             )
+    except Exception:
+        pass
+    try:
+        from inneros_core_runtime import ops_coordination_broadcast as ocb
+
+        task_after = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
+        ocb.fanout_ops_phase(
+            {**task_after, "evidence": ev},
+            phase="delivered_for_review",
+            actor=prov,
+            extra=ev,
+        )
     except Exception:
         pass
     return {
