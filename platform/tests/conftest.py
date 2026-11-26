@@ -17,6 +17,8 @@ def _offline_coordination_state_in_ci(monkeypatch: pytest.MonkeyPatch):
     # Default ntfy URL + ralfia topic looks configured in CI; owner-auth tests
     # assert the Telegram copy path unless InnerOS push is explicitly under test.
     monkeypatch.setenv("INNEROS_NTFY_URL", "")
+    monkeypatch.setenv("NOTIFY_OPS_PRIMARY", "telegram")
+    monkeypatch.setenv("NOTIFY_OPS_INNEROS_PUSH", "0")
     state = {"ok": False, "state": {}}
     mock_db = MagicMock()
     mock_db.find_one.return_value = None
@@ -28,14 +30,6 @@ def _offline_coordination_state_in_ci(monkeypatch: pytest.MonkeyPatch):
         ("raphiia_openai.mongo_store.get_coordination_state", state),
         ("inneros_core_runtime.mongo_store.get_db", mock_db),
         ("raphiia_openai.mongo_store.get_db", mock_db),
-        (
-            "inneros_core_runtime.ops_execution_node_routing.should_claim_on_this_node",
-            (True, "ci", "intel"),
-        ),
-        (
-            "inneros_core_runtime.ops_execution_node_routing.stamp_routing_on_task",
-            {"ok": True},
-        ),
     )
     # Partial CI environments may not install legacy/optional bridge modules.
     # Continue to patch all importable providers without making tests load a
