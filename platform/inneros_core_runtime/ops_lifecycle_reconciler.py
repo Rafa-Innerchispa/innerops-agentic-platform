@@ -31,6 +31,40 @@ def reconcile_ops_lifecycle(*, limit: int = 20) -> dict[str, Any]:
             oes.refresh_current_execution_state(task, event="reconcile_projection", actor="lifecycle_reconciler")
             out["actions"].append({"task_id": tid, "action": "refresh_execution_state"})
 
+    # C0: owner auth expired but task still awaits approval → renew + push
+    from inneros_core_runtime import ops_owner_decision_registry as oodr
+
+    for row in mongo_store.get_db()["atlas_ops_owner_decisions"].find(
+        {"status": "expired"},
+        {"_id": 0},
+    ).sort("updated_at", -1).limit(limit):
+        tid = str(row.get("task_id") or row.get("_id") or "")
+        if not tid or ol.is_protected_live_canary(tid):
+            continue
+        task = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0})
+        if not task or not oodr._task_still_needs_owner_auth(task):
+            continue
+        notes = task.get("lifecycle_notifications") or []
+        flag = f"owner_auth_renewed:{tid}:{int(row.get('updated_at') or 0)}"
+        if flag in notes:
+            continue
+        pub = oodr.publish_decision_request(task)
+        if not pub.get("ok"):
+            out["actions"].append({"task_id": tid, "action": "renew_owner_auth", **pub})
+            continue
+        try:
+            from inneros_core_runtime.notifications.ops_task_alerts import notify_ops_owner_authorization_request
+
+            notify_ops_owner_authorization_request(task, force=True)
+        except Exception as exc:
+            out["actions"].append({"task_id": tid, "action": "renew_owner_auth", "notify_error": str(exc)[:200]})
+            continue
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid},
+            {"$addToSet": {"lifecycle_notifications": flag}},
+        )
+        out["actions"].append({"task_id": tid, "action": "renew_owner_auth", "ok": True, "nonce": pub.get("nonce")})
+
     # C: pending temporal completion replay
     for task in db[OPS_TASKS_COL].find(
         {"pending_temporal_completion": {"$exists": True}},

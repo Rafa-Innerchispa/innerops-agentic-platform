@@ -20,7 +20,21 @@ from inneros_core_runtime.coordination_live import OPS_TASKS_COL
 from raphiia_openai import mongo_store
 
 COLLECTION = "atlas_ops_owner_decisions"
-DEFAULT_TTL_SEC = 900
+
+def _default_ttl_sec(task: dict[str, Any] | None = None) -> int:
+    import os
+
+    base = max(300, int(os.getenv("INNEROS_OWNER_AUTH_TTL_SEC", "3600")))
+    if not task:
+        return base
+    pr = str(task.get("priority") or "").strip().lower()
+    title = str(task.get("title") or "").upper()
+    if pr in {"p0", "critical", "owner"} or title.startswith("P0 ") or "OWNER ORDER" in title:
+        return max(base, int(os.getenv("INNEROS_OWNER_AUTH_TTL_P0_SEC", "14400")))
+    return base
+
+
+DEFAULT_TTL_SEC = 3600
 
 TERMINAL_DECISIONS = frozenset({"approved", "cancelled", "expired"})
 
@@ -51,8 +65,10 @@ def _now_epoch() -> float:
     return datetime.now(timezone.utc).timestamp()
 
 
-def _expires_at_epoch(ttl_sec: int | None = None) -> float:
-    sec = max(60, int(ttl_sec if ttl_sec is not None else DEFAULT_TTL_SEC))
+def _expires_at_epoch(ttl_sec: int | None = None, *, task: dict[str, Any] | None = None) -> float:
+    if ttl_sec is None:
+        ttl_sec = _default_ttl_sec(task)
+    sec = max(60, int(ttl_sec))
     return _now_epoch() + sec
 
 
@@ -139,16 +155,17 @@ def publish_decision_request(
         }
     nonce = secrets.token_hex(8)
     now = _now_epoch()
-    row = _atlas_doc(task, scope=scope, nonce=nonce, now=now, expires=_expires_at_epoch(ttl_sec))
+    row = _atlas_doc(task, scope=scope, nonce=nonce, now=now, expires=_expires_at_epoch(ttl_sec, task=task))
     row_set = {k: v for k, v in row.items() if k not in {"_id", "created_at"}}
     col.update_one({"_id": tid}, {"$set": row_set, "$setOnInsert": {"_id": tid, "created_at": now}}, upsert=True)
     return {"ok": True, "task_id": tid, "nonce": nonce}
 
 
 def list_pending_authorizations(limit: int = 20) -> list[dict[str, Any]]:
-    """Pendientes de autorización owner (PWA InnerOS)."""
+    """Pendientes de autorización owner (PWA InnerOS), incl. expiradas sin cerrar tarea."""
     col = _collection()
     now = _now_epoch()
+    lim = max(1, min(int(limit), 50))
     cursor = (
         col.find(
             {
@@ -158,9 +175,26 @@ def list_pending_authorizations(limit: int = 20) -> list[dict[str, Any]]:
             {"_id": 0},
         )
         .sort("created_at", -1)
-        .limit(max(1, min(int(limit), 50)))
+        .limit(lim)
     )
-    return list(cursor)
+    fresh = list(cursor)
+    if len(fresh) >= lim:
+        return fresh
+    stale = list(
+        col.find({"status": "expired"}, {"_id": 0})
+        .sort("updated_at", -1)
+        .limit(lim - len(fresh))
+    )
+    out = [*fresh]
+    for row in stale:
+        tid = str(row.get("task_id") or row.get("_id") or "")
+        if not tid:
+            continue
+        task = mongo_store.get_db()[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0, "status": 1, "owner_authorized_at": 1})
+        if not task or not _task_still_needs_owner_auth(task):
+            continue
+        out.append({**row, "auth_stale": True, "display_status": "auth_expired"})
+    return out[:lim]
 
 
 def close_pending_after_owner_grant(
