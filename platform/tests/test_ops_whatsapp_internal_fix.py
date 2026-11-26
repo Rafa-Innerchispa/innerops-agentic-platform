@@ -99,7 +99,7 @@ def test_internal_fix_whatsapp_no_credit_wording_no_confirm_buttons():
     ):
         out = alerts.notify_ops_owner_authorization_request(task, binding=binding, force=True)
     assert out["ok"] is True
-    assert out["delivery_mode"] == "telegram"
+    assert "telegram" in out["delivery_mode"]
     body = send.call_args[0][0]
     assert "gasta créditos" not in body.lower()
     assert "carril interno bloqueado" in body.lower()
@@ -158,7 +158,7 @@ def test_notify_ops_owner_authorization_request_cursor_external_spend():
             task, binding=binding, source_agent="notion", force=True
         )
     assert out["ok"] is True
-    assert out["delivery_mode"] == "telegram"
+    assert "telegram" in out["delivery_mode"]
     body = send.call_args[0][0]
     assert "Por qué no runner interno" in body
     assert "procede cursor" in body

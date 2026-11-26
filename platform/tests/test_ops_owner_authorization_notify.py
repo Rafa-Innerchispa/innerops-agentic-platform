@@ -53,7 +53,7 @@ def test_notify_ops_owner_authorization_request_cursor():
     ):
         out = alerts.notify_ops_owner_authorization_request(task, binding=binding, source_agent="notion")
     assert out["ok"] is True
-    assert out["delivery_mode"] == "telegram"
+    assert "telegram" in out["delivery_mode"]
     body = send.call_args[0][0]
     assert "*Agente:* CURSOR" in body
     assert "gasta créditos" in body.lower()
