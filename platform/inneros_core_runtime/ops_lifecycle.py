@@ -9,6 +9,7 @@ from inneros_core_runtime.coordination_live import OPS_TASKS_COL
 from raphiia_openai import mongo_store, ralfia_time
 
 TERMINAL = frozenset({"completed", "failed", "blocked", "partial", "cancelled", "superseded", "changes_required"})
+EXECUTION_FAILURE = frozenset({"blocked", "failed", "partial", "changes_required"})
 
 
 def emit_chatgpt_completion_handoff(task: dict[str, Any], *, phase: str = "verification") -> dict[str, Any]:
@@ -147,6 +148,21 @@ def finalize_verification_to_completed(task_id: str, *, actor: str = "chatgpt", 
     }
 
 
+def _candidate_evidence_indicates_failure(evidence: dict[str, Any], agent_result: dict[str, Any]) -> bool:
+    if agent_result.get("blocked") or agent_result.get("failed"):
+        return True
+    tests = evidence.get("test_results") if isinstance(evidence.get("test_results"), dict) else {}
+    if tests.get("ok") is False:
+        return True
+    exit_code = tests.get("exit_code")
+    if exit_code is not None and int(exit_code) != 0:
+        return True
+    notes = str(evidence.get("notes") or "").lower()
+    if any(marker in notes for marker in ("bounded_run_failed", "blocked_reason", "worktree path does not exist")):
+        return True
+    return False
+
+
 def submit_completion_with_temporal_fallback(
     task_id: str,
     *,
@@ -157,13 +173,14 @@ def submit_completion_with_temporal_fallback(
     actor: str,
     signal_name: str,
 ) -> dict[str, Any]:
-    """Signal Temporal; on failure persist pending replay and still advance to verification."""
+    """Signal Temporal; completed → verification gate; failures → terminal Mongo status (fail-closed)."""
     from inneros_core_runtime import durable_coordination_spine
 
+    normalized = (status or "completed").strip().lower()
     now = ralfia_time.now_utc_iso()
     payload = {
         "submitted": True,
-        "status": status,
+        "status": normalized,
         "agent_result": agent_result,
         "evidence": evidence,
         "claim_token": claim_token,
@@ -172,8 +189,70 @@ def submit_completion_with_temporal_fallback(
     }
     temporal = durable_coordination_spine.signal_task_workflow(task_id, signal_name, payload)
     db = mongo_store.get_db()
+    task_before = db[OPS_TASKS_COL].find_one({"task_id": task_id, "claim_token": claim_token}, {"_id": 0}) or {}
+    previous_status = str(task_before.get("status") or "in_progress")
+
+    if normalized in EXECUTION_FAILURE or (
+        normalized == "completed" and _candidate_evidence_indicates_failure(evidence, agent_result)
+    ):
+        terminal = normalized if normalized in EXECUTION_FAILURE else "blocked"
+        from inneros_core_runtime import racb_protocol as racb
+
+        transition = racb.build_transition(
+            current_status=previous_status,
+            target_status=terminal,
+            actor=actor,
+            current_revision=int(task_before.get("revision") or 0),
+            evidence=evidence,
+            allow_legacy_direct=True,
+        )
+        patch: dict[str, Any]
+        if transition.get("ok"):
+            patch = dict(transition.get("patch") or {})
+            inc_rev = False
+        else:
+            patch = {"status": terminal, "updated_at": now, "updated_by": actor}
+            inc_rev = True
+        patch.update(
+            {
+                "executed_at": now,
+                "updated_at": now,
+                "completion_submitted_at": now,
+                "candidate_evidence": evidence,
+                "candidate_agent_result": agent_result,
+                "execution_outcome_requested": normalized,
+            }
+        )
+        if not temporal.get("ok"):
+            patch["pending_temporal_completion"] = {
+                "signal": signal_name,
+                "payload": payload,
+                "error": temporal.get("error"),
+                "at": now,
+            }
+            patch["temporal_completion_sync"] = "pending"
+        else:
+            patch["temporal_completion_sync"] = "ok"
+        update: dict[str, Any] = {"$set": patch}
+        if inc_rev:
+            update["$inc"] = {"revision": 1}
+        db[OPS_TASKS_COL].update_one({"task_id": task_id, "claim_token": claim_token}, update)
+        task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
+        handoff = emit_chatgpt_completion_handoff({**task, "status": terminal}, phase=terminal)
+        emit_owner_terminal_whatsapp(task, previous_status=previous_status)
+        return {
+            "ok": True,
+            "task_id": task_id,
+            "status": terminal,
+            "temporal": temporal,
+            "chatgpt_handoff": handoff,
+            "temporal_deferred": not temporal.get("ok"),
+            "coerced_from": normalized if terminal != normalized else None,
+        }
+
+    mongo_status = "verification" if normalized == "completed" else normalized
     set_fields: dict[str, Any] = {
-        "status": "verification",
+        "status": mongo_status,
         "executed_at": now,
         "updated_at": now,
         "completion_submitted_at": now,
@@ -195,12 +274,11 @@ def submit_completion_with_temporal_fallback(
         {"$set": set_fields, "$inc": {"revision": 1}},
     )
     task = db[OPS_TASKS_COL].find_one({"task_id": task_id}, {"_id": 0}) or {}
-    handoff = emit_chatgpt_completion_handoff({**task, "status": "verification"}, phase="verification")
-    ok = True  # Mongo advanced; Temporal may catch up via reconciler
+    handoff = emit_chatgpt_completion_handoff({**task, "status": mongo_status}, phase=mongo_status)
     return {
-        "ok": ok,
+        "ok": True,
         "task_id": task_id,
-        "status": "verification",
+        "status": mongo_status,
         "temporal": temporal,
         "chatgpt_handoff": handoff,
         "temporal_deferred": not temporal.get("ok"),

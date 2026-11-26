@@ -59,6 +59,37 @@ def reconcile_ops_lifecycle(*, limit: int = 20) -> dict[str, Any]:
                 ol.emit_chatgpt_completion_handoff(task, phase=str(task.get("status")))
                 out["actions"].append({"task_id": tid, "action": "emit_chatgpt_handoff"})
 
+    # B: verification with runner failure evidence → blocked (historical bug: always wrote verification)
+    for task in db[OPS_TASKS_COL].find(
+        {"status": "verification"},
+        {"_id": 0},
+    ).sort("updated_at", -1).limit(limit):
+        tid = str(task.get("task_id") or "")
+        if ol.is_protected_live_canary(tid):
+            continue
+        cand = task.get("candidate_evidence") if isinstance(task.get("candidate_evidence"), dict) else {}
+        agent = task.get("candidate_agent_result") if isinstance(task.get("candidate_agent_result"), dict) else {}
+        if not ol._candidate_evidence_indicates_failure(cand, agent):
+            continue
+        prev = str(task.get("status") or "verification")
+        now = ralfia_time.now_utc_iso()
+        db[OPS_TASKS_COL].update_one(
+            {"task_id": tid, "status": "verification"},
+            {
+                "$set": {
+                    "status": "blocked",
+                    "blocked_at": now,
+                    "updated_at": now,
+                    "lifecycle_repair": "verification_failure_coerced_blocked",
+                },
+                "$inc": {"revision": 1},
+            },
+        )
+        task2 = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
+        ol.emit_owner_terminal_whatsapp({**task2, "status": "blocked"}, previous_status=prev)
+        ol.emit_chatgpt_completion_handoff({**task2, "status": "blocked"}, phase="blocked")
+        out["actions"].append({"task_id": tid, "action": "coerce_verification_to_blocked"})
+
     # A: headless finished but still in_progress
     for task in db[OPS_TASKS_COL].find(
         {"status": "in_progress", "headless_execution_finished_at": {"$exists": True}},

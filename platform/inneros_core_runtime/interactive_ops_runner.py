@@ -642,9 +642,13 @@ def complete_ops_task(
         actor=prov,
         signal_name=completion_signal,
     )
+    out_status = str(
+        submitted.get("status")
+        or ("verification" if normalized == "completed" else normalized)
+    )
     try:
         oes.refresh_current_execution_state(
-            {**task, "status": "verification"},
+            {**task, "status": out_status},
             event=f"{prov}_execution_complete",
             actor=prov,
         )
@@ -653,7 +657,7 @@ def complete_ops_task(
     try:
         from inneros_core_runtime import productivity_metrics as _pm
 
-        _pm.record_task_completion(task, outcome="verification", requested=status)
+        _pm.record_task_completion(task, outcome=out_status, requested=status)
     except Exception:
         pass
     try:
@@ -661,9 +665,14 @@ def complete_ops_task(
         from inneros_core_runtime import ops_execution_node_routing as oenr
 
         task_after = db[OPS_TASKS_COL].find_one({"task_id": tid}, {"_id": 0}) or task
-        out_status = str(task_after.get("status") or normalized)
-        ev_key = "completed" if out_status in ("completed", "done") else "verification"
-        if out_status in ("completed", "done", "verification"):
+        out_status = str(task_after.get("status") or out_status)
+        if out_status in ("completed", "done"):
+            ev_key = "completed"
+        elif out_status in ("blocked", "failed", "changes_required", "partial"):
+            ev_key = out_status
+        else:
+            ev_key = "verification"
+        if out_status in ("completed", "done", "verification", "blocked", "failed", "changes_required", "partial"):
             life.notify_lifecycle(
                 task_after,
                 event=ev_key,
@@ -687,7 +696,7 @@ def complete_ops_task(
     return {
         "ok": True,
         "task_id": tid,
-        "status": "verification",
+        "status": out_status,
         "provider": prov,
         "temporal": submitted.get("temporal"),
         "temporal_deferred": submitted.get("temporal_deferred"),
