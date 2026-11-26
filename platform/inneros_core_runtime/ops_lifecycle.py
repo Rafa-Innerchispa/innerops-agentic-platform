@@ -28,7 +28,7 @@ def emit_chatgpt_completion_handoff(task: dict[str, Any], *, phase: str = "verif
         f"title: {str(task.get('title') or '')[:200]}\n"
         "Use list_ops_tasks / fetch ops evidence for full detail."
     )
-    return spine.create_durable_message(
+    msg = spine.create_durable_message(
         task_id=tid,
         workflow_id=str(task.get("workflow_id") or f"ops_task:{tid}"),
         run_id=str(task.get("run_id") or ""),
@@ -40,6 +40,14 @@ def emit_chatgpt_completion_handoff(task: dict[str, Any], *, phase: str = "verif
         metadata={"handoff": True, "phase": phase, "terminal": phase in TERMINAL},
         idempotency_key=idempotency_key,
     )
+    try:
+        from inneros_core_runtime import ops_coordination_broadcast as ocb
+
+        phase_name = "completed" if str(phase).lower() in TERMINAL else "delivered_for_review"
+        ocb.fanout_ops_phase(task, phase=phase_name, actor=str(task.get("assignee") or "inneros"))
+    except Exception:
+        pass
+    return msg
 
 
 def emit_owner_terminal_whatsapp(task: dict[str, Any], *, previous_status: str = "") -> dict[str, Any]:

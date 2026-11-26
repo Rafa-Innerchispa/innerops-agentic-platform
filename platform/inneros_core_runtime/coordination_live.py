@@ -663,6 +663,12 @@ def create_ops_task(
             "execution_binding": binding_preview,
         },
     )
+    try:
+        from inneros_core_runtime import ops_coordination_broadcast as ocb
+
+        ocb.fanout_ops_phase(doc, phase="created", actor=from_agent)
+    except Exception:
+        pass
     bump_revision(reason=f"create_ops_task: {tid}", source=from_agent)
     return {
         "ok": True,
