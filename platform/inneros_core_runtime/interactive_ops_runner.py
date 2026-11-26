@@ -495,10 +495,6 @@ def claim_ops_task(
                 from inneros_core_runtime import antigravity_headless_dispatch as agd
 
                 headless_spawn = agd.spawn_headless_execute(tid, force_retry=True)
-        except Exception:
-            from inneros_core_runtime import antigravity_headless_dispatch as agd
-
-            headless_spawn = agd.spawn_headless_execute(tid, force_retry=True)
         except Exception as exc:
             headless_spawn = {"ok": False, "error": "antigravity_headless_spawn_failed", "detail": str(exc)[:200]}
     if provider_spawn_attempted:

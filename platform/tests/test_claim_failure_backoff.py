@@ -168,6 +168,14 @@ def test_successful_claim_resets_failure_counter():
         patch("raphiia_openai.mongo_store.get_db", return_value=db),
         patch("inneros_core_runtime.cursor_headless_lanes.should_this_node_run_task",
               return_value=(True, "test")),
+        patch(
+            "inneros_core_runtime.ops_execution_node_routing.should_claim_on_this_node",
+            return_value=(True, "test", "intel"),
+        ),
+        patch(
+            "inneros_core_runtime.ops_execution_node_routing.stamp_routing_on_task",
+            return_value={"ok": True},
+        ),
         patch("inneros_core_runtime.durable_coordination_spine.signal_task_workflow",
               return_value={"ok": True}),
         patch("inneros_core_runtime.ops_execution_state.refresh_current_execution_state"),
