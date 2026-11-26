@@ -363,8 +363,43 @@ def create_ops_task(
     objective: str | None = None,
     verify_tests: list[str] | None = None,
     required_objective_paths: list[str] | None = None,
+    execution_node: str | None = None,
+    payload: dict[str, Any] | None = None,
+    do_not_auto_dispatch: bool | None = None,
 ) -> dict[str, Any]:
     assignee_l = (assignee or "").strip().lower()
+    _ide = {"cursor", "codex", "antigravity", "gemini", "chatgpt"}
+    if assignee_l in _ide or (preferred_provider or "").strip().lower() in _ide:
+        from inneros_core_runtime import coordination_live as icl
+
+        return icl.create_ops_task(
+            assignee=assignee,
+            title=title,
+            checklist=checklist,
+            evidence_required=evidence_required,
+            priority=priority,
+            from_agent=from_agent,
+            correlation_id=correlation_id,
+            project_id=project_id,
+            repo=repo,
+            base_ref=base_ref,
+            work_branch=work_branch,
+            task_class=task_class,
+            execution_lane=execution_lane,
+            provider_transport=provider_transport,
+            runtime_profile=runtime_profile,
+            execution_policy=execution_policy,
+            preferred_provider=preferred_provider,
+            preferred_model=preferred_model,
+            idempotency_key=idempotency_key,
+            source_message_id=source_message_id,
+            conversation_ref=conversation_ref,
+            related_project=related_project,
+            objective=objective,
+            payload=payload,
+            execution_node=execution_node,
+            do_not_auto_dispatch=do_not_auto_dispatch,
+        )
     from inneros_core_runtime import local_model_router
     agent_routing = local_model_router.route_agent_model(assignee_l)
     effective_provider = (preferred_provider or "").strip() or agent_routing.get("provider")

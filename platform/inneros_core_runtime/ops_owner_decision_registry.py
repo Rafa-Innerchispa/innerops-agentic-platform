@@ -24,6 +24,28 @@ DEFAULT_TTL_SEC = 900
 
 TERMINAL_DECISIONS = frozenset({"approved", "cancelled", "expired"})
 
+_AWAITING_AUTH = frozenset(
+    {
+        "awaiting_owner_auth",
+        "awaiting_owner_authorization",
+        "awaiting_owner_approval",
+        "awaiting_authorization",
+        "awaiting_codex_claim",
+        "awaiting_cursor_claim",
+        "awaiting_antigravity_claim",
+        "awaiting_gemini_claim",
+        "awaiting_chatgpt_claim",
+        "awaiting_ide_claim",
+        "queued",
+    }
+)
+
+
+def _task_still_needs_owner_auth(task: dict[str, Any]) -> bool:
+    if task.get("owner_authorized_at") or task.get("owner_approved"):
+        return False
+    return str(task.get("status") or "").lower() in _AWAITING_AUTH
+
 
 def _now_epoch() -> float:
     return datetime.now(timezone.utc).timestamp()
@@ -97,7 +119,10 @@ def publish_decision_request(
     col = _collection()
     existing = col.find_one({"_id": tid}) or col.find_one({"task_id": tid})
     if existing and str(existing.get("status") or "") in TERMINAL_DECISIONS:
-        return {"ok": False, "error": "decision_already_closed", "task_id": tid}
+        if str(existing.get("status") or "") == "expired" and _task_still_needs_owner_auth(task):
+            pass
+        else:
+            return {"ok": False, "error": "decision_already_closed", "task_id": tid}
     if (
         existing
         and str(existing.get("status") or "") in {"awaiting_owner_decision", "pending"}
