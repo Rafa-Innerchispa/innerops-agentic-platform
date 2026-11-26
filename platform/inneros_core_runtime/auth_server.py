@@ -88,17 +88,8 @@ def _scope_for_user(user: dict[str, Any], requested_scope: str) -> str:
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request) -> HTMLResponse:
     """Landing informativa: evita 404 al abrir el issuer en el navegador."""
-    issuer, _resource = resolve_oauth_urls(request.headers.get("host"))
-    body = (
-        "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\">"
-        "<title>InnerOS Unified SSO &amp; OAuth Gateway</title></head><body>"
-        "<h1>InnerOS Unified SSO &amp; OAuth Gateway</h1>"
-        "<p><strong>AUTH OPERATIONAL</strong></p>"
-        f"<p>Issuer: {html.escape(str(issuer))}</p>"
-        "<p>OAuth 2.0 + PKCE S256. Usa un cliente MCP registrado para autorizar.</p>"
-        "</body></html>"
-    )
-    return HTMLResponse(content=body)
+    issuer, resource = resolve_oauth_urls(request.headers.get("host"))
+    return HTMLResponse(_oauth_landing(issuer, resource))
 
 
 @app.get("/health")
@@ -162,49 +153,200 @@ async def register_client(request: Request) -> JSONResponse:
     return JSONResponse(response, status_code=201)
 
 
-def _authorize_form(params: dict[str, str], issuer: str, active_user: str | None = None, error: str | None = None) -> str:
-    hidden = "\n".join(
-        f'<input type="hidden" name="{html.escape(k)}" value="{html.escape(v or "")}">'
-        for k, v in params.items()
-    )
-    error_html = f'<p class="error">{html.escape(error)}</p>' if error else ""
-    client = html.escape(params.get("client_id", ""))
-    logged_in_banner = f'<div class="sso-banner">Conectado como <strong>{html.escape(active_user)}</strong></div>' if active_user else ""
+def _oauth_styles() -> str:
+    return """
+    :root {
+      --bg: #030712;
+      --card: rgba(15, 23, 42, 0.72);
+      --stroke: rgba(148, 163, 184, 0.22);
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --accent2: #a78bfa;
+      --ok: #4ade80;
+      --bad: #f87171;
+    }
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--text);
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(34, 211, 238, 0.18), transparent),
+      radial-gradient(ellipse 60% 45% at 100% 0%, rgba(167, 139, 250, 0.14), transparent),
+      radial-gradient(ellipse 50% 40% at 50% 100%, rgba(14, 165, 233, 0.08), transparent);
+    font-family: inherit;
+  }
+  .page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; box-sizing: border-box; }
+  .card {
+    width: 100%;
+    max-width: 440px;
+    padding: 2rem 1.75rem 1.75rem;
+    border-radius: 20px;
+    border: 1px solid var(--stroke);
+    background: var(--card);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .mark { width: 52px; height: 52px; margin: 0 auto 1rem; border-radius: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: grid; place-items: center; font-weight: 800; font-size: 1.1rem; letter-spacing: -0.04em; color: #0f172a;
+    box-shadow: 0 8px 32px rgba(34, 211, 238, 0.35);
+  }
+  h1 { margin: 0; text-align: center; font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; }
+  .tagline { text-align: center; color: var(--muted); font-size: 0.88rem; line-height: 1.45; margin: 0.5rem 0 1.25rem; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; margin-bottom: 1.25rem; }
+  .pill { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 0.28rem 0.55rem; border-radius: 999px; border: 1px solid var(--stroke); color: #cbd5e1; background: rgba(2, 6, 23, 0.5); }
+  .pill.live { border-color: rgba(74, 222, 128, 0.35); color: var(--ok); }
+  .client-box {
+    padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid var(--stroke);
+    background: rgba(2, 6, 23, 0.55); margin-bottom: 1rem; font-size: 0.82rem; line-height: 1.4;
+  }
+  .client-box strong { color: var(--accent); font-weight: 600; word-break: break-all; }
+  .scopes { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+  .scope-chip { font-size: 0.72rem; padding: 0.2rem 0.45rem; border-radius: 6px; background: #1e293b; color: #bae6fd; }
+  .sso-banner {
+    padding: 0.75rem 1rem; border-radius: 12px; margin-bottom: 1rem; text-align: center; font-size: 0.88rem;
+    border: 1px solid rgba(34, 211, 238, 0.35); background: rgba(8, 47, 73, 0.45); color: #a5f3fc;
+  }
+  label { display: block; margin: 0.9rem 0 0.35rem; font-size: 0.8rem; font-weight: 600; color: #cbd5e1; }
+  input[type="text"], input[type="password"] {
+    width: 100%; box-sizing: border-box; padding: 0.72rem 0.9rem; border-radius: 10px;
+    border: 1px solid var(--stroke); background: rgba(2, 6, 23, 0.7); color: var(--text); font-size: 1rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2); }
+  button[type="submit"] {
+    width: 100%; margin-top: 1.35rem; padding: 0.85rem 1rem; border: none; border-radius: 12px; cursor: pointer;
+    font-weight: 700; font-size: 0.95rem; color: #0f172a;
+    background: linear-gradient(135deg, #22d3ee, #38bdf8 45%, #a78bfa);
+    box-shadow: 0 10px 40px rgba(34, 211, 238, 0.25);
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+  button[type="submit"]:hover { transform: translateY(-1px); box-shadow: 0 14px 48px rgba(34, 211, 238, 0.32); }
+  .error {
+    color: var(--bad); font-size: 0.85rem; margin-bottom: 1rem; padding: 0.65rem 0.85rem; border-radius: 10px;
+    background: rgba(127, 29, 29, 0.35); border: 1px solid rgba(248, 113, 113, 0.35);
+  }
+  footer { margin-top: 1.25rem; text-align: center; font-size: 0.72rem; color: #64748b; line-height: 1.5; }
+  footer a { color: var(--muted); text-decoration: none; }
+  .landing-links { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; }
+  .landing-links a { color: var(--accent); text-decoration: none; }
+"""
+
+
+def _scope_chips(scope: str) -> str:
+    parts = [s.strip() for s in (scope or "").split() if s.strip()]
+    if not parts:
+        return ""
+    chips = "".join(f'<span class="scope-chip">{html.escape(p)}</span>' for p in parts[:8])
+    more = f'<span class="scope-chip">+{len(parts) - 8}</span>' if len(parts) > 8 else ""
+    return f'<div class="scopes">{chips}{more}</div>'
+
+
+def _oauth_landing(issuer: str, resource: str) -> str:
+    iss = html.escape(issuer)
+    res = html.escape(resource or "")
     return f"""<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>InnerOS Unified SSO</title>
-  <style>
-    body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f172a; color: #e5e7eb; }}
-    main {{ max-width: 440px; margin: 8vh auto; padding: 32px; background: #111827; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }}
-    h1 {{ font-size: 1.4rem; margin-bottom: 0.5rem; text-align: center; color: #38bdf8; }}
-    .muted {{ color: #94a3b8; font-size: 0.88rem; margin-bottom: 1.25rem; text-align: center; }}
-    .sso-banner {{ background: #1e293b; border: 1px solid #0284c7; padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; text-align: center; color: #bae6fd; }}
-    label {{ display: block; margin: 12px 0 4px; font-size: 0.88rem; font-weight: 500; }}
-    input {{ width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; font-size: 0.95rem; }}
-    input:focus {{ outline: none; border-color: #38bdf8; }}
-    button {{ width: 100%; margin-top: 20px; padding: 12px; border-radius: 6px; border: none; background: #2563eb; color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; }}
-    button:hover {{ background: #1d4ed8; }}
-    .error {{ color: #f87171; font-size: 0.85rem; margin-bottom: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 4px; }}
-  </style>
+  <meta name="theme-color" content="#030712">
+  <title>InnerOS · OAuth Gateway</title>
+  <style>{_oauth_styles()}</style>
 </head>
 <body>
-  <main>
-    <h1>InnerOS Unified SSO</h1>
-    <p class="muted">Aplicación: <strong>{client}</strong></p>
-    {logged_in_banner}
-    {error_html}
-    <form method="post" action="{html.escape(issuer)}/authorize">
-      {hidden}
-      <label for="username">Usuario</label>
-      <input id="username" name="username" autocomplete="username" value="{html.escape(active_user or "")}" required>
-      <label for="password">Contraseña</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required>
-      <button type="submit">Iniciar Sesión y Autorizar</button>
-    </form>
-  </main>
+  <div class="page">
+    <div class="card">
+      <div class="mark">IO</div>
+      <h1>InnerOS Unified SSO</h1>
+      <p class="tagline">Puerta de autorización OAuth para MCP, ChatGPT y agentes coordinados en tu red.</p>
+      <div class="pill-row">
+        <span class="pill live">Auth operational</span>
+        <span class="pill">OAuth 2.0</span>
+        <span class="pill">PKCE S256</span>
+        <span class="pill">Local-first</span>
+      </div>
+      <div class="client-box">
+        <div>Issuer</div>
+        <strong>{iss}</strong>
+        {"<div style='margin-top:0.75rem'>Recurso MCP</div><strong>" + res + "</strong>" if res else ""}
+      </div>
+      <p class="tagline">Abre tu cliente (p. ej. ChatGPT → Conectores MCP) para iniciar el flujo en <code>/authorize</code>.</p>
+      <div class="landing-links">
+        <a href="{iss}/.well-known/oauth-authorization-server">Metadata del servidor</a>
+        <a href="{iss}/health">Health</a>
+      </div>
+      <footer>PCDoctor · InnerChispa · Intel + AMD</footer>
+    </div>
+  </div>
+</body>
+</html>"""
+
+
+def _authorize_form(params: dict[str, str], issuer: str, active_user: str | None = None, error: str | None = None) -> str:
+    hidden = "\n".join(
+        f'<input type="hidden" name="{html.escape(k)}" value="{html.escape(v or "")}">'
+        for k, v in params.items()
+    )
+    error_html = f'<div class="error" role="alert">{html.escape(error)}</div>' if error else ""
+    client = html.escape(params.get("client_id", ""))
+    scope_html = _scope_chips(params.get("scope", ""))
+    resource = html.escape((params.get("resource") or "").strip())
+    resource_block = (
+        f"<div style='margin-top:0.6rem;color:var(--muted);font-size:0.75rem'>Recurso MCP</div>"
+        f"<strong style='font-size:0.8rem'>{resource}</strong>"
+        if resource
+        else ""
+    )
+    logged_in_banner = (
+        f'<div class="sso-banner">Sesión activa · <strong>{html.escape(active_user)}</strong></div>'
+        if active_user
+        else ""
+    )
+    return f"""<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#030712">
+  <meta name="color-scheme" content="dark">
+  <title>InnerOS Unified SSO</title>
+  <style>{_oauth_styles()}</style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="mark">IO</div>
+      <h1>InnerOS Unified SSO</h1>
+      <p class="tagline">Autoriza el acceso MCP de forma segura. Tus credenciales no salen de este servidor.</p>
+      <div class="pill-row">
+        <span class="pill live">Conexión cifrada</span>
+        <span class="pill">PKCE</span>
+        <span class="pill">ralfia scopes</span>
+      </div>
+      <div class="client-box">
+        <div style="color:var(--muted);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em">Aplicación cliente</div>
+        <strong>{client}</strong>
+        {resource_block}
+        {scope_html}
+      </div>
+      {logged_in_banner}
+      {error_html}
+      <form method="post" action="{html.escape(issuer)}/authorize">
+        {hidden}
+        <label for="username">Usuario</label>
+        <input id="username" name="username" autocomplete="username" value="{html.escape(active_user or "")}" required>
+        <label for="password">Contraseña</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit">Iniciar sesión y autorizar MCP</button>
+      </form>
+      <footer>InnerOS · mcp.pcdoctor.ai · Coordinación RalfIA</footer>
+    </div>
+  </div>
 </body>
 </html>"""
 
