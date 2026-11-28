@@ -31,10 +31,13 @@ RSYNC_EX=(
   --exclude .git/
   --exclude data/
 )
-echo "FLEET_RSYNC → ${AMD}:${PLATFORM}"
-rsync -az "${RSYNC_EX[@]}" "$PLATFORM/" "${AMD}:${PLATFORM}/"
-
-ssh -o BatchMode=yes "$AMD" "printf '%s\n' '$HEAD' > '${PLATFORM}/.runtime_git_sha'"
+if ssh -o BatchMode=yes -o ConnectTimeout=8 "$AMD" "exit 0" 2>/dev/null; then
+  echo "FLEET_RSYNC → ${AMD}:${PLATFORM}"
+  rsync -az "${RSYNC_EX[@]}" "$PLATFORM/" "${AMD}:${PLATFORM}/"
+  ssh -o BatchMode=yes "$AMD" "printf '%s\n' '$HEAD' > '${PLATFORM}/.runtime_git_sha'"
+else
+  echo "FLEET_AMD_SKIP peer unreachable (Intel-only degrade mode; runtime SHA still pinned on Intel)"
+fi
 
 if [[ "$RUN_MIRROR" == "1" ]]; then
   export INNEROS_NODE_ROLE="$ROLE"
@@ -46,7 +49,9 @@ else
   systemctl --user enable --now inneros-telegram-ops-poll.service 2>/dev/null || true
   systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service 2>/dev/null \
     || systemctl --user restart ralfia-mcp.service 2>/dev/null || true
-  ssh -o BatchMode=yes "$AMD" "export INNEROS_NODE_ROLE=amd; cd '$PLATFORM' && ./scripts/ensure_systemd_user_units.sh && ./scripts/apply_canonical_temporal_worker.sh && systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service 2>/dev/null || systemctl --user restart ralfia-mcp.service 2>/dev/null || true"
+  if ssh -o BatchMode=yes -o ConnectTimeout=8 "$AMD" "exit 0" 2>/dev/null; then
+    ssh -o BatchMode=yes "$AMD" "export INNEROS_NODE_ROLE=amd; cd '$PLATFORM' && ./scripts/ensure_systemd_user_units.sh && ./scripts/apply_canonical_temporal_worker.sh && systemctl --user restart ralfia-mcp-profile@chatgpt_compact.service 2>/dev/null || systemctl --user restart ralfia-mcp.service 2>/dev/null || true"
+  fi
 fi
 
 echo "FLEET_SYNC_OK SHA=$HEAD"

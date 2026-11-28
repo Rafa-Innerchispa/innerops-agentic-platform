@@ -272,6 +272,17 @@ def get_coordination_live() -> dict[str, Any]:
         for m in all_msgs if m.get("status") in ["open", "unread", "pending", "delivered"]
     ]
 
+    cluster_deg: dict = {}
+    try:
+        from inneros_core_runtime import ops_peer_degradation as opd
+
+        row = mongo_store.get_coordination_state(opd.COORD_KEY)
+        cluster_deg = (row.get("state") or {}) if row.get("ok") else {}
+        if not cluster_deg.get("mode"):
+            cluster_deg = opd.degradation_snapshot()
+    except Exception as exc:
+        cluster_deg = {"error": str(exc)[:160]}
+
     return {
         "ok": True,
         "revision": rev,
@@ -284,6 +295,7 @@ def get_coordination_live() -> dict[str, Any]:
         "open_ops_count": len(active_tasks) + len(waiting_or_blocked) + len(in_verification),
         "agent_acks": acks,
         "current_priority": st.get("current_priority"),
+        "cluster_degradation": cluster_deg,
         # Consolidated 11 Projection Sections
         "projections": {
             "active_tasks": active_tasks,

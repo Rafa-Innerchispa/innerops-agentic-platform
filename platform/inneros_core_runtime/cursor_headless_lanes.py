@@ -141,6 +141,13 @@ def should_this_node_run_task(task: dict[str, Any]) -> tuple[bool, str]:
     here = node_role()
     if pref and pref != here:
         if _fail_closed_node(task):
+            try:
+                from inneros_core_runtime import ops_peer_degradation as opd
+
+                if opd.fail_closed_relaxed(task):
+                    return True, "degraded_intel_steering"
+            except Exception:
+                pass
             return False, f"fail_closed_required_node:{pref}"
         if peer_is_alive():
             return False, f"preferred_peer_alive:{pref}"
