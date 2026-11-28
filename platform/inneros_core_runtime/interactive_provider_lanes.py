@@ -75,6 +75,14 @@ def should_this_node_run_task(provider: str, task: dict[str, Any]) -> tuple[bool
     here = node_role()
     if pref and pref != here and peer_is_alive(prov):
         return False, f"preferred_peer_alive:{pref}"
+    if pref and pref != here and not peer_is_alive(prov):
+        try:
+            from inneros_core_runtime import ops_peer_degradation as opd
+
+            if opd.fail_closed_relaxed(task):
+                return True, "degraded_intel_steering"
+        except Exception:
+            pass
     return True, "local_ok"
 
 

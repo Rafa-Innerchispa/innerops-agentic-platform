@@ -168,9 +168,18 @@ def _fail_closed_node(task: dict[str, Any]) -> bool:
 
 def should_claim_on_this_node(task: dict[str, Any], provider: str) -> tuple[bool, str, str]:
     """(allowed, reason, target_node) — si no, el peer debe reclamar."""
-    target, _ = resolve_target_node(task, provider)
+    target, route_reason = resolve_target_node(task, provider)
     prov = (provider or "").strip().lower()
     here = chl.node_role()
+    if target != here:
+        try:
+            from inneros_core_runtime import ops_peer_degradation as opd
+
+            if opd.allow_intel_steering(task):
+                target = here
+                route_reason = "degraded_intel_steering"
+        except Exception:
+            pass
     if target != here:
         return False, f"target_node:{target}≠{here}", target
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}

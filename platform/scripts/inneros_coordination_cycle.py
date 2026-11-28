@@ -77,6 +77,13 @@ def main() -> int:
             )
         except Exception as exc:
             email_align = {"ok": False, "error": str(exc)[:200]}
+    peer_degrade = {}
+    try:
+        from inneros_core_runtime import ops_peer_degradation as opd
+
+        peer_degrade = opd.reconcile_amd_tasks_to_intel(limit=int(os.getenv("INNEROS_DEGRADATION_STEER_LIMIT", "40")))
+    except Exception as exc:
+        peer_degrade = {"ok": False, "error": str(exc)[:200]}
     lane_reconcile = {}
     if os.getenv("INNEROS_OPS_LANE_RECONCILE", "1").strip().lower() in {"1", "true", "yes"}:
         try:
@@ -97,6 +104,7 @@ def main() -> int:
         "notion_coordination_poll": notion_poll,
         "email_ops_alignment": email_align,
         "provider_lane_reconcile": lane_reconcile,
+        "peer_degradation": peer_degrade,
     }
     out = Path(os.environ["INNEROS_CORE_ROOT"]) / "var" / "inneros_autopilot" / "last-coordination-cycle.json"
     out.parent.mkdir(parents=True, exist_ok=True)
