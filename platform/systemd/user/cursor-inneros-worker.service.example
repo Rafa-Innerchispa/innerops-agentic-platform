@@ -1,0 +1,15 @@
+[Unit]
+Description=Cursor My Machines worker (InnerOS @WORKER_NAME@, role=@INNEROS_NODE_ROLE@)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=15
+# Requires prior: agent login OR --api-key-file (chmod 600). Do not commit secrets.
+ExecStart=/bin/bash -lc 'exec agent worker start --name @WORKER_NAME@'
+Environment=HOME=%h
+
+[Install]
+WantedBy=default.target
