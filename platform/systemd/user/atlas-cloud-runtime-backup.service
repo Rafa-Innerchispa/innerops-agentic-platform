@@ -1,0 +1,11 @@
+[Unit]
+Description=Encrypted cloud runtime backup to existing Google Drive storage
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/rlopez/inneros/inneros_core/platform/venv/bin/python3 /home/rlopez/inneros/inneros_core/platform/scripts/atlas_cloud_runtime_backup.py
+UMask=0077
+NoNewPrivileges=yes
+TimeoutStartSec=600
+EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env

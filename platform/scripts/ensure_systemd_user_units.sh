@@ -12,7 +12,8 @@ for u in \
   inneros-mongo-coordination-backup.service \
   inneros-mongo-coordination-backup.timer \
   inneros-mongo-full-backup.service \
-  inneros-mongo-full-backup.timer; do
+  inneros-mongo-full-backup.timer \
+  atlas-cloud-runtime-backup.service; do
   src="$ROOT/systemd/user/$u"
   [[ -f "$src" ]] || continue
   install -m 0644 "$src" "$DEST/$u"
