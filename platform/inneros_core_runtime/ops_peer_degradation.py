@@ -19,12 +19,38 @@ def auto_steer_enabled() -> bool:
     return _env_truthy("INNEROS_INTEL_DEGRADATION_AUTO_STEER", "1")
 
 
+def _ssh_peer_up(host: str = "192.168.1.5", user: str = "rlopez") -> bool:
+    import subprocess
+
+    try:
+        probe = subprocess.run(
+            [
+                "ssh",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=5",
+                f"{user}@{host}",
+                "exit",
+                "0",
+            ],
+            capture_output=True,
+            timeout=8,
+        )
+        return probe.returncode == 0
+    except Exception:
+        return False
+
+
 def peer_alive(role: str, *, ttl_seconds: int = 300) -> bool:
     role = (role or "").strip().lower()
     if role == "amd":
         from inneros_core_runtime import cursor_headless_lanes as chl
 
-        return chl.peer_is_alive(ttl_seconds=ttl_seconds)
+        if chl.peer_is_alive(ttl_seconds=ttl_seconds):
+            return True
+        # After power loss AMD may be up before HA liveness timer is installed.
+        return _ssh_peer_up()
     if role == "intel":
         from inneros_core_runtime import cursor_headless_lanes as chl
 

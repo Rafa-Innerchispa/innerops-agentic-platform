@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly full InnerOS Mongo backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=300s
+
+[Install]
+WantedBy=timers.target

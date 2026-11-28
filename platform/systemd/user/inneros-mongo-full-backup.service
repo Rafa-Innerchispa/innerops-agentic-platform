@@ -1,0 +1,12 @@
+[Unit]
+Description=InnerOS full Mongo dump (pcdoctor_swarm) to disk + Google Drive (nightly)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=INNEROS_NODE_ROLE=intel
+Environment=INNEROS_MONGO_BACKUP_MODE=full
+EnvironmentFile=-/home/rlopez/inneros/inneros_core/platform/.env
+ExecStart=/home/rlopez/inneros/inneros_core/platform/scripts/inneros_mongo_coordination_backup.sh
+TimeoutStartSec=7200
