@@ -68,6 +68,28 @@ def degradation_snapshot(*, ttl_seconds: int = 300) -> dict[str, Any]:
     return snap
 
 
+def task_explicit_amd_only(task: dict[str, Any]) -> bool:
+    """Owner text that forbids Intel failover (e.g. MSP node proof on 192.168.1.5)."""
+    blob = " ".join(
+        [
+            str(task.get("objective") or ""),
+            str(task.get("title") or ""),
+            str((task.get("payload") or {}).get("verify_command") or ""),
+        ]
+    ).lower()
+    markers = (
+        "solamente amd",
+        "solo amd",
+        "only amd",
+        "nunca intel",
+        "never intel",
+        "host_mismatch",
+        "192.168.1.5",
+        "ralfiia-amd",
+    )
+    return any(m in blob for m in markers)
+
+
 def task_requires_amd_gpu(task: dict[str, Any]) -> bool:
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     if payload.get("requires_amd_gpu") is True:
@@ -115,7 +137,7 @@ def degradation_active_local(*, ttl_seconds: int = 300) -> bool:
 def allow_intel_steering(task: dict[str, Any]) -> bool:
     if not degradation_active_local():
         return False
-    if task_requires_amd_gpu(task):
+    if task_requires_amd_gpu(task) or task_explicit_amd_only(task):
         return False
     from inneros_core_runtime import cursor_headless_lanes as chl
 
@@ -136,6 +158,8 @@ def steer_task_to_intel(task: dict[str, Any], *, actor: str = "peer_degradation"
         return {"ok": False, "error": "task_id_required"}
     if task_requires_amd_gpu(task):
         return {"ok": False, "error": "amd_gpu_required", "task_id": tid}
+    if task_explicit_amd_only(task):
+        return {"ok": False, "error": "amd_explicit_only", "task_id": tid}
     payload = dict(task.get("payload") or {})
     payload.update(
         {
@@ -177,6 +201,7 @@ def reconcile_amd_tasks_to_intel(*, limit: int = 40) -> dict[str, Any]:
         "awaiting_owner_authorization",
         "claimed",
         "in_progress",
+        "blocked",
     }
     db = mongo_store.get_db()
     moved: list[dict[str, Any]] = []
@@ -200,6 +225,9 @@ def reconcile_amd_tasks_to_intel(*, limit: int = 40) -> dict[str, Any]:
         tid = str(task.get("task_id") or "")
         if task_requires_amd_gpu(task):
             blocked.append({"task_id": tid, "reason": "amd_gpu_required"})
+            continue
+        if task_explicit_amd_only(task):
+            blocked.append({"task_id": tid, "reason": "amd_explicit_only"})
             continue
         if str(task.get("target_execution_node") or "").lower() == "intel":
             continue
